@@ -1,0 +1,130 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 22% 96%;
+    --foreground: 235 31% 17%;
+    --card: 0 0% 100%;
+    --card-foreground: 235 31% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 235 31% 17%;
+    --primary: 249 58% 42%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 244 33% 93%;
+    --secondary-foreground: 247 43% 31%;
+    --muted: 238 20% 93%;
+    --muted-foreground: 232 13% 48%;
+    --accent: 35 87% 58%;
+    --accent-foreground: 235 31% 17%;
+    --destructive: 3 64% 49%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 231 20% 88%;
+    --input: 231 20% 83%;
+    --ring: 249 58% 55%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.65rem;
+    --font-heading: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Instrument Serif', Georgia, serif;
+    --font-mono: 'DM Mono', ui-monospace, monospace;
+    --sidebar-background: 246 43% 19%;
+    --sidebar-foreground: 244 33% 93%;
+    --sidebar-primary: 35 87% 58%;
+    --sidebar-primary-foreground: 235 31% 17%;
+    --sidebar-accent: 246 37% 26%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 245 28% 29%;
+    --sidebar-ring: 249 58% 55%;
+  }
+
+  .dark {
+    --background: 245 25% 10%;
+    --foreground: 241 29% 92%;
+    --card: 245 22% 14%;
+    --card-foreground: 241 29% 92%;
+    --popover: 245 22% 15%;
+    --popover-foreground: 241 29% 92%;
+    --primary: 249 75% 73%;
+    --primary-foreground: 247 43% 17%;
+    --secondary: 246 25% 22%;
+    --secondary-foreground: 242 31% 90%;
+    --muted: 244 20% 19%;
+    --muted-foreground: 242 15% 67%;
+    --accent: 35 90% 62%;
+    --accent-foreground: 245 25% 10%;
+    --destructive: 3 72% 62%;
+    --destructive-foreground: 245 25% 10%;
+    --border: 243 18% 22%;
+    --input: 243 20% 28%;
+    --ring: 249 70% 68%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 245 31% 8%;
+    --sidebar-foreground: 241 29% 92%;
+    --sidebar-primary: 35 90% 62%;
+    --sidebar-primary-foreground: 245 25% 10%;
+    --sidebar-accent: 247 25% 15%;
+    --sidebar-accent-foreground: 241 29% 92%;
+    --sidebar-border: 243 18% 19%;
+    --sidebar-ring: 249 70% 68%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+    min-width: 320px;
+  }
+
+  button { cursor: pointer; }
+  input, textarea, select { outline: none; }
+}
+
+@layer utilities {
+  .font-mono-ui { font-family: var(--font-mono); }
+  .text-balance { text-wrap: balance; }
+  .paper-grid {
+    background-image: linear-gradient(hsl(245 20% 90% / .42) 1px, transparent 1px), linear-gradient(90deg, hsl(245 20% 90% / .42) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  .app-shell { min-height: 100dvh; }
+  .fade-up { animation: fade-up .45s cubic-bezier(.22,1,.36,1) both; }
+  .fade-up-delay-1 { animation-delay: .06s; }
+  .fade-up-delay-2 { animation-delay: .12s; }
+  .fade-up-delay-3 { animation-delay: .18s; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media print {
+  @page { size: A4; margin: 0; }
+  html, body { background: #fff !important; }
+  body { margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .no-print, .app-chrome { display: none !important; }
+  .print-invoice { display: block !important; width: 210mm !important; min-height: 297mm !important; margin: 0 !important; box-shadow: none !important; }
+}
+
+/* Push44 – Permanently hide Base44 branding badge */
+#base44-edit-badge, #base44-badge, .base44-badge, div[id*='base44'], [data-base44-badge], .made-with-base44, [class*='base44'], #admin-footer {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

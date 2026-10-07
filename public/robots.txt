@@ -1,0 +1,41 @@
+# Allow all search engines and AI web crawlers to crawl and index public routes.
+User-agent: *
+Allow: /
+Allow: /about
+Allow: /pricing
+Disallow: /invoice-builder
+Disallow: /dashboard
+Disallow: /invoice-history
+Disallow: /business-profile
+Disallow: /client-database
+Disallow: /usage-reports
+Disallow: /settings
+Disallow: /templates
+Disallow: /payment-logs
+Disallow: /tax-summary
+Disallow: /help-center
+Disallow: /account-activity
+Disallow: /service-catalog
+Disallow: /team-management
+
+User-agent: GPTBot
+Allow: /
+Allow: /about
+Allow: /pricing
+
+User-agent: ClaudeBot
+Allow: /
+Allow: /about
+Allow: /pricing
+
+User-agent: PerplexityBot
+Allow: /
+Allow: /about
+Allow: /pricing
+
+User-agent: Googlebot
+Allow: /
+Allow: /about
+Allow: /pricing
+
+Sitemap: https://plivex.base44.app/sitemap.xml

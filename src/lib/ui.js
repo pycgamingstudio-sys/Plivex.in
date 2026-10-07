@@ -1,0 +1,3 @@
+export const inputCls = "mt-1.5 w-full rounded-lg border bg-card px-3 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/10";
+export const btnPrimary = "inline-flex items-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-[12px] font-bold text-primary-foreground transition-transform hover:-translate-y-0.5";
+export const btnGhost = "inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-[12px] font-semibold hover:bg-secondary";
