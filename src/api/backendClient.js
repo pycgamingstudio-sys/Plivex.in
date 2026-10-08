@@ -67,7 +67,7 @@ const adapters = {
     response: (data, payload) => ({
       ...data,
       sentTo: payload?.to,
-      warning: data.emailSent ? undefined : 'Invite email is not enabled yet. Please share this invite code with the member yourself.',
+      warning: data.emailSent ? undefined : 'The invite email could not be sent. Please share this invite code with the member yourself.',
     }),
   },
   getWorkspaceTeam: {
@@ -93,9 +93,7 @@ const adapters = {
 };
 
 // Features whose backend is not built yet. They fail with a clear message instead of a crash.
-const NOT_READY = {
-  sendPaymentReminder: 'Payment reminder emails are not available yet.',
-};
+const NOT_READY = {};
 
 const functions = {
   async invoke(name, payload = {}) {
