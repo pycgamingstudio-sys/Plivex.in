@@ -1,4 +1,5 @@
 import React from "react";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 export default function AuthLayout({ icon: Icon, title, subtitle, footer, children }) {
   return (
@@ -17,6 +18,10 @@ export default function AuthLayout({ icon: Icon, title, subtitle, footer, childr
         {footer && (
           <p className="text-center text-sm text-muted-foreground mt-6">{footer}</p>
         )}
+        <div className="mt-6 flex flex-col items-center gap-2">
+          <p className="text-xs text-muted-foreground">Available in Hindi and English <span className="notranslate">· हिंदी · English</span></p>
+          <LanguageSwitcher />
+        </div>
       </div>
     </div>
   );

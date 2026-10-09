@@ -38,14 +38,14 @@ const PILLARS = [
     icon: ShieldCheck, title: "AI-First Infrastructure & Security", tone: "from-[#0D9488] to-[#14B8A6]",
     features: [
       "Isolated workspace security", "Role-based access control", "Encrypted cloud backups",
-      "99.9% uptime SLA", "Per-tenant data separation", "Audit activity logs", "Secure OTP auth", "Workspace ID isolation",
+      "Owner-controlled permissions", "Per-tenant data separation", "Audit activity logs", "Secure email login", "Workspace ID isolation",
     ],
   },
   {
     icon: Plug, title: "Usability & Integrations", tone: "from-[#DB2777] to-[#EC4899]",
     features: [
-      "Mobile responsive PWA", "Bulk PDF export", "REST API ready", "PayU & Stripe webhooks",
-      "Email SMTP integration", "Real-time presence sync", "Multi-user team access", "Custom branding & logos",
+      "Mobile responsive PWA", "Bulk PDF export", "REST API ready", "PayU payments",
+      "Cancel & track invoices", "Available in Hindi and English", "Multi-user team access", "Custom branding & logos",
     ],
   },
 ];
@@ -53,7 +53,7 @@ const PILLARS = [
 const STATS = [
   { value: "50+", label: "Enterprise features" },
   { value: "6", label: "Core pillars" },
-  { value: "99.9%", label: "Uptime SLA" },
+  { value: "2", label: "Languages · हिंदी, English" },
   { value: "<2 min", label: "First invoice" },
 ];
 

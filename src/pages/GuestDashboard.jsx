@@ -1,3 +1,4 @@
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FileText, Package, Users, FileCheck2, Settings, TrendingUp, CheckCircle2, Clock, Sparkles, LogIn, Boxes } from "lucide-react";
@@ -59,6 +60,7 @@ export default function GuestDashboard() {
             <div><p className="text-[15px] font-bold tracking-[-0.03em]">Plivex</p><p className="text-[10px] text-slate-400">Smart Invoicing &amp; Business OS</p></div>
           </div>
           <div className="flex items-center gap-2">
+            <LanguageSwitcher className="hidden sm:inline-flex" />
             <span className="hidden rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-700 sm:inline">Live demo preview</span>
             <button onClick={() => setAuthAction("")} className="rounded-xl border border-[#E5E7EB] px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50">Sign in</button>
             <Link to="/register" className="rounded-xl bg-[#6D28D9] px-3 py-2 text-[11px] font-bold text-white hover:bg-[#7C3AED]">Get started free</Link>

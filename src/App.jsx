@@ -1,6 +1,8 @@
 import { Toaster } from "@/components/ui/toaster"
 import { useToast } from "@/components/ui/use-toast"
 import { useEffect } from "react"
+import LanguagePrompt from "@/components/LanguagePrompt"
+import { startTranslator } from "@/lib/i18n"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
@@ -117,6 +119,7 @@ function SyncErrorListener() {
 }
 
 function App() {
+  useEffect(() => { startTranslator(); }, []);
 
   return (
     <AuthProvider>
@@ -130,6 +133,7 @@ function App() {
           </WorkspaceTeamProvider>
           <Toaster />
           <SyncErrorListener />
+          <LanguagePrompt />
         </QueryClientProvider>
       </PaywallProvider>
     </AuthProvider>

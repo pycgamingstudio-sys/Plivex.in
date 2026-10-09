@@ -1,3 +1,4 @@
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { backend as db } from '@/api/backendClient';
 
 import { useEffect, useState } from "react";
@@ -25,6 +26,11 @@ export default function Settings() {
         <p className="flex items-center gap-1.5 text-[11px] text-emerald-600"><Check className="h-3.5 w-3.5" />Saved automatically</p>
       </div>
       <div className="mt-4"><DataImportExport /></div>
+      <div className="mt-4 rounded-2xl border border-border bg-card p-4">
+        <p className="text-sm font-semibold text-foreground">Language</p>
+        <p className="mb-3 mt-1 text-xs text-muted-foreground">Choose the language of the app. You can change it any time in Settings.</p>
+        <LanguageSwitcher />
+      </div>
       <div className="mt-4"><EmailSettingsCard /></div>
     </PageShell>
   );
