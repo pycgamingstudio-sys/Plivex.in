@@ -23,7 +23,7 @@ export default function HelpCenter() {
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <a href="tel:9758455218" className="flex items-center gap-3 rounded-xl border bg-card p-4 hover:bg-secondary"><span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Phone className="h-5 w-5" /></span><div><p className="text-[11px] text-muted-foreground">Call support</p><p className="text-[14px] font-bold">9758455218</p></div></a>
-        <a href="mailto:plivex.helps@gmail.com" className="flex items-center gap-3 rounded-xl border bg-card p-4 hover:bg-secondary"><span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/15 text-primary"><Mail className="h-5 w-5" /></span><div><p className="text-[11px] text-muted-foreground">Email support</p><p className="text-[14px] font-bold">plivex.helps@gmail.com</p></div></a>
+        <a href="mailto:support@plivex.in" className="flex items-center gap-3 rounded-xl border bg-card p-4 hover:bg-secondary"><span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/15 text-primary"><Mail className="h-5 w-5" /></span><div><p className="text-[11px] text-muted-foreground">Email support</p><p className="text-[14px] font-bold">support@plivex.in</p></div></a>
       </div>
     </PageShell>
   );

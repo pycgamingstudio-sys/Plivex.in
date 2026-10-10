@@ -95,7 +95,7 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
         <div className="flex items-center gap-2"><HelpCircle className="h-4 w-4 text-[#6D28D9]" /><h3 className="text-[14px] font-bold text-slate-900">Help & Support</h3></div>
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <a href="tel:+919758455218" className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] p-3 hover:bg-slate-50"><Phone className="h-4 w-4 text-emerald-600" /><div><p className="text-[12px] font-semibold text-slate-700">+91 97584 55218</p><p className="text-[11px] text-slate-400">Phone support</p></div></a>
-          <a href="mailto:plivex.helps@gmail.com" className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] p-3 hover:bg-slate-50"><Mail className="h-4 w-4 text-[#6D28D9]" /><div><p className="text-[12px] font-semibold text-slate-700">plivex.helps@gmail.com</p><p className="text-[11px] text-slate-400">Email support</p></div></a>
+          <a href="mailto:support@plivex.in" className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] p-3 hover:bg-slate-50"><Mail className="h-4 w-4 text-[#6D28D9]" /><div><p className="text-[12px] font-semibold text-slate-700">support@plivex.in</p><p className="text-[11px] text-slate-400">Email support</p></div></a>
           <Link to="/help-center" className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] p-3 hover:bg-slate-50"><HelpCircle className="h-4 w-4 text-amber-500" /><div><p className="text-[12px] font-semibold text-slate-700">FAQs & Guides</p><p className="text-[11px] text-slate-400">Browse the help center</p></div></Link>
         </div>
       </div>

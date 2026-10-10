@@ -19,9 +19,9 @@ export default function ContactUs() {
               <Phone className="h-5 w-5 text-emerald-600" />
               <div><p className="text-[13px] font-bold text-slate-800">+91 97584 55218</p><p className="text-[11px] text-slate-400">Phone support · Mon–Sat</p></div>
             </a>
-            <a href="mailto:plivex.helps@gmail.com" className="flex items-center gap-3 rounded-xl border border-[#E5E7EB] p-4 hover:bg-slate-50">
+            <a href="mailto:support@plivex.in" className="flex items-center gap-3 rounded-xl border border-[#E5E7EB] p-4 hover:bg-slate-50">
               <Mail className="h-5 w-5 text-[#6D28D9]" />
-              <div><p className="text-[13px] font-bold text-slate-800">plivex.helps@gmail.com</p><p className="text-[11px] text-slate-400">Email support · 24/7</p></div>
+              <div><p className="text-[13px] font-bold text-slate-800">support@plivex.in</p><p className="text-[11px] text-slate-400">Email support · 24/7</p></div>
             </a>
           </div>
           <p className="mt-5 text-[11px] text-slate-400">Support hours: Monday–Saturday, 10:00–19:00 IST.</p>

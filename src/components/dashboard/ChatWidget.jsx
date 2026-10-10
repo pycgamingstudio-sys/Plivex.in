@@ -14,7 +14,7 @@ export default function ChatWidget() {
           <div className="space-y-2 p-3">
             <div className="rounded-xl bg-slate-100 p-2.5 text-[11px] text-slate-600">Hi! 👋 How can we help you today? Tap a contact below or browse the Help Center.</div>
             <a href="tel:+919758455218" className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] p-2.5 text-[11px] hover:bg-slate-50"><Phone className="h-3.5 w-3.5 text-emerald-600" />Call +91 97584 55218</a>
-            <a href="mailto:plivex.helps@gmail.com" className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] p-2.5 text-[11px] hover:bg-slate-50"><Mail className="h-3.5 w-3.5 text-[#6D28D9]" />plivex.helps@gmail.com</a>
+            <a href="mailto:support@plivex.in" className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] p-2.5 text-[11px] hover:bg-slate-50"><Mail className="h-3.5 w-3.5 text-[#6D28D9]" />support@plivex.in</a>
           </div>
         </div>
       )}

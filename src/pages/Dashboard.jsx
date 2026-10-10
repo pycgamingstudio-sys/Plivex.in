@@ -110,7 +110,7 @@ export default function Dashboard({ initialTab }) {
           )}
           {!isAccountant && <button onClick={createInvoice} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#6D28D9] py-2.5 text-[12px] font-bold text-white hover:bg-[#7C3AED]">+ New Invoice</button>}
           <div className="mt-4 border-t border-[#E5E7EB] pt-3">
-            <a href="mailto:plivex.helps@gmail.com" className="block truncate text-[10px] font-semibold text-slate-500 hover:text-[#6D28D9]">plivex.helps@gmail.com</a>
+            <a href="mailto:support@plivex.in" className="block truncate text-[10px] font-semibold text-slate-500 hover:text-[#6D28D9]">support@plivex.in</a>
           </div>
         </div>
       </aside>

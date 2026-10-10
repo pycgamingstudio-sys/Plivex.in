@@ -5,7 +5,7 @@ export default function TermsOfService() {
     <LegalLayout
       title="Terms & Conditions"
       updated="October 5, 2026"
-      intro="Effective Date: October 5, 2026 · App Name: Plivex · Contact: plivex.helps@gmail.com"
+      intro="Effective Date: October 5, 2026 · App Name: Plivex · Contact: support@plivex.in"
     >
       <LegalItem title="1. Acceptance of Terms">By accessing or using Plivex, you agree to be bound by these Terms & Conditions. If you do not agree, you must discontinue using our services immediately.</LegalItem>
       <LegalItem title="2. Service Overview">Plivex provides B2B software solutions for billing automation, GST reconciliation, invoice status tracking, and payment workflow management.</LegalItem>

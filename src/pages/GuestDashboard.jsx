@@ -150,7 +150,7 @@ export default function GuestDashboard() {
             <Link to="/refund-and-cancellation" className="text-[11px] font-semibold text-slate-500 hover:text-[#6D28D9]">Refund &amp; Cancellation</Link>
             <Link to="/contact-us" className="text-[11px] font-semibold text-slate-500 hover:text-[#6D28D9]">Contact Us</Link>
           </div>
-          <p className="mt-3 text-[10px] text-slate-400">© {new Date().getFullYear()} Plivex · plivex.helps@gmail.com</p>
+          <p className="mt-3 text-[10px] text-slate-400">© {new Date().getFullYear()} Plivex · support@plivex.in</p>
         </footer>
       </main>
 
