@@ -1,0 +1,11 @@
+{
+  "name": "Plivex",
+  "short_name": "Plivex",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F3F3F8",
+  "theme_color": "#6D28D9",
+  "icons": [
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
