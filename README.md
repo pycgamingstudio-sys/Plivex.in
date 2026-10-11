@@ -9,3 +9,4 @@ Environment variables (set in Netlify, see `.env.example`):
 - `VITE_API_BASE_URL`
 
 Run locally: `npm install` then `npm run dev`. Build: `npm run build`.
+- `VITE_ASSISTANT_API_BASE_URL` (optional: address of the AI assistant backend; if empty the assistant button is hidden)
