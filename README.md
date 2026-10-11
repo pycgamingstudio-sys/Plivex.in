@@ -1,12 +1,35 @@
 # Plivex
 
-React + Vite frontend. Backend: your own Supabase project (login, database) plus the
-endpoints published on the Lovable app (`/api/public/<name>`).
+GST-ready billing and invoicing for Indian small businesses: invoices, quotations, clients (CRM), expenses, stock and team roles, in Hindi and English.
 
-Environment variables (set in Netlify, see `.env.example`):
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
-- `VITE_API_BASE_URL`
+Live: https://plivex.in
 
-Run locally: `npm install` then `npm run dev`. Build: `npm run build`.
-- `VITE_ASSISTANT_API_BASE_URL` (optional: address of the AI assistant backend; if empty the assistant button is hidden)
+## Features
+- GST invoices with server-side totals, automatic invoice numbers and PDF download
+- Quotations, clients, leads, expenses and stock tracking
+- Team workspaces with roles: admin, manager, employee, storekeeper, accountant
+- 14-day free trial and PayU subscriptions
+- Hindi / English interface
+- Optional AI business assistant
+
+## Tech stack
+React 18, Vite, Tailwind CSS, shadcn/ui, TanStack Query, Supabase (auth and database).
+
+## Getting started
+npm install, then copy .env.example to .env and fill in the values, then npm run dev.
+
+## Environment variables
+See .env.example. Real values are never committed; set them in your host (for example Netlify).
+
+## Project structure
+- src/api: backend client
+- src/components: UI and feature components
+- src/lib: stores, auth, helpers, translations
+- src/pages: screens
+- public: static files
+- scripts: maintenance helpers
+
+## Scripts
+- npm run dev: start locally
+- npm run build: production build
+- npm run test:membership: run unit tests
