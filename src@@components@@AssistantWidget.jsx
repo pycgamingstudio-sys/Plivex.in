@@ -36,7 +36,11 @@ export default function AssistantWidget() {
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, action, busy, open]);
 
-  if (!ready) return null;
+  if (!ready) return (
+  <div style={{position:'fixed',bottom:8,left:8,zIndex:99999,background:'#000',color:'#fff',fontSize:11,padding:6,borderRadius:6}}>
+    enabled:{String(assistantEnabled)} auth:{String(isAuthenticated)} loading:{String(isLoadingAuth)} ws:{String(!!user?.workspace_id)} authPage:{String(onAuthPage)}
+  </div>
+);
 
   const push = (role, content) => setMessages((m) => [...m, { role, content }]);
 
