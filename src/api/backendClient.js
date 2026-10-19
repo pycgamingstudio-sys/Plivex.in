@@ -18,6 +18,8 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Add them in Netlify > Site settings > Environment variables.');
 }
 
+export const assistantEnabled = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+
 export const supabase = createClient(SUPABASE_URL || 'http://invalid.local', SUPABASE_ANON_KEY || 'missing-key', {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
