@@ -1,9 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import { MessageCircle, Send, X, Sparkles } from "lucide-react";
+import { MessageCircle, Send, X, Sparkles, CheckCircle2, Loader2, PlusCircle } from "lucide-react";
 import { assistantEnabled, supabase } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
 
-const STARTERS = ["Help me understand my sales dashboard", "How can I follow up on pending payments?", "How should I manage low stock?"];
+const STARTERS = [
+  "Mere pending invoices aur total pending amount batao",
+  "Low stock items kaun se hain?",
+  "Mere total clients aur recent expenses batao",
+];
+
+async function readableError(error) {
+  try {
+    const response = error?.context;
+    if (response && typeof response.clone === "function") {
+      const body = await response.clone().json();
+      if (body?.error) return body.error;
+    }
+  } catch { /* fall back to the SDK message */ }
+  return error?.message || "Could not connect to the assistant. Please try again.";
+}
 
 export default function AssistantWidget() {
   const { isAuthenticated, isLoadingAuth } = useAuth();
@@ -31,17 +46,49 @@ export default function AssistantWidget() {
     setBusy(true);
     try {
       const { data, error: invokeError } = await supabase.functions.invoke("assistant-chat", {
-        body: { messages: next.slice(-16).map(({ role, content: text }) => ({ role, content: text })) },
+        body: { messages: next.slice(-12).map(({ role, content: text }) => ({ role, content: text })) },
       });
       if (invokeError) throw invokeError;
       if (!data?.reply) throw new Error("AI returned an empty response. Please try again.");
-      setMessages((current) => [...current, { role: "assistant", content: data.reply }]);
+      setMessages((current) => [...current, {
+        role: "assistant",
+        content: data.reply,
+        pendingAction: data.pendingAction || null,
+        actionStatus: data.pendingAction ? "pending" : null,
+      }]);
     } catch (err) {
-      const message = err?.context?.error || err?.message || "Could not connect to the assistant. Please try again.";
-      setError(message);
+      setError(await readableError(err));
     } finally {
       setBusy(false);
     }
+  }
+
+  async function confirmAction(action, messageIndex) {
+    if (!action || busy) return;
+    setError("");
+    setBusy(true);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("assistant-chat", {
+        body: { mode: "confirm_action", action },
+      });
+      if (invokeError) throw invokeError;
+      setMessages((current) => {
+        const updated = current.map((message, index) => index === messageIndex
+          ? { ...message, pendingAction: null, actionStatus: "done" }
+          : message);
+        return [...updated, { role: "assistant", content: data?.reply || "The record was saved." }];
+      });
+    } catch (err) {
+      setError(await readableError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function cancelAction(messageIndex) {
+    setMessages((current) => current.map((message, index) => index === messageIndex
+      ? { ...message, pendingAction: null, actionStatus: "cancelled" }
+      : message));
   }
 
   return (
@@ -51,25 +98,39 @@ export default function AssistantWidget() {
           <Sparkles className="h-6 w-6" />
         </button>
       ) : (
-        <section role="dialog" aria-label="Plivex AI assistant" className="fixed bottom-20 left-3 right-3 z-[70] flex h-[70vh] max-h-[620px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:left-auto sm:right-4 sm:w-[390px] md:bottom-4">
+        <section role="dialog" aria-label="Plivex AI assistant" className="fixed bottom-20 left-3 right-3 z-[70] flex h-[70vh] max-h-[680px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:left-auto sm:right-4 sm:w-[390px] md:bottom-4">
           <header className="flex items-center justify-between bg-[#6D28D9] px-4 py-3 text-white">
-            <div className="flex items-center gap-2"><Sparkles className="h-5 w-5" /><div><p className="text-sm font-bold">Plivex AI Assistant</p><p className="text-[11px] opacity-80">Powered by Gemini</p></div></div>
+            <div className="flex items-center gap-2"><Sparkles className="h-5 w-5" /><div><p className="text-sm font-bold">Plivex AI Assistant</p><p className="text-[11px] opacity-80">Live workspace · Gemini</p></div></div>
             <button onClick={() => setOpen(false)} aria-label="Close assistant" className="rounded-lg p-2 hover:bg-white/10"><X className="h-4 w-4" /></button>
           </header>
           <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 px-3 py-4">
             {messages.length === 0 && <div className="rounded-xl bg-white p-3 text-sm text-slate-600 shadow-sm">
-              <p>Namaste! I can answer questions and help you use Plivex. I do not yet read your live invoices, clients, or stock records.</p>
+              <p className="font-semibold text-slate-800">Namaste! I can check live data in your Plivex workspace.</p>
+              <p className="mt-1 text-xs">I can read invoices, clients, stock, expenses, quotations, leads and services. I can prepare new clients, expenses, leads, stock items and quotations for your confirmation. I won't save anything until you tap Confirm & Add.</p>
               <div className="mt-3 flex flex-wrap gap-2">{STARTERS.map((q) => <button key={q} onClick={() => send(q)} className="rounded-full border border-purple-200 bg-purple-50 px-3 py-2 text-left text-xs text-purple-800">{q}</button>)}</div>
             </div>}
-            {messages.map((m, i) => <div key={i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
-              <div className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm ${m.role === "user" ? "bg-[#6D28D9] text-white" : "bg-white text-slate-800 shadow-sm"}`}>{m.content}</div>
+            {messages.map((m, i) => <div key={m.id || i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
+              <div className={m.role === "user" ? "max-w-[90%] whitespace-pre-wrap rounded-2xl bg-[#6D28D9] px-3.5 py-2.5 text-sm text-white" : "max-w-[94%] whitespace-pre-wrap rounded-2xl bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-sm"}>
+                {m.content}
+                {m.pendingAction && <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50 p-3">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-purple-900"><PlusCircle className="h-4 w-4" /> Ready to add</div>
+                  <p className="mt-1 text-sm font-medium text-slate-800">{m.pendingAction.summary}</p>
+                  <p className="mt-1 text-[11px] text-slate-600">Nothing is saved until you confirm. Plivex permissions still apply.</p>
+                  <div className="mt-3 flex gap-2">
+                    <button disabled={busy} onClick={() => confirmAction(m.pendingAction, i)} className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#6D28D9] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Confirm & Add</button>
+                    <button disabled={busy} onClick={() => cancelAction(i)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 disabled:opacity-50">Cancel</button>
+                  </div>
+                </div>}
+                {m.actionStatus === "done" && <p className="mt-2 flex items-center gap-1 text-[11px] text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" /> Saved to Plivex</p>}
+                {m.actionStatus === "cancelled" && <p className="mt-2 text-[11px] text-slate-500">Addition cancelled; nothing was saved.</p>}
+              </div>
             </div>)}
-            {busy && <p className="text-xs text-slate-500">Gemini is thinking…</p>}
+            {busy && <p className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Gemini is checking your workspace…</p>}
             {error && <div className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{error} <button onClick={() => send(messages[messages.length - 1]?.content)} className="ml-1 font-bold underline">Retry</button></div>}
             <div ref={bottomRef} />
           </div>
           <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex items-center gap-2 border-t border-slate-200 bg-white p-3">
-            <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={1000} placeholder="Ask Plivex AI…" className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-purple-500" />
+            <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={1000} placeholder="Ask about your live Plivex data…" className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-purple-500" />
             <button type="submit" disabled={busy || !draft.trim()} aria-label="Send message" className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#6D28D9] text-white disabled:opacity-50"><Send className="h-4 w-4" /></button>
           </form>
         </section>
