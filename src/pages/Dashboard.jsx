@@ -9,6 +9,7 @@ import CrmTab from "@/components/dashboard/CrmTab";
 import StockTab from "@/components/dashboard/StockTab";
 import TeamManagement from "@/pages/TeamManagement";
 import ChatWidget from "@/components/dashboard/ChatWidget";
+import AssistantWidget from "@/components/AssistantWidget";
 import ReconciliationTab from "@/components/dashboard/ReconciliationTab";
 import WelcomePopup from "@/components/WelcomePopup";
 import { seedDashboard } from "@/lib/dashboardData";
@@ -153,6 +154,7 @@ export default function Dashboard({ initialTab }) {
       <PresenceBeacon />
       <WelcomePopup />
       <ChatWidget />
+      <AssistantWidget />
 
       {moreOpen && (
         <div className="fixed inset-0 z-50 flex items-end bg-black/40 sm:items-center sm:justify-center" onClick={() => setMoreOpen(false)}>
