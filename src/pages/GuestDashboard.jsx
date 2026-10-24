@@ -59,11 +59,16 @@ export default function GuestDashboard() {
             <Logo className="h-9 w-9" rounded="rounded-xl" />
             <div><p className="text-[15px] font-bold tracking-[-0.03em]">Plivex</p><p className="text-[10px] text-slate-400">Smart Invoicing &amp; Business OS</p></div>
           </div>
+          <nav aria-label="Main navigation" className="hidden items-center gap-4 lg:flex">
+            <a href="#features" className="text-sm font-semibold text-slate-600 hover:text-[#6D28D9]">Features</a>
+            <a href="#about" className="text-sm font-semibold text-slate-600 hover:text-[#6D28D9]">About</a>
+            <a href="#pricing" className="text-sm font-semibold text-slate-600 hover:text-[#6D28D9]">Pricing</a>
+            <a href="#contact" className="text-sm font-semibold text-slate-600 hover:text-[#6D28D9]">Contact</a>
+          </nav>
           <div className="flex items-center gap-2">
             <LanguageSwitcher className="hidden sm:inline-flex" />
-            <span className="hidden rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-700 sm:inline">Live demo preview</span>
-            <button onClick={() => setAuthAction("")} className="rounded-xl border border-[#E5E7EB] px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50">Sign in</button>
-            <Link to="/register" className="rounded-xl bg-[#6D28D9] px-3 py-2 text-[11px] font-bold text-white hover:bg-[#7C3AED]">Get started free</Link>
+            <button onClick={() => setAuthAction("")} className="rounded-xl border border-[#E5E7EB] px-3 py-2 text-[12px] font-bold text-slate-700 hover:bg-slate-50">Sign in</button>
+            <Link to="/register" className="rounded-xl bg-[#6D28D9] px-3 py-2 text-[12px] font-bold text-white hover:bg-[#7C3AED]">Get started</Link>
           </div>
         </div>
       </header>
@@ -78,6 +83,13 @@ export default function GuestDashboard() {
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold">No card required</span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold">Every module unlocked</span>
           </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 lg:hidden" aria-label="Quick navigation">
+          <a href="#features" className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-semibold text-slate-700">Features ↓</a>
+          <a href="#about" className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-semibold text-slate-700">About Plivex ↓</a>
+          <a href="#pricing" className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-semibold text-slate-700">Pricing ↓</a>
+          <a href="#contact" className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-semibold text-slate-700">Contact ↓</a>
         </div>
 
         <div className="fade-up fade-up-delay-1 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -123,8 +135,13 @@ export default function GuestDashboard() {
           </div>
         </div>
 
-        <div className="fade-up fade-up-delay-3">
-          <h2 className="text-[15px] font-bold text-slate-900">Try it yourself — one tap away</h2>
+        <div id="features" className="scroll-mt-24 fade-up fade-up-delay-3">
+          <div className="mb-4">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#6D28D9]">What you can do</p>
+            <h2 className="mt-1 text-2xl font-bold text-slate-900">Your everyday business tools, in one place</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Explore the key workflows below. Sample figures on this page are demo data, not customer results.</p>
+          </div>
+          <h3 className="text-[15px] font-bold text-slate-900">Try a module</h3>
           <p className="mt-1 text-[12px] text-slate-500">Tap any module to sign in and land exactly where you wanted to go.</p>
           <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {ACTIONS.map((a) => (
@@ -140,17 +157,29 @@ export default function GuestDashboard() {
           </div>
         </div>
 
-        <AboutSection />
-        <PricingSection />
+        <div className="scroll-mt-24" id="about"><AboutSection /></div>
+        <div className="scroll-mt-24" id="pricing"><PricingSection /></div>
 
-        <footer className="border-t border-[#E5E7EB] pt-5 text-center">
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-            <Link to="/privacy-policy" className="text-[11px] font-semibold text-slate-500 hover:text-[#6D28D9]">Privacy Policy</Link>
-            <Link to="/terms-and-conditions" className="text-[11px] font-semibold text-slate-500 hover:text-[#6D28D9]">Terms &amp; Conditions</Link>
-            <Link to="/refund-and-cancellation" className="text-[11px] font-semibold text-slate-500 hover:text-[#6D28D9]">Refund &amp; Cancellation</Link>
-            <Link to="/contact-us" className="text-[11px] font-semibold text-slate-500 hover:text-[#6D28D9]">Contact Us</Link>
+        <footer id="contact" className="scroll-mt-24 rounded-3xl border border-[#E5E7EB] bg-white p-6 sm:p-8">
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div>
+              <div className="flex items-center gap-3"><Logo className="h-10 w-10" rounded="rounded-xl" /><div><p className="text-lg font-bold text-slate-900">Plivex</p><p className="text-sm text-slate-600">Smart Invoicing &amp; Business OS</p></div></div>
+              <p className="mt-3 max-w-sm text-sm leading-6 text-slate-600">Billing, client records, expenses and business reports for Indian small businesses.</p>
+              <p className="mt-3 text-sm font-semibold text-slate-800">Support: <a className="text-[#6D28D9] underline underline-offset-4" href="mailto:support@plivex.in">support@plivex.in</a></p>
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Helpful links &amp; policies</h2>
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Link to="/about" className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-violet-50 hover:text-[#6D28D9]">About Plivex</Link>
+                <Link to="/pricing" className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-violet-50 hover:text-[#6D28D9]">Plans &amp; Pricing</Link>
+                <Link to="/contact-us" className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-violet-50 hover:text-[#6D28D9]">Contact &amp; Support</Link>
+                <Link to="/privacy-policy" className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-violet-50 hover:text-[#6D28D9]">Privacy Policy</Link>
+                <Link to="/terms-and-conditions" className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-violet-50 hover:text-[#6D28D9]">Terms &amp; Conditions</Link>
+                <Link to="/refund-and-cancellation" className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-violet-50 hover:text-[#6D28D9]">Refund &amp; Cancellation</Link>
+              </div>
+            </div>
           </div>
-          <p className="mt-3 text-[10px] text-slate-400">© {new Date().getFullYear()} Plivex · support@plivex.in</p>
+          <div className="mt-6 border-t border-slate-200 pt-4 text-sm text-slate-500">© {new Date().getFullYear()} Plivex. All rights reserved.</div>
         </footer>
       </main>
 
