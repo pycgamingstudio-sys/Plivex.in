@@ -30,6 +30,7 @@ export default function AssistantWidget() {
   const [retryAction, setRetryAction] = useState(null);
   const bottomRef = useRef(null);
   const dragRef = useRef(null);
+  const suppressFabClickRef = useRef(false);
   const [fabPosition, setFabPosition] = useState(null);
   const enabled = assistantEnabled && isAuthenticated && !isLoadingAuth;
 
@@ -69,6 +70,7 @@ export default function AssistantWidget() {
 
   function endFabDrag(event) {
     if (dragRef.current?.pointerId !== event.pointerId) return;
+    if (dragRef.current.moved) suppressFabClickRef.current = true;
     dragRef.current = null;
   }
 
@@ -136,7 +138,7 @@ export default function AssistantWidget() {
   return (
     <div className="notranslate">
       {!open ? (
-        <button onClick={() => { if (!dragRef.current?.moved) setOpen(true); }} onPointerDown={startFabDrag} onPointerMove={moveFabDrag} onPointerUp={endFabDrag} onPointerCancel={endFabDrag} aria-label="Drag or open Plivex AI assistant" title="Drag to move; tap to open" style={fabPosition ? { left: fabPosition.left, top: fabPosition.top, right: "auto", bottom: "auto", touchAction: "none" } : { touchAction: "none" }} className={`fixed ${fabPosition ? "" : "bottom-20 right-4 md:bottom-5"} z-[60] flex h-14 w-14 cursor-grab items-center justify-center rounded-full bg-[#6D28D9] text-white shadow-xl hover:bg-[#5B21B6] active:cursor-grabbing`}>
+        <button onClick={() => { if (suppressFabClickRef.current) { suppressFabClickRef.current = false; return; } setOpen(true); }} onPointerDown={startFabDrag} onPointerMove={moveFabDrag} onPointerUp={endFabDrag} onPointerCancel={endFabDrag} aria-label="Drag or open Plivex AI assistant" title="Drag to move; tap to open" style={fabPosition ? { left: fabPosition.left, top: fabPosition.top, right: "auto", bottom: "auto", touchAction: "none" } : { touchAction: "none" }} className={`fixed ${fabPosition ? "" : "bottom-20 right-4 md:bottom-5"} z-[60] flex h-14 w-14 cursor-grab items-center justify-center rounded-full bg-[#6D28D9] text-white shadow-xl hover:bg-[#5B21B6] active:cursor-grabbing`}>
           <Sparkles className="h-6 w-6" />
         </button>
       ) : (
