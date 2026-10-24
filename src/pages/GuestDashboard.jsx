@@ -98,7 +98,7 @@ export default function GuestDashboard() {
         </section>
 
         <div className="fade-up flex items-center gap-3 rounded-2xl border border-violet-100 bg-white p-3 shadow-sm sm:max-w-md">
-          <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Founder of Plivex" width="52" height="52" loading="eager" decoding="async" className="h-13 w-13 shrink-0 rounded-full border-2 border-violet-100 object-cover object-center" />
+          <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Founder of Plivex" width="52" height="52" loading="eager" decoding="async" className="h-12 w-12 shrink-0 rounded-full border-2 border-violet-100 object-cover object-center" />
           <div className="min-w-0">
             <p className="text-sm font-bold text-slate-900">Built by Yashvant Sharma</p>
             <p className="text-xs leading-5 text-slate-600">Founder &amp; Developer of Plivex</p>
