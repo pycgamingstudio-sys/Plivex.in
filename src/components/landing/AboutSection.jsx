@@ -38,7 +38,7 @@ const PILLARS = [
     icon: ShieldCheck, title: "AI-First Infrastructure & Security", tone: "from-[#0D9488] to-[#14B8A6]",
     features: [
       "Isolated workspace security", "Role-based access control", "Encrypted cloud backups",
-      "Owner-controlled permissions", "Per-tenant data separation", "Audit activity logs", "Secure email login", "Workspace ID isolation",
+      "AI Business Assistant for workspace questions", "Prepare supported records for your confirmation", "Owner-controlled permissions", "Per-tenant data separation", "Audit activity logs", "Secure email login", "Workspace ID isolation",
     ],
   },
   {
@@ -63,7 +63,7 @@ export default function AboutSection() {
       <div className="overflow-hidden rounded-3xl border border-[#E5E7EB] bg-white shadow-sm">
         <div className="bg-gradient-to-br from-[#6D28D9] to-[#4c1d95] p-6 text-white sm:p-8">
           <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /><p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">About Plivex</p></div>
-          <h2 className="mt-2 text-[22px] font-bold leading-tight sm:text-[28px]">Ultra-affordable, fast, AI-first B2B SaaS.</h2>
+          <h2 className="mt-2 text-[22px] font-bold leading-tight sm:text-[28px]">Smart invoicing with your built-in AI Business Assistant.</h2>
           <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-white/85">
             Plivex is an all-in-one billing & business operating system built for Indian SMEs, freelancers and agencies.
             We pair enterprise-grade multi-tenant isolation with a blazing-fast interface so you can raise a GST invoice,
