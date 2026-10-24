@@ -74,16 +74,28 @@ export default function GuestDashboard() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-6 px-4 pb-16 pt-6 sm:pt-8">
-        <div className="fade-up rounded-3xl bg-gradient-to-br from-[#6D28D9] to-[#7C3AED] p-6 text-white shadow-sm sm:p-8">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Welcome to Plivex</p>
-          <h1 className="mt-2 text-[24px] font-bold leading-tight sm:text-[30px]">Run your business with smart invoicing and an AI Business Assistant.</h1>
-          <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-white/85">Explore invoicing, clients, stock and reports in one workspace. Your AI Business Assistant can answer questions about your business data and prepare supported records for your confirmation. Try the live demo, then create your workspace free for 14 days.</p>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold"><Sparkles className="h-3.5 w-3.5" />14-day full-feature free trial</span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold">No card required</span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold">Every module unlocked</span>
+        <section className="fade-up overflow-hidden rounded-3xl bg-gradient-to-br from-[#4C1D95] via-[#6D28D9] to-[#7C3AED] text-white shadow-lg">
+          <div className="grid items-center gap-7 p-6 sm:p-9 lg:grid-cols-[1.1fr_0.9fr] lg:p-12">
+            <div>
+              <p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-white/90"><Sparkles className="h-3.5 w-3.5" />Smart business workspace</p>
+              <h1 className="mt-4 text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl lg:text-5xl">Less paperwork.<br/><span className="text-violet-200">More business.</span></h1>
+              <p className="mt-4 max-w-xl text-sm leading-6 text-white/85 sm:text-base">Create invoices and quotations, organise clients, track expenses and stock, and explore the Plivex AI Business Assistant from one workspace.</p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Link to="/register" className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-violet-800 shadow-sm hover:bg-violet-50">Start free for 14 days <span aria-hidden="true">→</span></Link>
+                <a href="#features" className="inline-flex items-center rounded-xl border border-white/35 px-5 py-3 text-sm font-bold text-white hover:bg-white/10">Explore features</a>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs font-medium text-white/80"><span>✓ No card required</span><span>✓ Demo data clearly labelled</span><span>✓ Hindi &amp; English</span></div>
+            </div>
+            <div className="relative mx-auto w-full max-w-md">
+              <div className="absolute -right-5 -top-5 h-32 w-32 rounded-full bg-fuchsia-300/20 blur-2xl"/>
+              <div className="relative rounded-2xl border border-white/20 bg-white p-4 text-slate-900 shadow-2xl sm:p-5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3"><div><p className="text-xs font-bold text-violet-700">PLIVEX WORKSPACE</p><p className="mt-1 text-lg font-bold">Invoice overview</p></div><span className="rounded-lg bg-violet-100 px-2 py-1 text-xs font-bold text-violet-700">DEMO</span></div>
+                <div className="mt-4 grid grid-cols-2 gap-3"><div className="rounded-xl bg-violet-50 p-3"><p className="text-xs text-slate-500">Invoices</p><p className="mt-1 text-xl font-extrabold">42</p><p className="text-[11px] text-slate-500">Sample records</p></div><div className="rounded-xl bg-emerald-50 p-3"><p className="text-xs text-slate-500">Payment status</p><p className="mt-1 text-xl font-extrabold text-emerald-700">Tracked</p><p className="text-[11px] text-slate-500">Demo workflow</p></div></div>
+                <div className="mt-4 space-y-3"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 text-violet-700"><FileText className="h-4 w-4"/></span><div className="flex-1"><p className="text-xs font-bold">Invoices &amp; quotations</p><div className="mt-1 h-1.5 rounded-full bg-slate-100"><div className="h-1.5 w-4/5 rounded-full bg-violet-500"/></div></div></div><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-700"><Users className="h-4 w-4"/></span><div className="flex-1"><p className="text-xs font-bold">Clients &amp; leads</p><div className="mt-1 h-1.5 rounded-full bg-slate-100"><div className="h-1.5 w-3/5 rounded-full bg-blue-500"/></div></div></div><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700"><Package className="h-4 w-4"/></span><div className="flex-1"><p className="text-xs font-bold">Stock &amp; expenses</p><div className="mt-1 h-1.5 rounded-full bg-slate-100"><div className="h-1.5 w-2/3 rounded-full bg-emerald-500"/></div></div></div></div>
+              </div>
+            </div>
           </div>
-        </div>
+        </section>
 
         <div className="fade-up flex items-center gap-3 rounded-2xl border border-violet-100 bg-white p-3 shadow-sm sm:max-w-md">
           <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Founder of Plivex" width="52" height="52" loading="eager" decoding="async" className="h-13 w-13 shrink-0 rounded-full border-2 border-violet-100 object-cover object-center" />
