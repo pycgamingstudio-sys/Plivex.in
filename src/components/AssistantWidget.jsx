@@ -72,8 +72,8 @@ export default function AssistantWidget() {
     setRetryAction(null);
     setBusy(true);
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke("assistant-chat", {
-        body: { mode: "confirm_action", action },
+      const { data, error: invokeError } = await supabase.functions.invoke("assistant-confirm", {
+        body: { action },
       });
       if (invokeError) throw invokeError;
       setRetryAction(null);

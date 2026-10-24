@@ -1,7 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
+const ALLOWED_ORIGINS = new Set([
+  "https://plivex.in",
+  "https://www.plivex.in",
+  "https://plivex.netlify.app",
+]);
 const corsHeaders = {
-  "Access-Control-Allow-Origin": Deno.env.get("ASSISTANT_ALLOWED_ORIGIN") || "*",
+  "Access-Control-Allow-Origin": "https://plivex.in",
+  "Vary": "Origin",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -17,9 +23,9 @@ const allowedCategories = ["Rent", "Raw Materials", "Utilities", "Salary", "Logi
 
 async function loadLiveContext(supabase: ReturnType<typeof createClient>, workspaceId: string) {
   const results = await Promise.all([
-    supabase.from("invoices").select("number,client_name,issue_date,due_date,status,subtotal,tax_value,total,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
+    supabase.from("invoices").select("number,client_name,issue_date,due_date,status,subtotal,tax_value,total,is_draft,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("clients").select("name,company,email,phone,gstin,address,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
-    supabase.from("stock").select("name,sku,quantity,unit,price,low_stock,updated_at").eq("workspace_id", workspaceId).order("updated_at", { ascending: false }).limit(500),
+    supabase.from("stock").select("name,sku,quantity,unit,price,low_stock,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("expenses").select("vendor,category,amount,date,status,method,notes,created_at").eq("workspace_id", workspaceId).order("date", { ascending: false }).limit(500),
     supabase.from("quotations").select("number,client_name,date,total,status,tax_rate,items,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("leads").select("name,phone,requirement,value,stage,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
@@ -36,13 +42,17 @@ async function loadLiveContext(supabase: ReturnType<typeof createClient>, worksp
   const quotations = rows.quotations || [];
   const leads = rows.leads || [];
   const money = (items, field) => items.reduce((sum, item) => sum + number(item[field]), 0);
+  const reportableInvoices = invoices.filter((item) => String(item.status).toLowerCase() !== "cancelled" && !item.is_draft);
+  const paidInvoices = reportableInvoices.filter((item) => String(item.status).toLowerCase() === "paid");
+  const pendingInvoices = reportableInvoices.filter((item) => String(item.status).toLowerCase() === "pending");
   const invoiceSummary = {
     loadedRecords: invoices.length,
-    totalValue: money(invoices, "total"),
-    paidCount: invoices.filter((item) => String(item.status).toLowerCase() === "paid").length,
-    paidValue: money(invoices.filter((item) => String(item.status).toLowerCase() === "paid"), "total"),
-    pendingCount: invoices.filter((item) => String(item.status).toLowerCase() === "pending").length,
-    pendingValue: money(invoices.filter((item) => String(item.status).toLowerCase() === "pending"), "total"),
+    reportableCount: reportableInvoices.length,
+    totalValue: money(reportableInvoices, "total"),
+    paidCount: paidInvoices.length,
+    paidValue: money(paidInvoices, "total"),
+    pendingCount: pendingInvoices.length,
+    pendingValue: money(pendingInvoices, "total"),
   };
   return {
     warning: errors.length ? "Some tables were unavailable due to permissions or query errors: " + errors.join(", ") : undefined,
@@ -113,26 +123,7 @@ function validateAction(action: any) {
   return null;
 }
 
-async function createConfirmedAction(supabase: ReturnType<typeof createClient>, workspaceId: string, userId: string, rawAction: any) {
-  const action = validateAction(rawAction);
-  if (!action) return json({ error: "The proposed record is incomplete or invalid. Please provide the missing details and try again." }, 400);
-  const common = { workspace_id: workspaceId };
-  let table = "";
-  let row: Record<string, unknown> = {};
-  if (action.type === "create_client") { table = "clients"; row = { ...common, ...action.payload }; }
-  if (action.type === "create_expense") { table = "expenses"; row = { ...common, ...action.payload }; }
-  if (action.type === "create_lead") { table = "leads"; row = { ...common, ...action.payload }; }
-  if (action.type === "create_stock") { table = "stock"; row = { ...common, ...action.payload }; }
-  if (action.type === "create_quotation") { table = "quotations"; row = { ...common, ...action.payload }; }
-  const { data, error } = await supabase.from(table).insert(row).select("id").single();
-  if (error) {
-    console.error("Assistant create action rejected", { table, code: error.code, message: error.message, userId });
-    return json({ error: error.code === "42501" ? "Your Plivex role does not have permission to add this record." : "Could not add the record. Check the required fields and your workspace permissions." }, 403);
-  }
-  return json({ reply: "Done — " + action.summary + ". It has been saved in your Plivex workspace.", created: { type: action.type, id: data.id, summary: action.summary } });
-}
-
-Deno.serve(async (req) => {
+async function handleRequest(req: Request) {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const authorization = req.headers.get("Authorization");
@@ -154,10 +145,6 @@ Deno.serve(async (req) => {
     const { data: profile, error: profileError } = await supabase.from("profiles").select("workspace_id,role,full_name").eq("id", user.id).maybeSingle();
     if (profileError || !profile?.workspace_id) return json({ error: "Your Plivex workspace could not be found for this account." }, 403);
     const body = await req.json();
-
-    if (body?.mode === "confirm_action") {
-      return await createConfirmedAction(supabase, profile.workspace_id, user.id, body.action);
-    }
 
     const incoming = Array.isArray(body?.messages) ? body.messages : [];
     const messages = incoming.slice(-12).map((item: { role?: string; content?: string }) => ({
@@ -238,4 +225,21 @@ Deno.serve(async (req) => {
     console.error("Assistant request failed", error);
     return json({ error: "Something went wrong while contacting the AI assistant." }, 500);
   }
+}
+
+Deno.serve(async (req: Request) => {
+  const origin = req.headers.get("origin");
+  if (origin && !ALLOWED_ORIGINS.has(origin)) {
+    return new Response("Origin not allowed", {
+      status: 403,
+      headers: { "Vary": "Origin", "Content-Type": "text/plain" },
+    });
+  }
+  const response = await handleRequest(req);
+  const headers = new Headers(response.headers);
+  headers.set("Access-Control-Allow-Origin", origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://plivex.in");
+  headers.set("Vary", "Origin");
+  headers.set("Access-Control-Allow-Headers", "authorization, x-client-info, apikey, content-type");
+  headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 });
