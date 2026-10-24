@@ -13,6 +13,12 @@
 - Terms of service: https://plivex.in/terms-of-service
 - Cancellation and refund policy: https://plivex.in/cancellation-and-refund
 
+## Founder
+- Name: Yashvant Sharma
+- Role: Founder & Developer of Plivex
+- Founder profile photo: https://plivex.in/images/yashvant-sharma.webp
+- Founder information is also represented in the site's structured data (Schema.org Person and Organization).
+
 ## Product overview
 Plivex supports business workflows such as invoices, quotations, client management, expense tracking, stock tracking and team roles. Refer to the website for current availability, pricing, trial conditions and product details.
 
