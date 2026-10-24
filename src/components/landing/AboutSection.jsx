@@ -69,6 +69,13 @@ export default function AboutSection() {
             We pair enterprise-grade multi-tenant isolation with a blazing-fast interface so you can raise a GST invoice,
             track a payment, and close your books in under two minutes — at a price every business can afford.
           </p>
+          <div className="mt-5 flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 p-3">
+            <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Founder & Developer of Plivex" width="56" height="56" loading="lazy" decoding="async" className="h-14 w-14 shrink-0 rounded-full border-2 border-white/70 object-cover object-center" />
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white">Yashvant Sharma</p>
+              <p className="text-xs text-white/75">Founder &amp; Developer, Plivex</p>
+            </div>
+          </div>
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {STATS.map((s) => (
               <div key={s.label} className="rounded-2xl bg-white/10 px-4 py-3 text-center">
