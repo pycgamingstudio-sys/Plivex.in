@@ -2,9 +2,10 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://plivex.in/</loc></url>
   <url><loc>https://plivex.in/about</loc></url>
+  <url><loc>https://plivex.in/features</loc></url>
   <url><loc>https://plivex.in/pricing</loc></url>
   <url><loc>https://plivex.in/contact-us</loc></url>
   <url><loc>https://plivex.in/privacy-policy</loc></url>
-  <url><loc>https://plivex.in/terms-of-service</loc></url>
-  <url><loc>https://plivex.in/cancellation-and-refund</loc></url>
+  <url><loc>https://plivex.in/terms-and-conditions</loc></url>
+  <url><loc>https://plivex.in/refund-and-cancellation</loc></url>
 </urlset>
