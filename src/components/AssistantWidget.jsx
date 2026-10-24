@@ -29,6 +29,8 @@ export default function AssistantWidget() {
   const [error, setError] = useState("");
   const [retryAction, setRetryAction] = useState(null);
   const bottomRef = useRef(null);
+  const dragRef = useRef(null);
+  const [fabPosition, setFabPosition] = useState(null);
   const enabled = assistantEnabled && isAuthenticated && !isLoadingAuth;
 
   useEffect(() => {
@@ -36,6 +38,39 @@ export default function AssistantWidget() {
   }, [messages, busy, open]);
 
   if (!enabled) return null;
+
+  function startFabDrag(event) {
+    if (event.button !== undefined && event.button !== 0) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      left: rect.left,
+      top: rect.top,
+      moved: false,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
+  function moveFabDrag(event) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 6) return;
+    drag.moved = true;
+    const size = 56;
+    const left = Math.max(8, Math.min(window.innerWidth - size - 8, drag.left + dx));
+    const top = Math.max(8, Math.min(window.innerHeight - size - 8, drag.top + dy));
+    setFabPosition({ left, top });
+    event.preventDefault();
+  }
+
+  function endFabDrag(event) {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+  }
 
   async function send(raw = draft) {
     const content = String(raw || "").trim().slice(0, 1000);
@@ -101,7 +136,7 @@ export default function AssistantWidget() {
   return (
     <div className="notranslate">
       {!open ? (
-        <button onClick={() => setOpen(true)} aria-label="Open Plivex AI assistant" className="fixed bottom-20 right-4 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-[#6D28D9] text-white shadow-xl hover:bg-[#5B21B6] md:bottom-5">
+        <button onClick={() => { if (!dragRef.current?.moved) setOpen(true); }} onPointerDown={startFabDrag} onPointerMove={moveFabDrag} onPointerUp={endFabDrag} onPointerCancel={endFabDrag} aria-label="Drag or open Plivex AI assistant" title="Drag to move; tap to open" style={fabPosition ? { left: fabPosition.left, top: fabPosition.top, right: "auto", bottom: "auto", touchAction: "none" } : { touchAction: "none" }} className={`fixed ${fabPosition ? "" : "bottom-20 right-4 md:bottom-5"} z-[60] flex h-14 w-14 cursor-grab items-center justify-center rounded-full bg-[#6D28D9] text-white shadow-xl hover:bg-[#5B21B6] active:cursor-grabbing`}>
           <Sparkles className="h-6 w-6" />
         </button>
       ) : (
