@@ -23,7 +23,7 @@ const allowedCategories = ["Rent", "Raw Materials", "Utilities", "Salary", "Logi
 
 async function loadLiveContext(supabase: ReturnType<typeof createClient>, workspaceId: string) {
   const results = await Promise.all([
-    supabase.from("invoices").select("number,client_name,issue_date,due_date,status,subtotal,tax_value,total,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
+    supabase.from("invoices").select("number,client_name,issue_date,due_date,status,subtotal,tax_value,total,is_draft,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("clients").select("name,company,email,phone,gstin,address,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("stock").select("name,sku,quantity,unit,price,low_stock,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("expenses").select("vendor,category,amount,date,status,method,notes,created_at").eq("workspace_id", workspaceId).order("date", { ascending: false }).limit(500),
@@ -42,13 +42,17 @@ async function loadLiveContext(supabase: ReturnType<typeof createClient>, worksp
   const quotations = rows.quotations || [];
   const leads = rows.leads || [];
   const money = (items, field) => items.reduce((sum, item) => sum + number(item[field]), 0);
+  const reportableInvoices = invoices.filter((item) => String(item.status).toLowerCase() !== "cancelled" && !item.is_draft);
+  const paidInvoices = reportableInvoices.filter((item) => String(item.status).toLowerCase() === "paid");
+  const pendingInvoices = reportableInvoices.filter((item) => String(item.status).toLowerCase() === "pending");
   const invoiceSummary = {
     loadedRecords: invoices.length,
-    totalValue: money(invoices, "total"),
-    paidCount: invoices.filter((item) => String(item.status).toLowerCase() === "paid").length,
-    paidValue: money(invoices.filter((item) => String(item.status).toLowerCase() === "paid"), "total"),
-    pendingCount: invoices.filter((item) => String(item.status).toLowerCase() === "pending").length,
-    pendingValue: money(invoices.filter((item) => String(item.status).toLowerCase() === "pending"), "total"),
+    reportableCount: reportableInvoices.length,
+    totalValue: money(reportableInvoices, "total"),
+    paidCount: paidInvoices.length,
+    paidValue: money(paidInvoices, "total"),
+    pendingCount: pendingInvoices.length,
+    pendingValue: money(pendingInvoices, "total"),
   };
   return {
     warning: errors.length ? "Some tables were unavailable due to permissions or query errors: " + errors.join(", ") : undefined,
