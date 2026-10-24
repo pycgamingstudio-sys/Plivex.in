@@ -113,3 +113,46 @@ Use the task's stated requirements as acceptance criteria; validate them against
 - [ ] Compare duplicate endpoint handlers and record exact request/response/error contracts.
 
 **Phase 1 result:** The inventory can be committed now, but porting must wait for the two original backend source trees. Recreating handlers without those trees would violate the instruction not to guess business logic.
+
+
+## 8. Source excerpts received in chat (not yet verified against either live backend repository)
+
+The user has supplied these original-source excerpts from the builder AI in chat:
+
+- `src/lib/ensure-owner-role.functions.ts`
+- `src/lib/team.server.ts`
+- `src/lib/team.functions.ts` (send-team-invite, verify-invite-code, get-workspace-team, manage-workspace-member)
+- `src/lib/plans.ts`
+- `src/lib/payu.server.ts`
+- `src/lib/payments.functions.ts` (create-payu-order, get-access-status)
+- `src/routes/api/public/payu/verify.ts`
+- `src/lib/gmail.server.ts`
+- `src/lib/email.functions.ts`
+- `src/lib/presence.functions.ts` (ping-presence, track-staff-action, get-team-presence)
+- `src/integrations/supabase/client.server.ts`
+- `src/integrations/supabase/auth-middleware.ts`
+- `drizzle/migrations/0005_phase6i_business_data.sql` (tables, RLS policies, invoice RPCs, logo storage policies)
+
+These are chat-provided excerpts, not yet checked against the canonical backend repository, and they have not been copied into production or deployed. The SQL excerpt is substantially present in chat, but must be compared to the actually applied schema before anyone considers running it. **Do not execute this migration against the existing Supabase project** under the no-DB-changes constraint.
+
+### Follow-up audit flags from supplied excerpts
+
+- `gmail.server.ts` calls `https://connector-gateway.lovable.dev/google_mail/gmail/v1` and requires `LOVABLE_API_KEY` plus `GOOGLE_MAIL_API_KEY`; email remains Lovable-dependent until replaced with a selected non-Lovable mail provider and tested.
+- The supplied PayU `allowedHosts()` permits any `*.lovable.app` origin and includes `plivex.netlify.app`, rather than enforcing only the required allowlist (`https://plivex.in`, `https://www.plivex.in`, `https://plivex.netlify.app`). Must be tightened in the Edge Function port.
+- `createPayuOrder` stores a return origin/path and constructs a callback from `APP_BASE_URL`; callback routing and redirect allowlists need explicit compatibility tests.
+- `fetchPdf()` validates HTTPS but follows redirects without re-validating each redirect target; review for SSRF and enforce safe destinations/redirect handling before porting.
+- The supplied `save_invoice` RPC performs stock deduction using `GREATEST(0, quantity - qty)`, which prevents negative stock but can silently clamp insufficient stock to zero. Document and test this behavior; do not change the DB function without the required SQL proposal and explicit approval.
+- The supplied SQL is a migration definition, not proof that these tables/policies/functions are currently installed. No SQL has been executed.
+
+### Remaining source gaps
+
+The excerpts received so far do not include complete implementations for `set-invoice-status`, `delete-invoice`, `list-invoices`, `get-business-summary`, `workspace-records`, `business-logo`, the original backend variant of `assistant-chat`, or `assistant-confirm`. Frontend wiring, tests, configuration, and any remaining files from the two backend projects also need to be received/verified.
+
+### Updated progress
+
+- [x] Receive a substantial set of backend source excerpts in chat.
+- [ ] Verify excerpts against canonical source repositories.
+- [ ] Receive/locate all remaining endpoint handlers and configuration.
+- [ ] Port only verified logic to the `remove-lovable` branch and run tests.
+- [ ] Deploy/test non-production Edge Functions and document secret names.
+- [ ] Keep production traffic and Lovable projects unchanged pending explicit cutover approval.
