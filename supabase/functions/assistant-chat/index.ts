@@ -25,7 +25,7 @@ async function loadLiveContext(supabase: ReturnType<typeof createClient>, worksp
   const results = await Promise.all([
     supabase.from("invoices").select("number,client_name,issue_date,due_date,status,subtotal,tax_value,total,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("clients").select("name,company,email,phone,gstin,address,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
-    supabase.from("stock").select("name,sku,quantity,unit,price,low_stock,updated_at").eq("workspace_id", workspaceId).order("updated_at", { ascending: false }).limit(500),
+    supabase.from("stock").select("name,sku,quantity,unit,price,low_stock,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("expenses").select("vendor,category,amount,date,status,method,notes,created_at").eq("workspace_id", workspaceId).order("date", { ascending: false }).limit(500),
     supabase.from("quotations").select("number,client_name,date,total,status,tax_rate,items,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("leads").select("name,phone,requirement,value,stage,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
