@@ -40,6 +40,7 @@ import ContactUs from './pages/ContactUs';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import CancellationRefund from './pages/CancellationRefund';
+import { AboutPage, FeaturesPage, PricingPage } from './pages/PublicInfoPages';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -77,8 +78,9 @@ const AuthenticatedApp = () => {
       <Route path="/cancellation-and-refund" element={<CancellationRefund />} />
       <Route path="/refund-and-cancellation" element={<CancellationRefund />} />
       <Route path="/contact-us" element={<ContactUs />} />
-      <Route path="/about" element={<GuestDashboard />} />
-      <Route path="/pricing" element={<GuestDashboard />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/features" element={<FeaturesPage />} />
+      <Route path="/pricing" element={<PricingPage />} />
       <Route path="/" element={<HomeGate />} />
       <Route path="/dashboard" element={<HomeGate />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/" replace />} />}>
