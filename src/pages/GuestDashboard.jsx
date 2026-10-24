@@ -60,10 +60,10 @@ export default function GuestDashboard() {
             <div><p className="text-[15px] font-bold tracking-[-0.03em]">Plivex</p><p className="text-[10px] text-slate-400">Smart Invoicing &amp; Business OS</p></div>
           </div>
           <nav aria-label="Main navigation" className="hidden items-center gap-4 lg:flex">
-            <a href="#features" className="text-sm font-semibold text-slate-600 hover:text-[#6D28D9]">Features</a>
-            <a href="#about" className="text-sm font-semibold text-slate-600 hover:text-[#6D28D9]">About</a>
-            <a href="#pricing" className="text-sm font-semibold text-slate-600 hover:text-[#6D28D9]">Pricing</a>
-            <a href="#contact" className="text-sm font-semibold text-slate-600 hover:text-[#6D28D9]">Contact</a>
+            <Link to="/features" className="text-sm font-semibold text-slate-600 hover:text-[#6D28D9]">Features</Link>
+            <Link to="/about" className="text-sm font-semibold text-slate-600 hover:text-[#6D28D9]">About</Link>
+            <Link to="/pricing" className="text-sm font-semibold text-slate-600 hover:text-[#6D28D9]">Pricing</Link>
+            <Link to="/contact-us" className="text-sm font-semibold text-slate-600 hover:text-[#6D28D9]">Contact</Link>
           </nav>
           <div className="flex items-center gap-2">
             <LanguageSwitcher className="hidden sm:inline-flex" />
