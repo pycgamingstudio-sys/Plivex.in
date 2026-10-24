@@ -1,10 +1,8 @@
-# Allow all search engines and AI web crawlers to crawl and index public routes.
+# Public website pages can be crawled. Private app routes are excluded.
 User-agent: *
 Allow: /
-Allow: /about
-Allow: /pricing
-Disallow: /invoice-builder
 Disallow: /dashboard
+Disallow: /invoice-builder
 Disallow: /invoice-history
 Disallow: /business-profile
 Disallow: /client-database
@@ -18,24 +16,108 @@ Disallow: /account-activity
 Disallow: /service-catalog
 Disallow: /team-management
 
+# ChatGPT search and page-fetch crawlers
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /dashboard
+Disallow: /invoice-builder
+Disallow: /invoice-history
+Disallow: /business-profile
+Disallow: /client-database
+Disallow: /usage-reports
+Disallow: /settings
+Disallow: /templates
+Disallow: /payment-logs
+Disallow: /tax-summary
+Disallow: /help-center
+Disallow: /account-activity
+Disallow: /service-catalog
+Disallow: /team-management
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /dashboard
+Disallow: /invoice-builder
+Disallow: /invoice-history
+Disallow: /business-profile
+Disallow: /client-database
+Disallow: /usage-reports
+Disallow: /settings
+Disallow: /templates
+Disallow: /payment-logs
+Disallow: /tax-summary
+Disallow: /help-center
+Disallow: /account-activity
+Disallow: /service-catalog
+Disallow: /team-management
+
+# AI and search crawlers
 User-agent: GPTBot
 Allow: /
-Allow: /about
-Allow: /pricing
+Disallow: /dashboard
+Disallow: /invoice-builder
+Disallow: /invoice-history
+Disallow: /business-profile
+Disallow: /client-database
+Disallow: /usage-reports
+Disallow: /settings
+Disallow: /templates
+Disallow: /payment-logs
+Disallow: /tax-summary
+Disallow: /help-center
+Disallow: /account-activity
+Disallow: /service-catalog
+Disallow: /team-management
 
 User-agent: ClaudeBot
 Allow: /
-Allow: /about
-Allow: /pricing
+Disallow: /dashboard
+Disallow: /invoice-builder
+Disallow: /invoice-history
+Disallow: /business-profile
+Disallow: /client-database
+Disallow: /usage-reports
+Disallow: /settings
+Disallow: /templates
+Disallow: /payment-logs
+Disallow: /tax-summary
+Disallow: /help-center
+Disallow: /account-activity
+Disallow: /service-catalog
+Disallow: /team-management
 
 User-agent: PerplexityBot
 Allow: /
-Allow: /about
-Allow: /pricing
+Disallow: /dashboard
+Disallow: /invoice-builder
+Disallow: /invoice-history
+Disallow: /business-profile
+Disallow: /client-database
+Disallow: /usage-reports
+Disallow: /settings
+Disallow: /templates
+Disallow: /payment-logs
+Disallow: /tax-summary
+Disallow: /help-center
+Disallow: /account-activity
+Disallow: /service-catalog
+Disallow: /team-management
 
 User-agent: Googlebot
 Allow: /
-Allow: /about
-Allow: /pricing
+Disallow: /dashboard
+Disallow: /invoice-builder
+Disallow: /invoice-history
+Disallow: /business-profile
+Disallow: /client-database
+Disallow: /usage-reports
+Disallow: /settings
+Disallow: /templates
+Disallow: /payment-logs
+Disallow: /tax-summary
+Disallow: /help-center
+Disallow: /account-activity
+Disallow: /service-catalog
+Disallow: /team-management
 
-Sitemap: https://plivex.base44.app/sitemap.xml
+Sitemap: https://plivex.in/sitemap.xml
