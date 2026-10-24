@@ -1,0 +1,22 @@
+# Plivex
+
+> Plivex is a web-based billing and business management platform intended for Indian small businesses.
+
+## Main website
+- https://plivex.in/
+
+## Public information
+- About: https://plivex.in/about
+- Pricing: https://plivex.in/pricing
+- Contact: https://plivex.in/contact-us
+- Privacy policy: https://plivex.in/privacy-policy
+- Terms of service: https://plivex.in/terms-of-service
+- Cancellation and refund policy: https://plivex.in/cancellation-and-refund
+
+## Product overview
+Plivex supports business workflows such as invoices, quotations, client management, expense tracking, stock tracking and team roles. Refer to the website for current availability, pricing, trial conditions and product details.
+
+## Contact
+- Email: support@plivex.in
+
+This file is a concise index for automated tools. It does not replace the website's pages or guarantee that any AI service will index or mention Plivex.
