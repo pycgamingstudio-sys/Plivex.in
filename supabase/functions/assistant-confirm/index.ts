@@ -78,8 +78,13 @@ function validateAction(action: unknown) {
 
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
+  if (origin && !ALLOWED_ORIGINS.has(origin)) {
+    return new Response(JSON.stringify({ error: "Origin not allowed" }), {
+      status: 403,
+      headers: { "Vary": "Origin", "Content-Type": "application/json" },
+    });
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(origin) });
-  if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: "Origin not allowed" }, 403, origin);
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, origin);
 
   const authorization = req.headers.get("Authorization");
