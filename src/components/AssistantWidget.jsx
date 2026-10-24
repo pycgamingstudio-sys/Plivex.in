@@ -27,6 +27,7 @@ export default function AssistantWidget() {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [retryAction, setRetryAction] = useState(null);
   const bottomRef = useRef(null);
   const enabled = assistantEnabled && isAuthenticated && !isLoadingAuth;
 
@@ -43,6 +44,7 @@ export default function AssistantWidget() {
     setMessages(next);
     setDraft("");
     setError("");
+    setRetryAction(null);
     setBusy(true);
     try {
       const { data, error: invokeError } = await supabase.functions.invoke("assistant-chat", {
@@ -57,6 +59,7 @@ export default function AssistantWidget() {
         actionStatus: data.pendingAction ? "pending" : null,
       }]);
     } catch (err) {
+      setRetryAction(null);
       setError(await readableError(err));
     } finally {
       setBusy(false);
@@ -66,12 +69,14 @@ export default function AssistantWidget() {
   async function confirmAction(action, messageIndex) {
     if (!action || busy) return;
     setError("");
+    setRetryAction(null);
     setBusy(true);
     try {
       const { data, error: invokeError } = await supabase.functions.invoke("assistant-chat", {
         body: { mode: "confirm_action", action },
       });
       if (invokeError) throw invokeError;
+      setRetryAction(null);
       setMessages((current) => {
         const updated = current.map((message, index) => index === messageIndex
           ? { ...message, pendingAction: null, actionStatus: "done" }
@@ -79,6 +84,7 @@ export default function AssistantWidget() {
         return [...updated, { role: "assistant", content: data?.reply || "The record was saved." }];
       });
     } catch (err) {
+      setRetryAction({ action, messageIndex });
       setError(await readableError(err));
     } finally {
       setBusy(false);
@@ -86,6 +92,7 @@ export default function AssistantWidget() {
   }
 
   function cancelAction(messageIndex) {
+    setRetryAction(null);
     setMessages((current) => current.map((message, index) => index === messageIndex
       ? { ...message, pendingAction: null, actionStatus: "cancelled" }
       : message));
@@ -126,7 +133,7 @@ export default function AssistantWidget() {
               </div>
             </div>)}
             {busy && <p className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Gemini is checking your workspace…</p>}
-            {error && <div className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{error} <button onClick={() => send(messages[messages.length - 1]?.content)} className="ml-1 font-bold underline">Retry</button></div>}
+            {error && <div className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{error} <button onClick={() => retryAction ? confirmAction(retryAction.action, retryAction.messageIndex) : send(messages[messages.length - 1]?.content)} className="ml-1 font-bold underline">Retry</button></div>}
             <div ref={bottomRef} />
           </div>
           <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex items-center gap-2 border-t border-slate-200 bg-white p-3">
