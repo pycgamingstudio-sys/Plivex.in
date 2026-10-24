@@ -71,8 +71,8 @@ export default function GuestDashboard() {
       <main className="mx-auto max-w-6xl space-y-6 px-4 pb-16 pt-6 sm:pt-8">
         <div className="fade-up rounded-3xl bg-gradient-to-br from-[#6D28D9] to-[#7C3AED] p-6 text-white shadow-sm sm:p-8">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Welcome to Plivex</p>
-          <h1 className="mt-2 text-[24px] font-bold leading-tight sm:text-[30px]">Run your entire billing business from one dashboard.</h1>
-          <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-white/85">You're browsing a live demo workspace with sample data — no account needed. Create your workspace to get every feature free for 14 days.</p>
+          <h1 className="mt-2 text-[24px] font-bold leading-tight sm:text-[30px]">Run your business with smart invoicing and an AI Business Assistant.</h1>
+          <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-white/85">Explore invoicing, clients, stock and reports in one workspace. Your AI Business Assistant can answer questions about your business data and prepare supported records for your confirmation. Try the live demo, then create your workspace free for 14 days.</p>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold"><Sparkles className="h-3.5 w-3.5" />14-day full-feature free trial</span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold">No card required</span>
