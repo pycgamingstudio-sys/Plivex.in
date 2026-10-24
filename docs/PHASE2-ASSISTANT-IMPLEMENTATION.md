@@ -39,3 +39,13 @@
 ## Important boundary
 
 This is a focused assistant-confirmation fix, not completion of the entire Lovable backend migration. The remaining API endpoints, email-provider replacement, PayU test flow, backend source parity, and full integration tests are still outstanding. No database schema, RLS policy, DB function, or user data was changed.
+
+## Follow-up review fixes (branch-only)
+
+- Fixed the stock live-context query to order by `created_at`, matching the supplied schema (which does not define `stock.updated_at`).
+- Added `is_draft` to the invoice context and excluded draft/cancelled invoices from the assistant's revenue totals.
+- Corrected the date regex in the confirmation endpoint.
+- Moved rejected-Origin handling before the confirmation endpoint's OPTIONS preflight branch.
+- Added `.github/workflows/validate-migration-branch.yml` to run typecheck, lint, membership tests, and production build on branch pushes / PRs.
+
+These checks have not yet been observed running successfully. The GitHub Actions run lookup did not return a run for the workflow commit, so CI status remains **unverified**.
