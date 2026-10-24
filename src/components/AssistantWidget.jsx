@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MessageCircle, Send, X, Sparkles, CheckCircle2, Loader2, PlusCircle } from "lucide-react";
+import { Send, X, Sparkles, CheckCircle2, Loader2, PlusCircle } from "lucide-react";
 import { assistantEnabled, supabase } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
 
