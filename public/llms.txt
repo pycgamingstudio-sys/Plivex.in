@@ -7,6 +7,7 @@
 
 ## Public information
 - About: https://plivex.in/about
+- Features: https://plivex.in/features
 - Pricing: https://plivex.in/pricing
 - Contact: https://plivex.in/contact-us
 - Privacy policy: https://plivex.in/privacy-policy
