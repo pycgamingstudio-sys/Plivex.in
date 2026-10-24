@@ -48,7 +48,7 @@ function validateAction(action: unknown) {
     if (amount <= 0) return null;
     const category = allowedCategories.includes(text(raw.category, 40)) ? text(raw.category, 40) : "Other";
     const date = text(raw.date, 10);
-    return { type, payload: { vendor: text(raw.vendor, 120), category, amount, ...( /^\\d{4}-\\d{2}-\\d{2}$/.test(date) ? { date } : {}), status: text(raw.status, 40), method: text(raw.method, 40), notes: text(raw.notes, 500) } };
+    return { type, payload: { vendor: text(raw.vendor, 120), category, amount, ...( /^\d{4}-\d{2}-\d{2}$/.test(date) ? { date } : {}), status: text(raw.status, 40), method: text(raw.method, 40), notes: text(raw.notes, 500) } };
   }
   if (type === "create_lead") {
     const name = text(raw.name, 120);
@@ -71,7 +71,7 @@ function validateAction(action: unknown) {
       return { description: text(item.description, 160), quantity: Math.max(0, number(item.quantity, 0)), rate: Math.max(0, number(item.rate, 0)), gst_rate: Math.max(0, number(item.gst_rate, 0)) };
     }) : [];
     const date = text(raw.date, 10);
-    return { type, payload: { client_name, total, ...( /^\\d{4}-\\d{2}-\\d{2}$/.test(date) ? { date } : {}), status: raw.status === "sent" ? "sent" : "draft", tax_rate: Math.max(0, number(raw.tax_rate, 0)), items } };
+    return { type, payload: { client_name, total, ...( /^\d{4}-\d{2}-\d{2}$/.test(date) ? { date } : {}), status: raw.status === "sent" ? "sent" : "draft", tax_rate: Math.max(0, number(raw.tax_rate, 0)), items } };
   }
   return null;
 }
