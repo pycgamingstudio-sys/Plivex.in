@@ -12,7 +12,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import RoleGuard from '@/components/RoleGuard';
-import { PaywallProvider } from '@/lib/paywall';
+import { PaywallProvider, usePaywall } from '@/lib/paywall';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
@@ -99,7 +99,7 @@ const AuthenticatedApp = () => {
           <Route path="/help-center" element={<HelpCenter />} />
           <Route path="/account-activity" element={<AccountActivity />} />
           <Route path="/service-catalog" element={<ServiceCatalog />} />
-          <Route path="/team-management" element={<TeamManagement />} />
+          <Route path="/team-management" element={<ProTeamRoute />} />
             </Route>
           </Route>
         </Route>
@@ -110,13 +110,32 @@ const AuthenticatedApp = () => {
 };
 
 // Shows a message when a change could not be saved on the server (e.g. a role without permission).
+function ProTeamRoute() {
+  const { canAccess, openPaywall } = usePaywall();
+  useEffect(() => { if (!canAccess("team_management")) openPaywall("Team management requires the Pro plan."); }, [canAccess, openPaywall]);
+  return canAccess("team_management") ? <TeamManagement /> : <div className="mx-auto max-w-lg p-8 text-center"><h2 className="text-xl font-bold">Team management is a Pro feature</h2><p className="mt-2 text-sm text-slate-500">Upgrade to Pro to manage team members.</p><button onClick={() => openPaywall("Team management requires the Pro plan.")} className="mt-4 rounded-xl bg-[#6D28D9] px-5 py-2 text-sm font-bold text-white">Upgrade to Pro</button></div>;
+}
+
 function SyncErrorListener() {
   const { toast } = useToast();
+  const { openPaywall } = usePaywall();
   useEffect(() => {
-    const onError = (e) => toast({ title: "Could not save your change", description: e?.detail?.message || "Please try again.", variant: "destructive" });
+    const onError = (e) => {
+      const message = String(e?.detail?.message || e?.detail?.error || "");
+      if (message.startsWith("PLAN_LIMIT_REACHED|") || message.startsWith("PLAN_FEATURE_LOCKED|")) {
+        const parts = message.split("|");
+        const reason = message.startsWith("PLAN_LIMIT_REACHED|")
+          ? "Usage limit reached: " + parts.slice(1).join(" · ")
+          : "Pro feature required: " + parts.slice(1).join(" · ");
+        openPaywall(reason);
+        toast({ title: "Upgrade required", description: reason, variant: "destructive" });
+        return;
+      }
+      toast({ title: "Could not save your change", description: message || "Please try again.", variant: "destructive" });
+    };
     window.addEventListener("plivex-sync-error", onError);
     return () => window.removeEventListener("plivex-sync-error", onError);
-  }, [toast]);
+  }, [toast, openPaywall]);
   return null;
 }
 
