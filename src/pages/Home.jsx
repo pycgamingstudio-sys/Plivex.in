@@ -542,6 +542,7 @@ export default function Home() {
     pdf.setProperties({ title: `Plivex Invoice ${invoice.number || ""}`, subject: "Invoice", creator: "Plivex — Smart Invoicing & Business OS", author: "Plivex" });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
+    const addFreeFooter = () => { if (planName !== "Free") return; const pages = pdf.getNumberOfPages(); for (let page = 1; page <= pages; page += 1) { pdf.setPage(page); pdf.setFontSize(8); pdf.setTextColor(120); pdf.text("Made with Plivex", pageWidth / 2, pageHeight - 4, { align: "center" }); } };
     const mmPerPx = pageWidth / canvas.width;
     const imageHeight = canvas.height * mmPerPx;
     const toJpeg = (c) => c.toDataURL("image/jpeg", 0.92);
@@ -551,6 +552,7 @@ export default function Home() {
       const w = pageWidth * fit;
       const h = imageHeight * fit;
       pdf.addImage(toJpeg(canvas), "JPEG", (pageWidth - w) / 2, 0, w, h, undefined, "FAST");
+      addFreeFooter();
       return pdf;
     }
     // Longer invoice: never cut through text. Each page breaks on a blank strip, with a small margin top and bottom.
@@ -598,6 +600,7 @@ export default function Home() {
       start = end;
       pageIndex += 1;
     }
+    addFreeFooter();
     return pdf;
   };
   const generatePdf = async (shouldValidate = true) => {
