@@ -12,7 +12,7 @@ const CATS = ["Rent", "Raw Materials", "Utilities", "Salary", "Logistics", "Soft
 const blank = { vendor: "", category: "Raw Materials", amount: "", date: new Date().toISOString().slice(0, 10), status: "Unpaid", method: "Bank Transfer", notes: "" };
 
 export default function PurchaseTab({ intent, onConsumeIntent }) {
-  const { requestAction } = usePaywall();
+  const { requestAction, limits, usage, openPaywall } = usePaywall();
   const { isAccountant } = useRole();
   const [expenses, setExpenses] = useState(() => loadList(KEYS.expenses));
   const [open, setOpen] = useState(false);
@@ -70,6 +70,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
 
   return (
     <div className="space-y-5">
+      {(() => { const used = Number(usage.expenses_monthly ?? usage.expenses ?? expenses.length); const limit = Number(limits.expenses_monthly ?? limits.expenses ?? 30); const pct = limit > 0 ? Math.min(100, used / limit * 100) : 100; return <div className="rounded-xl border border-[#E5E7EB] bg-white p-3"><div className="flex items-center justify-between gap-2 text-xs"><span className="font-semibold text-slate-700">Expenses this cycle</span><span className="font-bold text-slate-600">{used}/{limit}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-[#6D28D9]"}`} style={{ width: `${pct}%` }} /></div>{pct >= 80 && <p className={`mt-1.5 text-[11px] ${pct >= 100 ? "text-rose-600" : "text-amber-600"}`}>{pct >= 100 ? "Plan limit reached" : "Usage limit warning"}</p>}{pct >= 100 && <button onClick={() => openPaywall("Expense limit reached for your current plan.")} className="mt-2 rounded-lg bg-[#6D28D9] px-3 py-1.5 text-xs font-bold text-white">Upgrade</button>}</div>; })()}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <SummaryCard label="Monthly Expense" value={money2(monthExp)} gradient="bg-gradient-to-br from-[#E11D48] to-[#F43F5E]" icon={Wallet} badge="this month" />
         <SummaryCard label="Monthly Sales" value={money2(monthSales)} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={TrendingUp} badge="this month" />
