@@ -7,26 +7,15 @@ const formatDate = (value) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 };
-const addOneMonth = (value) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const day = date.getDate();
-  date.setDate(1);
-  date.setMonth(date.getMonth() + 1);
-  const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  date.setDate(Math.min(day, lastDay));
-  return date;
-};
 const TONES = { active: "bg-emerald-100 text-emerald-700", free: "bg-slate-100 text-slate-600" };
 
 export default function PlanStatusCard() {
-  const { isPremium, planName, planStartedAt, planExpiresAt, openPaywall, planLoading } = usePaywall();
+  const { isPremium, planName, planStartedAt, planExpiresAt, planResetsAt, openPaywall, planLoading } = usePaywall();
   const { user } = useAuth();
   if (planLoading) return null;
-  const freeStarted = user?.created_at || user?.createdAt || user?.created_date || "";
+  const freeStarted = planStartedAt || user?.created_at || user?.createdAt || user?.created_date || "";
   const startedAt = isPremium ? planStartedAt : freeStarted;
-  const freeRenewal = addOneMonth(freeStarted);
+  const freeRenewal = planResetsAt;
   const endsAt = isPremium ? planExpiresAt : freeRenewal;
   const label = isPremium ? "Active" : "Free plan";
   const tone = isPremium ? TONES.active : TONES.free;
