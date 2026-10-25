@@ -123,6 +123,7 @@ function SyncErrorListener() {
     const onError = (e) => {
       const message = String(e?.detail?.message || e?.detail?.error || "");
       if (message.startsWith("PLAN_LIMIT_REACHED|") || message.startsWith("PLAN_FEATURE_LOCKED|")) {
+        if (typeof e?.detail?.rollback === "function") { try { e.detail.rollback(); } catch { /* best-effort optimistic rollback */ } }
         const parts = message.split("|");
         const reason = message.startsWith("PLAN_LIMIT_REACHED|")
           ? "Usage limit reached: " + parts.slice(1).join(" · ")
