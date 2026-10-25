@@ -7,7 +7,7 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 const isAllowedOrigin = (origin: string | null) => !origin || ALLOWED_ORIGINS.has(origin)
   || /^https:\/\/(?:[a-z0-9-]+\.)?[a-z0-9-]+\.workers\.dev$/.test(origin)
-  || /^https:\/\/[a-z0-9-]+\.pages\.dev$/.test(origin);
+  || /^https:\/\/(?:[a-z0-9-]+\.)?[a-z0-9-]+\.pages\.dev$/.test(origin);
 const corsHeaders = {
   "Access-Control-Allow-Origin": "https://plivex.in",
   "Vary": "Origin",
