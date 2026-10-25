@@ -178,7 +178,13 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   const { user } = useAuth();
   const [processing, setProcessing] = useState(null);
   const [notice, setNotice] = useState("");
+  const [billing, setBilling] = useState("monthly");
   const activePlan = currentPlan?.planId ? PLANS.find((plan) => plan.id === currentPlan.planId) : null;
+  const visiblePlans = [
+    { id: "free", name: "Free", price: 0, period: billing === "monthly" ? "month" : "year", included: DISPLAY_PLANS.free.bullets, locked: [], accent: false, badge: null, checkoutPlan: null },
+    { id: "basic", name: "Basic", price: billing === "monthly" ? DISPLAY_PLANS.basic.monthly : DISPLAY_PLANS.basic.yearly, period: billing === "monthly" ? "month" : "year", included: DISPLAY_PLANS.basic.bullets, locked: [], accent: false, badge: null, checkoutPlan: PLANS.find((p) => p.id === (billing === "monthly" ? "basic_monthly" : "basic_yearly")) },
+    { id: "pro", name: "Pro", price: billing === "monthly" ? DISPLAY_PLANS.pro.monthly : DISPLAY_PLANS.pro.yearly, period: billing === "monthly" ? "month" : "year", included: DISPLAY_PLANS.pro.bullets, locked: [], accent: true, badge: "MOST POPULAR", checkoutPlan: PLANS.find((p) => p.id === (billing === "monthly" ? "pro_monthly" : "enterprise_yearly")) },
+  ];
 
   const checkout = async (plan) => {
     setProcessing(plan.id);
@@ -204,27 +210,18 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
           {currentPlan?.active && (
             <CurrentPlanCard planName={currentPlan.planName} benefits={activePlan?.included || []} startedAt={currentPlan.startedAt} expiresAt={currentPlan.expiresAt} />
           )}
-          <div className="mb-4 rounded-2xl border border-[#E5E7EB] bg-slate-50 p-4"><div className="flex items-center justify-between"><div><p className="text-sm font-bold">Free</p><p className="mt-1 text-xs text-slate-500">₹0 · No card needed</p></div><span className="text-xs font-semibold text-slate-500">{currentPlan?.plan === "free" ? "Current plan" : "Available"}</span></div><ul className="mt-3 space-y-1">{DISPLAY_PLANS.free.bullets.map((item) => <li key={item} className="text-xs text-slate-600">• {item}</li>)}</ul></div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {PLANS.map((plan) => (
+          <div className="mb-4 flex items-center justify-center gap-2 rounded-xl bg-slate-100 p-1">
+            <button onClick={() => setBilling("monthly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "monthly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Monthly</button>
+            <button onClick={() => setBilling("yearly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "yearly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Yearly</button>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {visiblePlans.map((plan) => (
               <div key={plan.id} className={`relative flex flex-col rounded-2xl border p-4 ${plan.accent ? "border-[#6D28D9] bg-[#6D28D9]/5" : "border-[#E5E7EB] bg-white"}`}>
-                {plan.badge && <span className={`absolute -top-2.5 right-4 rounded-full px-2.5 py-0.5 font-mono-ui text-[9px] font-bold uppercase tracking-wider text-white ${plan.accent ? "bg-[#6D28D9]" : "bg-slate-500"}`}>{plan.badge}</span>}
-                <div className="flex items-center gap-2">
-                  {plan.accent ? <Crown className="h-4 w-4 text-[#6D28D9]" /> : <Star className="h-4 w-4 text-slate-400" />}
-                  <p className="text-[13px] font-bold text-slate-900">{plan.name}</p>
-                </div>
+                {plan.badge && <span className="absolute -top-2.5 right-3 rounded-full bg-[#6D28D9] px-2.5 py-0.5 text-[9px] font-bold text-white">{plan.badge}</span>}
+                <div className="flex items-center gap-2"><p className="text-[13px] font-bold text-slate-900">{plan.name}</p></div>
                 <p className="mt-2 text-[26px] font-bold leading-none text-slate-900">₹{plan.price}<span className="text-[12px] font-medium text-slate-400">/{plan.period}</span></p>
-                <div className="mt-3 space-y-1.5">
-                  {plan.included.map((f) => (
-                    <div key={f} className="flex items-start gap-2 text-[11px] font-medium text-slate-700"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Check className="h-2.5 w-2.5" /></span>{f}</div>
-                  ))}
-                  {plan.locked.map((f) => (
-                    <div key={f} className="flex items-start gap-2 text-[11px] font-medium text-slate-400"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600"><XCircle className="h-2.5 w-2.5" /></span>{f} (Locked)</div>
-                  ))}
-                </div>
-                <button onClick={() => checkout(plan)} disabled={processing === plan.id} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold transition-transform hover:-translate-y-0.5 disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9] hover:bg-[#6D28D9]/5"}`}>
-                  {processing === plan.id ? "Opening checkout…" : `Buy — ₹${plan.price}/${plan.period}`}
-                </button>
+                <div className="mt-3 flex-1 space-y-1.5">{plan.included.map((item) => <div key={item} className="flex items-start gap-2 text-[11px] font-medium text-slate-700"><span className="mt-0.5 text-emerald-600">✓</span>{item}</div>)}</div>
+                {plan.checkoutPlan ? <button onClick={() => checkout(plan.checkoutPlan)} disabled={processing === plan.checkoutPlan.id} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9]"}`}>{processing === plan.checkoutPlan.id ? "Opening checkout…" : `Choose ${plan.name} · ₹${plan.price}/${plan.period}`}</button> : <button onClick={onClose} className="mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-[12px] font-bold text-slate-600">{currentPlan?.plan === "free" ? "Current plan" : "Use Free plan"}</button>}
               </div>
             ))}
           </div>
