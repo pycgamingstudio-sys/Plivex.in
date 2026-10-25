@@ -691,7 +691,6 @@ export default function Home() {
     const message = `Hi ${clientName}! 👋\nHope you are doing well!\n\nThank you for your business. Here is your invoice #${invNumber} for ${totalAmt}.\n📅 Due Date: ${due}\n\n${pdfLine}\n${paymentLine}\n\nIf you have any questions, feel free to reply to this message.\nBest regards,\n${bizName}`;
     const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
     if (waWindow) { waWindow.location.href = url; } else { window.location.href = url; }
-    spendCredit();
     deductStockForInvoice(invoice);
     recordActivity("Shared via WhatsApp", "share");
     setWhatsappOpen(false);
