@@ -53,8 +53,8 @@ const PILLARS = [
 const STATS = [
   { value: "6", label: "Core capability areas" },
   { value: "2", label: "Languages · Hindi & English" },
-  { value: "14 days", label: "Full-feature trial" },
-  { value: "No card", label: "Required to start trial" },
+  { value: "Free", label: "Plan to get started" },
+  { value: "No card", label: "Needed to get started" },
 ];
 
 export default function AboutSection() {

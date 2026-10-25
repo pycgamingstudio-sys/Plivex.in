@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Check, Sparkles, Crown, X } from "lucide-react";
 
 const PLANS = [
+  { id: "free", name: "Free", accent: false, badge: null, monthly: 0, yearly: 0, tagline: "For getting started with no card needed.", included: ["30 invoices / month", "20 clients and stock items", "PDF downloads with Made with Plivex footer", "Basic invoicing and expense tracking"], locked: ["WhatsApp sharing", "Team and lead pipeline", "GSTR-1 export and custom logo"] },
   {
     id: "basic", name: "Basic", accent: false, badge: null,
     monthly: 199, yearly: 999,
@@ -19,7 +20,7 @@ const PLANS = [
     included: [
       "Unlimited invoices & quotations", "WhatsApp one-click sharing", "Custom branding & logos",
       "Advanced reports & GSTR-1 export", "Full client CRM & lead pipeline", "Multi-currency support",
-      "Auto payment reminders", "Priority 24/7 support",
+      "Auto payment reminders", 
     ],
     locked: [],
   },
@@ -32,7 +33,7 @@ export default function PricingSection() {
         <div className="text-center">
           <div className="inline-flex items-center gap-1.5 rounded-full bg-[#6D28D9]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#6D28D9]"><Sparkles className="h-3 w-3" />Pricing</div>
           <h2 className="mt-3 text-[22px] font-bold text-slate-900 sm:text-[26px]">Simple, honest pricing for every business.</h2>
-          <p className="mx-auto mt-1.5 max-w-xl text-[12px] text-slate-500">Start free for 14 days with every feature unlocked. No card required. Cancel anytime.</p>
+          <p className="mx-auto mt-1.5 max-w-xl text-[12px] text-slate-500">Free plan, no card needed. Upgrade when your business needs more.</p>
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -45,10 +46,10 @@ export default function PricingSection() {
               </div>
               <p className="mt-1 text-[11px] text-slate-500">{plan.tagline}</p>
               <div className="mt-3 flex items-end gap-1">
-                <p className="text-[28px] font-bold leading-none text-slate-900">₹{plan.monthly}</p>
+                <p className="text-[28px] font-bold leading-none text-slate-900">{plan.monthly === 0 ? "₹0" : `₹${plan.monthly}`}</p>
                 <span className="mb-0.5 text-[12px] font-medium text-slate-400">/ month</span>
               </div>
-              <p className="mt-0.5 text-[11px] font-semibold text-emerald-600">or ₹{plan.yearly.toLocaleString("en-IN")} / year <span className="text-slate-400">(Best Value)</span></p>
+              <p className="mt-0.5 text-[11px] font-semibold text-emerald-600">{plan.yearly === 0 ? "Free forever" : `or ₹${plan.yearly.toLocaleString("en-IN")} / year` }</p>
               <div className="mt-4 space-y-1.5">
                 {plan.included.map((f) => (
                   <div key={f} className="flex items-start gap-2 text-[11px] font-medium text-slate-700"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Check className="h-2.5 w-2.5" /></span>{f}</div>

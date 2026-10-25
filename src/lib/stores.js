@@ -70,7 +70,6 @@ const LEGACY_MAP = {
   "invoicepulse:cardVisibility": "cardVisibility",
   "invoicepulse:teamInvites": "teamInvites",
   "invoicepulse:emailSettings": "emailSettings",
-  "invoicepulse_usage_count": "invoicepulse_usage_count",
   "is_premium_user": "is_premium_user",
   "invoicepulse-dark": "dark",
   "invoicepulse-draft": "draft",

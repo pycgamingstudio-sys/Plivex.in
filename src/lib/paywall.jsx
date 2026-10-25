@@ -7,25 +7,15 @@ import { useAuth } from "@/lib/AuthContext";
 import { startPayuCheckout } from "@/lib/payu";
 import CurrentPlanCard from "@/components/CurrentPlanCard";
 import { toast } from "@/components/ui/use-toast";
+import { PLANS as DISPLAY_PLANS } from "@/lib/plans";
 
-const TRIAL_DAYS = 14;
-
-const FEATURE_PLANS = {
-  download_pdf: ["basic", "pro"],
-  whatsapp_share: ["basic", "pro"],
-  save: ["basic", "pro"],
-  gstr1: ["pro"],
-  custom_logo: ["pro"],
-  multi_currency: ["pro"],
-  team_management: ["pro"],
-  premium_designs: ["pro"],
-};
+const FEATURE_ALIASES = { gstr1: "gstr1_export", team_management: "team", lead_pipeline: "lead_pipeline", payment_reminders: "payment_reminders", whatsapp_share: "whatsapp_share", custom_logo: "custom_logo", multi_currency: "multi_currency", premium_designs: "premium_designs" };
 
 const PaywallContext = createContext(null);
 
 export function usePaywall() {
   const ctx = useContext(PaywallContext);
-  if (!ctx) return { isPremium: true, subscription: "pro", planName: "Pro", planId: "", planStartedAt: "", planExpiresAt: "", planLoading: false, trialActive: false, trialDaysLeft: 0, trialStartAt: "", trialExpiresAt: "", requestAction: () => true, canAccess: () => true, activatePlan: () => {}, upgrade: () => {}, showPaywall: false, blocked: false, openPaywall: () => {}, closePaywall: () => {} };
+  if (!ctx) return { plan: "free", limits: {}, usage: {}, remaining: (resource) => 0, canAccess: (feature) => false, requireFeature: (feature, reason) => false, refreshAccessStatus: async () => {}, isPremium: false, subscription: "free", planName: "Free", planId: "", planStartedAt: "", planExpiresAt: "", planLoading: false, requestAction: () => true, showPaywall: false, blocked: false, openPaywall: (reason) => {}, closePaywall: () => {} };
   return ctx;
 }
 
@@ -38,36 +28,48 @@ export function PaywallProvider({ children }) {
   const [planStartedAt, setPlanStartedAt] = useState("");
   const [planExpiresAt, setPlanExpiresAt] = useState("");
   const [planLoading, setPlanLoading] = useState(true);
-  const [serverTrial, setServerTrial] = useState(null);
+  const [accessStatus, setAccessStatus] = useState({ plan: "free", limits: {}, usage: {}, features: {} });
+  const [blockReason, setBlockReason] = useState("");
   const { user } = useAuth();
   useEffect(() => {
     let active = true;
-    if (!user?.id) { setSubscription("free"); setPlanName("Free"); setPlanId(""); setPlanStartedAt(""); setPlanExpiresAt(""); setPlanLoading(false); return () => { active = false; }; }
+    if (!user?.id) { setSubscription("free"); setPlanName("Free"); setPlanId(""); setPlanStartedAt(""); setPlanExpiresAt(""); setAccessStatus({ plan: "free", limits: {}, usage: {}, features: {} }); setPlanLoading(false); return () => { active = false; }; }
     // Premium is read from the server asynchronously — screens wait for this before
     // deciding to lock, so a paid account never flashes the lock screen on load.
     setPlanLoading(true);
     (async () => {
       try {
-        // Premium and trial status come from the server (get-access-status), never from the browser.
+        // Plan and usage details come from the server, never from browser storage.
         const res = await db.functions.invoke("getAccessStatus", {});
         const st = res?.data || {};
         if (!active) return;
-        setServerTrial({ active: !!st.trialActive, expiresAt: st.trialExpiresAt || "" });
-        if (st.isPremium) {
-          const tier = st.tier || "pro";
-          setSubscription(tier);
-          setPlanName(tier === "pro" ? "Pro" : "Basic");
-          setPlanId("");
-          setPlanStartedAt("");
-          setPlanExpiresAt(st.expiresAt || "");
-        } else {
-          setSubscription("free"); setPlanName("Free");
-          setPlanId(""); setPlanStartedAt(""); setPlanExpiresAt("");
-        }
-      } catch { if (active) { setSubscription("free"); setPlanName("Free"); setServerTrial(null); } } finally { if (active) setPlanLoading(false); }
+        const tier = String(st.plan || st.tier || (st.isPremium ? "basic" : "free")).toLowerCase();
+        const normalizedPlan = ["basic", "pro", "enterprise"].includes(tier) ? tier : "free";
+        setAccessStatus({ ...st, plan: normalizedPlan, limits: st.limits || {}, usage: st.usage || {}, features: st.features || {} });
+        setSubscription(normalizedPlan);
+        setPlanName(normalizedPlan === "enterprise" ? "Enterprise" : normalizedPlan === "pro" ? "Pro" : normalizedPlan === "basic" ? "Basic" : "Free");
+        setPlanId(st.planId || st.plan_id || "");
+        setPlanStartedAt(st.startedAt || st.started_at || "");
+        setPlanExpiresAt(st.expiresAt || st.expires_at || "");
+      } catch { if (active) { setSubscription("free"); setPlanName("Free"); setAccessStatus({ plan: "free", limits: {}, usage: {}, features: {} }); } } finally { if (active) setPlanLoading(false); }
     })();
     return () => { active = false; };
   }, [user?.id]);
+  const refreshAccessStatus = useCallback(async () => {
+    try {
+      const res = await db.functions.invoke("getAccessStatus", {});
+      const st = res?.data || {};
+      const tier = String(st.plan || st.tier || (st.isPremium ? "basic" : "free")).toLowerCase();
+      const normalizedPlan = ["basic", "pro", "enterprise"].includes(tier) ? tier : "free";
+      setAccessStatus({ ...st, plan: normalizedPlan, limits: st.limits || {}, usage: st.usage || {}, features: st.features || {} });
+      setSubscription(normalizedPlan);
+      setPlanName(normalizedPlan === "enterprise" ? "Enterprise" : normalizedPlan === "pro" ? "Pro" : normalizedPlan === "basic" ? "Basic" : "Free");
+      setPlanId(st.planId || st.plan_id || "");
+      setPlanStartedAt(st.startedAt || st.started_at || "");
+      setPlanExpiresAt(st.expiresAt || st.expires_at || "");
+    } catch { /* retain the last server-confirmed status if refresh fails */ }
+  }, []);
+
   // PayU sends the customer back here after the backend has verified the payment.
   // The query flag only drives the confirmation message — premium itself is always
   // read from the Subscription record above, never from the URL or localStorage.
@@ -86,47 +88,50 @@ export function PaywallProvider({ children }) {
   const [showPaywall, setShowPaywall] = useState(false);
   const [blocked, setBlocked] = useState(false);
 
-  const isPremium = subscription !== "free";
-  // The 14-day trial is anchored to the account's registration date — never to the
-  // first time the app was opened, a login, or a browser session. trial_start_at is
-  // written at registration; created_date is the fallback for older accounts.
-  // The server decides whether the 14-day trial is still running (get-access-status).
-  const trialExpiresMs = serverTrial?.expiresAt ? new Date(serverTrial.expiresAt).getTime() : null;
-  const trialDaysLeft = serverTrial?.active && trialExpiresMs
-    ? Math.max(0, Math.ceil((trialExpiresMs - Date.now()) / 86400000))
-    : 0;
-  const trialStartAt = trialExpiresMs ? new Date(trialExpiresMs - TRIAL_DAYS * 86400000).toISOString() : "";
-  const trialExpiresAt = trialExpiresMs ? new Date(trialExpiresMs).toISOString() : "";
-  // A paid plan always supersedes the trial: the moment a subscription is active
-  // the account is no longer a trial user, even if the 14 days have not elapsed.
-  const trialActive = !isPremium && !!user && !!serverTrial?.active;
-
-  // The 14-day trial unlocks exactly what the Basic plan includes — never the
-  // Pro-only features (GSTR-1 export, custom logo, multi-currency, team access).
-  const effectiveTier = isPremium ? subscription : trialActive ? "basic" : "free";
-  const canAccess = useCallback((feature) => (FEATURE_PLANS[feature] || []).includes(effectiveTier), [effectiveTier]);
+  const plan = accessStatus.plan || subscription || "free";
+  const isPremium = plan === "basic" || plan === "pro" || plan === "enterprise";
+  const rawLimits = accessStatus.limits || {};
+  const rawUsage = accessStatus.usage || {};
+  const limits = { ...rawLimits, clients: rawLimits.clients ?? rawLimits.clients_total, stock: rawLimits.stock ?? rawLimits.stock_total, invoices_monthly: rawLimits.invoices_monthly ?? rawLimits.invoices };
+  const usage = { ...rawUsage, clients: rawUsage.clients ?? rawUsage.clients_total, stock: rawUsage.stock ?? rawUsage.stock_total, invoices_monthly: rawUsage.invoices_monthly ?? rawUsage.invoices };
+  const remaining = useCallback((resource) => {
+    const limit = limits[resource];
+    const used = Number(usage[resource] || 0);
+    if (limit === undefined || limit === null || limit === -1) return Infinity;
+    return Math.max(0, Number(limit) - used);
+  }, [limits, usage]);
+  const canAccess = useCallback((feature) => {
+    if (feature === "download_pdf" || feature === "save") return true;
+    const key = FEATURE_ALIASES[feature] || feature;
+    if (Object.prototype.hasOwnProperty.call(accessStatus.features || {}, key)) return !!accessStatus.features[key];
+    if (key === "team" && Object.prototype.hasOwnProperty.call(accessStatus.features || {}, "team_management")) return !!accessStatus.features.team_management;
+    return plan === "pro" || plan === "enterprise";
+  }, [accessStatus.features, plan]);
+  const requireFeature = useCallback((feature, reason = "") => {
+    if (canAccess(feature)) return true;
+    setBlockReason(reason || feature);
+    setBlocked(true);
+    setShowPaywall(true);
+    return false;
+  }, [canAccess]);
+  const requestAction = useCallback(() => true, []);
 
   // Called only after the server has verified the PayU response hash and activated
   // the Subscription record. Never trusts a client-supplied plan.
   const applySubscription = useCallback((data) => {
     setSubscription(data?.tier || "pro");
     setPlanName(data?.planName || "Pro");
+    setAccessStatus((prev) => ({ ...prev, plan: data?.tier || "pro" }));
     setBlocked(false); setShowPaywall(false);
   }, []);
 
-  const requestAction = useCallback(() => {
-    if (isPremium || trialActive) return true;
-    setBlocked(true); setShowPaywall(true);
-    return false;
-  }, [isPremium, trialActive]);
-
-  const openPaywall = useCallback(() => { setBlocked(false); setShowPaywall(true); }, []);
-  const closePaywall = useCallback(() => { if (!blocked) setShowPaywall(false); }, [blocked]);
+  const openPaywall = useCallback((reason = "") => { setBlockReason(reason); setBlocked(Boolean(reason)); setShowPaywall(true); }, []);
+  const closePaywall = useCallback(() => { setShowPaywall(false); setBlocked(false); setBlockReason(""); }, []);
 
   return (
-    <PaywallContext.Provider value={{ isPremium, subscription, planName, planId, planStartedAt, planExpiresAt, planLoading, trialActive, trialDaysLeft, trialStartAt, trialExpiresAt, requestAction, canAccess, applySubscription, upgrade: applySubscription, showPaywall, blocked, openPaywall, closePaywall }}>
+    <PaywallContext.Provider value={{ plan, limits, usage, remaining, requireFeature, refreshAccessStatus, isPremium, subscription, planName, planId, planStartedAt, planExpiresAt, planLoading, requestAction, canAccess, applySubscription, upgrade: applySubscription, showPaywall, blocked, openPaywall, closePaywall }}>
       {children}
-      {showPaywall && <PaywallModal blocked={blocked} trialActive={trialActive} trialDaysLeft={trialDaysLeft} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} onClose={closePaywall} />}
+      {showPaywall && <PaywallModal blocked={blocked} blockReason={blockReason} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt, plan }} onClose={closePaywall} />}
     </PaywallContext.Provider>
   );
 }
@@ -135,20 +140,19 @@ const PLANS = [
   {
     id: "basic_monthly", name: "Basic Monthly", price: 199, period: "month", amount: 19900, badge: null, accent: false,
     included: [
-      "Up to 50 Invoices & Quotations / month",
+      "Up to 100 invoices per month",
       "Dynamic UPI QR Code Generation",
-      "Instant WhatsApp Sharing",
-      "Standard HD PDF Downloads",
+      "PDF downloads",
       "Basic Client Database",
       "Expense Tracker",
       "Standard Customer Support",
     ],
-    locked: ["GSTR-1 Tax Reports", "Custom Business Logo", "Multi-Currency Support"],
+    locked: ["WhatsApp sharing", "Team and lead pipeline", "Payment reminders", "GSTR-1 export", "Custom logo", "Multi-currency", "Premium designs"],
   },
   {
     id: "pro_monthly", name: "Pro Monthly", price: 249, period: "month", amount: 24900, badge: "MOST POPULAR", accent: true,
     included: [
-      "UNLIMITED Invoices, Quotations & Bills",
+      "Up to 3,000 invoices per month",
       "Dynamic UPI QR Code & Online Payments",
       "WhatsApp One-Click Direct Share",
       "Ultra HD PDF Downloads with Custom Logo",
@@ -157,17 +161,17 @@ const PLANS = [
       "GSTR-1 Ready Excel/CSV Exports",
       "Multi-Currency & Tax Breakdown (CGST/SGST/IGST)",
       "Auto Payment Reminders",
-      "Priority 24/7 Support",
+      
     ],
     locked: [],
   },
   {
     id: "basic_yearly", name: "Basic Yearly", price: 999, period: "year", amount: 99900, badge: "SAVE 58%", accent: false,
     included: [
-      "Includes ALL ₹199 Basic Plan features for 1 FULL YEAR (12 Months Access)",
-      "Up to 600 Invoices & Quotations / year",
+      "Basic plan features for one year",
+      "Up to 100 invoices per month",
       "Dynamic UPI QR Codes",
-      "Instant WhatsApp Share & HD PDFs",
+      "PDF downloads",
       "Expense Management",
       "Annual Savings (Cost-effective for individuals)",
       "Standard Support",
@@ -177,22 +181,28 @@ const PLANS = [
   {
     id: "enterprise_yearly", name: "Enterprise Yearly", price: 1599, period: "year", amount: 159900, badge: "BEST VALUE", accent: true,
     included: [
-      "Includes ALL ₹249 Pro Plan features for 1 FULL YEAR",
+      "Pro plan features for one year",
       "Custom Invoice Templates & Advanced Branding",
-      "Dedicated Account Manager",
+      
       "Multi-User / Team Access",
-      "Auto Cloud Backup & Lifetime History",
-      "Priority WhatsApp & Call Support",
+      "Cloud-synced business records",
+      
     ],
     locked: [],
   },
 ];
 
-function PaywallModal({ blocked, trialActive, trialDaysLeft, currentPlan, onClose }) {
+function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   const { user } = useAuth();
   const [processing, setProcessing] = useState(null);
   const [notice, setNotice] = useState("");
+  const [billing, setBilling] = useState("monthly");
   const activePlan = currentPlan?.planId ? PLANS.find((plan) => plan.id === currentPlan.planId) : null;
+  const visiblePlans = [
+    { id: "free", name: "Free", price: 0, period: billing === "monthly" ? "month" : "year", included: DISPLAY_PLANS.free.bullets, locked: [], accent: false, badge: null, checkoutPlan: null },
+    { id: "basic", name: "Basic", price: billing === "monthly" ? DISPLAY_PLANS.basic.monthly : DISPLAY_PLANS.basic.yearly, period: billing === "monthly" ? "month" : "year", included: DISPLAY_PLANS.basic.bullets, locked: [], accent: false, badge: null, checkoutPlan: PLANS.find((p) => p.id === (billing === "monthly" ? "basic_monthly" : "basic_yearly")) },
+    { id: "pro", name: "Pro", price: billing === "monthly" ? DISPLAY_PLANS.pro.monthly : DISPLAY_PLANS.pro.yearly, period: billing === "monthly" ? "month" : "year", included: DISPLAY_PLANS.pro.bullets, locked: [], accent: true, badge: "MOST POPULAR", checkoutPlan: PLANS.find((p) => p.id === (billing === "monthly" ? "pro_monthly" : "enterprise_yearly")) },
+  ];
 
   const checkout = async (plan) => {
     setProcessing(plan.id);
@@ -209,39 +219,27 @@ function PaywallModal({ blocked, trialActive, trialDaysLeft, currentPlan, onClos
         <div className="relative bg-gradient-to-br from-[#6D28D9] to-[#4c1d95] p-6 text-white">
           {!blocked && <button onClick={onClose} className="absolute right-3 top-3 rounded-lg p-2 text-white/80 hover:bg-white/10" aria-label="Close"><X className="h-4 w-4" /></button>}
           <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /><span className="text-[10px] font-bold uppercase tracking-[0.18em]">Plivex Premium</span></div>
-          <h3 className="mt-3 text-[22px] font-bold leading-tight">{blocked ? "Your 14-day trial has completed!" : "Choose your plan"}</h3>
-          <p className="mt-1.5 text-[12px] leading-relaxed text-white/85">{blocked ? "Upgrade to a paid plan to unlock unlimited invoices, data backup and team access." : "Unlock unlimited actions and premium features across the entire workspace."}</p>
-          {trialActive ? (
-            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold">Trial active · Basic plan features · {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} left</div>
-          ) : (
-            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold">Free trial ended · choose a plan to continue</div>
-          )}
+          <h3 className="mt-3 text-[22px] font-bold leading-tight">{blocked ? "Upgrade required" : "Choose your plan"}</h3>
+          <p className="mt-1.5 text-[12px] leading-relaxed text-white/85">{blocked ? "This action is not available on your " + (currentPlan?.planName || "Free") + " plan. " + blockReason : "Choose the plan that fits your business. Free plan, no card needed."}</p>
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold">Free plan available · No card needed</div>
         </div>
 
         <div className="max-h-[64vh] overflow-y-auto px-4 py-5 sm:px-6">
           {currentPlan?.active && (
             <CurrentPlanCard planName={currentPlan.planName} benefits={activePlan?.included || []} startedAt={currentPlan.startedAt} expiresAt={currentPlan.expiresAt} />
           )}
-          <div className="grid gap-3 sm:grid-cols-2">
-            {PLANS.map((plan) => (
+          <div className="mb-4 flex items-center justify-center gap-2 rounded-xl bg-slate-100 p-1">
+            <button onClick={() => setBilling("monthly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "monthly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Monthly</button>
+            <button onClick={() => setBilling("yearly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "yearly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Yearly</button>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {visiblePlans.map((plan) => (
               <div key={plan.id} className={`relative flex flex-col rounded-2xl border p-4 ${plan.accent ? "border-[#6D28D9] bg-[#6D28D9]/5" : "border-[#E5E7EB] bg-white"}`}>
-                {plan.badge && <span className={`absolute -top-2.5 right-4 rounded-full px-2.5 py-0.5 font-mono-ui text-[9px] font-bold uppercase tracking-wider text-white ${plan.accent ? "bg-[#6D28D9]" : "bg-slate-500"}`}>{plan.badge}</span>}
-                <div className="flex items-center gap-2">
-                  {plan.accent ? <Crown className="h-4 w-4 text-[#6D28D9]" /> : <Star className="h-4 w-4 text-slate-400" />}
-                  <p className="text-[13px] font-bold text-slate-900">{plan.name}</p>
-                </div>
+                {plan.badge && <span className="absolute -top-2.5 right-3 rounded-full bg-[#6D28D9] px-2.5 py-0.5 text-[9px] font-bold text-white">{plan.badge}</span>}
+                <div className="flex items-center gap-2"><p className="text-[13px] font-bold text-slate-900">{plan.name}</p></div>
                 <p className="mt-2 text-[26px] font-bold leading-none text-slate-900">₹{plan.price}<span className="text-[12px] font-medium text-slate-400">/{plan.period}</span></p>
-                <div className="mt-3 space-y-1.5">
-                  {plan.included.map((f) => (
-                    <div key={f} className="flex items-start gap-2 text-[11px] font-medium text-slate-700"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Check className="h-2.5 w-2.5" /></span>{f}</div>
-                  ))}
-                  {plan.locked.map((f) => (
-                    <div key={f} className="flex items-start gap-2 text-[11px] font-medium text-slate-400"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600"><XCircle className="h-2.5 w-2.5" /></span>{f} (Locked)</div>
-                  ))}
-                </div>
-                <button onClick={() => checkout(plan)} disabled={processing === plan.id} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold transition-transform hover:-translate-y-0.5 disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9] hover:bg-[#6D28D9]/5"}`}>
-                  {processing === plan.id ? "Opening checkout…" : `Buy — ₹${plan.price}/${plan.period}`}
-                </button>
+                <div className="mt-3 flex-1 space-y-1.5">{plan.included.map((item) => <div key={item} className="flex items-start gap-2 text-[11px] font-medium text-slate-700"><span className="mt-0.5 text-emerald-600">✓</span>{item}</div>)}</div>
+                {plan.checkoutPlan ? <button onClick={() => checkout(plan.checkoutPlan)} disabled={processing === plan.checkoutPlan.id} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9]"}`}>{processing === plan.checkoutPlan.id ? "Opening checkout…" : `Choose ${plan.name} · ₹${plan.price}/${plan.period}`}</button> : <button onClick={onClose} className="mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-[12px] font-bold text-slate-600">{currentPlan?.plan === "free" ? "Current plan" : "Use Free plan"}</button>}
               </div>
             ))}
           </div>
@@ -250,7 +248,7 @@ function PaywallModal({ blocked, trialActive, trialDaysLeft, currentPlan, onClos
 
         <div className="border-t border-[#E5E7EB] px-6 py-4">
           {blocked ? (
-            <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-slate-500"><Lock className="h-3 w-3" />This window stays open until you upgrade.</p>
+            <button onClick={onClose} className="w-full text-center text-[12px] font-medium text-slate-400 hover:text-slate-600">Close</button>
           ) : (
             <button onClick={onClose} className="w-full text-center text-[12px] font-medium text-slate-400 hover:text-slate-600">Maybe later</button>
           )}

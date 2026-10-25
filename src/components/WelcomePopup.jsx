@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { Sparkles, X, Zap } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { usePaywall } from "@/lib/paywall";
 
 const SEEN_KEY = "invoicepulse:welcomeSeen";
 
 export default function WelcomePopup() {
-  const { trialActive, trialDaysLeft } = usePaywall();
+
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -29,14 +29,11 @@ export default function WelcomePopup() {
         <div className="relative bg-gradient-to-br from-[#6D28D9] to-[#4c1d95] p-5 text-white">
           <button onClick={dismiss} className="absolute right-3 top-3 rounded-lg p-2 text-white/80 hover:bg-white/10" aria-label="Dismiss"><X className="h-4 w-4" /></button>
           <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /><span className="text-[10px] font-bold uppercase tracking-[0.18em]">Welcome to Plivex</span></div>
-          <h3 className="mt-2 text-[19px] font-bold leading-tight">Enjoy 14 days of free Basic plan access 👋</h3>
-          <p className="mt-1.5 text-[12px] leading-relaxed text-white/85">No credit card required. Your invoices, clients and progress are auto-saved safely to your account.</p>
+          <h3 className="mt-2 text-[19px] font-bold leading-tight">Start with the Free plan 👋</h3>
+          <p className="mt-1.5 text-[12px] leading-relaxed text-white/85">Free plan, no card needed. Your invoices, clients and progress are saved to your account.</p>
         </div>
         <div className="p-5">
-          {trialActive && (
-            <div className="mb-4 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2.5 text-[12px] font-semibold text-emerald-700"><Zap className="h-4 w-4" />Trial active · Basic plan · {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} left</div>
-          )}
-          <p className="text-[12px] leading-relaxed text-slate-500">Everything in the Basic plan is unlocked during your trial. Upgrade any time for the Pro features — GSTR-1 reports, custom logo, multi-currency and team access.</p>
+          <p className="text-[12px] leading-relaxed text-slate-500">Start with Free and upgrade whenever you need Pro features such as WhatsApp sharing, team access, lead pipeline, payment reminders, GSTR-1 export, custom logo, multi-currency and premium designs.</p>
           <button onClick={dismiss} className="mt-4 w-full rounded-xl bg-[#6D28D9] py-2.5 text-[13px] font-bold text-white hover:bg-[#7C3AED]">Let's go 🚀</button>
         </div>
       </div>

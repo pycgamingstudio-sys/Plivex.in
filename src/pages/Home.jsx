@@ -2,7 +2,7 @@ import { base44 as db } from '@/api/base44Client';
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { KEYS, pushItem, genId, deductStockForInvoice, loadList, loadState, removeState, tenantKey } from "@/lib/stores";
+import { KEYS, pushItem, genId, deductStockForInvoice, loadList, loadState, removeState, tenantKey, saveInvoiceToServer } from "@/lib/stores";
 import { useAuth } from "@/lib/AuthContext";
 import { startPayuCheckout } from "@/lib/payu";
 import { usePaywall } from "@/lib/paywall";
@@ -373,13 +373,13 @@ const PRICING_PLANS = [
     included: ["Up to 50 Invoices & Quotations / month","Dynamic UPI QR Code Generation","Instant WhatsApp Sharing","Standard HD PDF Downloads","Basic Client Database","Expense Tracker","Standard Customer Support"],
     locked: ["GSTR-1 Tax Reports","Custom Business Logo","Multi-Currency Support"] },
   { id: "pro_monthly", name: "Pro Monthly", price: 249, period: "month", amount: 24900, badge: "MOST POPULAR", accent: true,
-    included: ["UNLIMITED Invoices, Quotations & Bills","Dynamic UPI QR Code & Online Payments","WhatsApp One-Click Direct Share","Ultra HD PDF Downloads with Custom Logo","Full Client CRM & Lead Pipeline Management","Advanced Expense & Profit/Loss Analytics","GSTR-1 Ready Excel/CSV Exports","Multi-Currency & Tax Breakdown (CGST/SGST/IGST)","Auto Payment Reminders","Priority 24/7 Support"],
+    included: ["Up to 3,000 invoices per month","Dynamic UPI QR Code & Online Payments","WhatsApp One-Click Direct Share","Ultra HD PDF Downloads with Custom Logo","Full Client CRM & Lead Pipeline Management","Advanced Expense & Profit/Loss Analytics","GSTR-1 Ready Excel/CSV Exports","Multi-Currency & Tax Breakdown (CGST/SGST/IGST)","Auto Payment Reminders"],
     locked: [] },
   { id: "basic_yearly", name: "Basic Yearly", price: 999, period: "year", amount: 99900, badge: "SAVE 58%", accent: false,
     included: ["Includes ALL ₹199 Basic Plan features for 1 FULL YEAR (12 Months Access)","Up to 600 Invoices & Quotations / year","Dynamic UPI QR Codes","Instant WhatsApp Share & HD PDFs","Expense Management","Annual Savings (Cost-effective for individuals)","Standard Support"],
     locked: [] },
   { id: "enterprise_yearly", name: "Enterprise Yearly", price: 1599, period: "year", amount: 159900, badge: "BEST VALUE", accent: true,
-    included: ["Includes ALL ₹249 Pro Plan features for 1 FULL YEAR","Custom Invoice Templates & Advanced Branding","Dedicated Account Manager","Multi-User / Team Access","Auto Cloud Backup & Lifetime History","Priority WhatsApp & Call Support"],
+    included: ["Pro plan features for one year","Custom Invoice Templates & Advanced Branding","Multi-User / Team Access","Cloud-synced business records","Priority WhatsApp & Call Support"],
     locked: [] },
 ];
 
@@ -452,9 +452,8 @@ function WhatsAppNumberModal({ value, onChange, onClose, onSend, sending = false
 }
 
 export default function Home() {
-  const { canAccess, isPremium, planName, planId, planStartedAt, planExpiresAt } = usePaywall();
+  const { canAccess, isPremium, planName, planId, planStartedAt, planExpiresAt, limits, usage, remaining, openPaywall, refreshAccessStatus } = usePaywall();
   const [invoice, setInvoice] = useStored("invoicepulse-draft", initialInvoice, "invoicepulse-empty-draft-v1");
-  const [usageCount, setUsageCount] = useStored("invoicepulse_usage_count", 0);
   const [isDark, setIsDark] = useStored("invoicepulse-dark", false);
   const [mobileTab, setMobileTab] = useState("edit");
   const [pricingOpen, setPricingOpen] = useState(false);
@@ -507,22 +506,12 @@ export default function Home() {
     }
     return valid;
   };
-  const spendCredit = () => {
-    if (isPremium) return;
-    const next = usageCount + 1;
-    setUsageCount(next);
-    try { localStorage.setItem("invoicepulse_usage_count", JSON.stringify(next)); } catch { /* best effort */ }
-  };
-  const recordInvoice = () => {
-    const subtotal = invoice.items.reduce((s, i) => s + Math.max(0, Number(i.quantity) || 0) * Math.max(0, Number(i.rate) || 0), 0);
-    const discount = Number(invoice.discount) || 0;
-    const discountValue = invoice.discountType === "percent" ? subtotal * Math.max(0, discount) / 100 : Math.max(0, discount);
-    const taxable = Math.max(0, subtotal - discountValue);
+  const recordInvoice = async () => {
     const total = computeTotal(invoice);
-    const taxValue = Math.max(0, total - taxable);
-    const split = invoice.taxMode === "split";
+    const taxValue = Math.max(0, total - invoice.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.rate) || 0), 0));
+    await saveInvoiceToServer({ ...invoice, total, taxValue });
+    await refreshAccessStatus();
     trackStaffAction({ label: `Invoice ${invoice.number || "INV"} generated for ${invoice.client.name || "client"}`, type: "invoice", revenue: total });
-    pushItem(KEYS.history, { id: genId("inv"), number: invoice.number || "INV-000", clientName: invoice.client.name, clientEmail: invoice.client.email, businessName: invoice.business.name, total, cgst: split ? taxValue / 2 : 0, sgst: split ? taxValue / 2 : 0, igst: split ? 0 : taxValue, taxValue, issueDate: invoice.issueDate || new Date().toISOString().slice(0, 10), createdDate: new Date().toISOString(), currency: invoice.currency, itemCount: invoice.items.length, taxMode: invoice.taxMode, taxRate: invoice.taxRate });
   };
   const recordActivity = (label, type = "action") => pushItem(KEYS.activity, { id: genId("act"), type, label, date: new Date().toISOString() });
   const filename = `Plivex_${(invoice.number || "INV-000").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "")}.pdf`;
@@ -549,6 +538,7 @@ export default function Home() {
     pdf.setProperties({ title: `Plivex Invoice ${invoice.number || ""}`, subject: "Invoice", creator: "Plivex — Smart Invoicing & Business OS", author: "Plivex" });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
+    const addFreeFooter = () => { if (planName !== "Free") return; const pages = pdf.getNumberOfPages(); for (let page = 1; page <= pages; page += 1) { pdf.setPage(page); pdf.setFontSize(8); pdf.setTextColor(120); pdf.text("Made with Plivex", pageWidth / 2, pageHeight - 4, { align: "center" }); } };
     const mmPerPx = pageWidth / canvas.width;
     const imageHeight = canvas.height * mmPerPx;
     const toJpeg = (c) => c.toDataURL("image/jpeg", 0.92);
@@ -558,6 +548,7 @@ export default function Home() {
       const w = pageWidth * fit;
       const h = imageHeight * fit;
       pdf.addImage(toJpeg(canvas), "JPEG", (pageWidth - w) / 2, 0, w, h, undefined, "FAST");
+      addFreeFooter();
       return pdf;
     }
     // Longer invoice: never cut through text. Each page breaks on a blank strip, with a small margin top and bottom.
@@ -605,6 +596,7 @@ export default function Home() {
       start = end;
       pageIndex += 1;
     }
+    addFreeFooter();
     return pdf;
   };
   const generatePdf = async (shouldValidate = true) => {
@@ -612,20 +604,23 @@ export default function Home() {
     const preview = document.querySelector("[data-testid='invoice-preview']");
     if (!preview) { notify("Preview is still loading. Try again in a moment.", "info"); return; }
     try {
+      await recordInvoice();
       const pdf = await renderPdfDocument();
       if (!pdf) return;
+      await recordInvoice();
       pdf.save(filename);
-      if (!isPremium) spendCredit();
-      recordInvoice();
       deductStockForInvoice(invoice);
       recordActivity("Invoice generated");
       notify(`Downloaded ${filename}`);
-    } catch {
-      notify("PDF export failed. Please try again.", "info");
+    } catch (error) {
+      const message = String(error?.message || "");
+      if (message.startsWith("PLAN_LIMIT_REACHED|")) openPaywall("Invoice limit reached: " + message.split("|").slice(1).join(" · "));
+      else if (message.startsWith("PLAN_FEATURE_LOCKED|")) openPaywall("This feature requires an upgrade: " + message.split("|").slice(1).join(" · "));
+      else notify(message || "PDF export failed. Please try again.", "error");
     }
   };
   const download = async () => {
-    if (!canAccess("download_pdf")) { setPricingOpen(true); return; }
+    if (Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0 || Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0) { openPaywall("Invoice limit reached for your current plan."); return; }
     if (!requireValid()) return;
     await generatePdf(false);
   };
@@ -652,7 +647,8 @@ export default function Home() {
     });
   };
   const handleWhatsApp = () => {
-    if (!canAccess("whatsapp_share")) { setPricingOpen(true); return; }
+    if (!canAccess("whatsapp_share")) { openPaywall("WhatsApp sharing is available on Pro."); return; }
+    if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
     if (!requireValid()) {
       notify("Please complete all required invoice details before sharing on WhatsApp", "error");
       return;
@@ -666,7 +662,8 @@ export default function Home() {
     }
   };
   const sendWhatsApp = async (phone) => {
-    if (!canAccess("whatsapp_share")) { setPricingOpen(true); return; }
+    if (!canAccess("whatsapp_share")) { openPaywall("WhatsApp sharing is available on Pro."); return; }
+    if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
     if (!requireValid()) { notify("Please complete all required invoice details before sharing on WhatsApp", "error"); return; }
     const digits = normalizePhone(phone);
     if (!digits) { notify("Please enter a valid 10-digit WhatsApp number.", "error"); return; }
@@ -684,8 +681,14 @@ export default function Home() {
         const { file_url } = await db.integrations.Core.UploadFile({ file });
         pdfLink = file_url || "";
       }
-    } catch {
-      /* best-effort: continue without a hosted link */
+    } catch (error) {
+      if (waWindow) waWindow.close();
+      const message = String(error?.message || "");
+      if (message.startsWith("PLAN_LIMIT_REACHED|")) openPaywall("Invoice limit reached: " + message.split("|").slice(1).join(" · "));
+      else if (message.startsWith("PLAN_FEATURE_LOCKED|")) openPaywall("This feature requires an upgrade: " + message.split("|").slice(1).join(" · "));
+      else notify(message || "Could not save the invoice. Please try again.", "error");
+      setWhatsappSending(false);
+      return;
     }
     const cleanPhone = `91${digits}`;
     const clientName = invoice.client.name || "there";
@@ -699,7 +702,6 @@ export default function Home() {
     const message = `Hi ${clientName}! 👋\nHope you are doing well!\n\nThank you for your business. Here is your invoice #${invNumber} for ${totalAmt}.\n📅 Due Date: ${due}\n\n${pdfLine}\n${paymentLine}\n\nIf you have any questions, feel free to reply to this message.\nBest regards,\n${bizName}`;
     const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
     if (waWindow) { waWindow.location.href = url; } else { window.location.href = url; }
-    spendCredit();
     deductStockForInvoice(invoice);
     recordActivity("Shared via WhatsApp", "share");
     setWhatsappOpen(false);
@@ -712,12 +714,12 @@ export default function Home() {
     <div className="app-shell flex bg-background">
       <Sidebar onNew={newInvoice} onPricing={() => setPricingOpen(true)} />
       <div className="min-w-0 flex-1">
-        <Topbar isDark={isDark} isPremium={isPremium} onToggleTheme={() => setIsDark((value) => !value)} onDownload={download} onWhatsApp={handleWhatsApp} onPricing={() => setPricingOpen(true)} onMenu={() => setMobileMenuOpen(true)} canDownload={canAccess("download_pdf")} canShare={canAccess("whatsapp_share")} planName={planName} whatsappSending={whatsappSending} />
+        <Topbar isDark={isDark} isPremium={isPremium} onToggleTheme={() => setIsDark((value) => !value)} onDownload={download} onWhatsApp={handleWhatsApp} onPricing={() => setPricingOpen(true)} onMenu={() => setMobileMenuOpen(true)} canDownload={canAccess("download_pdf") && (!Number.isFinite(remaining("invoices_monthly")) || remaining("invoices_monthly") > 0) && (!Number.isFinite(remaining("invoices")) || remaining("invoices") > 0)} canShare={canAccess("whatsapp_share")} planName={planName} whatsappSending={whatsappSending} />
         <MobileMenu open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} onNew={newInvoice} onPricing={() => { setMobileMenuOpen(false); setPricingOpen(true); }} />
         <main className="mx-auto max-w-[1540px] p-4 sm:p-6 lg:p-8">
           <div className="mb-5 flex items-end justify-between gap-4 md:hidden"><div><p className="font-mono-ui text-[10px] uppercase tracking-widest text-primary">Invoice desk</p><h1 className="mt-1 text-[24px] font-bold tracking-[-0.05em]">Make it official.</h1></div><span className="rounded-full border bg-card px-2.5 py-1.5 text-[10px] text-muted-foreground"><span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />Autosaved</span></div>
           <div className="mb-6 hidden items-end justify-between gap-4 md:flex fade-up"><div><p className="font-mono-ui text-[10px] uppercase tracking-[0.18em] text-primary">The fast billing desk</p><h2 className="mt-1 text-[29px] font-bold tracking-[-0.06em]">Make it official<span className="font-display ml-1 font-normal italic text-primary">.</span></h2><p className="mt-1 text-[12px] text-muted-foreground">Your next professional invoice is already taking shape.</p></div><div className="flex items-center gap-2 text-[11px] text-muted-foreground"><Zap className="h-3.5 w-3.5 text-accent-foreground" />Built for the two-minute window</div></div>
-          <div className="mb-4 flex rounded-lg border bg-card p-1 xl:hidden"><button data-testid="tab-edit-mobile" onClick={() => setMobileTab("edit")} className={`flex-1 rounded-md py-2 text-xs font-bold transition-colors ${mobileTab === "edit" ? "bg-secondary text-primary" : "text-muted-foreground"}`}><FilePenLine className="mr-1.5 inline h-3.5 w-3.5" />Edit invoice</button><button data-testid="tab-preview-mobile" onClick={() => setMobileTab("preview")} className={`flex-1 rounded-md py-2 text-xs font-bold transition-colors ${mobileTab === "preview" ? "bg-secondary text-primary" : "text-muted-foreground"}`}><FileText className="mr-1.5 inline h-3.5 w-3.5" />Preview</button></div>
+          <div className="mb-4 rounded-xl border bg-card p-3"><div className="flex items-center justify-between text-xs"><span className="font-semibold">Invoices this month</span><span className="font-bold">{Number(usage.invoices_monthly ?? usage.invoices ?? 0)}/{Number(limits.invoices_monthly ?? limits.invoices ?? 30)}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${Number(usage.invoices_monthly ?? usage.invoices ?? 0) >= Number(limits.invoices_monthly ?? limits.invoices ?? 30) ? "bg-rose-500" : Number(usage.invoices_monthly ?? usage.invoices ?? 0) / Number(limits.invoices_monthly ?? limits.invoices ?? 30) >= 0.8 ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${Math.min(100, Number(usage.invoices_monthly ?? usage.invoices ?? 0) / Number(limits.invoices_monthly ?? limits.invoices ?? 30) * 100)}%` }} /></div>{Number(usage.invoices_monthly ?? usage.invoices ?? 0) / Number(limits.invoices_monthly ?? limits.invoices ?? 30) >= 0.8 && <p className="mt-1.5 text-[11px] text-amber-600">{Number(usage.invoices_monthly ?? usage.invoices ?? 0) >= Number(limits.invoices_monthly ?? limits.invoices ?? 30) ? "Plan limit reached" : "Usage limit warning"}</p>}{Number(usage.invoices_monthly ?? usage.invoices ?? 0) >= Number(limits.invoices_monthly ?? limits.invoices ?? 30) && <button onClick={() => openPaywall("Invoice limit reached for your current plan.")} className="mt-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground">Upgrade</button>}</div><div className="mb-4 flex rounded-lg border bg-card p-1 xl:hidden"><button data-testid="tab-edit-mobile" onClick={() => setMobileTab("edit")} className={`flex-1 rounded-md py-2 text-xs font-bold transition-colors ${mobileTab === "edit" ? "bg-secondary text-primary" : "text-muted-foreground"}`}><FilePenLine className="mr-1.5 inline h-3.5 w-3.5" />Edit invoice</button><button data-testid="tab-preview-mobile" onClick={() => setMobileTab("preview")} className={`flex-1 rounded-md py-2 text-xs font-bold transition-colors ${mobileTab === "preview" ? "bg-secondary text-primary" : "text-muted-foreground"}`}><FileText className="mr-1.5 inline h-3.5 w-3.5" />Preview</button></div>
           <div className="grid items-start gap-6 xl:grid-cols-[minmax(360px,440px)_minmax(0,1fr)] xl:gap-8">
             <div className={`${mobileTab === "preview" ? "hidden xl:block" : "block"} min-w-0 fade-up fade-up-delay-1`}><InvoiceEditor invoice={invoice} setInvoice={setInvoice} errors={errors} onClearError={(key) => setErrors((current) => { if (!current[key]) return current; const next = { ...current }; delete next[key]; return next; })} onToast={notify} onSignature={() => setSignatureOpen(true)} canAccess={canAccess} onLocked={() => setPricingOpen(true)} design={activeDesign} /></div>
             <div className={`${mobileTab === "edit" ? "hidden xl:block" : "block"} min-w-0 xl:sticky xl:top-[86px] fade-up fade-up-delay-2`}><div className="mb-3 flex items-center justify-between px-1"><div><p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Live preview</p><p className="mt-0.5 text-[12px] text-muted-foreground">A4 · print-ready · {invoice.currency}</p></div></div><div className="paper-grid min-w-0 rounded-xl border bg-[#e9e8f0] dark:bg-[#1e1d2a] xl:max-h-[calc(100dvh-170px)] xl:overflow-y-auto"><InvoicePreview invoice={invoice} design={activeDesign} /></div></div>

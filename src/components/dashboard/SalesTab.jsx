@@ -16,7 +16,7 @@ import SummaryCard from "@/components/dashboard/SummaryCard";
 const BANKS = ["HDFC Bank · 501000123456789", "ICICI Bank · 623400987654321", "State Bank of India · 30012345678901", "Axis Bank · 910000456789012"];
 
 export default function SalesTab({ intent, onConsumeIntent }) {
-  const { requestAction } = usePaywall();
+  const { requestAction, requireFeature, limits, usage, remaining, openPaywall } = usePaywall();
   const { isAccountant } = useRole();
   const [sub, setSub] = useState("invoices");
   const [invoices, setInvoices] = useState(() => loadList(KEYS.history, { includeCancelled: true }));
@@ -74,7 +74,7 @@ export default function SalesTab({ intent, onConsumeIntent }) {
       alert("Reminder failed: " + msg);
     }
   };
-  const share = (it) => { if (!requestAction()) return; const msg = `Hello ${it.clientName || "there"}, your invoice ${it.number || ""} for ${money2(it.total, it.currency)} from Plivex is ready.`; window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank"); };
+  const share = (it) => { if (!requireFeature("whatsapp_share", "WhatsApp sharing requires the Pro plan.")) return; const msg = `Hello ${it.clientName || "there"}, your invoice ${it.number || ""} for ${money2(it.total, it.currency)} from Plivex is ready.`; window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank"); };
   const convert = (qt) => { if (!requestAction()) return; const draft = loadState(KEYS.draft, {}); saveState(KEYS.draft, { ...draft, client: { ...draft.client, name: qt.clientName }, number: qt.number, items: qt.items || draft.items, taxRate: qt.taxRate ?? draft.taxRate }); navigate("/invoice-builder"); };
   const saveQuotation = (qt) => {
     if (!requestAction()) return;
@@ -102,6 +102,7 @@ export default function SalesTab({ intent, onConsumeIntent }) {
 
   return (
     <div className="space-y-5">
+      {(() => { const used = Number(usage.invoices_monthly ?? usage.invoices ?? 0); const limit = Number(limits.invoices_monthly ?? limits.invoices ?? 30); const pct = limit > 0 ? Math.min(100, used / limit * 100) : 100; return <div className="rounded-xl border border-[#E5E7EB] bg-white p-3"><div className="flex items-center justify-between text-xs"><span className="font-semibold text-slate-700">Invoices this month</span><span className="font-bold text-slate-600">{used}/{limit}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-[#6D28D9]"}`} style={{ width: `${pct}%` }} /></div>{pct >= 80 && <p className={`mt-1.5 text-[11px] ${pct >= 100 ? "text-rose-600" : "text-amber-600"}`}>{pct >= 100 ? "Plan limit reached" : "Usage limit warning"}</p>}{pct >= 100 && <button onClick={() => openPaywall("Invoice limit reached for your current plan.")} className="mt-2 rounded-lg bg-[#6D28D9] px-3 py-1.5 text-xs font-bold text-white">Upgrade</button>}</div>; })()}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <SummaryCard label="Total Invoiced" value={money2(totalInvoiced)} gradient="bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" icon={ReceiptIcon} badge={`${invoices.length} inv`} />
         <SummaryCard label="Paid" value={money2(invoices.filter((it) => statusOf(it) === "Paid").reduce((s, it) => s + Number(it.total || 0), 0))} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={CheckCircle2} badge={`${paidCount} paid`} />

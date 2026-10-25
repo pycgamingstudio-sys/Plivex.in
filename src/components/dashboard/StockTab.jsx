@@ -4,12 +4,14 @@ import { KEYS, loadList, saveList, genId } from "@/lib/stores";
 import { inputCls, btnGhost } from "@/lib/ui";
 import { btnAccent, Empty } from "@/lib/dashboardData";
 import SummaryCard from "@/components/dashboard/SummaryCard";
+import { usePaywall } from "@/lib/paywall";
 
 const DEFAULT_LOW = 5;
 const UNITS = ["units", "pcs", "kg", "g", "quintal", "ton", "litre", "ml", "metre", "cm", "feet", "inch", "sq ft", "box", "carton", "packet", "bag", "bottle", "dozen", "pair", "set", "roll", "bundle", "hour", "service"];
 const blank = { name: "", sku: "", quantity: "", unit: "units", price: "", lowStock: String(DEFAULT_LOW) };
 
 export default function StockTab() {
+  const { limits, usage, remaining, openPaywall } = usePaywall();
   const [items, setItems] = useState(() => loadList(KEYS.stock));
   const [open, setOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
@@ -26,6 +28,7 @@ export default function StockTab() {
   const remove = (id) => setItems((prev) => prev.filter((p) => p.id !== id));
   const save = (entry) => {
     if (!entry.name.trim()) return;
+    if (!editTarget && Number.isFinite(remaining("stock")) && remaining("stock") <= 0) { openPaywall("Stock item limit reached for your current plan."); return; }
     if (editTarget) {
       setItems((prev) => prev.map((p) => (p.id === editTarget.id ? { ...editTarget, ...entry } : p)));
       setEditTarget(null);
@@ -37,6 +40,7 @@ export default function StockTab() {
 
   return (
     <div className="space-y-5">
+      <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-xs"><div className="flex justify-between"><span className="font-semibold">Stock items used</span><span className="font-bold">{Number(usage.stock ?? items.length)}/{Number(limits.stock ?? 20)}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${Number(usage.stock ?? items.length) / Number(limits.stock ?? 20) >= 1 ? "bg-rose-500" : Number(usage.stock ?? items.length) / Number(limits.stock ?? 20) >= 0.8 ? "bg-amber-500" : "bg-[#6D28D9]"}`} style={{ width: `${Math.min(100, Number(usage.stock ?? items.length) / Number(limits.stock ?? 20) * 100)}%` }} /></div>{Number(usage.stock ?? items.length) / Number(limits.stock ?? 20) >= 0.8 && <p className="mt-1 text-amber-600">{Number(usage.stock ?? items.length) >= Number(limits.stock ?? 20) ? "Plan limit reached" : "Usage limit warning"}</p>}</div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <SummaryCard label="Total Products" value={String(items.length)} gradient="bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" icon={Boxes} badge="SKUs" />
         <SummaryCard label="Units in Stock" value={String(totalUnits)} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={Package} badge="quantity" />
