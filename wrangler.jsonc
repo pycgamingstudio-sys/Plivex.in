@@ -1,6 +1,12 @@
 {
   "name": "plivex-in",
   "compatibility_date": "2026-10-24",
+  "vars": {
+    "VITE_ASSISTANT_API_BASE_URL": "https://lovable-biz-track.lovable.app",
+    "VITE_API_BASE_URL": "https://member-sync-flow.lovable.app",
+    "VITE_SUPABASE_URL": "https://sqzpaiibmfsvarrkwkvb.supabase.co",
+    "VITE_SUPABASE_ANON_KEY": "sb_publishable_ChLtODBqpZxL01RdNLX05Q_VvYmoG0F"
+  },
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application"
