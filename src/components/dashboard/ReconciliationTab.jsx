@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Upload, CheckCircle2, XCircle, BarChart3, FileText, AlertTriangle } from "lucide-react";
+import { Upload, CheckCircle2, XCircle, BarChart3, AlertTriangle } from "lucide-react";
 import { parseCSVStatement, reconcileTransactions } from "@/lib/reconciliation";
 import { money2 } from "@/lib/dashboardData";
 
