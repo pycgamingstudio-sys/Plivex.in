@@ -452,9 +452,8 @@ function WhatsAppNumberModal({ value, onChange, onClose, onSend, sending = false
 }
 
 export default function Home() {
-  const { canAccess, isPremium, planName, planId, planStartedAt, planExpiresAt } = usePaywall();
+  const { canAccess, isPremium, planName, planId, planStartedAt, planExpiresAt, limits, usage, remaining, openPaywall } = usePaywall();
   const [invoice, setInvoice] = useStored("invoicepulse-draft", initialInvoice, "invoicepulse-empty-draft-v1");
-  const [usageCount, setUsageCount] = useStored("invoicepulse_usage_count", 0);
   const [isDark, setIsDark] = useStored("invoicepulse-dark", false);
   const [mobileTab, setMobileTab] = useState("edit");
   const [pricingOpen, setPricingOpen] = useState(false);
@@ -506,12 +505,6 @@ export default function Home() {
       setMobileTab("edit");
     }
     return valid;
-  };
-  const spendCredit = () => {
-    if (isPremium) return;
-    const next = usageCount + 1;
-    setUsageCount(next);
-    try { localStorage.setItem("invoicepulse_usage_count", JSON.stringify(next)); } catch { /* best effort */ }
   };
   const recordInvoice = () => {
     const subtotal = invoice.items.reduce((s, i) => s + Math.max(0, Number(i.quantity) || 0) * Math.max(0, Number(i.rate) || 0), 0);
@@ -615,7 +608,6 @@ export default function Home() {
       const pdf = await renderPdfDocument();
       if (!pdf) return;
       pdf.save(filename);
-      if (!isPremium) spendCredit();
       recordInvoice();
       deductStockForInvoice(invoice);
       recordActivity("Invoice generated");
@@ -625,7 +617,7 @@ export default function Home() {
     }
   };
   const download = async () => {
-    if (!canAccess("download_pdf")) { setPricingOpen(true); return; }
+    if (Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0 || Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0) { openPaywall("Invoice limit reached for your current plan."); return; }
     if (!requireValid()) return;
     await generatePdf(false);
   };
