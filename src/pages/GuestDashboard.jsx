@@ -140,8 +140,8 @@ export default function GuestDashboard() {
           </div>
         </div>
 
-        <AboutSection />
         <PricingSection />
+        <AboutSection />
 
         <footer className="border-t border-[#E5E7EB] pt-5 text-center">
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
