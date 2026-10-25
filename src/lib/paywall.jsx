@@ -106,7 +106,7 @@ export function PaywallProvider({ children }) {
     setBlocked(false); setShowPaywall(false);
   }, []);
 
-  const openPaywall = useCallback(() => { setBlocked(false); setShowPaywall(true); }, []);
+  const openPaywall = useCallback((reason = "") => { setBlockReason(reason); setBlocked(Boolean(reason)); setShowPaywall(true); }, []);
   const closePaywall = useCallback(() => { if (!blocked) setShowPaywall(false); }, [blocked]);
 
   return (
