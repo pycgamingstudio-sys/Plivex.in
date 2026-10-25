@@ -75,8 +75,10 @@ export function PaywallProvider({ children }) {
 
   const plan = accessStatus.plan || subscription || "free";
   const isPremium = plan === "basic" || plan === "pro" || plan === "enterprise";
-  const limits = accessStatus.limits || {};
-  const usage = accessStatus.usage || {};
+  const rawLimits = accessStatus.limits || {};
+  const rawUsage = accessStatus.usage || {};
+  const limits = { ...rawLimits, clients: rawLimits.clients ?? rawLimits.clients_total, stock: rawLimits.stock ?? rawLimits.stock_total, invoices_monthly: rawLimits.invoices_monthly ?? rawLimits.invoices };
+  const usage = { ...rawUsage, clients: rawUsage.clients ?? rawUsage.clients_total, stock: rawUsage.stock ?? rawUsage.stock_total, invoices_monthly: rawUsage.invoices_monthly ?? rawUsage.invoices };
   const remaining = useCallback((resource) => {
     const limit = limits[resource];
     const used = Number(usage[resource] || 0);
@@ -87,6 +89,7 @@ export function PaywallProvider({ children }) {
     if (feature === "download_pdf" || feature === "save") return true;
     const key = FEATURE_ALIASES[feature] || feature;
     if (Object.prototype.hasOwnProperty.call(accessStatus.features || {}, key)) return !!accessStatus.features[key];
+    if (key === "team" && Object.prototype.hasOwnProperty.call(accessStatus.features || {}, "team_management")) return !!accessStatus.features.team_management;
     return plan === "pro" || plan === "enterprise";
   }, [accessStatus.features, plan]);
   const requireFeature = useCallback((feature, reason = "") => {
@@ -129,7 +132,7 @@ const PLANS = [
       "Expense Tracker",
       "Standard Customer Support",
     ],
-    locked: ["GSTR-1 Tax Reports", "Custom Business Logo", "Multi-Currency Support"],
+    locked: ["WhatsApp sharing", "Team and lead pipeline", "Payment reminders", "GSTR-1 export", "Custom logo", "Multi-currency", "Premium designs"],
   },
   {
     id: "pro_monthly", name: "Pro Monthly", price: 249, period: "month", amount: 24900, badge: "MOST POPULAR", accent: true,
