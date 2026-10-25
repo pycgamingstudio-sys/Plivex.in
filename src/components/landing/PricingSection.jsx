@@ -27,6 +27,7 @@ const PLANS = [
 ];
 
 export default function PricingSection() {
+  const [billing, setBilling] = useState("monthly");
   return (
     <section id="pricing" className="fade-up scroll-mt-20">
       <div className="rounded-3xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-8">
@@ -36,6 +37,7 @@ export default function PricingSection() {
           <p className="mx-auto mt-1.5 max-w-xl text-[12px] text-slate-500">Free plan, no card needed. Upgrade when your business needs more.</p>
         </div>
 
+        <div className="mx-auto mt-5 flex w-fit items-center gap-1 rounded-xl bg-slate-100 p-1"><button onClick={() => setBilling("monthly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "monthly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Monthly</button><button onClick={() => setBilling("yearly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "yearly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Yearly</button></div>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {PLANS.map((plan) => (
             <div key={plan.id} className={`relative flex flex-col rounded-2xl border p-5 ${plan.accent ? "border-[#6D28D9] bg-[#6D28D9]/5" : "border-[#E5E7EB] bg-white"}`}>
@@ -46,10 +48,10 @@ export default function PricingSection() {
               </div>
               <p className="mt-1 text-[11px] text-slate-500">{plan.tagline}</p>
               <div className="mt-3 flex items-end gap-1">
-                <p className="text-[28px] font-bold leading-none text-slate-900">{plan.monthly === 0 ? "₹0" : `₹${plan.monthly}`}</p>
-                <span className="mb-0.5 text-[12px] font-medium text-slate-400">/ month</span>
+                <p className="text-[28px] font-bold leading-none text-slate-900">{(billing === "monthly" ? plan.monthly : plan.yearly) === 0 ? "₹0" : `₹${(billing === "monthly" ? plan.monthly : plan.yearly).toLocaleString("en-IN")}`}</p>
+                <span className="mb-0.5 text-[12px] font-medium text-slate-400">/ {billing === "monthly" ? "month" : "year"}</span>
               </div>
-              <p className="mt-0.5 text-[11px] font-semibold text-emerald-600">{plan.yearly === 0 ? "Free forever" : `or ₹${plan.yearly.toLocaleString("en-IN")} / year` }</p>
+              <p className="mt-0.5 text-[11px] font-semibold text-emerald-600">{plan.yearly === 0 ? "Free forever" : billing === "yearly" ? "Save with annual billing" : `₹${plan.yearly.toLocaleString("en-IN")} / year available`}</p>
               <div className="mt-4 space-y-1.5">
                 {plan.included.map((f) => (
                   <div key={f} className="flex items-start gap-2 text-[11px] font-medium text-slate-700"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Check className="h-2.5 w-2.5" /></span>{f}</div>
