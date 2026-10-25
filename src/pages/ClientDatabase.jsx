@@ -3,22 +3,26 @@ import { Users, Plus, Pencil, Trash2, X } from "lucide-react";
 import PageShell from "@/components/PageShell";
 import { KEYS, loadList, saveList, genId } from "@/lib/stores";
 import { inputCls, btnPrimary, btnGhost } from "@/lib/ui";
+import { usePaywall } from "@/lib/paywall";
 
 const blank = { name: "", company: "", email: "", phone: "", gstin: "", address: "" };
 
 export default function ClientDatabase() {
+  const { limits, usage, remaining, openPaywall } = usePaywall();
   const [clients, setClients] = useState(() => loadList(KEYS.clients));
   const [editing, setEditing] = useState(null);
   const persist = (next) => { setClients(next); saveList(KEYS.clients, next); };
   const save = (entry) => {
     if (!entry.name.trim()) return;
+    if (!editing?.id && Number.isFinite(remaining("clients")) && remaining("clients") <= 0) { openPaywall("Client limit reached for your current plan."); return; }
     const next = editing?.id ? clients.map((c) => (c.id === editing.id ? { ...entry, id: editing.id } : c)) : [{ ...entry, id: genId("client") }, ...clients];
     persist(next); setEditing(null);
   };
   const remove = (id) => persist(clients.filter((c) => c.id !== id));
 
   return (
-    <PageShell icon={Users} title="Client database" subtitle="Reuse client details across invoices in a couple of taps." action={<button onClick={() => setEditing({ ...blank })} className={btnPrimary}><Plus className="h-3.5 w-3.5" />Add client</button>}>
+    <PageShell icon={Users} title="Client database" subtitle="Reuse client details across invoices in a couple of taps." action={<button disabled={Number.isFinite(remaining("clients")) && remaining("clients") <= 0} onClick={() => Number.isFinite(remaining("clients")) && remaining("clients") <= 0 ? openPaywall("Client limit reached for your current plan.") : setEditing({ ...blank })} className={btnPrimary}><Plus className="h-3.5 w-3.5" />Add client</button>}>
+      <div className="mb-4 rounded-xl border bg-card p-3 text-xs"><div className="flex justify-between"><span className="font-semibold">Clients used</span><span className="font-bold">{Number(usage.clients ?? clients.length)}/{Number(limits.clients ?? 20)}</span></div>{Number(usage.clients ?? clients.length) / Number(limits.clients ?? 20) >= 0.8 && <p className="mt-1 text-amber-600">Usage limit warning</p>}</div>
       {clients.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-card p-10 text-center text-[13px] text-muted-foreground">No clients saved yet. Add your first client to speed up invoicing.</div>
       ) : (
