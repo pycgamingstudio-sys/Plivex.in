@@ -15,7 +15,7 @@ const PaywallContext = createContext(null);
 
 export function usePaywall() {
   const ctx = useContext(PaywallContext);
-  if (!ctx) return { plan: "free", limits: {}, usage: {}, remaining: () => 0, canAccess: () => false, requireFeature: () => false, refreshAccessStatus: async () => {}, isPremium: false, subscription: "free", planName: "Free", planId: "", planStartedAt: "", planExpiresAt: "", planLoading: false, requestAction: () => true, showPaywall: false, blocked: false, openPaywall: () => {}, closePaywall: () => {} };
+  if (!ctx) return { plan: "free", limits: {}, usage: {}, remaining: (resource) => 0, canAccess: (feature) => false, requireFeature: (feature, reason) => false, refreshAccessStatus: async () => {}, isPremium: false, subscription: "free", planName: "Free", planId: "", planStartedAt: "", planExpiresAt: "", planLoading: false, requestAction: () => true, showPaywall: false, blocked: false, openPaywall: (reason) => {}, closePaywall: () => {} };
   return ctx;
 }
 
