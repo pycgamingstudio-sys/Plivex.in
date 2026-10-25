@@ -5,9 +5,12 @@ const ALLOWED_ORIGINS = new Set([
   "https://www.plivex.in",
   "https://plivex.netlify.app",
 ]);
+const isAllowedOrigin = (origin: string | null) => !origin || ALLOWED_ORIGINS.has(origin)
+  || /^https:\/\/[a-z0-9-]+\.workers\.dev$/.test(origin)
+  || /^https:\/\/[a-z0-9-]+\.pages\.dev$/.test(origin);
 
 function corsHeaders(origin: string | null) {
-  const allowedOrigin = origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://plivex.in";
+  const allowedOrigin = origin && isAllowedOrigin(origin) ? origin : "https://plivex.in";
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Vary": "Origin",
@@ -78,7 +81,7 @@ function validateAction(action: unknown) {
 
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
-  if (origin && !ALLOWED_ORIGINS.has(origin)) {
+  if (!isAllowedOrigin(origin)) {
     return new Response(JSON.stringify({ error: "Origin not allowed" }), {
       status: 403,
       headers: { "Vary": "Origin", "Content-Type": "application/json" },
