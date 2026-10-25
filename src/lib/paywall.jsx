@@ -7,7 +7,6 @@ import { useAuth } from "@/lib/AuthContext";
 import { startPayuCheckout } from "@/lib/payu";
 import CurrentPlanCard from "@/components/CurrentPlanCard";
 import { toast } from "@/components/ui/use-toast";
-import { PLANS as DISPLAY_PLANS } from "@/lib/plans";
 
 const FEATURE_ALIASES = { gstr1: "gstr1_export", team_management: "team", lead_pipeline: "lead_pipeline", payment_reminders: "payment_reminders", whatsapp_share: "whatsapp_share", custom_logo: "custom_logo", multi_currency: "multi_currency", premium_designs: "premium_designs" };
 
@@ -39,7 +38,7 @@ export function PaywallProvider({ children }) {
     setPlanLoading(true);
     (async () => {
       try {
-        // Premium and trial status come from the server (get-access-status), never from the browser.
+        // Plan and usage details come from the server, never from browser storage.
         const res = await db.functions.invoke("getAccessStatus", {});
         const st = res?.data || {};
         if (!active) return;
@@ -107,12 +106,6 @@ export function PaywallProvider({ children }) {
     setBlocked(false); setShowPaywall(false);
   }, []);
 
-  const requestAction = useCallback(() => {
-    if (isPremium || trialActive) return true;
-    setBlocked(true); setShowPaywall(true);
-    return false;
-  }, [isPremium, trialActive]);
-
   const openPaywall = useCallback(() => { setBlocked(false); setShowPaywall(true); }, []);
   const closePaywall = useCallback(() => { if (!blocked) setShowPaywall(false); }, [blocked]);
 
@@ -128,10 +121,9 @@ const PLANS = [
   {
     id: "basic_monthly", name: "Basic Monthly", price: 199, period: "month", amount: 19900, badge: null, accent: false,
     included: [
-      "Up to 50 Invoices & Quotations / month",
+      "Up to 100 invoices per month",
       "Dynamic UPI QR Code Generation",
-      "Standard PDF downloads",
-      "Standard HD PDF Downloads",
+      "PDF downloads",
       "Basic Client Database",
       "Expense Tracker",
       "Standard Customer Support",
@@ -141,7 +133,7 @@ const PLANS = [
   {
     id: "pro_monthly", name: "Pro Monthly", price: 249, period: "month", amount: 24900, badge: "MOST POPULAR", accent: true,
     included: [
-      "UNLIMITED Invoices, Quotations & Bills",
+      "Up to 3,000 invoices per month",
       "Dynamic UPI QR Code & Online Payments",
       "WhatsApp One-Click Direct Share",
       "Ultra HD PDF Downloads with Custom Logo",
@@ -157,10 +149,10 @@ const PLANS = [
   {
     id: "basic_yearly", name: "Basic Yearly", price: 999, period: "year", amount: 99900, badge: "SAVE 58%", accent: false,
     included: [
-      "Includes ALL ₹199 Basic Plan features for 1 FULL YEAR (12 Months Access)",
-      "Up to 600 Invoices & Quotations / year",
+      "Basic plan features for one year",
+      "Up to 100 invoices per month",
       "Dynamic UPI QR Codes",
-      "Instant WhatsApp Share & HD PDFs",
+      "PDF downloads",
       "Expense Management",
       "Annual Savings (Cost-effective for individuals)",
       "Standard Support",
@@ -170,7 +162,7 @@ const PLANS = [
   {
     id: "enterprise_yearly", name: "Enterprise Yearly", price: 1599, period: "year", amount: 159900, badge: "BEST VALUE", accent: true,
     included: [
-      "Includes ALL ₹249 Pro Plan features for 1 FULL YEAR",
+      "Pro plan features for one year",
       "Custom Invoice Templates & Advanced Branding",
       
       "Multi-User / Team Access",
