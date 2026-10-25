@@ -126,7 +126,7 @@ export function PaywallProvider({ children }) {
   }, []);
 
   const openPaywall = useCallback((reason = "") => { setBlockReason(reason); setBlocked(Boolean(reason)); setShowPaywall(true); }, []);
-  const closePaywall = useCallback(() => { if (!blocked) setShowPaywall(false); }, [blocked]);
+  const closePaywall = useCallback(() => { setShowPaywall(false); setBlocked(false); setBlockReason(""); }, []);
 
   return (
     <PaywallContext.Provider value={{ plan, limits, usage, remaining, requireFeature, refreshAccessStatus, isPremium, subscription, planName, planId, planStartedAt, planExpiresAt, planLoading, requestAction, canAccess, applySubscription, upgrade: applySubscription, showPaywall, blocked, openPaywall, closePaywall }}>
