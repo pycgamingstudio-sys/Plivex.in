@@ -82,6 +82,35 @@ async function loadLiveContext(supabase: ReturnType<typeof createClient>, worksp
   };
 }
 
+function inferExplicitClientAction(messages: any[]) {
+  const latest = text(messages[messages.length - 1]?.content, 1000);
+  const intent = /\b(?:add|create|save|register)\b.{0,40}\b(?:client|customer)\b|\b(?:client|customer)\b.{0,40}\b(?:add|create|save|register)\b/i;
+  if (!intent.test(latest)) return null;
+
+  const nameMatch = latest.match(/\b(?:client|customer)\s+(?:(?:named|called)\s+|name\s*(?:is|:)?\s*)?([A-Za-z][A-Za-z0-9&.' -]{0,70}?)(?=\s*(?:,|;|\bwith\s+(?:company|email|phone|address|gstin)\b|\bcompany\b|\bemail\b|\bphone\b|\baddress\b|\bgstin\b|$))/i);
+  const name = text(nameMatch?.[1], 120).replace(/[.,;:]+$/, "").trim();
+  if (!name || /^(please|a|the|new)$/i.test(name)) return null;
+
+  const field = (label: string, max: number) => {
+    const match = latest.match(new RegExp("\\b" + label + "\\s*(?:is|:|=)?\\s*([^,;\\n]+?)(?=\\s*(?:,|;|\\bemail\\b|\\bphone\\b|\\baddress\\b|\\bgstin\\b|$))", "i"));
+    return text(match?.[1], max).replace(/[.,;]+$/, "").trim();
+  };
+  const email = latest.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || "";
+  const phone = latest.match(/\b(?:phone|mobile|number)\s*(?:is|:|=)?\s*([+()0-9 -]{7,20})/i)?.[1] || "";
+  const gstin = latest.match(/\bGSTIN\s*(?:is|:|=)?\s*([A-Z0-9]{15})\b/i)?.[1] || "";
+  return validateAction({
+    type: "create_client",
+    payload: {
+      name,
+      company: field("company", 120),
+      email,
+      phone: text(phone, 40),
+      address: field("address", 400),
+      gstin,
+    },
+  });
+}
+
 function validateAction(action: any) {
   if (!action || typeof action !== "object") return null;
   const type = text(action.type, 40);
@@ -216,8 +245,10 @@ async function handleRequest(req: Request) {
     let parsed: any;
     try { parsed = JSON.parse(raw); } catch { return json({ error: "Gemini returned an invalid response format. Please try again." }, 502); }
     const reply = text(parsed.reply, 3000) || "I checked your Plivex workspace. What would you like to know?";
-    const proposed = parsed.action?.type === "none" ? null : validateAction(parsed.action);
-    if (parsed.action?.type !== "none" && !proposed) {
+    const modelProposed = parsed.action?.type === "none" ? null : validateAction(parsed.action);
+    // Recover an explicit client-creation request if Gemini omits its structured action.
+    const proposed = modelProposed || inferExplicitClientAction(messages);
+    if (!proposed && parsed.action?.type !== "none") {
       return json({ reply: reply + "\n\nI need a few more details before I can prepare that record. Please provide the required name and any missing amount, quantity or price." });
     }
     return json({
