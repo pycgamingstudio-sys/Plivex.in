@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Sparkles, X } from "lucide-react";
-import { usePaywall } from "@/lib/paywall";
 
 const SEEN_KEY = "invoicepulse:welcomeSeen";
 
