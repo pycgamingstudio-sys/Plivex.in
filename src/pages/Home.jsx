@@ -507,14 +507,8 @@ export default function Home() {
     return valid;
   };
   const recordInvoice = async () => {
-    const subtotal = invoice.items.reduce((s, i) => s + Math.max(0, Number(i.quantity) || 0) * Math.max(0, Number(i.rate) || 0), 0);
-    const discount = Number(invoice.discount) || 0;
-    const discountValue = invoice.discountType === "percent" ? subtotal * Math.max(0, discount) / 100 : Math.max(0, discount);
-    const taxable = Math.max(0, subtotal - discountValue);
     const total = computeTotal(invoice);
-    const taxValue = Math.max(0, total - taxable);
-    const split = invoice.taxMode === "split";
-    trackStaffAction({ label: `Invoice ${invoice.number || "INV"} generated for ${invoice.client.name || "client"}`, type: "invoice", revenue: total });
+    const taxValue = Math.max(0, total - invoice.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.rate) || 0), 0));
     await saveInvoiceToServer({ ...invoice, total, taxValue });
     trackStaffAction({ label: `Invoice ${invoice.number || "INV"} generated for ${invoice.client.name || "client"}`, type: "invoice", revenue: total });
   };
