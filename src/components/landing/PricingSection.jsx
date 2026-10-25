@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useState } from "react";
 import { Check, Sparkles, Crown, X } from "lucide-react";
 
 const PLANS = [
