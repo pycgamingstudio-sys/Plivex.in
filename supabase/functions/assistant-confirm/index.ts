@@ -6,7 +6,7 @@ const ALLOWED_ORIGINS = new Set([
   "https://plivex.netlify.app",
 ]);
 const isAllowedOrigin = (origin: string | null) => !origin || ALLOWED_ORIGINS.has(origin)
-  || /^https:\/\/[a-z0-9-]+\.workers\.dev$/.test(origin)
+  || /^https:\/\/(?:[a-z0-9-]+\.)?[a-z0-9-]+\.workers\.dev$/.test(origin)
   || /^https:\/\/[a-z0-9-]+\.pages\.dev$/.test(origin);
 
 function corsHeaders(origin: string | null) {
