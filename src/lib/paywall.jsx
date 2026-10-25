@@ -70,6 +70,7 @@ export function PaywallProvider({ children }) {
       setPlanId(st.planId || st.plan_id || "");
       setPlanStartedAt(st.startedAt || st.started_at || "");
       setPlanExpiresAt(st.expiresAt || st.expires_at || "");
+      setPlanResetsAt(st.resetsAt || st.resets_at || "");
     } catch { /* retain the last server-confirmed status if refresh fails */ }
   }, []);
 
