@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { startPayuCheckout } from "@/lib/payu";
 import CurrentPlanCard from "@/components/CurrentPlanCard";
 import { toast } from "@/components/ui/use-toast";
+import { PLANS as DISPLAY_PLANS } from "@/lib/plans";
 
 const FEATURE_ALIASES = { gstr1: "gstr1_export", team_management: "team", lead_pipeline: "lead_pipeline", payment_reminders: "payment_reminders", whatsapp_share: "whatsapp_share", custom_logo: "custom_logo", multi_currency: "multi_currency", premium_designs: "premium_designs" };
 
@@ -196,13 +197,14 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
           <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /><span className="text-[10px] font-bold uppercase tracking-[0.18em]">Plivex Premium</span></div>
           <h3 className="mt-3 text-[22px] font-bold leading-tight">{blocked ? "Upgrade required" : "Choose your plan"}</h3>
           <p className="mt-1.5 text-[12px] leading-relaxed text-white/85">{blocked ? "This action is not available on your " + (currentPlan?.planName || "Free") + " plan. " + blockReason : "Choose the plan that fits your business. Free plan, no card needed."}</p>
-          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold">Free plan available · No card needed</div>}
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold">Free plan available · No card needed</div>
         </div>
 
         <div className="max-h-[64vh] overflow-y-auto px-4 py-5 sm:px-6">
           {currentPlan?.active && (
             <CurrentPlanCard planName={currentPlan.planName} benefits={activePlan?.included || []} startedAt={currentPlan.startedAt} expiresAt={currentPlan.expiresAt} />
           )}
+          <div className="mb-4 rounded-2xl border border-[#E5E7EB] bg-slate-50 p-4"><div className="flex items-center justify-between"><div><p className="text-sm font-bold">Free</p><p className="mt-1 text-xs text-slate-500">₹0 · No card needed</p></div><span className="text-xs font-semibold text-slate-500">{currentPlan?.plan === "free" ? "Current plan" : "Available"}</span></div><ul className="mt-3 space-y-1">{DISPLAY_PLANS.free.bullets.map((item) => <li key={item} className="text-xs text-slate-600">• {item}</li>)}</ul></div>
           <div className="grid gap-3 sm:grid-cols-2">
             {PLANS.map((plan) => (
               <div key={plan.id} className={`relative flex flex-col rounded-2xl border p-4 ${plan.accent ? "border-[#6D28D9] bg-[#6D28D9]/5" : "border-[#E5E7EB] bg-white"}`}>
