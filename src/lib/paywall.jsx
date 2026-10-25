@@ -53,7 +53,6 @@ export function PaywallProvider({ children }) {
         setPlanStartedAt(st.startedAt || st.started_at || "");
         setPlanExpiresAt(st.expiresAt || st.expires_at || "");
       setPlanResetsAt(st.resetsAt || st.resets_at || "");
-        setPlanResetsAt(st.resetsAt || st.resets_at || "");
       } catch { if (active) { setSubscription("free"); setPlanName("Free"); setAccessStatus({ plan: "free", limits: {}, usage: {}, features: {} }); } } finally { if (active) setPlanLoading(false); }
     })();
     return () => { active = false; };
