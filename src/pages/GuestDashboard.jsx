@@ -97,15 +97,6 @@ export default function GuestDashboard() {
           </div>
         </section>
 
-        <div className="fade-up flex items-center gap-3 rounded-2xl border border-violet-100 bg-white p-3 shadow-sm sm:max-w-md">
-          <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Founder of Plivex" width="52" height="52" loading="eager" decoding="async" className="h-12 w-12 shrink-0 rounded-full border-2 border-violet-100 object-cover object-center" />
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-slate-900">Built by Yashvant Sharma</p>
-            <p className="text-xs leading-5 text-slate-600">Founder &amp; Developer of Plivex</p>
-            <a href="#about" className="text-xs font-bold text-[#6D28D9] underline underline-offset-2">Meet the founder ↓</a>
-          </div>
-        </div>
-
         <div className="flex flex-wrap gap-2 lg:hidden" aria-label="Quick navigation">
           <a href="#features" className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-semibold text-slate-700">Features ↓</a>
           <a href="#about" className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-semibold text-slate-700">About Plivex ↓</a>
@@ -178,8 +169,8 @@ export default function GuestDashboard() {
           </div>
         </div>
 
-        <div className="scroll-mt-24" id="about"><AboutSection /></div>
         <div className="scroll-mt-24" id="pricing"><PricingSection /></div>
+        <div className="scroll-mt-24" id="about"><AboutSection /></div>
 
         <footer id="contact" className="scroll-mt-24 rounded-3xl border border-[#E5E7EB] bg-white p-6 sm:p-8">
           <div className="grid gap-6 sm:grid-cols-2">
