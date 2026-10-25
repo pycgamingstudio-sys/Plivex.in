@@ -1,5 +1,3 @@
-import { backend as db } from '@/api/backendClient';
-
 import { Image } from "@/components/ui/image";
 
 // Plivex brand mark — used in the dashboard sidebar, top bar, workspace header
