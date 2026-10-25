@@ -6,6 +6,7 @@ import { InvoiceArt, QuoteArt, ExpenseArt, CrmArt, LeadArt, StockArt, TeamArt } 
 import OwnerMasterControl from "@/components/dashboard/OwnerMasterControl";
 import OwnerTrackingWidgets from "@/components/dashboard/OwnerTrackingWidgets";
 import PlanStatusCard from "@/components/PlanStatusCard";
+import { usePaywall } from "@/lib/paywall";
 
 const CARD_KEY = "invoicepulse:cardVisibility";
 const DEFAULT_VIS = { invoices: true, quotations: true, expenses: true, crm: true, leads: true, stock: true, team: true };
@@ -21,6 +22,7 @@ const ROLE_CARD_ACCESS = {
 
 export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUnlocked }) {
   const isAdmin = role === "admin";
+  const { limits, usage } = usePaywall();
   const [profile] = useLocalState(KEYS.businessProfile, { name: "", address: "", gstin: "", email: "", phone: "", logo: "" });
   const [vis, setVis] = useLocalState(CARD_KEY, DEFAULT_VIS);
   const [visOpen, setVisOpen] = useState(false);
@@ -30,6 +32,13 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
 
   const stock = loadList(KEYS.stock);
   const lowStock = stock.filter((p) => (Number(p.quantity) || 0) <= (Number(p.lowStock) || 5)).length;
+
+  const quotaCards = [
+    { id: "invoices", label: "Invoices", used: Number(usage.invoices_monthly ?? usage.invoices ?? loadList(KEYS.history).length), limit: Number(limits.invoices_monthly ?? limits.invoices ?? 30) },
+    { id: "quotations", label: "Quotations", used: Number(usage.quotations_monthly ?? usage.quotations ?? loadList(KEYS.quotations).length), limit: limits.quotations_monthly ?? limits.quotations },
+    { id: "expenses", label: "Expenses", used: Number(usage.expenses_monthly ?? usage.expenses ?? loadList(KEYS.expenses).length), limit: limits.expenses_monthly ?? limits.expenses },
+    { id: "stock", label: "Stock items", used: Number(usage.stock ?? usage.stock_total ?? stock.length), limit: Number(limits.stock ?? limits.stock_total ?? 20) },
+  ];
 
   const cards = [
     { id: "invoices", title: "Invoices", desc: "Bill clients with GST-ready, print-perfect PDFs in under a minute.", icon: FileText, Art: InvoiceArt, gradient: "bg-gradient-to-br from-[#EDE9FE] to-[#DDD6FE]", cta: "+ Create New Invoice", onClick: onCreateInvoice, stat: loadList(KEYS.history).length },
@@ -47,6 +56,14 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
   return (
     <div className="space-y-6">
       <PlanStatusCard />
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Plan usage">
+        {quotaCards.map((item) => {
+          const hasLimit = Number.isFinite(Number(item.limit)) && item.limit !== null && item.limit !== undefined;
+          const limit = hasLimit ? Number(item.limit) : null;
+          const percent = limit && limit > 0 ? Math.min(100, item.used / limit * 100) : 0;
+          return <div key={item.id} className="rounded-xl border border-[#E5E7EB] bg-white p-3"><div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold text-slate-500">{item.label}</span><span className="text-[12px] font-bold text-slate-800">{item.used}{hasLimit ? ` / ${limit}` : " saved"}</span></div>{hasLimit && <><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full ${percent >= 100 ? "bg-rose-500" : percent >= 80 ? "bg-amber-500" : "bg-[#6D28D9]"}`} style={{ width: `${percent}%` }} /></div><p className="mt-1 text-[10px] text-slate-400">{Math.max(0, limit - item.used)} remaining in current plan</p></>}</div>;
+        })}
+      </section>
       {pct < 100 && (
       <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-gradient-to-br from-[#6D28D9] to-[#7C3AED] p-6 text-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
