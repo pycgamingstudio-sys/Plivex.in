@@ -7,25 +7,15 @@ import { useAuth } from "@/lib/AuthContext";
 import { startPayuCheckout } from "@/lib/payu";
 import CurrentPlanCard from "@/components/CurrentPlanCard";
 import { toast } from "@/components/ui/use-toast";
+import { PLANS as DISPLAY_PLANS } from "@/lib/plans";
 
-const TRIAL_DAYS = 14;
-
-const FEATURE_PLANS = {
-  download_pdf: ["basic", "pro"],
-  whatsapp_share: ["basic", "pro"],
-  save: ["basic", "pro"],
-  gstr1: ["pro"],
-  custom_logo: ["pro"],
-  multi_currency: ["pro"],
-  team_management: ["pro"],
-  premium_designs: ["pro"],
-};
+const FEATURE_ALIASES = { gstr1: "gstr1_export", team_management: "team", lead_pipeline: "lead_pipeline", payment_reminders: "payment_reminders", whatsapp_share: "whatsapp_share", custom_logo: "custom_logo", multi_currency: "multi_currency", premium_designs: "premium_designs" };
 
 const PaywallContext = createContext(null);
 
 export function usePaywall() {
   const ctx = useContext(PaywallContext);
-  if (!ctx) return { isPremium: true, subscription: "pro", planName: "Pro", planId: "", planStartedAt: "", planExpiresAt: "", planLoading: false, trialActive: false, trialDaysLeft: 0, trialStartAt: "", trialExpiresAt: "", requestAction: () => true, canAccess: () => true, activatePlan: () => {}, upgrade: () => {}, showPaywall: false, blocked: false, openPaywall: () => {}, closePaywall: () => {} };
+  if (!ctx) return { plan: "free", limits: {}, usage: {}, remaining: () => 0, canAccess: () => false, requireFeature: () => false, isPremium: false, subscription: "free", planName: "Free", planId: "", planStartedAt: "", planExpiresAt: "", planLoading: false, requestAction: () => true, showPaywall: false, blocked: false, openPaywall: () => {}, closePaywall: () => {} };
   return ctx;
 }
 
@@ -38,11 +28,12 @@ export function PaywallProvider({ children }) {
   const [planStartedAt, setPlanStartedAt] = useState("");
   const [planExpiresAt, setPlanExpiresAt] = useState("");
   const [planLoading, setPlanLoading] = useState(true);
-  const [serverTrial, setServerTrial] = useState(null);
+  const [accessStatus, setAccessStatus] = useState({ plan: "free", limits: {}, usage: {}, features: {} });
+  const [blockReason, setBlockReason] = useState("");
   const { user } = useAuth();
   useEffect(() => {
     let active = true;
-    if (!user?.id) { setSubscription("free"); setPlanName("Free"); setPlanId(""); setPlanStartedAt(""); setPlanExpiresAt(""); setPlanLoading(false); return () => { active = false; }; }
+    if (!user?.id) { setSubscription("free"); setPlanName("Free"); setPlanId(""); setPlanStartedAt(""); setPlanExpiresAt(""); setAccessStatus({ plan: "free", limits: {}, usage: {}, features: {} }); setPlanLoading(false); return () => { active = false; }; }
     // Premium is read from the server asynchronously — screens wait for this before
     // deciding to lock, so a paid account never flashes the lock screen on load.
     setPlanLoading(true);
@@ -52,19 +43,15 @@ export function PaywallProvider({ children }) {
         const res = await db.functions.invoke("getAccessStatus", {});
         const st = res?.data || {};
         if (!active) return;
-        setServerTrial({ active: !!st.trialActive, expiresAt: st.trialExpiresAt || "" });
-        if (st.isPremium) {
-          const tier = st.tier || "pro";
-          setSubscription(tier);
-          setPlanName(tier === "pro" ? "Pro" : "Basic");
-          setPlanId("");
-          setPlanStartedAt("");
-          setPlanExpiresAt(st.expiresAt || "");
-        } else {
-          setSubscription("free"); setPlanName("Free");
-          setPlanId(""); setPlanStartedAt(""); setPlanExpiresAt("");
-        }
-      } catch { if (active) { setSubscription("free"); setPlanName("Free"); setServerTrial(null); } } finally { if (active) setPlanLoading(false); }
+        const tier = String(st.plan || st.tier || (st.isPremium ? "basic" : "free")).toLowerCase();
+        const normalizedPlan = ["basic", "pro", "enterprise"].includes(tier) ? tier : "free";
+        setAccessStatus({ ...st, plan: normalizedPlan, limits: st.limits || {}, usage: st.usage || {}, features: st.features || {} });
+        setSubscription(normalizedPlan);
+        setPlanName(normalizedPlan === "enterprise" ? "Enterprise" : normalizedPlan === "pro" ? "Pro" : normalizedPlan === "basic" ? "Basic" : "Free");
+        setPlanId(st.planId || st.plan_id || "");
+        setPlanStartedAt(st.startedAt || st.started_at || "");
+        setPlanExpiresAt(st.expiresAt || st.expires_at || "");
+      } catch { if (active) { setSubscription("free"); setPlanName("Free"); setAccessStatus({ plan: "free", limits: {}, usage: {}, features: {} }); } } finally { if (active) setPlanLoading(false); }
     })();
     return () => { active = false; };
   }, [user?.id]);
@@ -86,31 +73,37 @@ export function PaywallProvider({ children }) {
   const [showPaywall, setShowPaywall] = useState(false);
   const [blocked, setBlocked] = useState(false);
 
-  const isPremium = subscription !== "free";
-  // The 14-day trial is anchored to the account's registration date — never to the
-  // first time the app was opened, a login, or a browser session. trial_start_at is
-  // written at registration; created_date is the fallback for older accounts.
-  // The server decides whether the 14-day trial is still running (get-access-status).
-  const trialExpiresMs = serverTrial?.expiresAt ? new Date(serverTrial.expiresAt).getTime() : null;
-  const trialDaysLeft = serverTrial?.active && trialExpiresMs
-    ? Math.max(0, Math.ceil((trialExpiresMs - Date.now()) / 86400000))
-    : 0;
-  const trialStartAt = trialExpiresMs ? new Date(trialExpiresMs - TRIAL_DAYS * 86400000).toISOString() : "";
-  const trialExpiresAt = trialExpiresMs ? new Date(trialExpiresMs).toISOString() : "";
-  // A paid plan always supersedes the trial: the moment a subscription is active
-  // the account is no longer a trial user, even if the 14 days have not elapsed.
-  const trialActive = !isPremium && !!user && !!serverTrial?.active;
-
-  // The 14-day trial unlocks exactly what the Basic plan includes — never the
-  // Pro-only features (GSTR-1 export, custom logo, multi-currency, team access).
-  const effectiveTier = isPremium ? subscription : trialActive ? "basic" : "free";
-  const canAccess = useCallback((feature) => (FEATURE_PLANS[feature] || []).includes(effectiveTier), [effectiveTier]);
+  const plan = accessStatus.plan || subscription || "free";
+  const isPremium = plan === "basic" || plan === "pro" || plan === "enterprise";
+  const limits = accessStatus.limits || {};
+  const usage = accessStatus.usage || {};
+  const remaining = useCallback((resource) => {
+    const limit = limits[resource];
+    const used = Number(usage[resource] || 0);
+    if (limit === undefined || limit === null || limit === -1) return Infinity;
+    return Math.max(0, Number(limit) - used);
+  }, [limits, usage]);
+  const canAccess = useCallback((feature) => {
+    if (feature === "download_pdf" || feature === "save") return true;
+    const key = FEATURE_ALIASES[feature] || feature;
+    if (Object.prototype.hasOwnProperty.call(accessStatus.features || {}, key)) return !!accessStatus.features[key];
+    return plan === "pro" || plan === "enterprise";
+  }, [accessStatus.features, plan]);
+  const requireFeature = useCallback((feature, reason = "") => {
+    if (canAccess(feature)) return true;
+    setBlockReason(reason || feature);
+    setBlocked(true);
+    setShowPaywall(true);
+    return false;
+  }, [canAccess]);
+  const requestAction = useCallback(() => true, []);
 
   // Called only after the server has verified the PayU response hash and activated
   // the Subscription record. Never trusts a client-supplied plan.
   const applySubscription = useCallback((data) => {
     setSubscription(data?.tier || "pro");
     setPlanName(data?.planName || "Pro");
+    setAccessStatus((prev) => ({ ...prev, plan: data?.tier || "pro" }));
     setBlocked(false); setShowPaywall(false);
   }, []);
 
@@ -124,9 +117,9 @@ export function PaywallProvider({ children }) {
   const closePaywall = useCallback(() => { if (!blocked) setShowPaywall(false); }, [blocked]);
 
   return (
-    <PaywallContext.Provider value={{ isPremium, subscription, planName, planId, planStartedAt, planExpiresAt, planLoading, trialActive, trialDaysLeft, trialStartAt, trialExpiresAt, requestAction, canAccess, applySubscription, upgrade: applySubscription, showPaywall, blocked, openPaywall, closePaywall }}>
+    <PaywallContext.Provider value={{ plan, limits, usage, remaining, requireFeature, isPremium, subscription, planName, planId, planStartedAt, planExpiresAt, planLoading, requestAction, canAccess, applySubscription, upgrade: applySubscription, showPaywall, blocked, openPaywall, closePaywall }}>
       {children}
-      {showPaywall && <PaywallModal blocked={blocked} trialActive={trialActive} trialDaysLeft={trialDaysLeft} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} onClose={closePaywall} />}
+      {showPaywall && <PaywallModal blocked={blocked} blockReason={blockReason} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt, plan }} onClose={closePaywall} />}
     </PaywallContext.Provider>
   );
 }
@@ -137,7 +130,7 @@ const PLANS = [
     included: [
       "Up to 50 Invoices & Quotations / month",
       "Dynamic UPI QR Code Generation",
-      "Instant WhatsApp Sharing",
+      "Standard PDF downloads",
       "Standard HD PDF Downloads",
       "Basic Client Database",
       "Expense Tracker",
@@ -157,7 +150,7 @@ const PLANS = [
       "GSTR-1 Ready Excel/CSV Exports",
       "Multi-Currency & Tax Breakdown (CGST/SGST/IGST)",
       "Auto Payment Reminders",
-      "Priority 24/7 Support",
+      
     ],
     locked: [],
   },
@@ -179,16 +172,16 @@ const PLANS = [
     included: [
       "Includes ALL ₹249 Pro Plan features for 1 FULL YEAR",
       "Custom Invoice Templates & Advanced Branding",
-      "Dedicated Account Manager",
+      
       "Multi-User / Team Access",
-      "Auto Cloud Backup & Lifetime History",
-      "Priority WhatsApp & Call Support",
+      "Cloud-synced business records",
+      
     ],
     locked: [],
   },
 ];
 
-function PaywallModal({ blocked, trialActive, trialDaysLeft, currentPlan, onClose }) {
+function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   const { user } = useAuth();
   const [processing, setProcessing] = useState(null);
   const [notice, setNotice] = useState("");
@@ -209,13 +202,9 @@ function PaywallModal({ blocked, trialActive, trialDaysLeft, currentPlan, onClos
         <div className="relative bg-gradient-to-br from-[#6D28D9] to-[#4c1d95] p-6 text-white">
           {!blocked && <button onClick={onClose} className="absolute right-3 top-3 rounded-lg p-2 text-white/80 hover:bg-white/10" aria-label="Close"><X className="h-4 w-4" /></button>}
           <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /><span className="text-[10px] font-bold uppercase tracking-[0.18em]">Plivex Premium</span></div>
-          <h3 className="mt-3 text-[22px] font-bold leading-tight">{blocked ? "Your 14-day trial has completed!" : "Choose your plan"}</h3>
-          <p className="mt-1.5 text-[12px] leading-relaxed text-white/85">{blocked ? "Upgrade to a paid plan to unlock unlimited invoices, data backup and team access." : "Unlock unlimited actions and premium features across the entire workspace."}</p>
-          {trialActive ? (
-            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold">Trial active · Basic plan features · {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} left</div>
-          ) : (
-            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold">Free trial ended · choose a plan to continue</div>
-          )}
+          <h3 className="mt-3 text-[22px] font-bold leading-tight">{blocked ? "Upgrade required" : "Choose your plan"}</h3>
+          <p className="mt-1.5 text-[12px] leading-relaxed text-white/85">{blocked ? "This action is not available on your " + (currentPlan?.planName || "Free") + " plan. " + blockReason : "Choose the plan that fits your business. Free plan, no card needed."}</p>
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold">Free plan available · No card needed</div>}
         </div>
 
         <div className="max-h-[64vh] overflow-y-auto px-4 py-5 sm:px-6">
@@ -250,7 +239,7 @@ function PaywallModal({ blocked, trialActive, trialDaysLeft, currentPlan, onClos
 
         <div className="border-t border-[#E5E7EB] px-6 py-4">
           {blocked ? (
-            <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-slate-500"><Lock className="h-3 w-3" />This window stays open until you upgrade.</p>
+            <button onClick={onClose} className="w-full text-center text-[12px] font-medium text-slate-400 hover:text-slate-600">Close</button>
           ) : (
             <button onClick={onClose} className="w-full text-center text-[12px] font-medium text-slate-400 hover:text-slate-600">Maybe later</button>
           )}
