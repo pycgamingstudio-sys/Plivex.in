@@ -12,9 +12,7 @@ const TONES = {
   free: "bg-slate-100 text-slate-600",
 };
 
-// Always-visible plan status: which plan is active, when it started and when it
-// expires / renews. Trial accounts show the 14-day trial window as real dates.
-// Rendered on every viewport (no responsive hiding).
+// Always-visible plan status based on the server-reported plan.
 export default function PlanStatusCard() {
   const { isPremium, planName, planStartedAt, planExpiresAt, openPaywall } = usePaywall();
 
