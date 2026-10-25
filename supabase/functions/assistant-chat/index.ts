@@ -87,7 +87,9 @@ function inferExplicitClientAction(messages: any[]) {
   const intent = /\b(?:add|create|save|register)\b.{0,40}\b(?:client|customer)\b|\b(?:client|customer)\b.{0,40}\b(?:add|create|save|register)\b/i;
   if (!intent.test(latest)) return null;
 
-  const nameMatch = latest.match(/\b(?:client|customer)\s+(?:(?:named|called)\s+|name\s*(?:is|:)?\s*)?([A-Za-z][A-Za-z0-9&.' -]{0,70}?)(?=\s*(?:,|;|\bwith\s+(?:company|email|phone|address|gstin)\b|\bcompany\b|\bemail\b|\bphone\b|\baddress\b|\bgstin\b|$))/i);
+  // Support both "add client Aman" and natural phrasing like "add Aman as a client".
+  const nameMatch = latest.match(/\b(?:client|customer)\s+(?:(?:named|called)\s+|name\s*(?:is|:)?\s*)?([A-Za-z][A-Za-z0-9&.' -]{0,70}?)(?=\s*(?:,|;|\bwith\s+(?:company|email|phone|address|gstin)\b|\bcompany\b|\bemail\b|\bphone\b|\baddress\b|\bgstin\b|$))/i)
+    || latest.match(/\b(?:add|create|save|register)\s+(?:a\s+)?([A-Za-z][A-Za-z0-9&.' -]{0,70}?)\s+as\s+(?:a\s+)?(?:client|customer)\b/i);
   const name = text(nameMatch?.[1], 120).replace(/[.,;:]+$/, "").trim();
   if (!name || /^(please|a|the|new)$/i.test(name)) return null;
 
