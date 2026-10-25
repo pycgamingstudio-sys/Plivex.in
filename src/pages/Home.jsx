@@ -452,7 +452,7 @@ function WhatsAppNumberModal({ value, onChange, onClose, onSend, sending = false
 }
 
 export default function Home() {
-  const { canAccess, isPremium, planName, planId, planStartedAt, planExpiresAt, limits, usage, remaining, openPaywall } = usePaywall();
+  const { canAccess, isPremium, planName, planId, planStartedAt, planExpiresAt, limits, usage, remaining, openPaywall, refreshAccessStatus } = usePaywall();
   const [invoice, setInvoice] = useStored("invoicepulse-draft", initialInvoice, "invoicepulse-empty-draft-v1");
   const [isDark, setIsDark] = useStored("invoicepulse-dark", false);
   const [mobileTab, setMobileTab] = useState("edit");
@@ -510,6 +510,7 @@ export default function Home() {
     const total = computeTotal(invoice);
     const taxValue = Math.max(0, total - invoice.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.rate) || 0), 0));
     await saveInvoiceToServer({ ...invoice, total, taxValue });
+    await refreshAccessStatus();
     trackStaffAction({ label: `Invoice ${invoice.number || "INV"} generated for ${invoice.client.name || "client"}`, type: "invoice", revenue: total });
   };
   const recordActivity = (label, type = "action") => pushItem(KEYS.activity, { id: genId("act"), type, label, date: new Date().toISOString() });
