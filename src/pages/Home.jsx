@@ -2,7 +2,7 @@ import { base44 as db } from '@/api/base44Client';
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { KEYS, pushItem, genId, deductStockForInvoice, loadList, loadState, removeState, tenantKey } from "@/lib/stores";
+import { KEYS, pushItem, genId, deductStockForInvoice, loadList, loadState, removeState, tenantKey, saveInvoiceToServer } from "@/lib/stores";
 import { useAuth } from "@/lib/AuthContext";
 import { startPayuCheckout } from "@/lib/payu";
 import { usePaywall } from "@/lib/paywall";
@@ -506,7 +506,7 @@ export default function Home() {
     }
     return valid;
   };
-  const recordInvoice = () => {
+  const recordInvoice = async () => {
     const subtotal = invoice.items.reduce((s, i) => s + Math.max(0, Number(i.quantity) || 0) * Math.max(0, Number(i.rate) || 0), 0);
     const discount = Number(invoice.discount) || 0;
     const discountValue = invoice.discountType === "percent" ? subtotal * Math.max(0, discount) / 100 : Math.max(0, discount);
@@ -515,7 +515,8 @@ export default function Home() {
     const taxValue = Math.max(0, total - taxable);
     const split = invoice.taxMode === "split";
     trackStaffAction({ label: `Invoice ${invoice.number || "INV"} generated for ${invoice.client.name || "client"}`, type: "invoice", revenue: total });
-    pushItem(KEYS.history, { id: genId("inv"), number: invoice.number || "INV-000", clientName: invoice.client.name, clientEmail: invoice.client.email, businessName: invoice.business.name, total, cgst: split ? taxValue / 2 : 0, sgst: split ? taxValue / 2 : 0, igst: split ? 0 : taxValue, taxValue, issueDate: invoice.issueDate || new Date().toISOString().slice(0, 10), createdDate: new Date().toISOString(), currency: invoice.currency, itemCount: invoice.items.length, taxMode: invoice.taxMode, taxRate: invoice.taxRate });
+    await saveInvoiceToServer({ ...invoice, total, taxValue });
+    trackStaffAction({ label: `Invoice ${invoice.number || "INV"} generated for ${invoice.client.name || "client"}`, type: "invoice", revenue: total });
   };
   const recordActivity = (label, type = "action") => pushItem(KEYS.activity, { id: genId("act"), type, label, date: new Date().toISOString() });
   const filename = `Plivex_${(invoice.number || "INV-000").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "")}.pdf`;
@@ -608,15 +609,19 @@ export default function Home() {
     const preview = document.querySelector("[data-testid='invoice-preview']");
     if (!preview) { notify("Preview is still loading. Try again in a moment.", "info"); return; }
     try {
+      await recordInvoice();
       const pdf = await renderPdfDocument();
       if (!pdf) return;
+      await recordInvoice();
       pdf.save(filename);
-      recordInvoice();
       deductStockForInvoice(invoice);
       recordActivity("Invoice generated");
       notify(`Downloaded ${filename}`);
-    } catch {
-      notify("PDF export failed. Please try again.", "info");
+    } catch (error) {
+      const message = String(error?.message || "");
+      if (message.startsWith("PLAN_LIMIT_REACHED|")) openPaywall("Invoice limit reached: " + message.split("|").slice(1).join(" · "));
+      else if (message.startsWith("PLAN_FEATURE_LOCKED|")) openPaywall("This feature requires an upgrade: " + message.split("|").slice(1).join(" · "));
+      else notify(message || "PDF export failed. Please try again.", "error");
     }
   };
   const download = async () => {
@@ -647,7 +652,8 @@ export default function Home() {
     });
   };
   const handleWhatsApp = () => {
-    if (!canAccess("whatsapp_share")) { setPricingOpen(true); return; }
+    if (!canAccess("whatsapp_share")) { openPaywall("WhatsApp sharing is available on Pro."); return; }
+    if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
     if (!requireValid()) {
       notify("Please complete all required invoice details before sharing on WhatsApp", "error");
       return;
@@ -661,7 +667,8 @@ export default function Home() {
     }
   };
   const sendWhatsApp = async (phone) => {
-    if (!canAccess("whatsapp_share")) { setPricingOpen(true); return; }
+    if (!canAccess("whatsapp_share")) { openPaywall("WhatsApp sharing is available on Pro."); return; }
+    if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
     if (!requireValid()) { notify("Please complete all required invoice details before sharing on WhatsApp", "error"); return; }
     const digits = normalizePhone(phone);
     if (!digits) { notify("Please enter a valid 10-digit WhatsApp number.", "error"); return; }
@@ -679,8 +686,14 @@ export default function Home() {
         const { file_url } = await db.integrations.Core.UploadFile({ file });
         pdfLink = file_url || "";
       }
-    } catch {
-      /* best-effort: continue without a hosted link */
+    } catch (error) {
+      if (waWindow) waWindow.close();
+      const message = String(error?.message || "");
+      if (message.startsWith("PLAN_LIMIT_REACHED|")) openPaywall("Invoice limit reached: " + message.split("|").slice(1).join(" · "));
+      else if (message.startsWith("PLAN_FEATURE_LOCKED|")) openPaywall("This feature requires an upgrade: " + message.split("|").slice(1).join(" · "));
+      else notify(message || "Could not save the invoice. Please try again.", "error");
+      setWhatsappSending(false);
+      return;
     }
     const cleanPhone = `91${digits}`;
     const clientName = invoice.client.name || "there";
