@@ -5,6 +5,9 @@ const ALLOWED_ORIGINS = new Set([
   "https://www.plivex.in",
   "https://plivex.netlify.app",
 ]);
+const isAllowedOrigin = (origin: string | null) => !origin || ALLOWED_ORIGINS.has(origin)
+  || /^https:\/\/[a-z0-9-]+\.workers\.dev$/.test(origin)
+  || /^https:\/\/[a-z0-9-]+\.pages\.dev$/.test(origin);
 const corsHeaders = {
   "Access-Control-Allow-Origin": "https://plivex.in",
   "Vary": "Origin",
@@ -230,7 +233,7 @@ async function handleRequest(req: Request) {
 
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
-  if (origin && !ALLOWED_ORIGINS.has(origin)) {
+  if (!isAllowedOrigin(origin)) {
     return new Response("Origin not allowed", {
       status: 403,
       headers: { "Vary": "Origin", "Content-Type": "text/plain" },
@@ -238,7 +241,7 @@ Deno.serve(async (req: Request) => {
   }
   const response = await handleRequest(req);
   const headers = new Headers(response.headers);
-  headers.set("Access-Control-Allow-Origin", origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://plivex.in");
+  headers.set("Access-Control-Allow-Origin", origin && isAllowedOrigin(origin) ? origin : "https://plivex.in");
   headers.set("Vary", "Origin");
   headers.set("Access-Control-Allow-Headers", "authorization, x-client-info, apikey, content-type");
   headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
