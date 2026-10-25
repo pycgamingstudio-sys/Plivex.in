@@ -51,10 +51,10 @@ const PILLARS = [
 ];
 
 const STATS = [
-  { value: "50+", label: "Enterprise features" },
-  { value: "6", label: "Core pillars" },
-  { value: "2", label: "Languages · हिंदी, English" },
-  { value: "<2 min", label: "First invoice" },
+  { value: "6", label: "Core capability areas" },
+  { value: "2", label: "Languages · Hindi & English" },
+  { value: "14 days", label: "Full-feature trial" },
+  { value: "No card", label: "Required to start trial" },
 ];
 
 export default function AboutSection() {
@@ -65,9 +65,7 @@ export default function AboutSection() {
           <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /><p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">About Plivex</p></div>
           <h2 className="mt-2 text-[22px] font-bold leading-tight sm:text-[28px]">Smart invoicing with your built-in AI Business Assistant.</h2>
           <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-white/85">
-            Plivex is an all-in-one billing & business operating system built for Indian SMEs, freelancers and agencies.
-            We pair enterprise-grade multi-tenant isolation with a blazing-fast interface so you can raise a GST invoice,
-            track a payment, and close your books in under two minutes — at a price every business can afford.
+            Plivex brings invoicing, quotations, customer records, expenses, inventory and business reports together in one web workspace. It is designed for Indian retailers, wholesalers, distributors, freelancers, service providers and small teams that want their everyday billing work organised in one place.
           </p>
           <div className="mt-5 flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 p-3">
             <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Founder & Developer of Plivex" width="56" height="56" loading="lazy" decoding="async" className="h-14 w-14 shrink-0 rounded-full border-2 border-white/70 object-cover object-center" />
@@ -87,8 +85,8 @@ export default function AboutSection() {
         </div>
 
         <div className="p-5 sm:p-8">
-          <div className="flex items-center gap-2"><Rocket className="h-4 w-4 text-[#6D28D9]" /><h3 className="text-[16px] font-bold text-slate-900">50+ capabilities across 6 core pillars</h3></div>
-          <p className="mt-1 text-[12px] text-slate-500">Everything you need to run billing, clients, payments, reports, security and integrations — in one workspace.</p>
+          <div className="flex items-center gap-2"><Rocket className="h-4 w-4 text-[#6D28D9]" /><h3 className="text-[16px] font-bold text-slate-900">Business tools in one workspace</h3></div>
+          <p className="mt-1 text-[12px] text-slate-500">Explore the main capability areas available in Plivex.</p>
           <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {PILLARS.map((p) => (
               <div key={p.title} className="rounded-2xl border border-[#E5E7EB] bg-slate-50/60 p-4">
@@ -105,6 +103,28 @@ export default function AboutSection() {
                 </ul>
               </div>
             ))}
+          </div>
+
+          <div className="mt-8">
+            <h3 className="text-[16px] font-bold text-slate-900">Who is Plivex for?</h3>
+            <p className="mt-1 text-[12px] text-slate-500">Common business workflows Plivex is designed to support.</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-[#E5E7EB] p-4"><h4 className="text-[13px] font-bold text-slate-900">Retail shops</h4><p className="mt-1.5 text-[12px] leading-relaxed text-slate-600">Prepare customer bills, keep track of stock, and review sales and expenses.</p></div>
+              <div className="rounded-2xl border border-[#E5E7EB] p-4"><h4 className="text-[13px] font-bold text-slate-900">Wholesalers &amp; distributors</h4><p className="mt-1.5 text-[12px] leading-relaxed text-slate-600">Create invoices and quotations, manage customer records, and monitor inventory.</p></div>
+              <div className="rounded-2xl border border-[#E5E7EB] p-4"><h4 className="text-[13px] font-bold text-slate-900">Freelancers &amp; service providers</h4><p className="mt-1.5 text-[12px] leading-relaxed text-slate-600">Send quotations and invoices, record expenses, and organise client details.</p></div>
+              <div className="rounded-2xl border border-[#E5E7EB] p-4"><h4 className="text-[13px] font-bold text-slate-900">Small teams</h4><p className="mt-1.5 text-[12px] leading-relaxed text-slate-600">Use team roles and a shared workspace to organise day-to-day billing work.</p></div>
+            </div>
+          </div>
+          <div className="mt-6 border-t border-[#E5E7EB] pt-6">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">About the founder</p>
+            <div className="mt-3 flex items-center gap-4">
+              <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Founder and Developer of Plivex" loading="lazy" width="64" height="64" className="h-16 w-16 shrink-0 rounded-full border border-slate-200 object-cover" />
+              <div className="min-w-0">
+                <h3 className="text-[14px] font-bold text-slate-900">Yashvant Sharma</h3>
+                <p className="mt-0.5 text-[11px] font-semibold text-[#6D28D9]">Founder &amp; Developer, Plivex</p>
+                <p className="mt-1 text-[12px] leading-relaxed text-slate-600">Building practical billing and business management tools for Indian small businesses.</p>
+              </div>
+            </div>
           </div>
           <div className="mt-6 flex flex-wrap items-center gap-2 rounded-2xl border border-[#6D28D9]/20 bg-[#6D28D9]/5 p-4">
             <Zap className="h-4 w-4 text-[#6D28D9]" />
