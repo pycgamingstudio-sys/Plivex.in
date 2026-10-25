@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Receipt, Users, Wallet, BarChart3, Package, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Receipt, Users, Wallet, BarChart3, Package, ShieldCheck } from "lucide-react";
 import Logo from "@/components/Logo";
 import AboutSection from "@/components/landing/AboutSection";
 import PricingSection from "@/components/landing/PricingSection";

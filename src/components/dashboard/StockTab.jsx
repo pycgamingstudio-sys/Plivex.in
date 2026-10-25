@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, X, Search, RotateCcw, Package, AlertTriangle, Boxes, TrendingDown } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Search, RotateCcw, Package, AlertTriangle, Boxes } from "lucide-react";
 import { KEYS, loadList, saveList, genId } from "@/lib/stores";
 import { inputCls, btnGhost } from "@/lib/ui";
 import { btnAccent, Empty } from "@/lib/dashboardData";

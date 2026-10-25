@@ -2,7 +2,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { backend as db } from '@/api/backendClient';
 
 import { useEffect, useState } from "react";
-import { Settings as SettingsIcon, Check, Bell, Send, Loader2, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Settings as SettingsIcon, Check, Bell, Send, Loader2, ShieldCheck } from "lucide-react";
 
 import PageShell from "@/components/PageShell";
 import { KEYS, useLocalState } from "@/lib/stores";

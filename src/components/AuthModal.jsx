@@ -5,8 +5,7 @@ import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { X, Mail, Lock, Loader2, LogIn, Sparkles } from "lucide-react";
+import { X, Mail, Lock, LogIn, Sparkles } from "lucide-react";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
 // Lightweight delayed-authentication modal. The pending action is stored in

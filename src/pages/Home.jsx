@@ -19,7 +19,6 @@ import {
   BriefcaseBusiness,
   CalendarDays,
   Check,
-  ChevronDown,
   Copy,
   Download,
   FilePenLine,

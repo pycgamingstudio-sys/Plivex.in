@@ -27,13 +27,14 @@ export function PaywallProvider({ children }) {
   const [planId, setPlanId] = useState("");
   const [planStartedAt, setPlanStartedAt] = useState("");
   const [planExpiresAt, setPlanExpiresAt] = useState("");
+  const [planResetsAt, setPlanResetsAt] = useState("");
   const [planLoading, setPlanLoading] = useState(true);
   const [accessStatus, setAccessStatus] = useState({ plan: "free", limits: {}, usage: {}, features: {} });
   const [blockReason, setBlockReason] = useState("");
   const { user } = useAuth();
   useEffect(() => {
     let active = true;
-    if (!user?.id) { setSubscription("free"); setPlanName("Free"); setPlanId(""); setPlanStartedAt(""); setPlanExpiresAt(""); setAccessStatus({ plan: "free", limits: {}, usage: {}, features: {} }); setPlanLoading(false); return () => { active = false; }; }
+    if (!user?.id) { setSubscription("free"); setPlanName("Free"); setPlanId(""); setPlanStartedAt(""); setPlanExpiresAt(""); setPlanResetsAt(""); setAccessStatus({ plan: "free", limits: {}, usage: {}, features: {} }); setPlanLoading(false); return () => { active = false; }; }
     // Premium is read from the server asynchronously — screens wait for this before
     // deciding to lock, so a paid account never flashes the lock screen on load.
     setPlanLoading(true);
@@ -51,6 +52,7 @@ export function PaywallProvider({ children }) {
         setPlanId(st.planId || st.plan_id || "");
         setPlanStartedAt(st.startedAt || st.started_at || "");
         setPlanExpiresAt(st.expiresAt || st.expires_at || "");
+      setPlanResetsAt(st.resetsAt || st.resets_at || "");
       } catch { if (active) { setSubscription("free"); setPlanName("Free"); setAccessStatus({ plan: "free", limits: {}, usage: {}, features: {} }); } } finally { if (active) setPlanLoading(false); }
     })();
     return () => { active = false; };
@@ -67,6 +69,7 @@ export function PaywallProvider({ children }) {
       setPlanId(st.planId || st.plan_id || "");
       setPlanStartedAt(st.startedAt || st.started_at || "");
       setPlanExpiresAt(st.expiresAt || st.expires_at || "");
+      setPlanResetsAt(st.resetsAt || st.resets_at || "");
     } catch { /* retain the last server-confirmed status if refresh fails */ }
   }, []);
 
@@ -129,7 +132,7 @@ export function PaywallProvider({ children }) {
   const closePaywall = useCallback(() => { setShowPaywall(false); setBlocked(false); setBlockReason(""); }, []);
 
   return (
-    <PaywallContext.Provider value={{ plan, limits, usage, remaining, requireFeature, refreshAccessStatus, isPremium, subscription, planName, planId, planStartedAt, planExpiresAt, planLoading, requestAction, canAccess, applySubscription, upgrade: applySubscription, showPaywall, blocked, openPaywall, closePaywall }}>
+    <PaywallContext.Provider value={{ plan, limits, usage, remaining, requireFeature, refreshAccessStatus, isPremium, subscription, planName, planId, planStartedAt, planExpiresAt, planResetsAt, planLoading, requestAction, canAccess, applySubscription, upgrade: applySubscription, showPaywall, blocked, openPaywall, closePaywall }}>
       {children}
       {showPaywall && <PaywallModal blocked={blocked} blockReason={blockReason} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt, plan }} onClose={closePaywall} />}
     </PaywallContext.Provider>

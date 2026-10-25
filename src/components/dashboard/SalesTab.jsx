@@ -6,7 +6,7 @@ import { Plus, Eye, Trash2, MessageCircle, ArrowRight, X, Search, ChevronDown, C
 import { KEYS, loadList, saveList, removeItem, genId, loadState, saveState } from "@/lib/stores";
 import { inputCls, btnGhost } from "@/lib/ui";
 import { money2, dateLabel, btnAccent, subPill, statusBadge, Empty } from "@/lib/dashboardData";
-import { paginate, totalPages, PAGE_SIZE } from "@/lib/paging";
+import { paginate, totalPages } from "@/lib/paging";
 import { usePaywall } from "@/lib/paywall";
 import { useRole } from "@/lib/roles";
 
@@ -102,7 +102,12 @@ export default function SalesTab({ intent, onConsumeIntent }) {
 
   return (
     <div className="space-y-5">
-      {(() => { const used = Number(usage.invoices_monthly ?? usage.invoices ?? 0); const limit = Number(limits.invoices_monthly ?? limits.invoices ?? 30); const pct = limit > 0 ? Math.min(100, used / limit * 100) : 100; return <div className="rounded-xl border border-[#E5E7EB] bg-white p-3"><div className="flex items-center justify-between text-xs"><span className="font-semibold text-slate-700">Invoices this month</span><span className="font-bold text-slate-600">{used}/{limit}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-[#6D28D9]"}`} style={{ width: `${pct}%` }} /></div>{pct >= 80 && <p className={`mt-1.5 text-[11px] ${pct >= 100 ? "text-rose-600" : "text-amber-600"}`}>{pct >= 100 ? "Plan limit reached" : "Usage limit warning"}</p>}{pct >= 100 && <button onClick={() => openPaywall("Invoice limit reached for your current plan.")} className="mt-2 rounded-lg bg-[#6D28D9] px-3 py-1.5 text-xs font-bold text-white">Upgrade</button>}</div>; })()}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {[
+          { key: "invoices", label: "Invoices this cycle", used: Number(usage.invoices_monthly ?? usage.invoices ?? invoices.length), limit: Number(limits.invoices_monthly ?? limits.invoices ?? 30) },
+          { key: "quotations", label: "Quotations this cycle", used: Number(usage.quotations_monthly ?? usage.quotations ?? quotations.length), limit: Number(limits.quotations_monthly ?? limits.quotations ?? 10) },
+        ].map((item) => { const pct = item.limit > 0 ? Math.min(100, item.used / item.limit * 100) : 100; return <div key={item.key} className="rounded-xl border border-[#E5E7EB] bg-white p-3"><div className="flex items-center justify-between gap-2 text-xs"><span className="font-semibold text-slate-700">{item.label}</span><span className="font-bold text-slate-600">{item.used}/{item.limit}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-[#6D28D9]"}`} style={{ width: `${pct}%` }} /></div>{pct >= 80 && <p className={`mt-1.5 text-[11px] ${pct >= 100 ? "text-rose-600" : "text-amber-600"}`}>{pct >= 100 ? "Plan limit reached" : "Usage limit warning"}</p>}{pct >= 100 && <button onClick={() => openPaywall(`${item.label} limit reached for your current plan.`)} className="mt-2 rounded-lg bg-[#6D28D9] px-3 py-1.5 text-xs font-bold text-white">Upgrade</button>}</div>; })}
+      </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <SummaryCard label="Total Invoiced" value={money2(totalInvoiced)} gradient="bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" icon={ReceiptIcon} badge={`${invoices.length} inv`} />
         <SummaryCard label="Paid" value={money2(invoices.filter((it) => statusOf(it) === "Paid").reduce((s, it) => s + Number(it.total || 0), 0))} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={CheckCircle2} badge={`${paidCount} paid`} />
