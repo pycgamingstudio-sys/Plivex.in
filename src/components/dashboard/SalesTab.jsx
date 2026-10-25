@@ -6,7 +6,7 @@ import { Plus, Eye, Trash2, MessageCircle, ArrowRight, X, Search, ChevronDown, C
 import { KEYS, loadList, saveList, removeItem, genId, loadState, saveState } from "@/lib/stores";
 import { inputCls, btnGhost } from "@/lib/ui";
 import { money2, dateLabel, btnAccent, subPill, statusBadge, Empty } from "@/lib/dashboardData";
-import { paginate, totalPages, PAGE_SIZE } from "@/lib/paging";
+import { paginate, totalPages } from "@/lib/paging";
 import { usePaywall } from "@/lib/paywall";
 import { useRole } from "@/lib/roles";
 
