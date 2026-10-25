@@ -373,13 +373,13 @@ const PRICING_PLANS = [
     included: ["Up to 50 Invoices & Quotations / month","Dynamic UPI QR Code Generation","Instant WhatsApp Sharing","Standard HD PDF Downloads","Basic Client Database","Expense Tracker","Standard Customer Support"],
     locked: ["GSTR-1 Tax Reports","Custom Business Logo","Multi-Currency Support"] },
   { id: "pro_monthly", name: "Pro Monthly", price: 249, period: "month", amount: 24900, badge: "MOST POPULAR", accent: true,
-    included: ["UNLIMITED Invoices, Quotations & Bills","Dynamic UPI QR Code & Online Payments","WhatsApp One-Click Direct Share","Ultra HD PDF Downloads with Custom Logo","Full Client CRM & Lead Pipeline Management","Advanced Expense & Profit/Loss Analytics","GSTR-1 Ready Excel/CSV Exports","Multi-Currency & Tax Breakdown (CGST/SGST/IGST)","Auto Payment Reminders","Priority 24/7 Support"],
+    included: ["Up to 3,000 invoices per month","Dynamic UPI QR Code & Online Payments","WhatsApp One-Click Direct Share","Ultra HD PDF Downloads with Custom Logo","Full Client CRM & Lead Pipeline Management","Advanced Expense & Profit/Loss Analytics","GSTR-1 Ready Excel/CSV Exports","Multi-Currency & Tax Breakdown (CGST/SGST/IGST)","Auto Payment Reminders"],
     locked: [] },
   { id: "basic_yearly", name: "Basic Yearly", price: 999, period: "year", amount: 99900, badge: "SAVE 58%", accent: false,
     included: ["Includes ALL ₹199 Basic Plan features for 1 FULL YEAR (12 Months Access)","Up to 600 Invoices & Quotations / year","Dynamic UPI QR Codes","Instant WhatsApp Share & HD PDFs","Expense Management","Annual Savings (Cost-effective for individuals)","Standard Support"],
     locked: [] },
   { id: "enterprise_yearly", name: "Enterprise Yearly", price: 1599, period: "year", amount: 159900, badge: "BEST VALUE", accent: true,
-    included: ["Includes ALL ₹249 Pro Plan features for 1 FULL YEAR","Custom Invoice Templates & Advanced Branding","Dedicated Account Manager","Multi-User / Team Access","Auto Cloud Backup & Lifetime History","Priority WhatsApp & Call Support"],
+    included: ["Pro plan features for one year","Custom Invoice Templates & Advanced Branding","Multi-User / Team Access","Cloud-synced business records","Priority WhatsApp & Call Support"],
     locked: [] },
 ];
 
