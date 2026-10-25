@@ -51,6 +51,25 @@ Disallow: /account-activity
 Disallow: /service-catalog
 Disallow: /team-management
 
+# Google-Extended controls use of publicly accessible content by some Google AI systems.
+# Allow public marketing pages while keeping private app routes excluded.
+User-agent: Google-Extended
+Allow: /
+Disallow: /dashboard
+Disallow: /invoice-builder
+Disallow: /invoice-history
+Disallow: /business-profile
+Disallow: /client-database
+Disallow: /usage-reports
+Disallow: /settings
+Disallow: /templates
+Disallow: /payment-logs
+Disallow: /tax-summary
+Disallow: /help-center
+Disallow: /account-activity
+Disallow: /service-catalog
+Disallow: /team-management
+
 # AI and search crawlers
 User-agent: GPTBot
 Allow: /
