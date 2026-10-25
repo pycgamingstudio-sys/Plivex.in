@@ -15,7 +15,7 @@ const PaywallContext = createContext(null);
 
 export function usePaywall() {
   const ctx = useContext(PaywallContext);
-  if (!ctx) return { plan: "free", limits: {}, usage: {}, remaining: () => 0, canAccess: () => false, requireFeature: () => false, isPremium: false, subscription: "free", planName: "Free", planId: "", planStartedAt: "", planExpiresAt: "", planLoading: false, requestAction: () => true, showPaywall: false, blocked: false, openPaywall: () => {}, closePaywall: () => {} };
+  if (!ctx) return { plan: "free", limits: {}, usage: {}, remaining: () => 0, canAccess: () => false, requireFeature: () => false, refreshAccessStatus: async () => {}, isPremium: false, subscription: "free", planName: "Free", planId: "", planStartedAt: "", planExpiresAt: "", planLoading: false, requestAction: () => true, showPaywall: false, blocked: false, openPaywall: () => {}, closePaywall: () => {} };
   return ctx;
 }
 
@@ -55,6 +55,21 @@ export function PaywallProvider({ children }) {
     })();
     return () => { active = false; };
   }, [user?.id]);
+  const refreshAccessStatus = useCallback(async () => {
+    try {
+      const res = await db.functions.invoke("getAccessStatus", {});
+      const st = res?.data || {};
+      const tier = String(st.plan || st.tier || (st.isPremium ? "basic" : "free")).toLowerCase();
+      const normalizedPlan = ["basic", "pro", "enterprise"].includes(tier) ? tier : "free";
+      setAccessStatus({ ...st, plan: normalizedPlan, limits: st.limits || {}, usage: st.usage || {}, features: st.features || {} });
+      setSubscription(normalizedPlan);
+      setPlanName(normalizedPlan === "enterprise" ? "Enterprise" : normalizedPlan === "pro" ? "Pro" : normalizedPlan === "basic" ? "Basic" : "Free");
+      setPlanId(st.planId || st.plan_id || "");
+      setPlanStartedAt(st.startedAt || st.started_at || "");
+      setPlanExpiresAt(st.expiresAt || st.expires_at || "");
+    } catch { /* retain the last server-confirmed status if refresh fails */ }
+  }, []);
+
   // PayU sends the customer back here after the backend has verified the payment.
   // The query flag only drives the confirmation message — premium itself is always
   // read from the Subscription record above, never from the URL or localStorage.
@@ -114,7 +129,7 @@ export function PaywallProvider({ children }) {
   const closePaywall = useCallback(() => { if (!blocked) setShowPaywall(false); }, [blocked]);
 
   return (
-    <PaywallContext.Provider value={{ plan, limits, usage, remaining, requireFeature, isPremium, subscription, planName, planId, planStartedAt, planExpiresAt, planLoading, requestAction, canAccess, applySubscription, upgrade: applySubscription, showPaywall, blocked, openPaywall, closePaywall }}>
+    <PaywallContext.Provider value={{ plan, limits, usage, remaining, requireFeature, refreshAccessStatus, isPremium, subscription, planName, planId, planStartedAt, planExpiresAt, planLoading, requestAction, canAccess, applySubscription, upgrade: applySubscription, showPaywall, blocked, openPaywall, closePaywall }}>
       {children}
       {showPaywall && <PaywallModal blocked={blocked} blockReason={blockReason} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt, plan }} onClose={closePaywall} />}
     </PaywallContext.Provider>
