@@ -118,16 +118,20 @@ function ProTeamRoute() {
 
 function SyncErrorListener() {
   const { toast } = useToast();
-  const { openPaywall } = usePaywall();
+  const { openPaywall, planName, plan, limits, usage } = usePaywall();
   useEffect(() => {
     const onError = (e) => {
       const message = String(e?.detail?.message || e?.detail?.error || "");
       if (message.startsWith("PLAN_LIMIT_REACHED|") || message.startsWith("PLAN_FEATURE_LOCKED|")) {
         if (typeof e?.detail?.rollback === "function") { try { e.detail.rollback(); } catch { /* best-effort optimistic rollback */ } }
-        const parts = message.split("|");
+        const parts = message.split("|").map((part) => part.trim());
+        const resource = parts[1] || "requested resource";
+        const limit = parts[2] || limits[resource] || "plan limit";
+        const current = planName || plan || "Free";
+        const unlocks = message.startsWith("PLAN_FEATURE_LOCKED|") ? "Pro" : (parts[4] || (current === "Free" ? "Basic or Pro" : "Pro"));
         const reason = message.startsWith("PLAN_LIMIT_REACHED|")
-          ? "Usage limit reached: " + parts.slice(1).join(" · ")
-          : "Pro feature required: " + parts.slice(1).join(" · ");
+          ? `${resource} limit: ${limit}. Current plan: ${current}. Unlock with: ${unlocks}.`
+          : `Feature: ${resource}. Current plan: ${current}. Unlock with: ${unlocks}.`;
         openPaywall(reason);
         toast({ title: "Upgrade required", description: reason, variant: "destructive" });
         return;
