@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Activity, Trash2, FileText, MessageCircle } from "lucide-react";
+import { Activity, FileText, MessageCircle } from "lucide-react";
 import PageShell from "@/components/PageShell";
 import { KEYS, loadList, saveList } from "@/lib/stores";
 
