@@ -6,7 +6,7 @@ const hi = {
   "+ Add New Client": "+ नया क्लाइंट जोड़ें", "+ Add New Lead": "+ नया लीड जोड़ें", "+ Add line": "+ लाइन जोड़ें",
   "+ Create New Invoice": "+ नया इनवॉइस बनाएं", "+ Create New Quotation": "+ नया कोटेशन बनाएं", "+ Manage Stock": "+ स्टॉक संभालें",
   "+ New Invoice": "+ नया इनवॉइस", "+ Record New Purchase": "+ नई खरीद दर्ज करें", "/ month": "/ माह",
-  "14-day full-feature free trial": "14 दिन का फ्री ट्रायल", "24/7 Support Assistant": "24/7 सहायता",
+  "Free plan, no card needed": "फ्री प्लान, कार्ड की ज़रूरत नहीं", "24/7 Support Assistant": "24/7 सहायता",
   "3 days overdue": "3 दिन देर से", "7 days overdue": "7 दिन देर से",
   "A timeline of your recent actions in this workspace.": "इस वर्कस्पेस में आपकी हाल की गतिविधियाँ।",
   "About Plivex": "Plivex के बारे में", "Access Restricted": "पहुँच प्रतिबंधित", "Access Restricted by Admin": "एडमिन ने पहुँच रोकी है",
