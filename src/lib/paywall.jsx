@@ -1,4 +1,4 @@
-import { backend as db } from '@/api/backendClient';
+import { backend as db, supabase } from '@/api/backendClient';
 
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { X, Check, Sparkles, Lock, Crown, Star, XCircle } from "lucide-react";
@@ -8,6 +8,26 @@ import { startPayuCheckout } from "@/lib/payu";
 import CurrentPlanCard from "@/components/CurrentPlanCard";
 import { toast } from "@/components/ui/use-toast";
 import { PLANS as DISPLAY_PLANS } from "@/lib/plans";
+
+// Read subscription limits directly from the authoritative Supabase RPC.
+// The old Lovable getAccessStatus endpoint can return stale Free-plan limits
+// even after PayU has activated a subscription in Supabase.
+async function loadAccessStatus() {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+  const userId = sessionData?.session?.user?.id;
+  if (!userId) throw new Error("Not signed in");
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("workspace_id")
+    .eq("id", userId)
+    .maybeSingle();
+  if (profileError) throw profileError;
+  if (!profile?.workspace_id) throw new Error("Workspace not found");
+  const { data, error } = await supabase.rpc("get_access_status", { p_workspace_id: profile.workspace_id });
+  if (error) throw error;
+  return data || {};
+}
 
 const FEATURE_ALIASES = { gstr1: "gstr1_export", team_management: "team", lead_pipeline: "lead_pipeline", payment_reminders: "payment_reminders", whatsapp_share: "whatsapp_share", custom_logo: "custom_logo", multi_currency: "multi_currency", premium_designs: "premium_designs" };
 
@@ -41,8 +61,7 @@ export function PaywallProvider({ children }) {
     (async () => {
       try {
         // Plan and usage details come from the server, never from browser storage.
-        const res = await db.functions.invoke("getAccessStatus", {});
-        const st = res?.data || {};
+        const st = await loadAccessStatus();
         if (!active) return;
         const tier = String(st.plan || st.tier || (st.isPremium ? "basic" : "free")).toLowerCase();
         const normalizedPlan = ["basic", "pro", "enterprise"].includes(tier) ? tier : "free";
@@ -59,8 +78,7 @@ export function PaywallProvider({ children }) {
   }, [user?.id]);
   const refreshAccessStatus = useCallback(async () => {
     try {
-      const res = await db.functions.invoke("getAccessStatus", {});
-      const st = res?.data || {};
+      const st = await loadAccessStatus();
       const tier = String(st.plan || st.tier || (st.isPremium ? "basic" : "free")).toLowerCase();
       const normalizedPlan = ["basic", "pro", "enterprise"].includes(tier) ? tier : "free";
       setAccessStatus({ ...st, plan: normalizedPlan, limits: st.limits || {}, usage: st.usage || {}, features: st.features || {} });
