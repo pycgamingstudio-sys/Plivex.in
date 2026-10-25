@@ -70,7 +70,7 @@ export function FeaturesPage() {
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {FEATURES.map(({icon: Icon,title,desc}) => <article key={title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-100 text-violet-700"><Icon className="h-5 w-5"/></span><h2 className="mt-4 text-lg font-bold">{title}</h2><p className="mt-2 text-sm leading-6 text-slate-600">{desc}</p></article>)}
     </div>
-    <div className="mt-6 rounded-2xl bg-violet-50 p-5 sm:flex sm:items-center sm:justify-between"><div><h2 className="font-bold">Explore Plivex for your business</h2><p className="mt-1 text-sm text-slate-600">Start with the free trial and explore the workspace.</p></div><Link to="/register" className="mt-4 inline-flex items-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-sm font-bold text-white sm:mt-0">Get started <ArrowRight className="h-4 w-4"/></Link></div>
+    <div className="mt-6 rounded-2xl bg-violet-50 p-5 sm:flex sm:items-center sm:justify-between"><div><h2 className="font-bold">Explore Plivex for your business</h2><p className="mt-1 text-sm text-slate-600">Free plan, no card needed. Explore the workspace at your own pace.</p></div><Link to="/register" className="mt-4 inline-flex items-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-sm font-bold text-white sm:mt-0">Get started <ArrowRight className="h-4 w-4"/></Link></div>
   </PublicShell>;
 }
 
