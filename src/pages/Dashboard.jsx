@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
-import { LayoutDashboard, Receipt, ShoppingCart, BarChart3, Users, UsersRound, Package, Sparkles, Zap, LayoutGrid, X, RefreshCw, FileText, ScrollText } from "lucide-react";
+import { LayoutDashboard, Receipt, ShoppingCart, BarChart3, Users, UsersRound, Package, Sparkles, Zap, LayoutGrid, X, RefreshCw, FileText, ScrollText, Lock } from "lucide-react";
 import DashboardTab from "@/components/dashboard/DashboardTab";
 import SalesTab from "@/components/dashboard/SalesTab";
 import PurchaseTab from "@/components/dashboard/PurchaseTab";
@@ -38,7 +38,7 @@ export default function Dashboard({ initialTab }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const navigate = useNavigate();
-  const { isPremium, openPaywall, planName, canAccess, trialActive, trialDaysLeft } = usePaywall();
+  const { isPremium, openPaywall, planName, canAccess } = usePaywall();
   const { user } = useAuth();
   const { role, isAccountant } = useRole();
   useEffect(() => {
@@ -98,12 +98,7 @@ export default function Dashboard({ initialTab }) {
             <div className="min-w-0 flex-1"><p className="truncate text-[12px] font-bold text-slate-900">{user?.full_name || "Account"}</p><p className="truncate text-[10px] text-slate-400">{user?.email || "View profile"}</p></div>
           </button>
           {isPremium ? (
-            <div className="mb-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2.5 text-[12px] font-bold text-emerald-700"><Sparkles className="h-4 w-4" />Pro plan active</div>
-          ) : trialActive ? (
-            <div className="mb-3 flex items-center justify-between rounded-xl bg-gradient-to-br from-[#6D28D9] to-[#7C3AED] px-3 py-2.5 text-[12px] font-bold text-white">
-              <span className="flex items-center gap-2"><Zap className="h-4 w-4" />Free Trial</span>
-              <span className="font-mono-ui text-[10px] opacity-90">{trialDaysLeft}d left</span>
-            </div>
+            <div className="mb-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2.5 text-[12px] font-bold text-emerald-700"><Sparkles className="h-4 w-4" />{planName} plan active</div>
           ) : (
             <button onClick={openPaywall} className="mb-3 flex w-full items-center justify-between rounded-xl bg-gradient-to-br from-[#6D28D9] to-[#7C3AED] px-3 py-2.5 text-[12px] font-bold text-white transition-opacity hover:opacity-95">
               <span className="flex items-center gap-2"><Zap className="h-4 w-4" />Get Premium</span>
@@ -121,7 +116,7 @@ export default function Dashboard({ initialTab }) {
           <div className="flex items-center justify-between px-4 py-3 sm:px-6">
             <div className="flex items-center gap-2"><active.icon className="h-5 w-5 text-[#6D28D9]" /><h1 className="text-[17px] font-bold tracking-[-0.03em]">{active.label}</h1></div>
             <div className="flex items-center gap-2">
-              <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 sm:inline">{isPremium ? "● Pro" : trialActive ? `Trial · Basic · ${trialDaysLeft}d left` : "Free"}</span>
+              <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 sm:inline">{`● ${planName || "Free"}`}</span>
               <span className="hidden items-center gap-1.5 rounded-full bg-[#6D28D9]/10 px-2.5 py-1 text-[11px] font-semibold text-[#6D28D9] sm:inline-flex"><Sparkles className="h-3 w-3" />Current Plan: {planName}</span>
               <button onClick={openPaywall} className="flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6D28D9] to-[#7C3AED] px-3 py-2 text-[11px] font-bold text-white hover:opacity-95 sm:hidden"><Sparkles className="h-3.5 w-3.5" />Pricing</button>
               <button onClick={() => setAccountOpen(true)} className="flex items-center gap-2 rounded-full border border-[#E5E7EB] py-1 pl-1 pr-2.5 hover:bg-slate-50">
@@ -139,14 +134,14 @@ export default function Dashboard({ initialTab }) {
           {tab === "reports" && <ReportsTab />}
           {tab === "crm" && <CrmTab intent={intent} onConsumeIntent={consume} />}
           {tab === "stock" && <StockTab />}
-          {tab === "team" && <TeamManagement />}
+          {tab === "team" && (teamUnlocked ? <TeamManagement /> : <div className="mx-auto max-w-lg rounded-2xl border border-[#E5E7EB] bg-white p-8 text-center shadow-sm"><Lock className="mx-auto h-8 w-8 text-[#6D28D9]" /><h2 className="mt-3 text-lg font-bold">Team management is a Pro feature</h2><p className="mt-2 text-sm text-slate-500">Upgrade to Pro to add and manage workspace members.</p><button onClick={openPaywall} className="mt-5 rounded-xl bg-[#6D28D9] px-5 py-2.5 text-sm font-bold text-white">Upgrade to Pro</button></div>)}
           {tab === "reconciliation" && <ReconciliationTab />}
         </main>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 flex overflow-x-auto border-t border-[#E5E7EB] bg-white md:hidden">
         {visibleTabs.map((t) => (
-          <button key={t.id} onClick={() => go(t.id)} className={`flex shrink-0 min-w-[68px] flex-col items-center gap-1 px-2 py-2.5 text-[10px] font-semibold transition-colors ${tab === t.id ? "text-[#6D28D9]" : "text-slate-400"}`}><t.icon className="h-5 w-5" />{t.label}</button>
+          <button key={t.id} onClick={() => go(t.id)} className={`flex shrink-0 min-w-[68px] flex-col items-center gap-1 px-2 py-2.5 text-[10px] font-semibold transition-colors ${tab === t.id ? "text-[#6D28D9]" : "text-slate-400"}`}><t.icon className="h-5 w-5" />{t.label}{t.id === "team" && !teamUnlocked && <span className="rounded bg-amber-100 px-1 text-[8px] font-extrabold text-amber-800">PRO</span>}</button>
         ))}
       </nav>
 
