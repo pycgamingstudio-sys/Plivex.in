@@ -35,10 +35,10 @@ const PILLARS = [
     ],
   },
   {
-    icon: ShieldCheck, title: "AI-First Infrastructure & Security", tone: "from-[#0D9488] to-[#14B8A6]",
+    icon: ShieldCheck, title: "Workspace Access & Security", tone: "from-[#0D9488] to-[#14B8A6]",
     features: [
-      "Isolated workspace security", "Role-based access control", "Encrypted cloud backups",
-      "Owner-controlled permissions", "Per-tenant data separation", "Audit activity logs", "Secure email login", "Workspace ID isolation",
+      "Workspace access controls", "Role-based access control", "Owner-controlled permissions",
+      "Per-tenant data separation", "Audit activity logs", "Secure email login", "Workspace ID isolation",
     ],
   },
   {
@@ -51,10 +51,17 @@ const PILLARS = [
 ];
 
 const STATS = [
-  { value: "50+", label: "Enterprise features" },
-  { value: "6", label: "Core pillars" },
+  { value: "6", label: "Core capability areas" },
   { value: "2", label: "Languages · हिंदी, English" },
-  { value: "<2 min", label: "First invoice" },
+  { value: "14 days", label: "Full-feature trial" },
+  { value: "No card", label: "Required to start trial" },
+];
+
+const USE_CASES = [
+  { title: "Retail shops", detail: "Prepare customer bills, keep track of stock, and review sales and expenses." },
+  { title: "Wholesalers & distributors", detail: "Create invoices and quotations, manage customer records, and monitor inventory." },
+  { title: "Freelancers & service providers", detail: "Send quotations and invoices, record expenses, and organise client details." },
+  { title: "Small teams", detail: "Use team roles and a shared workspace to organise day-to-day billing work." },
 ];
 
 export default function AboutSection() {
@@ -63,16 +70,15 @@ export default function AboutSection() {
       <div className="overflow-hidden rounded-3xl border border-[#E5E7EB] bg-white shadow-sm">
         <div className="bg-gradient-to-br from-[#6D28D9] to-[#4c1d95] p-6 text-white sm:p-8">
           <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /><p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">About Plivex</p></div>
-          <h2 className="mt-2 text-[22px] font-bold leading-tight sm:text-[28px]">Ultra-affordable, fast, AI-first B2B SaaS.</h2>
+          <h2 className="mt-2 text-[22px] font-bold leading-tight sm:text-[28px]">Smart invoicing and business management for Indian businesses.</h2>
           <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-white/85">
-            Plivex is an all-in-one billing & business operating system built for Indian SMEs, freelancers and agencies.
-            We pair enterprise-grade multi-tenant isolation with a blazing-fast interface so you can raise a GST invoice,
-            track a payment, and close your books in under two minutes — at a price every business can afford.
+            Plivex brings invoicing, quotations, customer records, expenses, inventory and business reports together in one web workspace.
+            It is designed for small businesses and teams that want their everyday billing work organised without juggling separate tools.
           </p>
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {STATS.map((s) => (
               <div key={s.label} className="rounded-2xl bg-white/10 px-4 py-3 text-center">
-                <p className="text-[22px] font-bold leading-none">{s.value}</p>
+                <p className="text-[20px] font-bold leading-none">{s.value}</p>
                 <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/70">{s.label}</p>
               </div>
             ))}
@@ -80,8 +86,8 @@ export default function AboutSection() {
         </div>
 
         <div className="p-5 sm:p-8">
-          <div className="flex items-center gap-2"><Rocket className="h-4 w-4 text-[#6D28D9]" /><h3 className="text-[16px] font-bold text-slate-900">50+ capabilities across 6 core pillars</h3></div>
-          <p className="mt-1 text-[12px] text-slate-500">Everything you need to run billing, clients, payments, reports, security and integrations — in one workspace.</p>
+          <div className="flex items-center gap-2"><Rocket className="h-4 w-4 text-[#6D28D9]" /><h3 className="text-[16px] font-bold text-slate-900">Business tools in one workspace</h3></div>
+          <p className="mt-1 text-[12px] text-slate-500">Explore the main capability areas available in Plivex.</p>
           <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {PILLARS.map((p) => (
               <div key={p.title} className="rounded-2xl border border-[#E5E7EB] bg-slate-50/60 p-4">
@@ -99,10 +105,36 @@ export default function AboutSection() {
               </div>
             ))}
           </div>
+
+          <div className="mt-8">
+            <h3 className="text-[16px] font-bold text-slate-900">Who is Plivex for?</h3>
+            <p className="mt-1 text-[12px] text-slate-500">Common business workflows Plivex is designed to support.</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {USE_CASES.map((item) => (
+                <div key={item.title} className="rounded-2xl border border-[#E5E7EB] p-4">
+                  <h4 className="text-[13px] font-bold text-slate-900">{item.title}</h4>
+                  <p className="mt-1.5 text-[12px] leading-relaxed text-slate-600">{item.detail}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="mt-6 flex flex-wrap items-center gap-2 rounded-2xl border border-[#6D28D9]/20 bg-[#6D28D9]/5 p-4">
             <Zap className="h-4 w-4 text-[#6D28D9]" />
-            <p className="flex-1 text-[12px] font-medium text-slate-700">Every workspace is fully isolated — your invoices, clients and expenses are strictly scoped to your account, never visible to anyone else.</p>
+            <p className="flex-1 text-[12px] font-medium text-slate-700">Try the available features in a 14-day trial. No payment card is required to get started.</p>
             <Link to="/register" className="rounded-xl bg-[#6D28D9] px-4 py-2 text-[11px] font-bold text-white hover:bg-[#7C3AED]">Start free</Link>
+          </div>
+
+          <div className="mt-8 border-t border-[#E5E7EB] pt-6">
+            <div className="flex items-center gap-2"><span className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">About the founder</span></div>
+            <div className="mt-3 flex items-center gap-4">
+              <img src="/yashwant-sharma-1.webp" alt="Yashvant Sharma, Founder and Developer of Plivex" loading="lazy" width="64" height="64" className="h-16 w-16 shrink-0 rounded-full border border-slate-200 object-cover" />
+              <div className="min-w-0">
+                <h3 className="text-[14px] font-bold text-slate-900">Yashvant Sharma</h3>
+                <p className="mt-0.5 text-[11px] font-semibold text-[#6D28D9]">Founder &amp; Developer, Plivex</p>
+                <p className="mt-1 text-[12px] leading-relaxed text-slate-600">Building practical billing and business management tools for Indian small businesses.</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
