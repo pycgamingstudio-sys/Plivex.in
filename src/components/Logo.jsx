@@ -1,7 +1,7 @@
 import { Image } from "@/components/ui/image";
 
-// First-party Plivex brand mark, served from this website (no Base44 dependency).
-export const LOGO_URL = "/plivex-logo.svg";
+// Use the existing first-party Plivex favicon asset; do not invent a replacement logo.
+export const LOGO_URL = "/favicon.ico";
 
 export default function Logo({ className = "h-8 w-8", rounded = "rounded-[10px]" }) {
   return (
