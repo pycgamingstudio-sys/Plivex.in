@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UserPlus, Mail, Lock, Loader2, Ticket } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import { toast } from "@/components/ui/use-toast";
 import { safeReturnTo } from "@/lib/authReturnTo";
 import { parseAndValidateInviteCode } from "@/lib/workspace";
@@ -122,6 +123,8 @@ export default function Register() {
         </>
       }
     >
+      <GoogleSignInButton inviteCode={inviteCode} returnTo={safeReturnTo()} onError={setError} disabled={loading} className="mb-6" />
+
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
           {error}
