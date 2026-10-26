@@ -6,6 +6,10 @@
   "background_color": "#F3F3F8",
   "theme_color": "#6D28D9",
   "icons": [
-    { "src": "https://media.base44.com/images/public/6a7ef3048420a2db1020f14d/594ccf2c1_file_000000005e8482119706ce899d324b58.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "/favicon.ico",
+      "type": "image/x-icon",
+      "purpose": "any"
+    }
   ]
 }
