@@ -7,9 +7,8 @@
   "theme_color": "#6D28D9",
   "icons": [
     {
-      "src": "/plivex-logo.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/favicon.ico",
+      "type": "image/x-icon",
       "purpose": "any"
     }
   ]
