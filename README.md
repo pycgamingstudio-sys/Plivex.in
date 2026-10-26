@@ -8,7 +8,7 @@ Live: https://plivex.in
 - GST invoices with server-side totals, automatic invoice numbers and PDF download
 - Quotations, clients, leads, expenses and stock tracking
 - Team workspaces with roles: admin, manager, employee, storekeeper, accountant
-- 14-day free trial and PayU subscriptions
+- Permanent Free plan with usage limits, plus optional Basic/Pro subscriptions via PayU
 - Hindi / English interface
 - Optional AI business assistant
 
