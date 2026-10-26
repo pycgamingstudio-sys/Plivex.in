@@ -139,3 +139,18 @@
 /* Never let a wide child force the whole page to scroll sideways, but keep horizontal scrolling possible on tables. */
 html, body { max-width: 100%; }
 input[type="date"] { min-height: 2.5rem; }
+
+
+/* Responsive layout guardrails: keep mobile pages and form controls within the viewport. */
+html, body, #root { width: 100%; max-width: 100%; min-width: 320px; }
+#root { min-width: 0; overflow-x: clip; }
+.app-shell { width: 100%; min-width: 0; }
+input, select, textarea, button { max-width: 100%; }
+img, video, canvas { max-width: 100%; }
+@media (max-width: 640px) {
+  body { overflow-x: hidden; }
+  main { min-width: 0; }
+  .app-shell main { padding-left: 12px; padding-right: 12px; }
+  input, select, textarea { font-size: 16px; }
+  table { max-width: 100%; }
+}
