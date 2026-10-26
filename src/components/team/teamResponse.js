@@ -1,9 +1,10 @@
 export function membershipRequestError(error) {
-  const body = error.response?.data || error.data || {};
-  return Object.assign(new Error(typeof body.error === 'string' ? body.error : body.message || error.message || 'Network request failed.'), {
-    status: body.status || error.response?.status || error.status || 0,
-    operation: body.operation || error.operation || 'getWorkspaceTeam',
-    requestId: body.requestId || error.requestId || '',
+  const source = error && typeof error === 'object' ? error : {};
+  const body = source.response?.data || source.data || {};
+  return Object.assign(new Error(typeof body.error === 'string' ? body.error : body.message || source.message || 'Network request failed.'), {
+    status: body.status || source.response?.status || source.status || 0,
+    operation: body.operation || source.operation || 'getWorkspaceTeam',
+    requestId: body.requestId || source.requestId || '',
   });
 }
 export function validateTeamResponse(response, workspaceId) {
