@@ -79,12 +79,12 @@ export default function GuestDashboard() {
             <div>
               <p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-white/90"><Sparkles className="h-3.5 w-3.5" />Smart business workspace</p>
               <h1 className="mt-4 text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl lg:text-5xl">Less paperwork.<br/><span className="text-violet-200">More business.</span></h1>
-              <p className="mt-4 max-w-xl text-sm leading-6 text-white/85 sm:text-base">Create invoices and quotations, organise clients, track expenses and stock, and explore the Plivex AI Business Assistant from one workspace.</p>
+              <p className="mt-4 max-w-xl text-sm leading-6 text-white/85 sm:text-base">Create GST invoices, manage clients, track expenses and stock, and organise everyday billing in one workspace. Start with the Free plan and upgrade only when you need more.</p>
               <div className="mt-5 flex flex-wrap gap-3">
-                <Link to="/register" className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-violet-800 shadow-sm hover:bg-violet-50">Start free for 14 days <span aria-hidden="true">→</span></Link>
+                <Link to="/register" className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-violet-800 shadow-sm hover:bg-violet-50">Use Plivex for free <span aria-hidden="true">→</span></Link>
                 <a href="#features" className="inline-flex items-center rounded-xl border border-white/35 px-5 py-3 text-sm font-bold text-white hover:bg-white/10">Explore features</a>
               </div>
-              <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs font-medium text-white/80"><span>✓ No card required</span><span>✓ Demo data clearly labelled</span><span>✓ Hindi &amp; English</span></div>
+              <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs font-medium text-white/80"><span>✓ Free plan available</span><span>✓ No card required</span><span>✓ Hindi &amp; English</span></div>
             </div>
             <div className="relative mx-auto w-full max-w-md">
               <div className="absolute -right-5 -top-5 h-32 w-32 rounded-full bg-fuchsia-300/20 blur-2xl"/>
