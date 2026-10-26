@@ -53,6 +53,13 @@ test('normalizes a missing error without throwing a secondary TypeError', () => 
 test('invalid response details include format and request reference for diagnosis', () => {
   assert.throws(() => validateTeamResponse({ data: { requestId: 'bad-contract', result: [] } }, 'WS-TEST'), error => error.status === 502 && error.requestId === 'bad-contract' && error.message.includes('fields: requestId, result'));
 });
+test('retry safely rejects missing or malformed errors', () => {
+  for (const error of [undefined, null, '503', 503, {}]) {
+    assert.equal(retryMembership(0, error), false);
+  }
+  assert.equal(retryMembership(3, { status: 503 }), false);
+});
+
 test('retry remains bounded and backs off only for transient failures', () => {
   assert.equal(retryMembership(2, { status: 503 }), true);
   assert.equal(retryMembership(3, { status: 503 }), false);
