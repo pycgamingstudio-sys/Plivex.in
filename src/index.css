@@ -139,3 +139,21 @@
 /* Never let a wide child force the whole page to scroll sideways, but keep horizontal scrolling possible on tables. */
 html, body { max-width: 100%; }
 input[type="date"] { min-height: 2.5rem; }
+
+
+/* Responsive layout foundations: prevent flex/grid children from forcing page overflow.
+   Keep wide data tables scrollable inside their own containers instead of clipping the page. */
+html, body, #root { width: 100%; max-width: 100%; min-width: 320px; }
+#root, .app-shell, .app-shell > div, main, section, form { min-width: 0; }
+.app-shell { width: 100%; }
+input, select, textarea { min-width: 0; max-width: 100%; box-sizing: border-box; }
+button { max-width: 100%; }
+img, video, canvas, svg { max-width: 100%; }
+table { max-width: 100%; }
+@media (max-width: 640px) {
+  main { min-width: 0; }
+  .app-shell main { padding-left: 12px; padding-right: 12px; }
+  input, select, textarea { font-size: 16px; }
+  /* Do not force desktop-sized columns into phone-width screens. */
+  .app-shell .grid { min-width: 0; }
+}
