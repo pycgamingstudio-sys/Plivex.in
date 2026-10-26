@@ -19,5 +19,9 @@ export function validateTeamResponse(response, workspaceId) {
   if (data.totalMembers !== data.members.length || !countKeys.every(key => Number.isInteger(data.counts[key]) && data.counts[key] >= 0)) throw Object.assign(new Error('Invalid membership response: member totals or role counts are missing or invalid.'), { status: 502, operation: 'response validation', requestId: data.requestId || '' });
   return data;
 }
-export const retryMembership = (attempt, error) => attempt < 3 && (error.status === 0 || error.status === 408 || error.status === 429 || error.status >= 500);
+export const retryMembership = (attempt, error) => {
+  if (attempt >= 3 || !error || typeof error !== 'object') return false;
+  const status = Number(error.status);
+  return status === 0 || status === 408 || status === 429 || status >= 500;
+};
 export const membershipRetryDelay = attempt => Math.min(500 * 2 ** attempt, 4000);
