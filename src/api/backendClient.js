@@ -204,8 +204,17 @@ const resizeToDataUrl = (file, maxSize = 512) => new Promise((resolve, reject) =
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(img.width * scale);
       canvas.height = Math.round(img.height * scale);
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/png'));
+      const context = canvas.getContext('2d');
+      if (!context) {
+        reject(new Error('Image processing is not supported in this browser'));
+        return;
+      }
+      context.drawImage(img, 0, 0, canvas.width, canvas.height);
+      try {
+        resolve(canvas.toDataURL('image/png'));
+      } catch {
+        reject(new Error('Could not process the image'));
+      }
     };
     img.src = reader.result;
   };
