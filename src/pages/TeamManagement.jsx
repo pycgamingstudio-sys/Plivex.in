@@ -50,9 +50,9 @@ export default function TeamManagement() {
             <p className="text-[12px] text-slate-500">Invite teammates and control what each role can access.</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-semibold text-slate-600">Your role: {getRoleLabel(role)}</span>
-          <button onClick={() => { actions.clearError(); setAddOpen(true); }} className="inline-flex items-center gap-1.5 rounded-xl bg-[#6D28D9] px-3.5 py-2.5 text-[12px] font-bold text-white hover:bg-[#7C3AED]"><UserPlus className="h-4 w-4" />Add New Team Member</button>
+          <button onClick={() => { actions.clearError(); setAddOpen(true); }} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-xl bg-[#6D28D9] px-3.5 py-2.5 text-[12px] font-bold text-white hover:bg-[#7C3AED]"><UserPlus className="h-4 w-4 shrink-0" />Add New Team Member</button>
         </div>
       </div>
 
