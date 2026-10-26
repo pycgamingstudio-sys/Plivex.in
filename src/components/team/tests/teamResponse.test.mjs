@@ -40,6 +40,16 @@ test('preserves SDK errors whose details are on error.data', () => {
   const failure = membershipRequestError({ status: 503, message: 'Request failed', data: { error: 'Team temporarily unavailable', operation: 'membership read', requestId: 'service-test' } });
   assert.equal(failure.message, 'Team temporarily unavailable'); assert.equal(failure.requestId, 'service-test');
 });
+
+test('normalizes a missing error without throwing a secondary TypeError', () => {
+  for (const input of [undefined, null]) {
+    const failure = membershipRequestError(input);
+    assert.equal(failure.message, 'Network request failed.');
+    assert.equal(failure.status, 0);
+    assert.equal(failure.operation, 'getWorkspaceTeam');
+    assert.equal(failure.requestId, '');
+  }
+});
 test('invalid response details include format and request reference for diagnosis', () => {
   assert.throws(() => validateTeamResponse({ data: { requestId: 'bad-contract', result: [] } }, 'WS-TEST'), error => error.status === 502 && error.requestId === 'bad-contract' && error.message.includes('fields: requestId, result'));
 });
