@@ -66,7 +66,7 @@ export default function AuthModal({ open, actionLabel, onClose }) {
 
         <div className="mt-4 rounded-xl bg-[#6D28D9]/5 px-3 py-2.5 text-center">
           <p className="text-[11px] text-slate-500">New to Plivex?</p>
-          <Link to="/register" onClick={onClose} className="mt-1 inline-flex items-center gap-1 text-[12px] font-bold text-[#6D28D9] hover:underline"><Sparkles className="h-3.5 w-3.5" />Create your free workspace — 14-day full trial</Link>
+          <Link to="/register" onClick={onClose} className="mt-1 inline-flex items-center gap-1 text-[12px] font-bold text-[#6D28D9] hover:underline"><Sparkles className="h-3.5 w-3.5" />Create your free workspace — Free plan included</Link>
         </div>
       </div>
     </div>
