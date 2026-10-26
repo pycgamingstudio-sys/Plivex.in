@@ -57,7 +57,7 @@ export default function GuestDashboard() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2.5">
             <Logo className="h-9 w-9" rounded="rounded-xl" />
-            <div><p className="text-[15px] font-bold tracking-[-0.03em]">Plivex</p><p className="text-[10px] text-slate-400">Smart Invoicing &amp; Business OS</p></div>
+            <div className="min-w-0"><p className="text-[15px] font-bold tracking-[-0.03em]">Plivex</p><p className="hidden text-[10px] text-slate-400 sm:block">Smart Invoicing &amp; Business OS</p></div>
           </div>
           <nav aria-label="Main navigation" className="hidden items-center gap-4 lg:flex">
             <Link to="/features" className="text-sm font-semibold text-slate-600 hover:text-[#6D28D9]">Features</Link>
