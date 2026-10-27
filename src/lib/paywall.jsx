@@ -19,14 +19,16 @@ async function loadAccessStatus() {
   if (!userId) throw new Error("Not signed in");
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("workspace_id")
+    .select("workspace_id, created_at")
     .eq("id", userId)
     .maybeSingle();
   if (profileError) throw profileError;
   if (!profile?.workspace_id) throw new Error("Workspace not found");
   const { data, error } = await supabase.rpc("get_access_status", { p_workspace_id: profile.workspace_id });
   if (error) throw error;
-  return data || {};
+  const status = data || {};
+  // The profile creation timestamp is the authoritative fallback for the first plan date.
+  return { ...status, startedAt: status.startedAt || status.started_at || profile.created_at || "" };
 }
 
 const FEATURE_ALIASES = { gstr1: "gstr1_export", team_management: "team", lead_pipeline: "lead_pipeline", payment_reminders: "payment_reminders", whatsapp_share: "whatsapp_share", custom_logo: "custom_logo", multi_currency: "multi_currency", premium_designs: "premium_designs" };
