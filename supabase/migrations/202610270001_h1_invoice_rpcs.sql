@@ -31,12 +31,16 @@ BEGIN
     RAISE EXCEPTION 'invalid items' USING ERRCODE = '22023';
   END IF;
   IF _status NOT IN ('Pending','Paid') THEN RAISE EXCEPTION 'invalid status' USING ERRCODE = '22023'; END IF;
-  IF _dtype NOT IN ('percent','flat') OR _mode NOT IN ('split','igst') OR _rate < 0 OR _rate > 100 OR _disc < 0 THEN
+  IF _dtype NOT IN ('percent','flat') OR _mode NOT IN ('split','igst') OR _rate < 0 OR _rate > 100 OR _disc < 0 OR (_dtype = 'percent' AND _disc > 100) THEN
     RAISE EXCEPTION 'invalid invoice totals' USING ERRCODE = '22023';
   END IF;
 
   FOR _it IN SELECT * FROM jsonb_array_elements(_items) LOOP
-    _subtotal := _subtotal + GREATEST(0, COALESCE((_it->>'quantity')::numeric,0)) * GREATEST(0, COALESCE((_it->>'rate')::numeric,0));
+    IF COALESCE((_it->>'quantity')::numeric,0) < 0 OR COALESCE((_it->>'rate')::numeric,0) < 0
+      OR COALESCE((_it->>'gst_rate')::numeric,0) < 0 OR COALESCE((_it->>'gst_rate')::numeric,0) > 100 THEN
+      RAISE EXCEPTION 'invalid invoice item' USING ERRCODE = '22023';
+    END IF;
+    _subtotal := _subtotal + COALESCE((_it->>'quantity')::numeric,0) * COALESCE((_it->>'rate')::numeric,0);
   END LOOP;
   _dv := CASE WHEN _dtype = 'percent' THEN _subtotal * LEAST(_disc,100) / 100 ELSE LEAST(_disc,_subtotal) END;
   _taxable := GREATEST(0, _subtotal - _dv);
@@ -64,7 +68,7 @@ BEGIN
 
   INSERT INTO public.invoice_items (invoice_id, description, quantity, rate, gst_rate)
   SELECT _inv.id, left(COALESCE(e->>'description',''), 500),
-    COALESCE((e->>'quantity')::numeric,0), COALESCE((e->>'rate')::numeric,0), (e->>'gst_rate')::numeric
+    GREATEST(0, COALESCE((e->>'quantity')::numeric,0)), GREATEST(0, COALESCE((e->>'rate')::numeric,0)), (e->>'gst_rate')::numeric
   FROM jsonb_array_elements(_items) e;
 
   UPDATE public.invoices SET
