@@ -116,9 +116,9 @@ The archive contains a `.env` file. Its contents were intentionally not displaye
 ## Additional batch progress (2026-10-27)
 
 - [x] Added source for `ping-presence` (authenticated heartbeat, derives user/workspace from session/profile).
-- [x] Added source for `get-team-presence` (workspace-scoped read, capped user IDs/results).
-- [x] Updated `src/lib/staffTracking.js` on the migration branch to invoke the new `ping-presence` function.
-- [ ] Update `useWorkspacePresence.js` to call the new reader after the function is deployed and its response is verified.
+- [x] Added source for `get-team-presence` (admin-only, workspace-scoped read, optional capped user IDs/results).
+- [x] Updated `src/lib/staffTracking.js` on the migration branch to invoke `ping-presence` and `track-staff-action`.
+- [ ] Locate and update the actual team-presence UI adapter after the function is deployed and its response is verified.
 - [ ] Deploy functions and test authenticated/no-session requests. The deployment tool blocked the earlier deployment attempt; the function sources remain branch-only.
 
 ### Original handler details needed from the owner
@@ -150,3 +150,27 @@ No guessed invite/member-management handler has been implemented. The existing f
 - Original `frontendBase()` points to the old Netlify hostname; use the current production origin only after validating allowed-origin/redirect rules.
 - The original PayU handler stores amounts in paise in some places but receives decimal rupees from PayU callbacks. Reconcile this with the live database before migrating any payment write.
 - Current production routes and Lovable fallback remain untouched.
+
+
+## Original-source migration batch (2026-10-27 — code added, not deployed)
+
+New branch-only files:
+- `supabase/functions/_shared/team.ts` — verifies the Supabase user session, creates a server-only service-role client, and resolves the caller's admin workspace scope.
+- `supabase/functions/ensure-owner-role/index.ts` — ports owner bootstrap while preventing staff promotion and intentionally omitting the archived 14-day trial behavior (current product uses Free).
+- `supabase/functions/send-team-invite/index.ts` — ports invite/member creation, validates staff roles and email, writes activity logs, and returns a shareable code. It explicitly reports `emailSent: false` because the original mail implementation depends on Lovable's connector and is not migrated.
+- `supabase/functions/verify-invite-code/index.ts` — ports email matching, expiry/used-code checks, rebind constraints, atomic single-use claim, membership activation, and profile update; only non-admin staff roles are accepted.
+- `supabase/functions/manage-workspace-member/index.ts` — ports role change/removal with admin scope and owner protection.
+- `supabase/functions/track-staff-action/index.ts` — ports activity history and daily counters using the current `staff_activity.created_by` schema.
+- `get-workspace-team` was tightened to admin-only and owner-scoped results.
+- `get-team-presence` was tightened to admin-only and now computes ONLINE/IDLE/OFFLINE and resets stale daily counters in the response.
+- `ping-presence` now uses Asia/Kolkata calendar dates and selects the most recently updated row if old duplicates exist.
+- `src/lib/staffTracking.js` now invokes the staff action Edge Function instead of returning a no-op.
+
+## Current validation state
+
+- Source writes were accepted by GitHub on `h1/migration-inventory`; these are not production changes.
+- No Deno executable is available in the current environment, so Edge Function type-checking was not run.
+- No local React/Vite build or frontend test was run in this batch.
+- Functions have not been deployed or runtime-tested; do not switch frontend API routing yet.
+- Team invite emails are intentionally not sent by the new function. A non-Lovable email provider must be configured and tested before email delivery can be marked complete.
+- PayU source is recovered, but no PayU functions were changed yet because current live `subscriptions`/`payment_logs` schemas differ from the archive. This remains the next backend migration area after payment schema mapping.
