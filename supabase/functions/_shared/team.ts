@@ -5,7 +5,7 @@ export const isAllowedOrigin = (o: string | null) => !o || ORIGINS.has(o) || /^h
 export const corsHeaders = (o: string | null) => ({ "Access-Control-Allow-Origin": o && isAllowedOrigin(o) ? o : "https://plivex.in", "Vary": "Origin", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" });
 export const jsonResponse = (body: unknown, status: number, origin: string | null) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders(origin), "Content-Type": "application/json" } });
 
-export async function authenticate(req: Request) {
+export async function authenticate(req: Request): Promise<{ user: any; admin: any } | { error: string; status: number }> {
   const authorization = req.headers.get("Authorization");
   if (!authorization?.startsWith("Bearer ")) return { error: "Please sign in.", status: 401 as const };
   const url = Deno.env.get("SUPABASE_URL");
@@ -19,7 +19,7 @@ export async function authenticate(req: Request) {
   return { user, admin };
 }
 
-export async function getAdminScope(admin: ReturnType<typeof createClient>, userId: string) {
+export async function getAdminScope(admin: any, userId: string) {
   const { data: profile } = await admin.from("profiles").select("role,workspace_id").eq("id", userId).maybeSingle();
   if (!profile || profile.role !== "admin" || !profile.workspace_id) return null;
   const { data: ownerRow } = await admin.from("workspace_members").select("id,owner_id").eq("workspace_id", profile.workspace_id).eq("role", "admin").not("owner_id", "is", null).order("created_at", { ascending: true }).limit(1).maybeSingle();
