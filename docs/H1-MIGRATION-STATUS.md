@@ -219,14 +219,14 @@ Additional branch-only source files now present:
 - Subscription tiers are `basic`, `pro`, `free`; payment outcomes are `applied`, `failed`, `tampered`; subscription statuses are `created`, `active`, `failed`, `tampered`.
 - Existing RLS policies for business tables are already workspace-scoped; generic record access uses the authenticated user's JWT rather than service-role bypass.
 - PayU deployment requires server-only Supabase secrets `PAYU_MERCHANT_KEY`, `PAYU_MERCHANT_SALT`, `PAYU_ENV`, and `APP_BASE_URL`. No secret values were copied from the uploaded archive or committed.
-- Email delivery still depends on the original Lovable Google Mail connector. The replacement invite function explicitly reports that email was not sent; Gmail/payment-reminder migration remains incomplete until a non-Lovable mail provider is configured.
+- Email source has now been migrated to a configurable Resend provider. It remains inactive until a verified sender and the `RESEND_API_KEY` / `MAIL_FROM` Edge Function secrets are configured.
 
 ### Verification status
 
 - All newly added/updated source files were fetched back from GitHub on `h1/migration-inventory`.
 - Read-only schema inspection completed; no production schema or data changes were made.
-- GitHub combined status currently returns no check statuses for the latest commit; CI has not yet been confirmed as passing.
-- Deno checks, frontend build, membership tests, Edge Function deployment, authenticated E2E tests, PayU sandbox test, and invite-email delivery remain unverified.
+- Latest branch validation run `40499808118` passed: frontend typecheck, Deno checks for migrated functions, lint, membership tests, and production build. See https://github.com/pycgamingstudio-sys/Plivex.in/actions/runs/40499808118.
+- Edge Function deployment, authenticated E2E tests, invoice RPC migration application, PayU sandbox test, and invite-email delivery remain unverified.
 - Production DNS, deployment, and the current backend fallback remain untouched.
 
 
@@ -238,3 +238,8 @@ Additional branch-only source files now present:
 - The migration validation workflow now type-checks the shared email helper and reminder function.
 - Email is **source-migrated but not operationally verified** until a verified sender domain is configured with the provider, `RESEND_API_KEY` and `MAIL_FROM` are saved as Supabase Edge Function secrets, and an end-to-end test email is received. No secret values were committed.
 - No live Edge Functions or live schema were deployed/changed by this branch update.
+
+
+## Latest validation result
+
+The branch's latest GitHub Actions validation passed after the email endpoint was added and its shared helper was included in Deno checks. This is a code/CI result only; it does not mean the functions are deployed or that provider secrets exist.
