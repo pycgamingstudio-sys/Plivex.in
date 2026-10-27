@@ -70,10 +70,27 @@ Active status alone does not prove endpoint behavior is correct. Existing assist
 - [x] Inspect active frontend API adapter and assistant call sites.
 - [x] Snapshot currently deployed Supabase Edge Functions.
 - [x] Record known endpoint families and current Lovable fallback.
+- [x] Inspect team membership and presence call sites.
+- [x] Confirm presence functions are currently no-op and staff activity entity adapter is inert.
 - [ ] Complete exhaustive call-site mapping across all `src/` files.
 - [ ] Obtain/verify canonical source for both original Lovable backend projects and compare exact contracts.
 - [ ] Mark each endpoint as migrated only after runtime tests.
 
+## Additional frontend call-site findings (main branch snapshot)
+
+- Team UI invokes `sendTeamInvite`, `manageWorkspaceMember`, `getWorkspaceTeam`, `ensureOwnerRole`, and `verifyInviteCode` through the compatibility adapter. The frontend expects a versioned membership response with members, role/status counts, and the matching workspace ID.
+- Presence UI calls `pingPresence`, while `trackStaffAction` is defined but no-op. Team presence also reads `db.entities.StaffActivity`, whose adapter is currently inert. This means presence UI cannot be considered migrated/functional just because a function name is known.
+- `stores.js` documents server-backed invoices, clients, quotations, expenses, leads, stock, services, and business profile. These writes/reads need an operation-by-operation mapping and verification; the shared store file is not itself proof every backend endpoint works.
+- Current `backendClient.js` converts function names to kebab-case and posts to the Lovable API for all calls except `add-client`. This remains the primary fallback removal point after endpoint replacements pass tests.
+- The active repository snapshot includes `.env` with Lovable base URLs, while `.env.example` is the documented template. Do not commit credentials or make a production environment change as part of inventory.
+
 ## Current blocker
 
 The original inventory notes that the two canonical Lovable backend source trees were not identifiable in the connected GitHub repositories. Several backend excerpts were previously supplied in chat, but they are not verified against canonical repositories and some handlers are still missing. Porting those missing handlers by guessing business logic would be unsafe. This does not block the frontend call-site inventory, but it blocks declaring full migration parity until source contracts are recovered or individually approved specifications are documented.
+
+## Verification notes
+
+- The inventory document was committed to this branch only.
+- No GitHub Actions run was found for this new inventory branch at the time checked.
+- No local npm build, lint, or runtime integration test has been executed for this branch.
+- Production traffic and the existing Lovable fallback remain unchanged.
