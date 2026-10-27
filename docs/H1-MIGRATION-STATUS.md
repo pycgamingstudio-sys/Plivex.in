@@ -117,6 +117,7 @@ The archive contains a `.env` file. Its contents were intentionally not displaye
 
 - [x] Added source for `ping-presence` (authenticated heartbeat, derives user/workspace from session/profile).
 - [x] Added source for `get-team-presence` (admin-only, workspace-scoped read, optional capped user IDs/results).
+- [x] Added source for `get-access-status` using the current subscriptions schema and Free-plan behavior.
 - [x] Updated `src/lib/staffTracking.js` on the migration branch to invoke `ping-presence` and `track-staff-action`.
 - [ ] Locate and update the actual team-presence UI adapter after the function is deployed and its response is verified.
 - [ ] Deploy functions and test authenticated/no-session requests. The deployment tool blocked the earlier deployment attempt; the function sources remain branch-only.
@@ -161,6 +162,7 @@ New branch-only files:
 - `supabase/functions/verify-invite-code/index.ts` — ports email matching, expiry/used-code checks, rebind constraints, atomic single-use claim, membership activation, and profile update; only non-admin staff roles are accepted.
 - `supabase/functions/manage-workspace-member/index.ts` — ports role change/removal with admin scope and owner protection.
 - `supabase/functions/track-staff-action/index.ts` — ports activity history and daily counters using the current `staff_activity.created_by` schema.
+- `supabase/functions/get-access-status/index.ts` — ports active subscription access checks while returning no legacy 14-day trial.
 - `get-workspace-team` was tightened to admin-only and owner-scoped results.
 - `get-team-presence` was tightened to admin-only and now computes ONLINE/IDLE/OFFLINE and resets stale daily counters in the response.
 - `ping-presence` now uses Asia/Kolkata calendar dates and selects the most recently updated row if old duplicates exist.
@@ -174,3 +176,20 @@ New branch-only files:
 - Functions have not been deployed or runtime-tested; do not switch frontend API routing yet.
 - Team invite emails are intentionally not sent by the new function. A non-Lovable email provider must be configured and tested before email delivery can be marked complete.
 - PayU source is recovered, but no PayU functions were changed yet because current live `subscriptions`/`payment_logs` schemas differ from the archive. This remains the next backend migration area after payment schema mapping.
+
+
+## Batch inventory links
+
+All listed files are on `h1/migration-inventory` and have been fetched back from GitHub after creation/update:
+
+- [Shared workspace helpers](../supabase/functions/_shared/team.ts)
+- [Owner bootstrap](../supabase/functions/ensure-owner-role/index.ts)
+- [Send team invite](../supabase/functions/send-team-invite/index.ts)
+- [Verify invite code](../supabase/functions/verify-invite-code/index.ts)
+- [Manage workspace member](../supabase/functions/manage-workspace-member/index.ts)
+- [Track staff action](../supabase/functions/track-staff-action/index.ts)
+- [Get access status](../supabase/functions/get-access-status/index.ts)
+- [Get workspace team](../supabase/functions/get-workspace-team/index.ts)
+- [Ping presence](../supabase/functions/ping-presence/index.ts)
+- [Get team presence](../supabase/functions/get-team-presence/index.ts)
+- [Staff tracking frontend adapter](../src/lib/staffTracking.js)
