@@ -115,6 +115,27 @@ export function PaywallProvider({ children }) {
   const rawUsage = accessStatus.usage || {};
   const limits = { ...rawLimits, clients: rawLimits.clients ?? rawLimits.clients_total, stock: rawLimits.stock ?? rawLimits.stock_total, invoices_monthly: rawLimits.invoices_monthly ?? rawLimits.invoices };
   const usage = { ...rawUsage, clients: rawUsage.clients ?? rawUsage.clients_total, stock: rawUsage.stock ?? rawUsage.stock_total, invoices_monthly: rawUsage.invoices_monthly ?? rawUsage.invoices };
+  // A workspace that already exceeds any limit must not keep using the app on that plan.
+  const overLimitEntries = Object.entries(rawLimits).filter(([resource, rawLimit]) => {
+    const limit = Number(rawLimit);
+    const used = Number(rawUsage[resource] || 0);
+    return Number.isFinite(limit) && limit >= 0 && used > limit;
+  });
+  const overLimitDetails = overLimitEntries.map(([resource]) => `${resource}: ${rawUsage[resource]}/${rawLimits[resource]}`).join(", ");
+  const overLimit = overLimitEntries.length > 0;
+  useEffect(() => {
+    if (planLoading) return;
+    if (overLimitDetails) {
+      const reason = `Your plan limit has been exceeded: ${planName} plan — ${overLimitDetails}. Upgrade to restore app access.`;
+      setBlockReason(reason);
+      setBlocked(true);
+      setShowPaywall(true);
+    } else if (blockReason.startsWith("Your plan limit has been exceeded:")) {
+      setBlockReason("");
+      setBlocked(false);
+      setShowPaywall(false);
+    }
+  }, [planLoading, overLimitDetails, planName]);
   const remaining = useCallback((resource) => {
     const limit = limits[resource];
     const used = Number(usage[resource] || 0);
@@ -147,10 +168,13 @@ export function PaywallProvider({ children }) {
   }, []);
 
   const openPaywall = useCallback((reason = "") => { setBlockReason(reason); setBlocked(Boolean(reason)); setShowPaywall(true); }, []);
-  const closePaywall = useCallback(() => { setShowPaywall(false); setBlocked(false); setBlockReason(""); }, []);
+  const closePaywall = useCallback(() => {
+    if (overLimit) return; // Over-limit workspaces stay locked until the plan is upgraded or brought back within limits.
+    setShowPaywall(false); setBlocked(false); setBlockReason("");
+  }, [overLimit]);
 
   return (
-    <PaywallContext.Provider value={{ plan, limits, usage, remaining, requireFeature, refreshAccessStatus, isPremium, subscription, planName, planId, planStartedAt, planExpiresAt, planResetsAt, planLoading, requestAction, canAccess, applySubscription, upgrade: applySubscription, showPaywall, blocked, openPaywall, closePaywall }}>
+    <PaywallContext.Provider value={{ plan, limits, usage, remaining, requireFeature, refreshAccessStatus, isPremium, subscription, planName, planId, planStartedAt, planExpiresAt, planResetsAt, planLoading, requestAction, canAccess, applySubscription, upgrade: applySubscription, showPaywall, blocked, overLimit, openPaywall, closePaywall }}>
       {children}
       {showPaywall && <PaywallModal blocked={blocked} blockReason={blockReason} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt, plan }} onClose={closePaywall} />}
     </PaywallContext.Provider>
@@ -269,7 +293,11 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
 
         <div className="border-t border-[#E5E7EB] px-6 py-4">
           {blocked ? (
-            <button onClick={onClose} className="w-full text-center text-[12px] font-medium text-slate-400 hover:text-slate-600">Close</button>
+            blockReason.startsWith("Your plan limit has been exceeded:") ? (
+              <p className="text-center text-[12px] font-semibold text-amber-700">Upgrade your plan to unlock Plivex again.</p>
+            ) : (
+              <button onClick={onClose} className="w-full text-center text-[12px] font-medium text-slate-400 hover:text-slate-600">Close</button>
+            )
           ) : (
             <button onClick={onClose} className="w-full text-center text-[12px] font-medium text-slate-400 hover:text-slate-600">Maybe later</button>
           )}
