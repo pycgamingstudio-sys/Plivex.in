@@ -24,7 +24,7 @@ Deno.serve(async (req: Request) => {
     if (error) return json({ error: "Could not check subscription access." }, error.code === "42501" ? 403 : 400, origin);
     const best = (subs || []).find((s) => s.tier === "pro") || (subs || []).find((s) => s.tier === "basic") || null;
     // The current product has a Free plan, not the archived 14-day trial.
-    return json({ isPremium: !!best, tier: best?.tier || null, trialActive: false, trialExpiresAt: null, expiresAt: best?.expires_at || null }, 200, origin);
+    return json({ isPremium: !!best, tier: best?.tier || "free", trialActive: false, trialExpiresAt: null, expiresAt: best?.expires_at || null }, 200, origin);
   } catch (error) {
     console.error("get-access-status failed", error);
     return json({ error: "Something went wrong while checking access." }, 500, origin);
