@@ -20,14 +20,15 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: authError } = await authClient.auth.getUser();
     if (authError || !user) return json({ error: "Your session expired. Please sign in again." }, 401, originHeader);
     const body = await req.json().catch(() => ({}));
-    if (!isPlanId(body?.planId)) return json({ error: "Invalid planId" }, 400, originHeader);
+    const planId = body?.planId;
+    if (!isPlanId(planId)) return json({ error: "Invalid planId" }, 400, originHeader);
     const phone = body.phone == null || body.phone === "" ? "" : String(body.phone).replace(/\s/g, "");
     if (phone && !/^\+?\d{10,13}$/.test(phone)) return json({ error: "Invalid phone" }, 400, originHeader);
     const { data: profile, error: profileError } = await authClient.from("profiles").select("email,full_name,workspace_id").eq("id", user.id).maybeSingle();
     if (profileError) return json({ error: "Could not load account profile." }, 500, originHeader);
     const email = String(profile?.email || user.email || "").trim();
     if (!email) return json({ error: "Account has no email" }, 400, originHeader);
-    const plan = PLANS[body.planId];
+    const plan = PLANS[planId];
     const amount = (plan.amountPaise / 100).toFixed(2);
     const txnid = randomTxn();
     const firstname = String(profile?.full_name || user.user_metadata?.full_name || email.split("@")[0] || "Customer").replace(/[^A-Za-z0-9 ]/g, "").slice(0, 60) || "Customer";
