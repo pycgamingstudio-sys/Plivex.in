@@ -62,7 +62,7 @@ BEGIN
       v_used := 0;
     END IF;
 
-    IF v_used > v_limit THEN
+    IF v_limit > 0 AND v_used >= v_limit THEN
       RAISE EXCEPTION USING ERRCODE='P0001',
         MESSAGE=format('PLAN_LIMIT_REACHED|%s|%s|%s', v_resource, v_limit, v_plan);
     END IF;
