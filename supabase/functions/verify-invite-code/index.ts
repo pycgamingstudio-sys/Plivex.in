@@ -19,6 +19,7 @@ Deno.serve(async (req: Request) => {
     if (invite.expires_at && new Date(invite.expires_at).getTime() < Date.now()) return jsonResponse({ error: "Invite expired" }, 409, origin);
     if (!auth.user.email || auth.user.email.toLowerCase() !== String(invite.email || "").toLowerCase()) return jsonResponse({ error: "Invite email does not match" }, 403, origin);
     if (invite.used_by || invite.used === true) return jsonResponse({ error: "Invite already used" }, 409, origin);
+    if (!["manager", "employee", "storekeeper", "accountant"].includes(invite.role)) return jsonResponse({ error: "Invalid invite role" }, 403, origin);
 
     const { data: profile, error: profileError } = await auth.admin.from("profiles").select("role,workspace_id").eq("id", auth.user.id).maybeSingle();
     if (profileError) return jsonResponse({ error: "Could not load profile" }, 500, origin);
