@@ -1,5 +1,5 @@
 
-import { backend } from "@/api/backendClient";
+import { supabase } from "@/api/backendClient";
 
 const PAGE_LABELS = {
   "/": "Workspace Dashboard",
@@ -24,8 +24,9 @@ export const describeRoute = (pathname) => PAGE_LABELS[pathname] || `Viewing ${p
 // Supabase Edge Function source is being migrated on the H1 branch.
 // Keep the old production route untouched until deployment/runtime verification.
 export async function pingPresence(page) {
-  const result = await backend.functions.invoke("pingPresence", { page });
-  return result?.data;
+  const { data, error } = await supabase.functions.invoke("ping-presence", { body: { page } });
+  if (error) throw error;
+  return data;
 }
 export async function trackStaffAction(action) {
   // The original track-staff-action contract is still needed before safely migrating it.
