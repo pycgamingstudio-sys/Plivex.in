@@ -21,14 +21,27 @@ const PAGE_LABELS = {
 
 export const describeRoute = (pathname) => PAGE_LABELS[pathname] || `Viewing ${pathname}`;
 
-// Supabase Edge Function source is being migrated on the H1 branch.
-// Keep the old production route untouched until deployment/runtime verification.
+// Calls the migration-branch Edge Function. It must be deployed before this branch is used.
 export async function pingPresence(page) {
   const { data, error } = await supabase.functions.invoke("ping-presence", { body: { page } });
   if (error) throw error;
   return data;
 }
-export async function trackStaffAction(action) {
-  // The original track-staff-action contract is still needed before safely migrating it.
-  return { skipped: true, reason: "Original endpoint contract not yet verified", action };
+
+export async function trackStaffAction(action = {}) {
+  const { data, error } = await supabase.functions.invoke("track-staff-action", { body: action });
+  if (error) {
+    let message = error.message || "Could not track staff activity.";
+    try {
+      const response = error.context;
+      if (response && typeof response.clone === "function") {
+        const body = await response.clone().json();
+        if (typeof body?.error === "string") message = body.error;
+      }
+    } catch { /* retain SDK error */ }
+    const wrapped = new Error(message);
+    wrapped.status = error.status || 0;
+    throw wrapped;
+  }
+  return data;
 }
