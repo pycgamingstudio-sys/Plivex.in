@@ -145,12 +145,12 @@ function Sidebar({ onNew, onPricing }) {
   );
 }
 
-function Topbar({ isDark, isPremium, onToggleTheme, onDownload, onWhatsApp, onPricing, onMenu, canDownload = true, canShare = true, planName = "Free", whatsappSending = false }) {
+function Topbar({ isDark, isPremium, onToggleTheme, onDownload, onWhatsApp, onPricing, onMenu, canDownload = true, canShare = true, planName = "Free", whatsappSending = false, pdfDownloading = false }) {
   return (
     <header className="app-chrome sticky top-0 z-20 flex min-w-0 items-center justify-between gap-1 border-b bg-background/90 px-2.5 backdrop-blur-xl sm:gap-3 sm:px-7">
       <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3"><button data-testid="button-mobile-menu" onClick={onMenu} className="rounded-md p-2 hover:bg-secondary md:hidden"><Menu className="h-5 w-5" /></button><div className="flex items-center gap-2 md:hidden"><Logo className="h-7 w-7" /><p className="text-[15px] font-bold tracking-[-0.04em]">Pli<span className="text-primary">vex</span></p></div><div className="hidden md:block"><div className="flex items-center gap-2 text-[11px] text-muted-foreground"><span>Workspace</span><span>/</span><span className="font-medium text-foreground">Invoice desk</span></div><h1 className="mt-0.5 text-[16px] font-bold tracking-[-0.03em]">New invoice <span className="ml-1 rounded-md bg-accent/20 px-1.5 py-0.5 font-mono-ui text-[9px] font-medium text-accent-foreground">DRAFT</span></h1></div></div>
       <div className="ml-auto flex min-w-0 shrink items-center gap-1 sm:gap-3"><div className="hidden items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-[11px] text-muted-foreground sm:flex"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Saved locally <span className="font-mono-ui text-[10px] text-foreground/70">just now</span></div><div data-testid="usage-badge" className="flex shrink-0 items-center gap-1 rounded-full border bg-card px-1.5 py-1.5 text-[10px] font-semibold sm:gap-1.5 sm:px-2.5 sm:text-[11px]"><Zap className="h-3.5 w-3.5 text-accent-foreground" /><span className="font-mono-ui">{isPremium ? "∞" : "Free"}</span><span className="hidden sm:inline text-muted-foreground">{isPremium ? planName : "Free plan"}</span></div><button data-testid="button-toggle-theme" onClick={onToggleTheme} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border bg-card text-muted-foreground sm:h-9 sm:w-9 transition-colors hover:border-primary/40 hover:text-primary" aria-label="Toggle dark mode">{isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button><button data-testid="button-pricing-topbar-mobile" onClick={onPricing} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border bg-card text-primary sm:h-9 sm:w-9 transition-colors hover:border-primary/45 sm:hidden" aria-label="Pricing plans"><Sparkles className="h-4 w-4" /></button>
-<button data-testid="button-pricing-topbar" onClick={onPricing} className="hidden rounded-lg border px-3 py-2 text-[12px] font-semibold text-foreground transition-colors hover:border-primary/45 hover:text-primary sm:block">{isPremium ? "Pro plan" : "Pricing"}</button><button data-testid="button-whatsapp-topbar" onClick={onWhatsApp} disabled={whatsappSending} className={`flex shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-2.5 text-[12px] font-bold text-white transition-transform hover:-translate-y-0.5 disabled:opacity-70 sm:gap-2 sm:px-3.5 ${canShare ? "bg-[#25D366]" : "bg-muted"}`}><MessageCircle className="h-3.5 w-3.5" /><span className="hidden sm:inline">{whatsappSending ? "Preparing…" : "Send via WhatsApp"}</span>{!canShare && !whatsappSending && <LockKeyhole className="h-3.5 w-3.5" />}</button><button data-testid="button-download-topbar" onClick={onDownload} className={`flex shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-2.5 text-[12px] font-bold text-primary-foreground transition-transform hover:-translate-y-0.5 sm:gap-2 sm:px-3.5 ${canDownload ? "bg-primary" : "bg-muted"}`}><Download className="h-3.5 w-3.5" /><span className="hidden sm:inline">Download PDF</span>{!canDownload && <LockKeyhole className="h-3.5 w-3.5" />}</button></div>
+<button data-testid="button-pricing-topbar" onClick={onPricing} className="hidden rounded-lg border px-3 py-2 text-[12px] font-semibold text-foreground transition-colors hover:border-primary/45 hover:text-primary sm:block">{isPremium ? "Pro plan" : "Pricing"}</button><button data-testid="button-whatsapp-topbar" onClick={onWhatsApp} disabled={whatsappSending} className={`flex shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-2.5 text-[12px] font-bold text-white transition-transform hover:-translate-y-0.5 disabled:opacity-70 sm:gap-2 sm:px-3.5 ${canShare ? "bg-[#25D366]" : "bg-muted"}`}><MessageCircle className="h-3.5 w-3.5" /><span className="hidden sm:inline">{whatsappSending ? "Preparing…" : "Send via WhatsApp"}</span>{!canShare && !whatsappSending && <LockKeyhole className="h-3.5 w-3.5" />}</button><button data-testid="button-download-topbar" onClick={onDownload} disabled={pdfDownloading} aria-live="polite" className={`flex shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-2.5 text-[12px] font-bold text-primary-foreground transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-80 sm:gap-2 sm:px-3.5 ${canDownload ? "bg-primary" : "bg-muted"}`}><Download className={`h-3.5 w-3.5 ${pdfDownloading ? "animate-pulse" : ""}`} /><span>{pdfDownloading ? "Preparing…" : <><span className="sm:hidden">PDF</span><span className="hidden sm:inline">Download PDF</span></>}</span>{!canDownload && !pdfDownloading && <LockKeyhole className="h-3.5 w-3.5" />}</button></div>
     </header>
   );
 }
@@ -461,6 +461,7 @@ export default function Home() {
   const [whatsappOpen, setWhatsappOpen] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [whatsappSending, setWhatsappSending] = useState(false);
+  const [pdfDownloading, setPdfDownloading] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState("");
 
   const [toast, setToast] = useState(null);
@@ -603,10 +604,13 @@ export default function Home() {
     const preview = document.querySelector("[data-testid='invoice-preview']");
     if (!preview) { notify("Preview is still loading. Try again in a moment.", "info"); return; }
     try {
+      notify("Download pending — preparing your invoice PDF…", "info");
       await recordInvoice();
+      notify("Preparing invoice PDF… please wait.", "info");
       const pdf = await renderPdfDocument();
       if (!pdf) return;
       await recordInvoice();
+      notify("PDF ready — starting download…", "info");
       pdf.save(filename);
       deductStockForInvoice(invoice);
       recordActivity("Invoice generated");
@@ -619,9 +623,13 @@ export default function Home() {
     }
   };
   const download = async () => {
+    if (pdfDownloading) return;
     if (Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0 || Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0) { openPaywall("Invoice limit reached for your current plan."); return; }
     if (!requireValid()) return;
-    await generatePdf(false);
+    setPdfDownloading(true);
+    notify("Download pending — your invoice is being prepared…", "info");
+    try { await generatePdf(false); }
+    finally { setPdfDownloading(false); }
   };
   // Returning from PayU: premium is now active on the server, so resume the
   // download that the upgrade was started for.
@@ -713,7 +721,7 @@ export default function Home() {
     <div className="app-shell flex bg-background">
       <Sidebar onNew={newInvoice} onPricing={() => setPricingOpen(true)} />
       <div className="min-w-0 flex-1">
-        <Topbar isDark={isDark} isPremium={isPremium} onToggleTheme={() => setIsDark((value) => !value)} onDownload={download} onWhatsApp={handleWhatsApp} onPricing={() => setPricingOpen(true)} onMenu={() => setMobileMenuOpen(true)} canDownload={canAccess("download_pdf") && (!Number.isFinite(remaining("invoices_monthly")) || remaining("invoices_monthly") > 0) && (!Number.isFinite(remaining("invoices")) || remaining("invoices") > 0)} canShare={canAccess("whatsapp_share")} planName={planName} whatsappSending={whatsappSending} />
+        <Topbar isDark={isDark} isPremium={isPremium} onToggleTheme={() => setIsDark((value) => !value)} onDownload={download} onWhatsApp={handleWhatsApp} onPricing={() => setPricingOpen(true)} onMenu={() => setMobileMenuOpen(true)} canDownload={canAccess("download_pdf") && (!Number.isFinite(remaining("invoices_monthly")) || remaining("invoices_monthly") > 0) && (!Number.isFinite(remaining("invoices")) || remaining("invoices") > 0)} canShare={canAccess("whatsapp_share")} planName={planName} whatsappSending={whatsappSending} pdfDownloading={pdfDownloading} />
         <MobileMenu open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} onNew={newInvoice} onPricing={() => { setMobileMenuOpen(false); setPricingOpen(true); }} />
         <main className="mx-auto max-w-[1540px] p-4 sm:p-6 lg:p-8">
           <div className="mb-5 flex items-end justify-between gap-4 md:hidden"><div><p className="font-mono-ui text-[10px] uppercase tracking-widest text-primary">Invoice desk</p><h1 className="mt-1 text-[24px] font-bold tracking-[-0.05em]">Make it official.</h1></div><span className="rounded-full border bg-card px-2.5 py-1.5 text-[10px] text-muted-foreground"><span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />Autosaved</span></div>
