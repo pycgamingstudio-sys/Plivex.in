@@ -89,9 +89,20 @@ The store layer maps UI fields to server rows for clients, expenses, stock, serv
 - Current `backendClient.js` converts function names to kebab-case and posts to the Lovable API for all calls except `add-client`. This remains the primary fallback removal point after replacements pass tests.
 - The active repository snapshot includes `.env` with Lovable base URLs, while `.env.example` is the template. Do not commit credentials or change production environment as part of inventory.
 
-## Current blocker
+## Original source archive received (2026-10-27)
 
-The two canonical Lovable backend source trees could not be identified in connected GitHub repositories. Previously shared handler excerpts are not verified against canonical repositories and some handlers are missing. Missing business logic will not be guessed. Recovering source or approving a written endpoint contract is required before parity can be claimed.
+The owner supplied `lovable-project-b2d2bf01.zip`. Its original server-side contracts are now available in the working session, including:
+
+- `src/lib/team.functions.ts`: `send-team-invite`, `verify-invite-code`, `get-workspace-team`, and `manage-workspace-member`.
+- `src/lib/presence.functions.ts`: `ping-presence`, `track-staff-action`, and `get-team-presence`.
+- `src/lib/ensure-owner-role.functions.ts`: self-signup owner bootstrap; invited non-admin staff must never be promoted to admin.
+- `src/lib/payments.functions.ts`, `src/lib/payu.server.ts`, and `src/routes/api/public/payu/verify.ts`: PayU order creation, hash validation, callback handling, and access status.
+- `src/lib/gmail.server.ts`: email delivery uses a Lovable connector gateway and Lovable/Google Mail secrets.
+- `drizzle/migrations/*.sql`: original schema and RLS history.
+
+**Important compatibility finding:** the archive is a TanStack Start backend, while the current Plivex frontend is React/Vite with Supabase Edge Functions. The live Supabase schema has drifted from the archive. For example, current `staff_activity` uses `created_by` rather than the archive's `user_id`, and the current subscription/payment columns differ from the original PayU handler. Original code must be adapted to the live schema, not copied blindly.
+
+The archive contains a `.env` file. Its contents were intentionally not displayed, copied into repository files, or committed. Do not reuse or expose any secret values from that archive in frontend code.
 
 ## Verification notes
 
@@ -120,3 +131,22 @@ To finish the next larger batch safely, recover/paste the original Lovable handl
 4. `track-staff-action` — payload fields and how action history is stored.
 
 No guessed invite/member-management handler has been implemented. The existing fallback stays in place.
+
+
+## Additional batch progress (2026-10-27 — original source received)
+
+- [x] Recovered original contracts for team invites/member management, staff presence/activity, owner-role bootstrap, and PayU.
+- [x] Added `supabase/functions/track-staff-action/index.ts` using the current live schema's `created_by` column, authenticated session, Asia/Kolkata daily counters, input validation, and bounded action history.
+- [x] Updated `src/lib/staffTracking.js` to call `track-staff-action` instead of returning a no-op.
+- [x] Confirmed live schema columns for `profiles`, `workspace_members`, `invite_codes`, `staff_activity`, `subscriptions`, and `payment_logs` via read-only schema inspection.
+- [ ] Correct and test the presence functions against actual RLS and duplicate-row behavior.
+- [ ] Port team invite/member management using the original source while reconciling current enum/column differences.
+- [ ] Port PayU only after reconciling current subscription/payment schema and confirming server-only secrets are configured; no live payment testing.
+- [ ] Deploy and run authenticated/no-session tests; deployment has not succeeded, so all branch functions remain source-only.
+
+### Remaining integration safeguards
+
+- Email sending in the original archive depends on `connector-gateway.lovable.dev`; it is not a Lovable-free mail integration. Do not claim email migration complete until a replacement provider is selected/configured and tested.
+- Original `frontendBase()` points to the old Netlify hostname; use the current production origin only after validating allowed-origin/redirect rules.
+- The original PayU handler stores amounts in paise in some places but receives decimal rupees from PayU callbacks. Reconcile this with the live database before migrating any payment write.
+- Current production routes and Lovable fallback remain untouched.
