@@ -1,4 +1,6 @@
 
+import { backend } from "@/api/backendClient";
+
 const PAGE_LABELS = {
   "/": "Workspace Dashboard",
   "/dashboard": "Workspace Dashboard",
@@ -19,7 +21,13 @@ const PAGE_LABELS = {
 
 export const describeRoute = (pathname) => PAGE_LABELS[pathname] || `Viewing ${pathname}`;
 
-// Staff presence tracking is switched off until its backend is built.
-// The functions stay so existing screens keep working.
-export async function pingPresence() { /* no-op for now */ }
-export async function trackStaffAction() { /* no-op for now */ }
+// Supabase Edge Function source is being migrated on the H1 branch.
+// Keep the old production route untouched until deployment/runtime verification.
+export async function pingPresence(page) {
+  const result = await backend.functions.invoke("pingPresence", { page });
+  return result?.data;
+}
+export async function trackStaffAction(action) {
+  // The original track-staff-action contract is still needed before safely migrating it.
+  return { skipped: true, reason: "Original endpoint contract not yet verified", action };
+}
