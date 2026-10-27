@@ -11,6 +11,9 @@ import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import RoleGuard from '@/components/RoleGuard';
 import { PaywallProvider, usePaywall } from '@/lib/paywall';
+import AppLayout from './components/AppLayout';
+import WorkspaceTeamProvider from '@/components/team/WorkspaceTeamProvider';
+import TrialGate from './components/TrialGate';
 // Route-level lazy loading keeps the initial mobile bundle small.
 const PageNotFound = lazy(() => import("./lib/PageNotFound"));
 const UserNotRegisteredError = lazy(() => import("@/components/UserNotRegisteredError"));
@@ -31,7 +34,6 @@ const HelpCenter = lazy(() => import("./pages/HelpCenter"));
 const AccountActivity = lazy(() => import("./pages/AccountActivity"));
 const ServiceCatalog = lazy(() => import("./pages/ServiceCatalog"));
 const TeamManagement = lazy(() => import("./pages/TeamManagement"));
-const GuestDashboard = lazy(() => import("./pages/GuestDashboard"));
 const ContactUs = lazy(() => import("./pages/ContactUs"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
@@ -40,9 +42,6 @@ const HomeGate = lazy(() => import("./components/HomeGate"));
 const AboutPage = lazy(() => import("./pages/PublicInfoPages").then((module) => ({ default: module.AboutPage })));
 const FeaturesPage = lazy(() => import("./pages/PublicInfoPages").then((module) => ({ default: module.FeaturesPage })));
 const PricingPage = lazy(() => import("./pages/PublicInfoPages").then((module) => ({ default: module.PricingPage })));
-import AppLayout from './components/AppLayout';
-import WorkspaceTeamProvider from '@/components/team/WorkspaceTeamProvider';
-import TrialGate from './components/TrialGate';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
