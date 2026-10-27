@@ -23,7 +23,7 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, origin);
   try {
     const auth = await getUserClient(req);
-    if ("error" in auth) return json({ error: auth.error }, auth.status, origin);
+    if ("error" in auth) return json({ error: auth.error }, auth.status || 500, origin);
     const body = await req.json().catch(() => ({}));
     const limit = Math.min(1000, Math.max(1, Number(body?.limit) || 1000));
     const { data, error } = await auth.db.from("invoices").select("*,invoice_items(*)")
