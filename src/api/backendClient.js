@@ -100,6 +100,23 @@ const NOT_READY = {};
 const functions = {
   async invoke(name, payload = {}) {
     if (NOT_READY[name]) throw new ApiError(NOT_READY[name], 501, { error: NOT_READY[name], operation: name });
+    // Client creation is served by the authenticated Supabase Edge Function,
+    // not the legacy Lovable API fallback.
+    if (kebab(String(name || "")) === "add-client") {
+      const { data, error } = await supabase.functions.invoke("add-client", { body: payload || {} });
+      if (error) {
+        let message = error.message || "Could not add the client. Please try again.";
+        try {
+          const response = error.context;
+          if (response && typeof response.clone === "function") {
+            const body = await response.clone().json();
+            if (typeof body?.error === "string") message = body.error;
+          }
+        } catch { /* use the SDK error */ }
+        throw new ApiError(message, error.status || 400, { operation: name });
+      }
+      return { data };
+    }
     const adapter = adapters[name] || {};
     const data = await callEndpoint(name, adapter.request ? adapter.request(payload) : payload);
     return { data: adapter.response ? adapter.response(data, payload) : data };
