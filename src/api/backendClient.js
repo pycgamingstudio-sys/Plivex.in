@@ -37,6 +37,12 @@ export class ApiError extends Error {
 
 const kebab = (name) => name.replace(/([A-Z])/g, '-$1').toLowerCase();
 
+function emitPlanError(message) {
+  if (typeof window !== "undefined" && /^(PLAN_LIMIT_REACHED|PLAN_FEATURE_LOCKED)\\|/.test(String(message || ""))) {
+    window.dispatchEvent(new CustomEvent("plivex-sync-error", { detail: { message: String(message) } }));
+  }
+}
+
 async function accessToken() {
   const { data } = await supabase.auth.getSession();
   return data?.session?.access_token || null;
@@ -56,7 +62,11 @@ async function callEndpoint(name, payload = {}) {
   }
   let body = {};
   try { body = await res.json(); } catch { /* empty body */ }
-  if (!res.ok) throw new ApiError(typeof body?.error === 'string' ? body.error : 'Request failed', res.status, body);
+  if (!res.ok) {
+    const message = typeof body?.error === 'string' ? body.error : 'Request failed';
+    emitPlanError(message);
+    throw new ApiError(message, res.status, body);
+  }
   return body;
 }
 
@@ -123,6 +133,7 @@ const functions = {
             if (typeof body?.error === "string") message = body.error;
           }
         } catch { /* use the SDK error */ }
+        emitPlanError(message);
         throw new ApiError(message, error.status || 400, { operation: name });
       }
       return { data: adapter.response ? adapter.response(data, payload) : data };
