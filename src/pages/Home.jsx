@@ -484,7 +484,7 @@ export default function Home() {
       if (pending) { setInvoice((old) => ({ ...old, client: { ...old.client, ...pending } })); removeState(KEYS.pendingClient); }
     } catch { /* ignore malformed pending client */ }
   }, []);
-  const notify = (message, kind = "success") => { setToast({ message, kind }); if (toastTimer.current) window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(null), 3200); };
+  const notify = (message, kind = "success", duration = 3200) => { setToast({ message, kind }); if (toastTimer.current) window.clearTimeout(toastTimer.current); toastTimer.current = duration > 0 ? window.setTimeout(() => setToast(null), duration) : undefined; };
   const validate = () => {
     const next = {};
     if (!invoice.business.name.trim()) next.businessName = "This field is required";
@@ -604,13 +604,13 @@ export default function Home() {
     const preview = document.querySelector("[data-testid='invoice-preview']");
     if (!preview) { notify("Preview is still loading. Try again in a moment.", "info"); return; }
     try {
-      notify("Download pending — preparing your invoice PDF…", "info");
+      notify("Download pending — preparing your invoice PDF…", "info", 0);
       await recordInvoice();
-      notify("Preparing invoice PDF… please wait.", "info");
+      notify("Preparing invoice PDF… please wait.", "info", 0);
       const pdf = await renderPdfDocument();
       if (!pdf) return;
       await recordInvoice();
-      notify("PDF ready — starting download…", "info");
+      notify("PDF ready — starting download…", "info", 0);
       pdf.save(filename);
       deductStockForInvoice(invoice);
       recordActivity("Invoice generated");
@@ -627,7 +627,7 @@ export default function Home() {
     if (Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0 || Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0) { openPaywall("Invoice limit reached for your current plan."); return; }
     if (!requireValid()) return;
     setPdfDownloading(true);
-    notify("Download pending — your invoice is being prepared…", "info");
+    notify("Download pending — your invoice is being prepared…", "info", 0);
     try { await generatePdf(false); }
     finally { setPdfDownloading(false); }
   };
