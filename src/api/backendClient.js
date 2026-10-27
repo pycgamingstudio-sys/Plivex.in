@@ -38,7 +38,7 @@ export class ApiError extends Error {
 const kebab = (name) => name.replace(/([A-Z])/g, '-$1').toLowerCase();
 
 function emitPlanError(message) {
-  if (typeof window !== "undefined" && /^(PLAN_LIMIT_REACHED|PLAN_FEATURE_LOCKED)\\|/.test(String(message || ""))) {
+  if (typeof window !== "undefined" && (String(message || "").startsWith("PLAN_LIMIT_REACHED|") || String(message || "").startsWith("PLAN_FEATURE_LOCKED|"))) {
     window.dispatchEvent(new CustomEvent("plivex-sync-error", { detail: { message: String(message) } }));
   }
 }
