@@ -64,7 +64,12 @@ Deno.serve(async (req: Request) => {
     if (action === "create") {
       const values = { ...pick(body.values, fields), workspace_id: profile.workspace_id };
       const { data, error } = await db.from(table).insert(values).select("*").single();
-      if (error) return json({ error: "Could not create record." }, error.code === "42501" ? 403 : 400, origin);
+      if (error) {
+        const message = typeof error.message === "string" && /^(PLAN_LIMIT_REACHED|PLAN_FEATURE_LOCKED)\\|/.test(error.message)
+          ? error.message
+          : "Could not create record.";
+        return json({ error: message }, error.code === "42501" ? 403 : 400, origin);
+      }
       return json({ record: data }, 200, origin);
     }
     if (!isId(body.id)) return json({ error: "Invalid record id." }, 400, origin);
