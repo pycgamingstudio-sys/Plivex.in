@@ -65,7 +65,7 @@ Deno.serve(async (req: Request) => {
       const values = { ...pick(body.values, fields), workspace_id: profile.workspace_id };
       const { data, error } = await db.from(table).insert(values).select("*").single();
       if (error) {
-        const message = typeof error.message === "string" && /^(PLAN_LIMIT_REACHED|PLAN_FEATURE_LOCKED)\\|/.test(error.message)
+        const message = typeof error.message === "string" && (error.message.startsWith("PLAN_LIMIT_REACHED|") || error.message.startsWith("PLAN_FEATURE_LOCKED|"))
           ? error.message
           : "Could not create record.";
         return json({ error: message }, error.code === "42501" ? 403 : 400, origin);
