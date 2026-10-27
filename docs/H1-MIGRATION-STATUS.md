@@ -100,3 +100,23 @@ The two canonical Lovable backend source trees could not be identified in connec
 - No local npm build, lint, Deno check, or runtime integration test has been executed.
 - The function deployment attempt was blocked; no new function is deployed.
 - Production traffic, DNS, database schema/data/RLS, and existing Lovable fallback remain unchanged.
+
+
+## Additional batch progress (2026-10-27)
+
+- [x] Added source for `ping-presence` (authenticated heartbeat, derives user/workspace from session/profile).
+- [x] Added source for `get-team-presence` (workspace-scoped read, capped user IDs/results).
+- [x] Updated `src/lib/staffTracking.js` on the migration branch to invoke the new `ping-presence` function.
+- [ ] Update `useWorkspacePresence.js` to call the new reader after the function is deployed and its response is verified.
+- [ ] Deploy functions and test authenticated/no-session requests. The deployment tool blocked the earlier deployment attempt; the function sources remain branch-only.
+
+### Original handler details needed from the owner
+
+To finish the next larger batch safely, recover/paste the original Lovable handler code or its exact request/response examples for:
+
+1. `send-team-invite` — role validation, invite-code creation/expiry, email delivery provider, response shape.
+2. `verify-invite-code` — whether `allowRebind` permits an existing account to attach to an invite, expiry/used-code rules, and exact success/error response.
+3. `manage-workspace-member` — allowed actions/roles, owner/admin restrictions, removal behavior, and exact response.
+4. `track-staff-action` — payload fields and how action history is stored.
+
+No guessed invite/member-management handler has been implemented. The existing fallback stays in place.
