@@ -33,13 +33,10 @@ Active status alone does not prove endpoint behavior is correct. Existing assist
 - `get-workspace-team`
 - `manage-workspace-member`
 - `get-access-status`
-- Presence/activity endpoints reported in the supplied backend inventory: `ping-presence`, `track-staff-action`, `get-team-presence`
+- Presence/activity endpoints: `ping-presence`, `track-staff-action`, `get-team-presence`
 
 ### Business data
-- `save-invoice` / invoice save flow
-- `set-invoice-status`
-- `delete-invoice`
-- `list-invoices`
+- Invoice save/status/delete/list operations and invoice-number allocation
 - `get-business-summary`
 - `workspace-records`
 - `business-logo`
@@ -49,11 +46,24 @@ Active status alone does not prove endpoint behavior is correct. Existing assist
 - `create-payu-order`
 - `verify-payu-payment`
 - `send-payment-reminder`
-- Gmail/email integration currently has a reported dependency on Lovable's connector gateway and must be replaced only after choosing and testing a supported mail provider.
+- Email integration currently has a reported dependency on Lovable's connector gateway and must be replaced only after choosing and testing a supported mail provider.
 
 ### AI
 - `assistant-chat`
 - `assistant-confirm`
+
+## H1.2 implementation in progress
+
+- [x] Inspect RLS policies for `profiles`, `workspace_members`, and `invite_codes`.
+- [x] Confirm `profiles` read is limited to the signed-in user's own row.
+- [x] Confirm `workspace_members` read is scoped to the authenticated user's workspace and membership/ownership.
+- [x] Add an initial authenticated read-only `get-workspace-team` Edge Function source file on this branch: `supabase/functions/get-workspace-team/index.ts`.
+- [ ] Deploy the new function to Supabase.
+- [ ] Verify no-session request returns 401 and authenticated owner/member request returns only their permitted workspace rows.
+- [ ] Route frontend `getWorkspaceTeam` call to the function only after runtime tests pass.
+- [ ] Continue with invite verification and member management after confirming original endpoint contracts.
+
+The deployment attempt was blocked by the available tool's safety checks, so the new function has **not** been deployed and is not in production use.
 
 ## Known compatibility and safety requirements
 
@@ -64,17 +74,6 @@ Active status alone does not prove endpoint behavior is correct. Existing assist
 - Do not modify schema, RLS, database functions, or user data without a separate reviewed SQL plan and explicit approval.
 - Keep the Lovable fallback in place until each replacement is implemented and tested.
 - Do not merge this branch, change production routing, alter DNS, or pause/delete Lovable projects without explicit approval.
-
-## H1.1 checklist
-
-- [x] Inspect active frontend API adapter and assistant call sites.
-- [x] Snapshot currently deployed Supabase Edge Functions.
-- [x] Record known endpoint families and current Lovable fallback.
-- [x] Inspect team membership and presence call sites.
-- [x] Confirm presence functions are currently no-op and staff activity entity adapter is inert.
-- [ ] Complete exhaustive call-site mapping across all `src/` files.
-- [ ] Obtain/verify canonical source for both original Lovable backend projects and compare exact contracts.
-- [ ] Mark each endpoint as migrated only after runtime tests.
 
 ## Additional frontend call-site findings (main branch snapshot)
 
@@ -90,7 +89,8 @@ The original inventory notes that the two canonical Lovable backend source trees
 
 ## Verification notes
 
-- The inventory document was committed to this branch only.
-- No GitHub Actions run was found for this new inventory branch at the time checked.
+- H1.1 inventory and initial H1.2 function source are committed to the migration branch only.
+- No GitHub Actions run was found for this branch at the time checked.
 - No local npm build, lint, or runtime integration test has been executed for this branch.
+- The new `get-workspace-team` function deployment was blocked by tool safety checks and remains undeployed.
 - Production traffic and the existing Lovable fallback remain unchanged.
