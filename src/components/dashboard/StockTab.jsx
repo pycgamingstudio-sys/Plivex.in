@@ -20,10 +20,10 @@ export default function StockTab() {
   useEffect(() => { saveList(KEYS.stock, items); }, [items]);
 
   const filtered = useMemo(() => items.filter((p) => `${p.name} ${p.sku || ""}`.toLowerCase().includes(q.toLowerCase())), [items, q]);
-  const lowCount = items.filter((p) => (Number(p.quantity) || 0) <= (Number(p.lowStock) || DEFAULT_LOW)).length;
+  const lowCount = items.filter((p) => (Number(p.quantity) || 0) <= (p.lowStock === "" || p.lowStock === null || p.lowStock === undefined ? DEFAULT_LOW : Number(p.lowStock))).length;
   const totalUnits = items.reduce((s, p) => s + (Number(p.quantity) || 0), 0);
 
-  const isLow = (p) => (Number(p.quantity) || 0) <= (Number(p.lowStock) || DEFAULT_LOW);
+  const isLow = (p) => (Number(p.quantity) || 0) <= (p.lowStock === "" || p.lowStock === null || p.lowStock === undefined ? DEFAULT_LOW : Number(p.lowStock));
 
   const remove = (id) => setItems((prev) => prev.filter((p) => p.id !== id));
   const save = (entry) => {
