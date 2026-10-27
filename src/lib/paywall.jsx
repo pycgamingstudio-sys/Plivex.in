@@ -121,7 +121,7 @@ export function PaywallProvider({ children }) {
   const overLimitEntries = Object.entries(rawLimits).filter(([resource, rawLimit]) => {
     const limit = Number(rawLimit);
     const used = Number(rawUsage[resource] || 0);
-    return Number.isFinite(limit) && limit > 0 && used >= limit;
+    return Number.isFinite(limit) && limit > 0 && used > limit;
   });
   const overLimitDetails = overLimitEntries.map(([resource]) => `${resource}: ${rawUsage[resource]}/${rawLimits[resource]}`).join(", ");
   const overLimit = overLimitEntries.length > 0;
