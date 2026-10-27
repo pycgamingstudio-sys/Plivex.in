@@ -100,12 +100,22 @@ const NOT_READY = {};
 const functions = {
   async invoke(name, payload = {}) {
     if (NOT_READY[name]) throw new ApiError(NOT_READY[name], 501, { error: NOT_READY[name], operation: name });
-    // Client creation is served by the authenticated Supabase Edge Function,
-    // not the legacy Lovable API fallback.
-    if (kebab(String(name || "")) === "add-client") {
-      const { data, error } = await supabase.functions.invoke("add-client", { body: payload || {} });
+    // Migrated handlers run directly as Supabase Edge Functions. Unmigrated
+    // operations intentionally retain the legacy fallback until their contracts
+    // and runtime tests are complete.
+    const functionName = kebab(String(name || ""));
+    const migratedFunctions = new Set([
+      "add-client", "ensure-owner-role", "send-team-invite", "verify-invite-code",
+      "get-workspace-team", "manage-workspace-member", "ping-presence",
+      "track-staff-action", "get-team-presence", "get-access-status", "create-payu-order",
+      "workspace-records", "list-invoices", "save-invoice", "set-invoice-status", "send-payment-reminder",
+    ]);
+    const adapter = adapters[name] || {};
+    const requestPayload = adapter.request ? adapter.request(payload) : payload;
+    if (migratedFunctions.has(functionName)) {
+      const { data, error } = await supabase.functions.invoke(functionName, { body: requestPayload || {} });
       if (error) {
-        let message = error.message || "Could not add the client. Please try again.";
+        let message = error.message || "Request failed. Please try again.";
         try {
           const response = error.context;
           if (response && typeof response.clone === "function") {
@@ -115,10 +125,9 @@ const functions = {
         } catch { /* use the SDK error */ }
         throw new ApiError(message, error.status || 400, { operation: name });
       }
-      return { data };
+      return { data: adapter.response ? adapter.response(data, payload) : data };
     }
-    const adapter = adapters[name] || {};
-    const data = await callEndpoint(name, adapter.request ? adapter.request(payload) : payload);
+    const data = await callEndpoint(name, requestPayload);
     return { data: adapter.response ? adapter.response(data, payload) : data };
   },
 };
