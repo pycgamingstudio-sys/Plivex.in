@@ -35,7 +35,7 @@ export const allowedOrigin = (value: unknown, fallback: string) => {
   if (typeof value !== "string") return fallback;
   try {
     const u = new URL(value), allowed = new Set(["https://plivex.in","https://www.plivex.in","https://plivex.netlify.app",fallback]);
-    return u.origin === value.replace(/\/$/, "") && (u.protocol === "https:" || u.hostname === "localhost") && (allowed.has(u.origin) || u.hostname.endsWith(".pages.dev") || u.hostname.endsWith(".workers.dev")) ? u.origin : fallback;
+    return u.origin === value.replace(/\/$/, "") && u.protocol === "https:" && allowed.has(u.origin) ? u.origin : fallback;
   } catch { return fallback; }
 };
 export const randomTxn = () => {
