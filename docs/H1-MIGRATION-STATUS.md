@@ -243,3 +243,12 @@ Additional branch-only source files now present:
 ## Latest validation result
 
 The branch's latest GitHub Actions validation passed after the email endpoint was added and its shared helper was included in Deno checks. This is a code/CI result only; it does not mean the functions are deployed or that provider secrets exist.
+
+
+## Live rollout update (2026-10-27)
+
+- Applied Supabase migration `h1_invoice_rpcs` (database migration version `20261027120518`). Verified that `save_invoice`, `cancel_invoice`, `delete_draft_invoice`, and `revenue_summary` exist in the live database.
+- Deployed the H1 Edge Functions to the Supabase project; the deployed inventory now includes `ensure-owner-role`, team/invite functions, presence/activity functions, `get-access-status`, PayU order/callback functions, workspace-record CRUD, invoice list/save/status functions, and `send-payment-reminder`. All report ACTIVE. `verify-payu-payment` is intentionally deployed with JWT verification disabled because PayU calls it server-to-server; it performs its own hash validation.
+- This confirms deployment status, not end-to-end behavior. Authenticated workspace CRUD, team invitations, invoice create/update/stock behavior, and payment callbacks still need real session/sandbox verification.
+- PayU secrets (`PAYU_MERCHANT_KEY`, `PAYU_MERCHANT_SALT`, `PAYU_ENV`, `APP_BASE_URL`) and email secrets (`RESEND_API_KEY`, `MAIL_FROM`) are not available through the current connected tooling and have not been configured or tested. PayU and email must not be marked operational until configured and tested.
+- Frontend routing changes remain on `h1/migration-inventory`; they have not been merged to `main`. Production DNS and the live Cloudflare Pages deployment have not been intentionally changed by this rollout.
