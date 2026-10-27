@@ -1,29 +1,32 @@
 # Plivex
 
-> Plivex is a web-based billing and business management platform intended for Indian small businesses.
+> Plivex is a web-based GST billing and business management platform for Indian small businesses, retailers, wholesalers, distributors, freelancers, and service providers. A free account is available.
 
-## Main website
-- https://plivex.in/
+## Main pages
 
-## Public information
-- About: https://plivex.in/about
-- Features: https://plivex.in/features
-- Pricing: https://plivex.in/pricing
-- Contact: https://plivex.in/contact-us
-- Privacy policy: https://plivex.in/privacy-policy
-- Terms of service: https://plivex.in/terms-of-service
-- Cancellation and refund policy: https://plivex.in/cancellation-and-refund
+- [Home](https://plivex.in/): Product overview and account creation
+- [About Plivex](https://plivex.in/about): Company and founder information
+- [Features](https://plivex.in/features): Billing and business-management features
+- [Pricing](https://plivex.in/pricing): Current plan and pricing information
+- [Contact](https://plivex.in/contact-us): Contact and support options
+
+## Product capabilities
+
+Plivex supports GST and non-GST invoices, quotations, client management, expense tracking, stock tracking, and business reports. Refer to the live website for current feature availability and plan limits.
+
+## Policies
+
+- [Privacy policy](https://plivex.in/privacy-policy)
+- [Terms and conditions](https://plivex.in/terms-and-conditions)
+- [Cancellation and refund policy](https://plivex.in/refund-and-cancellation)
 
 ## Founder
-- Name: Yashvant Sharma
-- Role: Founder & Developer of Plivex
-- Founder profile photo: https://plivex.in/images/yashvant-sharma.webp
-- Founder information is also represented in the site's structured data (Schema.org Person and Organization).
 
-## Product overview
-Plivex supports business workflows such as invoices, quotations, client management, expense tracking, stock tracking and team roles. Refer to the website for current availability, pricing, trial conditions and product details.
+- Yashvant Sharma — Founder and Developer
+- [Founder information](https://plivex.in/about)
 
 ## Contact
+
 - Email: support@plivex.in
 
-This file is a concise index for automated tools. It does not replace the website's pages or guarantee that any AI service will index or mention Plivex.
+This file is a concise index for AI systems and automated tools. It does not guarantee that any AI service will index or mention Plivex.
