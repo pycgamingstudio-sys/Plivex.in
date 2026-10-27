@@ -2,15 +2,15 @@ import { lazy, Suspense, useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { LayoutDashboard, Receipt, ShoppingCart, BarChart3, Users, UsersRound, Package, Sparkles, Zap, LayoutGrid, X, RefreshCw, FileText, ScrollText, Lock } from "lucide-react";
 import DashboardTab from "@/components/dashboard/DashboardTab";
-import SalesTab from "@/components/dashboard/SalesTab";
-import PurchaseTab from "@/components/dashboard/PurchaseTab";
-import ReportsTab from "@/components/dashboard/ReportsTab";
-import CrmTab from "@/components/dashboard/CrmTab";
-import StockTab from "@/components/dashboard/StockTab";
-import TeamManagement from "@/pages/TeamManagement";
+const SalesTab = lazy(() => import("@/components/dashboard/SalesTab"));
+const PurchaseTab = lazy(() => import("@/components/dashboard/PurchaseTab"));
+const ReportsTab = lazy(() => import("@/components/dashboard/ReportsTab"));
+const CrmTab = lazy(() => import("@/components/dashboard/CrmTab"));
+const StockTab = lazy(() => import("@/components/dashboard/StockTab"));
+const TeamManagement = lazy(() => import("@/pages/TeamManagement"));
 const ChatWidget = lazy(() => import("@/components/dashboard/ChatWidget"));
 const AssistantWidget = lazy(() => import("@/components/AssistantWidget"));
-import ReconciliationTab from "@/components/dashboard/ReconciliationTab";
+const ReconciliationTab = lazy(() => import("@/components/dashboard/ReconciliationTab"));
 const WelcomePopup = lazy(() => import("@/components/WelcomePopup"));
 import { seedDashboard } from "@/lib/dashboardData";
 import { navItems, HIDDEN_FROM_SIDEBAR } from "@/lib/nav";
@@ -128,14 +128,16 @@ export default function Dashboard({ initialTab }) {
           </div>
         </header>
         <main className="p-4 pb-24 sm:p-6 md:pb-6">
-          {tab === "dashboard" && <DashboardTab onNavigate={go} onCreateInvoice={createInvoice} role={role} teamUnlocked={canAccess("team_management")} />}
-          {tab === "sales" && <SalesTab intent={intent} onConsumeIntent={consume} />}
-          {tab === "purchase" && <PurchaseTab intent={intent} onConsumeIntent={consume} />}
-          {tab === "reports" && <ReportsTab />}
-          {tab === "crm" && <CrmTab intent={intent} onConsumeIntent={consume} />}
-          {tab === "stock" && <StockTab />}
-          {tab === "team" && (teamUnlocked ? <TeamManagement /> : <div className="mx-auto max-w-lg rounded-2xl border border-[#E5E7EB] bg-white p-8 text-center shadow-sm"><Lock className="mx-auto h-8 w-8 text-[#6D28D9]" /><h2 className="mt-3 text-lg font-bold">Team management is a Pro feature</h2><p className="mt-2 text-sm text-slate-500">Upgrade to Pro to add and manage workspace members.</p><button onClick={openPaywall} className="mt-5 rounded-xl bg-[#6D28D9] px-5 py-2.5 text-sm font-bold text-white">Upgrade to Pro</button></div>)}
-          {tab === "reconciliation" && <ReconciliationTab />}
+          <Suspense fallback={<div className="min-h-[240px]" role="status" aria-label="Loading workspace section" />}>
+            {tab === "dashboard" && <DashboardTab onNavigate={go} onCreateInvoice={createInvoice} role={role} teamUnlocked={canAccess("team_management")} />}
+            {tab === "sales" && <SalesTab intent={intent} onConsumeIntent={consume} />}
+            {tab === "purchase" && <PurchaseTab intent={intent} onConsumeIntent={consume} />}
+            {tab === "reports" && <ReportsTab />}
+            {tab === "crm" && <CrmTab intent={intent} onConsumeIntent={consume} />}
+            {tab === "stock" && <StockTab />}
+            {tab === "team" && (teamUnlocked ? <TeamManagement /> : <div className="mx-auto max-w-lg rounded-2xl border border-[#E5E7EB] bg-white p-8 text-center shadow-sm"><Lock className="mx-auto h-8 w-8 text-[#6D28D9]" /><h2 className="mt-3 text-lg font-bold">Team management is a Pro feature</h2><p className="mt-2 text-sm text-slate-500">Upgrade to Pro to add and manage workspace members.</p><button onClick={openPaywall} className="mt-5 rounded-xl bg-[#6D28D9] px-5 py-2.5 text-sm font-bold text-white">Upgrade to Pro</button></div>)}
+            {tab === "reconciliation" && <ReconciliationTab />}
+          </Suspense>
         </main>
       </div>
 
