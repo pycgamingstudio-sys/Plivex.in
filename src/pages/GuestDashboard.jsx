@@ -2,7 +2,6 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FileText, Package, Users, FileCheck2, Settings, TrendingUp, CheckCircle2, Clock, Sparkles, LogIn, Boxes } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import AuthModal from "@/components/AuthModal";
 import Logo from "@/components/Logo";
 import AboutSection from "@/components/landing/AboutSection";
@@ -115,16 +114,14 @@ export default function GuestDashboard() {
           <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between"><h3 className="text-[13px] font-bold text-slate-900">Sales this week (demo)</h3><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">+18% ↑</span></div>
             <div className="mt-3 h-[180px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={TREND}>
-                  <defs><linearGradient id="demoSales" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6D28D9" stopOpacity={0.35} /><stop offset="100%" stopColor="#6D28D9" stopOpacity={0.02} /></linearGradient></defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
-                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} width={44} />
-                  <Tooltip formatter={(v) => [`₹${Number(v).toLocaleString("en-IN")}`, "Sales"]} contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #E5E7EB" }} />
-                  <Area type="monotone" dataKey="sales" stroke="#6D28D9" strokeWidth={2} fill="url(#demoSales)" />
-                </AreaChart>
-              </ResponsiveContainer>
+              <svg viewBox="0 0 600 180" className="h-full w-full" role="img" aria-label="Demo weekly sales trend, Monday through Sunday">
+                <defs><linearGradient id="demoSales" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6D28D9" stopOpacity="0.28" /><stop offset="100%" stopColor="#6D28D9" stopOpacity="0.02" /></linearGradient></defs>
+                <g stroke="#E5E7EB" strokeDasharray="4 5"><path d="M48 24H584" /><path d="M48 60H584" /><path d="M48 96H584" /><path d="M48 132H584" /></g>
+                <path d="M48 110 L137 78 L226 125 L315 58 L404 84 L493 28 L584 91 L584 145 L48 145 Z" fill="url(#demoSales)" />
+                <path d="M48 110 L137 78 L226 125 L315 58 L404 84 L493 28 L584 91" fill="none" stroke="#6D28D9" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                <g fill="#6D28D9" stroke="#FFFFFF" strokeWidth="2"><circle cx="48" cy="110" r="4" /><circle cx="137" cy="78" r="4" /><circle cx="226" cy="125" r="4" /><circle cx="315" cy="58" r="4" /><circle cx="404" cy="84" r="4" /><circle cx="493" cy="28" r="4" /><circle cx="584" cy="91" r="4" /></g>
+                <g fill="#94A3B8" fontSize="11" textAnchor="middle"><text x="48" y="168">Mon</text><text x="137" y="168">Tue</text><text x="226" y="168">Wed</text><text x="315" y="168">Thu</text><text x="404" y="168">Fri</text><text x="493" y="168">Sat</text><text x="584" y="168">Sun</text></g>
+              </svg>
             </div>
           </div>
           <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
