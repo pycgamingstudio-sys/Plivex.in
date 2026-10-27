@@ -68,14 +68,15 @@ Deno.serve(async (req: Request) => {
       return redirect(origin, path, { payment: "failed", txnid });
     }
 
-    if (!isPlanId(order.plan_id)) {
+    const planId = order.plan_id;
+    if (!isPlanId(planId)) {
       await admin.from("payment_logs").insert({ ...baseLog, amount: Math.round(paid * 100), status: "failed", outcome: "failed",
         hash_verified: true, reason: "unknown_plan", message: "Unknown plan", source: "verify-payu-payment" });
       return redirect(origin, path, { payment: "failed", txnid });
     }
     const now = new Date();
     const { data: updated, error: updateError } = await admin.from("subscriptions").update({
-      status: "active", started_at: now.toISOString(), expires_at: addPeriod(now, PLANS[order.plan_id].period).toISOString(),
+      status: "active", started_at: now.toISOString(), expires_at: addPeriod(now, PLANS[planId].period).toISOString(),
       payu_payment_id: p.mihpayid || null, updated_at: now.toISOString(),
     }).eq("id", order.id).eq("status", "created").select("id");
     if (updateError) {
