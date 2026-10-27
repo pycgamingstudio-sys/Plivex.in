@@ -37,11 +37,8 @@ Deno.serve(async (req: Request) => {
     const subject = invoiceNumber ? `Payment reminder: invoice ${invoiceNumber}` : "Payment reminder";
     const result = await sendEmail({ to, subject, html });
     if (!result.sent) return jsonResponse({ ok: false, emailSent: false, error: result.reason === "email_not_configured" ? "Email delivery is not configured. Set RESEND_API_KEY and MAIL_FROM in Supabase Edge Function secrets." : "Email provider could not send the reminder." }, result.reason === "email_not_configured" ? 503 : 502, origin);
-    await auth.admin.from("activity_logs").insert({
-      event_key: crypto.randomUUID(), workspace_id: profile.workspace_id, owner_id: profile.workspace_id.replace(/^WS-/, ""),
-      actor_id: auth.user.id, action: "payment_reminder_sent", outcome: "applied", source: "send-payment-reminder",
-      metadata: { to, invoiceNumber: invoiceNumber || null },
-    });
+    const { data: ownerRow } = await auth.admin.from("workspace_members").select("owner_id").eq("workspace_id", profile.workspace_id).eq("role", "admin").not("owner_id", "is", null).limit(1).maybeSingle();
+    if (ownerRow?.owner_id) await auth.admin.from("activity_logs").insert({ event_key: crypto.randomUUID(), workspace_id: profile.workspace_id, owner_id: ownerRow.owner_id, actor_id: auth.user.id, action: "payment_reminder_sent", outcome: "applied", source: "send-payment-reminder", metadata: { to, invoiceNumber: invoiceNumber || null } });
     return jsonResponse({ ok: true, emailSent: true, sentTo: to }, 200, origin);
   } catch (error) {
     console.error("send-payment-reminder failed", error instanceof Error ? error.message : "unknown error");
