@@ -15,6 +15,37 @@ import { parseAndValidateInviteCode } from "@/lib/workspace";
 import { clearSessionCache } from "@/lib/sessionCache";
 import { getPendingInviteCode, rememberPendingInviteCode, authPageLink } from "@/components/auth/workspaceInvite";
 
+// Uses Have I Been Pwned's k-anonymity API: only the first 5 characters of a SHA-1
+// password hash leave the browser; the plaintext password is never sent to this API.
+async function isPasswordCompromised(password) {
+  const bytes = new TextEncoder().encode(password);
+  const digest = await crypto.subtle.digest("SHA-1", bytes);
+  const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0"))
+    .join("")
+    .toUpperCase();
+  const prefix = hash.slice(0, 5);
+  const suffix = hash.slice(5);
+  const response = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+    headers: { "Add-Padding": "true" },
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Password security check is temporarily unavailable. Please try again.");
+  const matches = (await response.text()).split("\n");
+  return matches.some((line) => {
+    const [candidate, count] = line.trim().split(":");
+    return candidate?.toUpperCase() === suffix && Number(count) > 0;
+  });
+}
+
+function passwordRequirementError(password) {
+  if (password.length < 12) return "Use at least 12 characters for your password.";
+  if (!/[a-z]/.test(password)) return "Add at least one lowercase letter.";
+  if (!/[A-Z]/.test(password)) return "Add at least one uppercase letter.";
+  if (!/[0-9]/.test(password)) return "Add at least one number.";
+  if (!/[^A-Za-z0-9]/.test(password)) return "Add at least one symbol.";
+  return "";
+}
+
 export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -37,6 +68,11 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    const requirementError = passwordRequirementError(password);
+    if (requirementError) {
+      setError(requirementError);
+      return;
+    }
     if (password !== confirmPassword) {
       setError("Passwords do not match");
       return;
@@ -50,6 +86,12 @@ export default function Register() {
     }
     setLoading(true);
     try {
+      // Check known breached passwords before creating the account. This is a
+      // client-side safeguard; Supabase's native server-side setting still requires Pro+.
+      if (await isPasswordCompromised(password)) {
+        setError("This password appears in known data breaches. Choose a different password.");
+        return;
+      }
       // Remember the invite so it is applied automatically after the user confirms
       // their email and signs in (an invited member must never become a separate owner).
       rememberPendingInviteCode(code);
@@ -157,13 +199,15 @@ export default function Register() {
               id="password"
               type="password"
               autoComplete="new-password"
-              placeholder="••••••••"
+              placeholder="At least 12 characters"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="pl-10 h-12"
+              minLength={12}
               required
             />
           </div>
+          <p className="text-xs text-muted-foreground">Use 12+ characters with uppercase, lowercase, a number, and a symbol. Known breached passwords are rejected.</p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="confirm">Confirm Password</Label>
@@ -173,10 +217,11 @@ export default function Register() {
               id="confirm"
               type="password"
               autoComplete="new-password"
-              placeholder="••••••••"
+              placeholder="Re-enter your password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="pl-10 h-12"
+              minLength={12}
               required
             />
           </div>
