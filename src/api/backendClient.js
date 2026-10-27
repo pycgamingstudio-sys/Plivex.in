@@ -100,10 +100,17 @@ const NOT_READY = {};
 const functions = {
   async invoke(name, payload = {}) {
     if (NOT_READY[name]) throw new ApiError(NOT_READY[name], 501, { error: NOT_READY[name], operation: name });
-    // Client creation is served by the authenticated Supabase Edge Function,
-    // not the legacy Lovable API fallback.
-    if (kebab(String(name || "")) === "add-client") {
-      const { data, error } = await supabase.functions.invoke("add-client", { body: payload || {} });
+    // Migrated handlers run directly as Supabase Edge Functions. Unmigrated
+    // operations intentionally retain the legacy fallback until their contracts
+    // and runtime tests are complete.
+    const functionName = kebab(String(name || ""));
+    const migratedFunctions = new Set([
+      "add-client", "ensure-owner-role", "send-team-invite", "verify-invite-code",
+      "get-workspace-team", "manage-workspace-member", "ping-presence",
+      "track-staff-action", "get-team-presence", "get-access-status", "create-payu-order",
+    ]);
+    if (migratedFunctions.has(functionName)) {
+      const { data, error } = await supabase.functions.invoke(functionName, { body: payload || {} });
       if (error) {
         let message = error.message || "Could not add the client. Please try again.";
         try {
