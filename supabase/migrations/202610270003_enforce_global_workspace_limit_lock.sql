@@ -28,6 +28,7 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='WORKSPACE_REQUIRED';
   END IF;
 
+  PERFORM pg_advisory_xact_lock(hashtextextended(v_ws || ':plan-global', 0));
   v_plan := public.current_plan(v_ws);
   v_cycle := public.workspace_cycle_start(v_ws);
 
