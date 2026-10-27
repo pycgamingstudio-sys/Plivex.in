@@ -228,3 +228,13 @@ Additional branch-only source files now present:
 - GitHub combined status currently returns no check statuses for the latest commit; CI has not yet been confirmed as passing.
 - Deno checks, frontend build, membership tests, Edge Function deployment, authenticated E2E tests, PayU sandbox test, and invite-email delivery remain unverified.
 - Production DNS, deployment, and the current backend fallback remain untouched.
+
+
+## Email migration follow-up (2026-10-27)
+
+- Added `supabase/functions/_shared/email.ts`, a provider-neutral wrapper currently implemented with Resend's HTTPS API.
+- `send-team-invite` now attempts real invite delivery when the Edge Function secrets `RESEND_API_KEY` and `MAIL_FROM` are configured. If absent/provider fails, it safely returns a shareable invite code and records delivery as failed.
+- Added `supabase/functions/send-payment-reminder/index.ts` and routed `sendPaymentReminder` through Supabase. It checks the signed-in user's workspace and role (admin/manager/accountant), validates email/fields, escapes HTML, restricts optional invoice links to Plivex/Supabase HTTPS hosts, and reports a clear configuration error when mail secrets are absent.
+- The migration validation workflow now type-checks the shared email helper and reminder function.
+- Email is **source-migrated but not operationally verified** until a verified sender domain is configured with the provider, `RESEND_API_KEY` and `MAIL_FROM` are saved as Supabase Edge Function secrets, and an end-to-end test email is received. No secret values were committed.
+- No live Edge Functions or live schema were deployed/changed by this branch update.
