@@ -193,3 +193,38 @@ All listed files are on `h1/migration-inventory` and have been fetched back from
 - [Ping presence](../supabase/functions/ping-presence/index.ts)
 - [Get team presence](../supabase/functions/get-team-presence/index.ts)
 - [Staff tracking frontend adapter](../src/lib/staffTracking.js)
+
+
+## Larger H1 batch — business records and PayU (2026-10-27)
+
+Additional branch-only source files now present:
+
+- `supabase/functions/_shared/payu.ts` — PayU plan catalogue, SHA-512 request/reverse hash helpers, transaction IDs, safe paths and trusted return-origin checks.
+- `supabase/functions/create-payu-order/index.ts` — authenticated PayU order creation using current `subscriptions` columns and server-side plan prices.
+- `supabase/functions/verify-payu-payment/index.ts` — public PayU callback handler; verifies reverse hash, merchant key, amount, order status and single-activation update; logs verification results without storing the hash.
+- `supabase/functions/workspace-records/index.ts` — allowlisted workspace-scoped CRUD for clients, quotations, expenses, stock, services, leads and business profile; uses the caller's JWT so existing RLS policies enforce permissions.
+- `supabase/functions/list-invoices/index.ts` — workspace-scoped invoice + line-item reader.
+- `supabase/functions/save-invoice/index.ts` — calls the server-authoritative `save_invoice` RPC and reloads the saved invoice.
+- `supabase/functions/set-invoice-status/index.ts` — calls protected invoice RPCs for Paid/Pending/Cancelled state changes.
+- `supabase/migrations/202610270001_h1_invoice_rpcs.sql` — adds the missing invoice RPC definitions adapted to the live schema; it is not applied to the live database.
+- `src/api/backendClient.js` routes migrated team/presence/access/PayU/workspace-record/invoice operations to Supabase functions on this branch, leaving unported operations on the existing fallback.
+- `src/components/team/useWorkspacePresence.js` now reads the migrated presence endpoint and normalizes the UI's status/elapsed fields.
+- Migration CI workflow now triggers on `h1/migration-inventory` and includes Deno checks for the new Edge Functions.
+
+### Live schema findings from read-only Supabase inspection
+
+- Current tables contain the expected invoice/business-record columns and workspace RLS policies.
+- Current database does **not** currently expose `save_invoice`, `cancel_invoice`, `delete_draft_invoice`, or `revenue_summary`; only `next_invoice_number` and `apply_invoice_stock` were found among invoice-related functions. The new migration must be reviewed and applied before the invoice Edge Functions can work.
+- `get_access_status(p_workspace_id text)` is present and already returns Free-plan state without legacy trials.
+- Subscription tiers are `basic`, `pro`, `free`; payment outcomes are `applied`, `failed`, `tampered`; subscription statuses are `created`, `active`, `failed`, `tampered`.
+- Existing RLS policies for business tables are already workspace-scoped; generic record access uses the authenticated user's JWT rather than service-role bypass.
+- PayU deployment requires server-only Supabase secrets `PAYU_MERCHANT_KEY`, `PAYU_MERCHANT_SALT`, `PAYU_ENV`, and `APP_BASE_URL`. No secret values were copied from the uploaded archive or committed.
+- Email delivery still depends on the original Lovable Google Mail connector. The replacement invite function explicitly reports that email was not sent; Gmail/payment-reminder migration remains incomplete until a non-Lovable mail provider is configured.
+
+### Verification status
+
+- All newly added/updated source files were fetched back from GitHub on `h1/migration-inventory`.
+- Read-only schema inspection completed; no production schema or data changes were made.
+- GitHub combined status currently returns no check statuses for the latest commit; CI has not yet been confirmed as passing.
+- Deno checks, frontend build, membership tests, Edge Function deployment, authenticated E2E tests, PayU sandbox test, and invite-email delivery remain unverified.
+- Production DNS, deployment, and the current backend fallback remain untouched.
