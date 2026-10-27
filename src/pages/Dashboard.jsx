@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { LayoutDashboard, Receipt, ShoppingCart, BarChart3, Users, UsersRound, Package, Sparkles, Zap, LayoutGrid, X, RefreshCw, FileText, ScrollText, Lock } from "lucide-react";
 import DashboardTab from "@/components/dashboard/DashboardTab";
@@ -8,17 +8,17 @@ import ReportsTab from "@/components/dashboard/ReportsTab";
 import CrmTab from "@/components/dashboard/CrmTab";
 import StockTab from "@/components/dashboard/StockTab";
 import TeamManagement from "@/pages/TeamManagement";
-import ChatWidget from "@/components/dashboard/ChatWidget";
-import AssistantWidget from "@/components/AssistantWidget";
+const ChatWidget = lazy(() => import("@/components/dashboard/ChatWidget"));
+const AssistantWidget = lazy(() => import("@/components/AssistantWidget"));
 import ReconciliationTab from "@/components/dashboard/ReconciliationTab";
-import WelcomePopup from "@/components/WelcomePopup";
+const WelcomePopup = lazy(() => import("@/components/WelcomePopup"));
 import { seedDashboard } from "@/lib/dashboardData";
 import { navItems, HIDDEN_FROM_SIDEBAR } from "@/lib/nav";
 import { usePaywall } from "@/lib/paywall";
 import { useAuth } from "@/lib/AuthContext";
 import { useRole, canAccessTab } from "@/lib/roles";
 import AccountProfileModal from "@/components/AccountProfileModal";
-import PresenceBeacon from "@/components/PresenceBeacon";
+const PresenceBeacon = lazy(() => import("@/components/PresenceBeacon"));
 import { processDueReminders } from "@/lib/reminders";
 
 const TABS = [
@@ -146,10 +146,12 @@ export default function Dashboard({ initialTab }) {
       </nav>
 
       {accountOpen && <AccountProfileModal onClose={() => setAccountOpen(false)} />}
-      <PresenceBeacon />
-      <WelcomePopup />
-      <ChatWidget />
-      <AssistantWidget />
+      <Suspense fallback={null}>
+        <PresenceBeacon />
+        <WelcomePopup />
+        <ChatWidget />
+        <AssistantWidget />
+      </Suspense>
 
       {moreOpen && (
         <div className="fixed inset-0 z-50 flex items-end bg-black/40 sm:items-center sm:justify-center" onClick={() => setMoreOpen(false)}>
