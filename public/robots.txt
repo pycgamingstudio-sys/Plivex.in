@@ -1,3 +1,5 @@
+Agentmap: https://plivex.in/.well-known/ard.json
+
 # Public website pages can be crawled. Private app routes are excluded.
 User-agent: *
 Allow: /
