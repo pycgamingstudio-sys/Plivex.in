@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import Dashboard from "@/pages/Dashboard";
-import GuestDashboard from "@/pages/GuestDashboard";
+import { lazy } from "react";
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const GuestDashboard = lazy(() => import("@/pages/GuestDashboard"));
 import TrialGate from "@/components/TrialGate";
 
 // Public landing gate: guests land on the demo dashboard without any account;

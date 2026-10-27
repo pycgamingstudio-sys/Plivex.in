@@ -1,46 +1,47 @@
 import { Toaster } from "@/components/ui/toaster"
 import { useToast } from "@/components/ui/use-toast"
-import { useEffect } from "react"
+import { lazy, Suspense, useEffect } from "react"
 import LanguagePrompt from "@/components/LanguagePrompt"
 import { startTranslator } from "@/lib/i18n"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
-import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import RoleGuard from '@/components/RoleGuard';
 import { PaywallProvider, usePaywall } from '@/lib/paywall';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-// Add page imports here
-import Home from './pages/Home';
 import AppLayout from './components/AppLayout';
-import InvoiceHistory from './pages/InvoiceHistory';
-import BusinessProfile from './pages/BusinessProfile';
-import ClientDatabase from './pages/ClientDatabase';
-import UsageReports from './pages/UsageReports';
-import Settings from './pages/Settings';
-import QuickTemplates from './pages/QuickTemplates';
-import PaymentLogs from './pages/PaymentLogs';
-import TaxSummary from './pages/TaxSummary';
-import HelpCenter from './pages/HelpCenter';
-import AccountActivity from './pages/AccountActivity';
-import ServiceCatalog from './pages/ServiceCatalog';
-import TeamManagement from './pages/TeamManagement';
-import HomeGate from './components/HomeGate';
 import WorkspaceTeamProvider from '@/components/team/WorkspaceTeamProvider';
-import GuestDashboard from './pages/GuestDashboard';
 import TrialGate from './components/TrialGate';
-import ContactUs from './pages/ContactUs';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import TermsOfService from './pages/TermsOfService';
-import CancellationRefund from './pages/CancellationRefund';
-import { AboutPage, FeaturesPage, PricingPage } from './pages/PublicInfoPages';
+// Route-level lazy loading keeps the initial mobile bundle small.
+const PageNotFound = lazy(() => import("./lib/PageNotFound"));
+const UserNotRegisteredError = lazy(() => import("@/components/UserNotRegisteredError"));
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Home = lazy(() => import("./pages/Home"));
+const InvoiceHistory = lazy(() => import("./pages/InvoiceHistory"));
+const BusinessProfile = lazy(() => import("./pages/BusinessProfile"));
+const ClientDatabase = lazy(() => import("./pages/ClientDatabase"));
+const UsageReports = lazy(() => import("./pages/UsageReports"));
+const Settings = lazy(() => import("./pages/Settings"));
+const QuickTemplates = lazy(() => import("./pages/QuickTemplates"));
+const PaymentLogs = lazy(() => import("./pages/PaymentLogs"));
+const TaxSummary = lazy(() => import("./pages/TaxSummary"));
+const HelpCenter = lazy(() => import("./pages/HelpCenter"));
+const AccountActivity = lazy(() => import("./pages/AccountActivity"));
+const ServiceCatalog = lazy(() => import("./pages/ServiceCatalog"));
+const TeamManagement = lazy(() => import("./pages/TeamManagement"));
+const ContactUs = lazy(() => import("./pages/ContactUs"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const CancellationRefund = lazy(() => import("./pages/CancellationRefund"));
+const HomeGate = lazy(() => import("./components/HomeGate"));
+const AboutPage = lazy(() => import("./pages/PublicInfoPages").then((module) => ({ default: module.AboutPage })));
+const FeaturesPage = lazy(() => import("./pages/PublicInfoPages").then((module) => ({ default: module.FeaturesPage })));
+const PricingPage = lazy(() => import("./pages/PublicInfoPages").then((module) => ({ default: module.PricingPage })));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -154,7 +155,7 @@ function App() {
           <WorkspaceTeamProvider>
             <Router>
               <ScrollToTop />
-              <AuthenticatedApp />
+              <Suspense fallback={<div className="fixed inset-0 flex items-center justify-center bg-background"><div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-800" role="status" aria-label="Loading page" /></div>}><AuthenticatedApp /></Suspense>
             </Router>
           </WorkspaceTeamProvider>
           <Toaster />
