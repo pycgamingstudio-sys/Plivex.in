@@ -1,4 +1,5 @@
 import { authenticate, corsHeaders, getAdminScope, isAllowedOrigin, jsonResponse } from "../_shared/team.ts";
+import { escapeEmailHtml, sendEmail } from "../_shared/email.ts";
 
 const STAFF_ROLES = ["manager", "employee", "storekeeper", "accountant"] as const;
 const PREFIX: Record<string, string> = { manager: "MNG", employee: "S", storekeeper: "SHOP", accountant: "A" };
@@ -52,16 +53,22 @@ Deno.serve(async (req: Request) => {
     }
     if (!created) return jsonResponse({ error: "Could not create invite code" }, 500, origin);
 
-    // The recovered original sender depends on Lovable's connector gateway.
-    // Do not call that gateway from the replacement function; return a shareable code until mail is migrated.
+    const workspaceName = (typeof body.workspaceName === "string" && body.workspaceName.trim()) || "your team";
+    const inviteUrl = `https://plivex.in/register?invite_token=${encodeURIComponent(code)}`;
+    const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#171717"><div style="max-width:560px;margin:auto;padding:24px"><h2>You're invited to ${escapeEmailHtml(workspaceName)}</h2><p>Hi ${escapeEmailHtml(name || "there")},</p><p>You've been invited to join <b>${escapeEmailHtml(workspaceName)}</b> as <b>${escapeEmailHtml(role)}</b>.</p><p><a href="${inviteUrl}" style="display:inline-block;background:#6D28D9;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none">Accept invite</a></p><p>Invite code: <b>${escapeEmailHtml(code)}</b></p></div></body></html>`;
+    let emailSent = false;
+    try { emailSent = (await sendEmail({ to, subject: `You're invited to ${workspaceName}`, html })).sent; }
+    catch (error) { console.error("invite email send failed", error instanceof Error ? error.message : "unknown error"); }
+    await auth.admin.from("workspace_members").update({ invite_delivery: emailSent ? "sent" : "failed", updated_at: new Date().toISOString() })
+      .eq("id", membershipId).eq("workspace_id", scope.workspaceId).eq("owner_id", scope.ownerId);
     const { error: logError } = await auth.admin.from("activity_logs").insert({
       event_key: crypto.randomUUID(), workspace_id: scope.workspaceId, owner_id: scope.ownerId, member_id: membershipId,
-      actor_id: auth.user.id, action: "invite_sent", outcome: "applied", source: "send-team-invite",
-      metadata: { to, role, membershipId, workspaceName: typeof body.workspaceName === "string" ? body.workspaceName : null, emailSent: false },
+      actor_id: auth.user.id, action: "invite_sent", outcome: emailSent ? "applied" : "failed", source: "send-team-invite",
+      metadata: { to, role, membershipId, workspaceName, emailSent },
     });
     if (logError) console.error("invite activity log failed", { code: logError.code });
-    return jsonResponse({ ok: true, sentTo: to, code, membershipId, emailSent: false,
-      warning: "Email delivery is not configured yet. Share this invite code with the member manually." }, 200, origin);
+    return jsonResponse({ ok: true, sentTo: to, code, membershipId, emailSent,
+      ...(emailSent ? {} : { warning: "Email delivery is not configured or failed. Share this invite code with the member manually." }) }, 200, origin);
   } catch (error) {
     console.error("send-team-invite failed", error);
     return jsonResponse({ error: "Something went wrong while creating the invite." }, 500, origin);
