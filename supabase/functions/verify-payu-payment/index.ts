@@ -86,8 +86,12 @@ Deno.serve(async (req: Request) => {
       const { error: logError } = await admin.from("payment_logs").insert({ ...baseLog, amount: Math.round(paid * 100),
         status: "success", outcome: "applied", hash_verified: true, reason: null, message: "Payment verified", source: "verify-payu-payment" });
       if (logError) console.error("verify-payu-payment log failed", { code: logError.code, txnid });
+      return redirect(origin, path, { payment: "success", txnid });
     }
-    return redirect(origin, path, { payment: "success", txnid });
+    // A concurrent callback may have won the conditional update. Only report
+    // success if the persisted order is actually active.
+    const { data: latest } = await admin.from("subscriptions").select("status").eq("id", order.id).maybeSingle();
+    return redirect(origin, path, { payment: latest?.status === "active" ? "success" : "failed", txnid });
   } catch (error) {
     console.error("verify-payu-payment failed", error);
     return new Response("Payment verification unavailable", { status: 503, headers: { "Cache-Control": "no-store" } });
