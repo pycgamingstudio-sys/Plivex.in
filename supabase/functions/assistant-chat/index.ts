@@ -165,14 +165,13 @@ async function handleRequest(req: Request) {
       "CRITICAL ACTION RULE: If the latest user message clearly asks to add/create/save a client and provides a client name, return action.type=create_client and put the provided fields in action.payload (name, company, phone, email, address, gstin). Do not merely write that a Confirm button is below; the frontend can only show the button when action.type is create_client and payload is valid. For other supported record creation requests, return the matching action type. The frontend will show a confirmation button, and the server validates permissions when the user confirms. The payload must contain only details explicitly provided or unambiguously inferred; never invent phone numbers, prices, quantities, dates or amounts.",
       "LIVE DATA JSON: " + JSON.stringify(liveContext),
     ].join("\n");
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent", {
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: systemInstruction }] },
         contents: messages,
         generationConfig: {
-          temperature: 0.2,
           maxOutputTokens: 800,
           responseMimeType: "application/json",
           responseSchema: {
