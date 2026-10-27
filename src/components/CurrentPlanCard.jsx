@@ -1,10 +1,10 @@
 import { BadgeCheck, CalendarDays, Check } from "lucide-react";
 
-function formatDate(value) {
-  if (!value) return "—";
+function formatDate(value, fallbackLabel) {
+  if (!value) return fallbackLabel;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  if (Number.isNaN(date.getTime())) return fallbackLabel;
+  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
 }
 
 // Shown on pricing surfaces for the current plan, dates, and included benefits.
@@ -17,8 +17,8 @@ export default function CurrentPlanCard({ planName, benefits = [], startedAt, ex
       </div>
       <p className="mt-2 text-[18px] font-bold tracking-[-0.03em] text-foreground">{planName}</p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-[11px]"><CalendarDays className="h-3.5 w-3.5 text-primary" /><span className="text-muted-foreground">Started</span><span className="ml-auto font-semibold text-foreground">{formatDate(startedAt)}</span></div>
-        <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-[11px]"><CalendarDays className="h-3.5 w-3.5 text-primary" /><span className="text-muted-foreground">Expires</span><span className="ml-auto font-semibold text-foreground">{formatDate(expiresAt)}</span></div>
+        <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-[11px]"><CalendarDays className="h-3.5 w-3.5 text-primary" /><span className="text-muted-foreground">Started</span><span className="ml-auto font-semibold text-foreground">{formatDate(startedAt, "Date unavailable")}</span></div>
+        <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-[11px]"><CalendarDays className="h-3.5 w-3.5 text-primary" /><span className="text-muted-foreground">{String(planName || "").toLowerCase() === "free" ? "Plan validity" : "Expires"}</span><span className="ml-auto font-semibold text-foreground">{String(planName || "").toLowerCase() === "free" ? "No expiry" : formatDate(expiresAt, "Pending")}</span></div>
       </div>
       {benefits.length > 0 && (
         <div className="mt-3 space-y-1.5">
