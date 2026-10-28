@@ -14,9 +14,11 @@ Deno.serve(async (req: Request) => {
       .select("id,email,role,workspace_id").eq("id", auth.user.id).maybeSingle();
     if (profileError) return jsonResponse({ error: "Could not load profile" }, 500, origin);
 
-    // Existing staff roles are never promoted, even when reset is requested.
-    if (profile && profile.role !== "admin") return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
-    if (profile?.workspace_id && !reset) return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
+    // This endpoint must never bootstrap an arbitrary signed-in user into admin.
+    // Only an already-provisioned admin profile may initialize/repair its own workspace.
+    if (!profile) return jsonResponse({ error: "Owner account is not provisioned. Contact Plivex support." }, 403, origin);
+    if (profile.role !== "admin") return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
+    if (profile.workspace_id && !reset) return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
 
     const { data: invite, error: inviteError } = await auth.admin.from("invite_codes").select("id").eq("used_by", auth.user.id).limit(1);
     if (inviteError) return jsonResponse({ error: "Could not check invite history" }, 500, origin);
