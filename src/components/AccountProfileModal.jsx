@@ -57,13 +57,13 @@ export default function AccountProfileModal({ onClose }) {
   const initial = (user?.full_name || user?.email || "U").charAt(0).toUpperCase();
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-[420px] overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between bg-gradient-to-br from-[#6D28D9] to-[#7C3AED] px-5 py-4 text-white">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/50 px-3 py-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+      <div className="my-auto max-h-[calc(100dvh-1rem)] w-full max-w-[420px] overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-[#E5E7EB] bg-white shadow-xl sm:max-h-[calc(100dvh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 z-10 flex items-center justify-between bg-gradient-to-br from-[#6D28D9] to-[#7C3AED] px-4 py-3 text-white sm:px-5 sm:py-4">
           <h3 className="text-[15px] font-bold">Account profile</h3>
           <button onClick={onClose} className="rounded-lg p-2 hover:bg-white/10" aria-label="Close"><X className="h-4 w-4" /></button>
         </div>
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
           <div className="flex items-center gap-4">
             <div className="relative">
               {avatar ? <img src={avatar} alt="avatar" className="h-16 w-16 rounded-full object-cover" /> : <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#6D28D9] text-[20px] font-bold text-white">{initial}</div>}
