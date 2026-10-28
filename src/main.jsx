@@ -32,10 +32,11 @@ window.addEventListener('vite:preloadError', (event) => {
 })
 
 class AppErrorBoundary extends React.Component {
-  state = { hasError: false }
+  state = { hasError: false, errorMessage: '' }
 
-  static getDerivedStateFromError() {
-    return { hasError: true }
+  static getDerivedStateFromError(error) {
+    const message = String(error?.message || 'Unknown application error').replace(/https?:\/\/\S+/g, '[url]').slice(0, 180)
+    return { hasError: true, errorMessage: message }
   }
 
   componentDidCatch(error, info) {
@@ -92,6 +93,9 @@ class AppErrorBoundary extends React.Component {
             </h1>
             <p style={{ margin: '0 0 20px', color: '#6B7280', lineHeight: 1.6 }}>
               Your data has not been changed by this screen. Reload Plivex to try opening the page again.
+            </p>
+            <p style={{ margin: '0 0 16px', color: '#6B7280', fontSize: '12px', overflowWrap: 'anywhere' }}>
+              Error details: {this.state.errorMessage || 'No details available'}
             </p>
             <button
               type="button"
