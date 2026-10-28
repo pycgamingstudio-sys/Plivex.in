@@ -165,7 +165,7 @@ async function handleRequest(req: Request) {
       "CRITICAL ACTION RULE: If the latest user message clearly asks to add/create/save a client and provides a client name, return action.type=create_client and put the provided fields in action.payload (name, company, phone, email, address, gstin). Do not merely write that a Confirm button is below; the frontend can only show the button when action.type is create_client and payload is valid. For other supported record creation requests, return the matching action type. The frontend will show a confirmation button, and the server validates permissions when the user confirms. The payload must contain only details explicitly provided or unambiguously inferred; never invent phone numbers, prices, quantities, dates or amounts.",
       "LIVE DATA JSON: " + JSON.stringify(liveContext),
     ].join("\n");
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent", {
+    const requestOptions = {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
       body: JSON.stringify({
@@ -201,8 +201,31 @@ async function handleRequest(req: Request) {
           },
         },
       }),
-    });
-    const result = await response.json();
+    };
+    let response: Response | undefined;
+    let result: any;
+    const models = ["gemini-3.8-flash", "gemini-3.6-flash"];
+    for (const model of models) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, requestOptions);
+        } catch (networkError) {
+          console.error("Gemini network attempt failed", { model, attempt: attempt + 1 });
+          if (attempt === 1 && model === models[models.length - 1]) throw networkError;
+          await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+          continue;
+        }
+        if (response.ok) break;
+        const retryable = [429, 500, 502, 503, 504].includes(response.status);
+        console.error("Gemini model attempt failed", { model, attempt: attempt + 1, status: response.status });
+        if (!retryable || (attempt === 1 && model === models[models.length - 1])) break;
+        await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+      }
+      if (response?.ok) break;
+      if (response && ![429, 500, 502, 503, 504].includes(response.status)) break;
+    }
+    if (!response) return json({ error: "AI provider could not be reached. Please try again shortly." }, 502);
+    result = await response.json();
     if (!response.ok) {
       console.error("Gemini API error", response.status, result?.error?.message || "unknown");
       return json({ error: response.status === 429 ? "AI usage limit reached. Please try again shortly." : "Gemini could not answer right now. Please try again." }, response.status === 429 ? 429 : 502);
