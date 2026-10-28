@@ -57,7 +57,7 @@ export default function Dashboard({ initialTab }) {
   const teamUnlocked = canAccess("team_management");
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="plivex-dashboard min-h-screen bg-slate-50 text-slate-900">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col overflow-y-auto border-r border-[#E5E7EB] bg-white md:flex">
         <div className="flex items-center gap-2.5 px-5 py-6">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#6D28D9] text-[14px] font-bold text-white">P</div>
@@ -127,7 +127,7 @@ export default function Dashboard({ initialTab }) {
             </div>
           </div>
         </header>
-        <main className="p-4 pb-24 sm:p-6 md:pb-6">
+        <main className="plivex-dashboard-main p-4 pb-24 sm:p-6 md:pb-6">
           {tab === "dashboard" && <DashboardTab onNavigate={go} onCreateInvoice={createInvoice} role={role} teamUnlocked={canAccess("team_management")} />}
           {tab === "sales" && <SalesTab intent={intent} onConsumeIntent={consume} />}
           {tab === "purchase" && <PurchaseTab intent={intent} onConsumeIntent={consume} />}
@@ -139,7 +139,7 @@ export default function Dashboard({ initialTab }) {
         </main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 flex overflow-x-auto border-t border-[#E5E7EB] bg-white md:hidden">
+      <nav className="plivex-bottom-nav fixed inset-x-0 bottom-0 z-30 flex overflow-x-auto border-t border-[#E5E7EB] bg-white md:hidden">
         {visibleTabs.map((t) => (
           <button key={t.id} onClick={() => go(t.id)} className={`flex shrink-0 min-w-[68px] flex-col items-center gap-1 px-2 py-2.5 text-[10px] font-semibold transition-colors ${tab === t.id ? "text-[#6D28D9]" : "text-slate-400"}`}><t.icon className="h-5 w-5" />{t.label}{t.id === "team" && !teamUnlocked && <span className="rounded bg-amber-100 px-1 text-[8px] font-extrabold text-amber-800">PRO</span>}</button>
         ))}
