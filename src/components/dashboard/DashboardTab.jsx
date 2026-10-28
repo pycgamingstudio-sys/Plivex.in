@@ -54,9 +54,9 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
   const visibleCards = isAdmin ? cards : cards.filter((c) => roleCards.includes(c.id) && vis[c.id] !== false);
 
   return (
-    <div className="space-y-6">
+    <div className="plivex-dashboard-tab space-y-5 sm:space-y-6">
       <PlanStatusCard />
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Plan usage">
+      <section className="plivex-usage-grid grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4" aria-label="Plan usage">
         {quotaCards.map((item) => {
           const hasLimit = Number.isFinite(Number(item.limit)) && item.limit !== null && item.limit !== undefined;
           const limit = hasLimit ? Number(item.limit) : null;
@@ -82,12 +82,12 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
       {isAdmin && <OwnerMasterControl />}
       {isAdmin && <OwnerTrackingWidgets />}
 
-      <div className="flex items-center justify-between">
+      <div className="plivex-quick-actions-heading flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-[15px] font-bold text-slate-900">Quick actions</h2>
         {isAdmin && <button onClick={() => setVisOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] px-3 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"><Settings2 className="h-3.5 w-3.5" />Manage card visibility</button>}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="plivex-action-cards grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
         {visibleCards.map((c) => (
           <div key={c.id} className="flex flex-col overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm transition-transform hover:-translate-y-0.5">
             <div className={`relative flex h-28 items-center justify-center ${c.gradient}`}>
