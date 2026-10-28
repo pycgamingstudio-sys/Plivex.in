@@ -126,6 +126,12 @@ Deno.serve(async (req: Request) => {
 
     if (error) {
       console.error("Assistant confirmation rejected", { table, code: error.code, userId: user.id });
+      const message = String(error.message || "");
+      // Keep structured quota/feature errors intact so the client can open the
+      // upgrade lock instead of hiding the real plan-enforcement decision.
+      if (message.startsWith("PLAN_LIMIT_REACHED|") || message.startsWith("PLAN_FEATURE_LOCKED|")) {
+        return json({ error: message }, 409, origin);
+      }
       return json({ error: error.code === "42501" ? "Your Plivex role does not have permission to add this record." : "Could not add the record. Check required fields and workspace permissions." }, error.code === "42501" ? 403 : 400, origin);
     }
 
