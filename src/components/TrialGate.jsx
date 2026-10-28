@@ -22,7 +22,7 @@ export default function TrialGate({ children }) {
           </div>
           <h1 className="mt-4 text-xl font-bold text-slate-900">Upgrade required to continue</h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Your workspace is over the {planName || "current"} plan limits. Your saved records are safe, but Plivex is locked until you upgrade or return within the plan limits.
+            Your workspace is over the {planName || "current"} plan limits. Your saved records are safe, but Plivex is locked until you upgrade.
           </p>
           <button
             type="button"
