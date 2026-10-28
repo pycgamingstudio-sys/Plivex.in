@@ -150,7 +150,7 @@ export function PaywallProvider({ children }) {
       setBlockReason(reason);
       setBlocked(true);
       setShowPaywall(true);
-    } else if (blockReason.startsWith("Your plan limit has been exceeded:")) {
+    } else if (safeBlockReason.startsWith("Your plan limit has been exceeded:")) {
       setBlockReason("");
       setBlocked(false);
       setShowPaywall(false);
@@ -260,6 +260,8 @@ const PLANS = [
 function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   const [notice, setNotice] = useState("");
   const [billing, setBilling] = useState("monthly");
+  // Callers may accidentally pass an Error/object as the reason; never call string methods on it.
+  const safeBlockReason = typeof blockReason === "string" ? blockReason : String(blockReason?.message || blockReason?.error || "");
   const activePlan = currentPlan?.planId ? PLANS.find((plan) => plan.id === currentPlan.planId) : null;
   const visiblePlans = [
     { id: "free", name: "Free", price: 0, period: billing === "monthly" ? "month" : "year", included: DISPLAY_PLANS.free.bullets, locked: [], accent: false, badge: null, checkoutPlan: null },
@@ -280,7 +282,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
           {!blocked && <button onClick={onClose} className="absolute right-3 top-3 rounded-lg p-2 text-white/80 hover:bg-white/10" aria-label="Close"><X className="h-4 w-4" /></button>}
           <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /><span className="text-[10px] font-bold uppercase tracking-[0.18em]">Plivex Premium</span></div>
           <h3 className="mt-3 text-[22px] font-bold leading-tight">{blocked ? "Upgrade required" : "Choose your plan"}</h3>
-          <p className="mt-1.5 text-[12px] leading-relaxed text-white/85">{blocked ? "This action is not available on your " + (currentPlan?.planName || "Free") + " plan. " + blockReason : "Choose the plan that fits your business. Free plan, no card needed."}</p>
+          <p className="mt-1.5 text-[12px] leading-relaxed text-white/85">{blocked ? "This action is not available on your " + (currentPlan?.planName || "Free") + " plan. " + safeBlockReason : "Choose the plan that fits your business. Free plan, no card needed."}</p>
           <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold">Free plan available · No card needed</div>
         </div>
 
@@ -317,7 +319,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
 
         <div className="border-t border-[#E5E7EB] px-6 py-4">
           {blocked ? (
-            blockReason.startsWith("Your plan limit has been exceeded:") ? (
+            safeBlockReason.startsWith("Your plan limit has been exceeded:") ? (
               <p className="text-center text-[12px] font-semibold text-amber-700">Upgrade your plan to unlock Plivex again.</p>
             ) : (
               <button onClick={onClose} className="w-full text-center text-[12px] font-medium text-slate-400 hover:text-slate-600">Close</button>
