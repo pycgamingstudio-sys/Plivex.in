@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/create-desktop-png.yml'
       - 'public/favicon.png'
+      - 'index.html'
   workflow_dispatch:
 
 permissions:
@@ -21,7 +22,7 @@ jobs:
       - name: Create exact 96x96 PNG from the existing Plivex favicon
         run: |
           test -s public/favicon.png
-          convert public/favicon.png -resize 96x96\! PNG32:public/favicon-96.png
+          convert public/favicon.png -resize 96x96\\! PNG32:public/favicon-96.png
           identify public/favicon-96.png | grep -E 'PNG .*96x96'
 
       - name: Declare desktop PNG favicon
@@ -34,12 +35,12 @@ jobs:
           if tag not in s:
               anchor = '    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />'
               if anchor in s:
-                  s = s.replace(anchor, anchor + "\n" + tag, 1)
+                  s = s.replace(anchor, anchor + "\\n" + tag, 1)
               else:
                   anchor = '    <link rel="icon" href="/favicon.ico" sizes="any" />'
                   if anchor not in s:
                       raise SystemExit("Could not find the existing ICO favicon declaration.")
-                  s = s.replace(anchor, anchor + "\n" + tag, 1)
+                  s = s.replace(anchor, anchor + "\\n" + tag, 1)
           p.write_text(s)
           PY
 
