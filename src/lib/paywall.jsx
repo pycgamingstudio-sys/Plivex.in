@@ -276,17 +276,17 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-[#1f1c35]/60 p-4 backdrop-blur-md sm:items-center">
-      <div className="my-4 w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-white shadow-2xl">
-        <div className="relative bg-gradient-to-br from-[#6D28D9] to-[#4c1d95] p-6 text-white">
-          {!blocked && <button onClick={onClose} className="absolute right-3 top-3 rounded-lg p-2 text-white/80 hover:bg-white/10" aria-label="Close"><X className="h-4 w-4" /></button>}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[#1f1c35]/60 p-2 backdrop-blur-md sm:p-4">
+      <div role="dialog" aria-modal="true" aria-labelledby="paywall-title" className="flex max-h-[calc(100dvh-1rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl">
+        <div className="relative shrink-0 bg-gradient-to-br from-[#6D28D9] to-[#4c1d95] px-4 py-4 pr-14 text-white sm:p-6">
+          {!blocked && <button onClick={onClose} className="absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 text-white hover:bg-white/25" aria-label="Close pricing" title="Close pricing"><X className="h-5 w-5" /></button>}
           <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /><span className="text-[10px] font-bold uppercase tracking-[0.18em]">Plivex Premium</span></div>
-          <h3 className="mt-3 text-[22px] font-bold leading-tight">{blocked ? "Upgrade required" : "Choose your plan"}</h3>
+          <h3 id="paywall-title" className="mt-2 text-[20px] font-bold leading-tight sm:mt-3 sm:text-[22px]">{blocked ? "Upgrade required" : "Choose your plan"}</h3>
           <p className="mt-1.5 text-[12px] leading-relaxed text-white/85">{blocked ? "This action is not available on your " + (currentPlan?.planName || "Free") + " plan. " + safeBlockReason : "Choose the plan that fits your business. Free plan, no card needed."}</p>
           <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold">Free plan available · No card needed</div>
         </div>
 
-        <div className="max-h-[64vh] overflow-y-auto px-4 py-5 sm:px-6">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-6 sm:py-5">
           {currentPlan?.active && (
             <CurrentPlanCard planName={currentPlan.planName} benefits={activePlan?.included || []} startedAt={currentPlan.startedAt} expiresAt={currentPlan.expiresAt} />
           )}
@@ -317,15 +317,15 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
           )}
         </div>
 
-        <div className="border-t border-[#E5E7EB] px-6 py-4">
+        <div className="shrink-0 border-t border-[#E5E7EB] bg-white px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-4">
           {blocked ? (
             safeBlockReason.startsWith("Your plan limit has been exceeded:") ? (
               <p className="text-center text-[12px] font-semibold text-amber-700">Upgrade your plan to unlock Plivex again.</p>
             ) : (
-              <button onClick={onClose} className="w-full text-center text-[12px] font-medium text-slate-400 hover:text-slate-600">Close</button>
+              <button onClick={onClose} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-100 text-[13px] font-bold text-slate-700 hover:bg-slate-200"><X className="h-4 w-4" />Close pricing</button>
             )
           ) : (
-            <button onClick={onClose} className="w-full text-center text-[12px] font-medium text-slate-400 hover:text-slate-600">Maybe later</button>
+            <button onClick={onClose} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#E5E7EB] bg-white text-[13px] font-bold text-slate-600 hover:bg-slate-50"><X className="h-4 w-4" />Close pricing · Maybe later</button>
           )}
         </div>
       </div>
