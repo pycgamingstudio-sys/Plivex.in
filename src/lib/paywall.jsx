@@ -2,9 +2,7 @@ import { backend as db, supabase } from '@/api/backendClient';
 
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { X, Check, Sparkles, Lock, Crown, Star, XCircle } from "lucide-react";
-import { useAuth } from "@/lib/AuthContext";
 
-import { startPayuCheckout } from "@/lib/payu";
 import CurrentPlanCard from "@/components/CurrentPlanCard";
 import { toast } from "@/components/ui/use-toast";
 import { PLANS as DISPLAY_PLANS } from "@/lib/plans";
@@ -240,8 +238,6 @@ const PLANS = [
 ];
 
 function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
-  const { user } = useAuth();
-  const [processing, setProcessing] = useState(null);
   const [notice, setNotice] = useState("");
   const [billing, setBilling] = useState("monthly");
   const activePlan = currentPlan?.planId ? PLANS.find((plan) => plan.id === currentPlan.planId) : null;
@@ -251,13 +247,10 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
     { id: "pro", name: "Pro", price: billing === "monthly" ? DISPLAY_PLANS.pro.monthly : DISPLAY_PLANS.pro.yearly, period: billing === "monthly" ? "month" : "year", included: DISPLAY_PLANS.pro.bullets, locked: [], accent: true, badge: "MOST POPULAR", checkoutPlan: PLANS.find((p) => p.id === (billing === "monthly" ? "pro_monthly" : "enterprise_yearly")) },
   ];
 
-  const checkout = async (plan) => {
-    setProcessing(plan.id);
-    setNotice("");
-    // PayU opens its hosted page with a real browser redirect, so the flow finishes
-    // on return — premium is then read from the verified backend record.
-    await startPayuCheckout({ planId: plan.id, phone: user?.phone, onError: (m) => setNotice(m) });
-    setProcessing(null);
+  const checkout = (plan) => {
+    // Temporarily keep purchase clicks inside Plivex until live payment credentials
+    // are configured. This does not change the user's current subscription or plan access.
+    setNotice("Plivex ki paid subscription payment facility abhi temporary setup mein hai. Live payment gateway API activate hote hi yahan se payment shuru ho jayegi. Filhaal aap Plivex ko free use kar sakte hain. Aapka Basic/Pro plan status aur existing access is message se change nahi hota.");
   };
 
   return (
@@ -286,11 +279,20 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
                 <div className="flex items-center gap-2"><p className="text-[13px] font-bold text-slate-900">{plan.name}</p></div>
                 <p className="mt-2 text-[26px] font-bold leading-none text-slate-900">₹{plan.price}<span className="text-[12px] font-medium text-slate-400">/{plan.period}</span></p>
                 <div className="mt-3 flex-1 space-y-1.5">{plan.included.map((item) => <div key={item} className="flex items-start gap-2 text-[11px] font-medium text-slate-700"><span className="mt-0.5 text-emerald-600">✓</span>{item}</div>)}</div>
-                {plan.checkoutPlan ? <button onClick={() => checkout(plan.checkoutPlan)} disabled={processing === plan.checkoutPlan.id} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9]"}`}>{processing === plan.checkoutPlan.id ? "Opening checkout…" : `Choose ${plan.name} · ₹${plan.price}/${plan.period}`}</button> : <button onClick={onClose} className="mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-[12px] font-bold text-slate-600">{currentPlan?.plan === "free" ? "Current plan" : "Use Free plan"}</button>}
+                {plan.checkoutPlan ? <button onClick={() => checkout(plan.checkoutPlan)} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9]"}`}>{`Buy ${plan.name} · ₹${plan.price}/${plan.period}`}</button> : <button onClick={onClose} className="mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-[12px] font-bold text-slate-600">{currentPlan?.plan === "free" ? "Current plan" : "Use Free plan"}</button>}
               </div>
             ))}
           </div>
-          {notice && <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-center text-[11px] font-semibold text-amber-700">{notice}</p>}
+          {notice && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="payment-notice-title">
+              <div className="w-full max-w-sm rounded-2xl border border-violet-100 bg-white p-5 text-center shadow-2xl">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 text-[#6D28D9]"><Sparkles className="h-6 w-6" /></div>
+                <h4 id="payment-notice-title" className="mt-3 text-lg font-bold text-slate-900">Payment facility coming soon</h4>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{notice}</p>
+                <button onClick={() => setNotice("")} className="mt-4 w-full rounded-xl bg-[#6D28D9] px-4 py-3 text-sm font-bold text-white">Theek hai, free use karein</button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="border-t border-[#E5E7EB] px-6 py-4">
