@@ -1,0 +1,56 @@
+name: Generate Plivex 96px desktop PNG favicon
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/create-desktop-png.yml'
+      - 'public/favicon.png'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-desktop-png:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Create exact 96x96 PNG from the existing Plivex favicon
+        run: |
+          test -s public/favicon.png
+          convert public/favicon.png -resize 96x96\! PNG32:public/favicon-96.png
+          identify public/favicon-96.png | grep -E 'PNG .*96x96'
+
+      - name: Declare desktop PNG favicon
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("index.html")
+          s = p.read_text()
+          tag = '    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png" />'
+          if tag not in s:
+              anchor = '    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />'
+              if anchor in s:
+                  s = s.replace(anchor, anchor + "\n" + tag, 1)
+              else:
+                  anchor = '    <link rel="icon" href="/favicon.ico" sizes="any" />'
+                  if anchor not in s:
+                      raise SystemExit("Could not find the existing ICO favicon declaration.")
+                  s = s.replace(anchor, anchor + "\n" + tag, 1)
+          p.write_text(s)
+          PY
+
+      - name: Commit the generated 96px icon
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/favicon-96.png index.html
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Add 96x96 desktop PNG favicon"
+            git push
+          fi
