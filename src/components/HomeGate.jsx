@@ -35,7 +35,7 @@ export default function HomeGate() {
   if (pending === "create-invoice") return <Navigate to="/invoice-builder" replace />;
   if (pending === "settings") return <Navigate to="/settings" replace />;
   // The workspace dashboard is an internal screen, so it sits behind the same
-  // trial gate as every other internal route — an expired account cannot use it.
+  // Apply the same plan-limit recovery banner as other internal routes; expired subscriptions fall back to Free.
   const dashboard = pending === "add-stock" ? <Dashboard initialTab="stock" />
     : pending === "open-crm" ? <Dashboard initialTab="crm" />
       : pending === "export-gst" ? <Dashboard initialTab="sales" />
