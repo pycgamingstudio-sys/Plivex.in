@@ -17,6 +17,27 @@ Deno.serve(async (req: Request) => {
     if ("error" in auth) return jsonResponse({ error: auth.error }, auth.status, origin);
     const scope = await getAdminScope(auth.admin, auth.user.id);
     if (!scope) return jsonResponse({ error: "Admin only", operation: "send-team-invite" }, 403, origin);
+    // Service-role writes bypass database triggers, so enforce the team feature
+    // and active-member quota here before creating an invitation.
+    const { data: teamAllowed, error: featureError } = await auth.admin.rpc("plan_feature_allowed", {
+      p_workspace_id: scope.workspaceId,
+      p_feature: "team",
+    });
+    if (featureError) return jsonResponse({ error: "Could not verify team access" }, 500, origin);
+    if (!teamAllowed) return jsonResponse({ error: "PLAN_FEATURE_LOCKED|team|pro" }, 403, origin);
+    const { data: plan, error: planError } = await auth.admin.rpc("current_plan", { p_workspace_id: scope.workspaceId });
+    if (planError || !plan) return jsonResponse({ error: "Could not verify workspace plan" }, 500, origin);
+    const { data: quota, error: quotaError } = await auth.admin.from("plan_limits")
+      .select("max_count").eq("plan", plan).eq("resource", "team_members").maybeSingle();
+    if (quotaError || !quota) return jsonResponse({ error: "Could not verify team quota" }, 500, origin);
+    const { count: activeCount, error: countError } = await auth.admin.from("workspace_members")
+      .select("id", { count: "exact", head: true }).eq("workspace_id", scope.workspaceId)
+      .in("status", ["accepted", "active"]).neq("user_id", scope.ownerId);
+    if (countError) return jsonResponse({ error: "Could not verify active team members" }, 500, origin);
+    if (quota.max_count <= 0 || (activeCount || 0) >= quota.max_count) {
+      return jsonResponse({ error: `PLAN_LIMIT_REACHED|team_members|${quota.max_count}|${plan}` }, 409, origin);
+    }
+
     const body = await req.json().catch(() => ({}));
     const to = typeof body?.to === "string" ? body.to.trim().toLowerCase() : "";
     const name = body?.name == null ? null : typeof body.name === "string" ? body.name.trim() : undefined;
