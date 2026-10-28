@@ -76,13 +76,21 @@ Deno.serve(async (req: Request) => {
     if (action === "update") {
       const values = pick(body.values, fields);
       const { data, error } = await db.from(table).update(values).eq("id", body.id).eq("workspace_id", profile.workspace_id).select("*").maybeSingle();
-      if (error) return json({ error: "Could not update record." }, error.code === "42501" ? 403 : 400, origin);
+      if (error) {
+        const message = typeof error.message === "string" && (error.message.startsWith("PLAN_LIMIT_REACHED|") || error.message.startsWith("PLAN_FEATURE_LOCKED|"))
+          ? error.message : "Could not update record.";
+        return json({ error: message }, error.code === "42501" ? 403 : 400, origin);
+      }
       if (!data) return json({ error: "Record not found or access denied." }, 404, origin);
       return json({ record: data }, 200, origin);
     }
     if (action === "delete") {
       const { data, error } = await db.from(table).delete().eq("id", body.id).eq("workspace_id", profile.workspace_id).select("id").maybeSingle();
-      if (error) return json({ error: "Could not delete record." }, error.code === "42501" ? 403 : 400, origin);
+      if (error) {
+        const message = typeof error.message === "string" && (error.message.startsWith("PLAN_LIMIT_REACHED|") || error.message.startsWith("PLAN_FEATURE_LOCKED|"))
+          ? error.message : "Could not delete record.";
+        return json({ error: message }, error.code === "42501" ? 403 : 400, origin);
+      }
       if (!data) return json({ error: "Record not found or access denied." }, 404, origin);
       return json({ ok: true, id: data.id }, 200, origin);
     }
