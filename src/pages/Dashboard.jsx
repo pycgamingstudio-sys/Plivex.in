@@ -47,8 +47,8 @@ export default function Dashboard({ initialTab }) {
   const { role, isAccountant } = useRole();
   useEffect(() => {
     const onWorkspaceDataReady = () => {
-      // On a first visit there is no snapshot, so remount the active panel once
-      // its initial server data is available. Returning users keep their live UI state.
+      // Remount the active panel once its first server data load is available.
+      // This avoids leaving components initialized with empty in-memory caches.
       if (!workspaceReadyRef.current) {
         workspaceReadyRef.current = true;
         setDataRevision((revision) => revision + 1);
