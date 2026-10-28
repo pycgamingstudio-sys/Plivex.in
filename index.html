@@ -77,7 +77,30 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main id="plivex-boot-fallback" role="status" aria-live="polite" style="min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;background:#F8F7FC;color:#171717;font-family:system-ui,sans-serif;text-align:center">
+        <section style="max-width:360px">
+          <div aria-hidden="true" style="width:48px;height:48px;margin:0 auto 16px;display:grid;place-items:center;border-radius:14px;background:#6D28D9;color:#fff;font-weight:800;font-size:20px">P</div>
+          <h1 id="plivex-boot-title" style="margin:0 0 8px;font-size:22px;font-weight:750">Loading Plivex…</h1>
+          <p id="plivex-boot-message" style="margin:0;color:#6B7280;line-height:1.6">Please wait while your workspace opens.</p>
+        </section>
+      </main>
+    </div>
+    <script>
+      window.setTimeout(function () {
+        var title = document.getElementById('plivex-boot-title');
+        var message = document.getElementById('plivex-boot-message');
+        if (!title || !message) return;
+        title.textContent = 'Plivex is taking longer than expected';
+        message.textContent = 'The page did not finish loading. Reload Plivex to try again.';
+        var link = document.createElement('a');
+        link.href = window.location.href;
+        link.textContent = 'Reload Plivex';
+        link.style.cssText = 'display:inline-block;margin-top:18px;padding:12px 20px;border-radius:10px;background:#6D28D9;color:#fff;text-decoration:none;font-weight:700';
+        message.appendChild(document.createElement('br'));
+        message.appendChild(link);
+      }, 10000);
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
