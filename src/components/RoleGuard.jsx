@@ -8,7 +8,7 @@ export default function RoleGuard() {
   const { user } = useAuth();
   const { toast } = useToast();
   const location = useLocation();
-  const role = user?.role || "admin";
+  const role = user?.role || "employee";
   const allowed = canAccessRoute(role, location.pathname);
   const shown = useRef(false);
 
