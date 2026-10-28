@@ -1,0 +1,57 @@
+name: Install generated Plivex favicons
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'favicons.zip'
+      - '.github/workflows/install-favicons.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  install-favicons:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Extract favicon package into public
+        run: |
+          test -f favicons.zip
+          mkdir -p public
+          unzip -o -j favicons.zip -d public
+          test -s public/favicon.ico
+          test -s public/apple-touch-icon.png
+          test -s public/icon-192.png
+          test -s public/icon-512.png
+          test -s public/site.webmanifest
+
+      - name: Update favicon links
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("index.html")
+          s = p.read_text()
+          start = s.index('    <link rel="icon')
+          end = s.index('    <meta name="viewport"', start)
+          tags = '''    <link rel="icon" href="/favicon.ico" sizes="any" />
+              <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+              <link rel="manifest" href="/site.webmanifest" />
+          '''
+          p.write_text(s[:start] + tags + s[end:])
+          PY
+
+      - name: Commit installed favicon assets
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/favicon.ico public/apple-touch-icon.png public/icon-192.png public/icon-512.png public/site.webmanifest index.html
+          if git diff --cached --quiet; then
+            echo "No favicon changes to commit."
+          else
+            git commit -m "Install generated Plivex favicon package"
+            git push
+          fi
