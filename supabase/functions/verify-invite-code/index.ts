@@ -71,7 +71,17 @@ Deno.serve(async (req: Request) => {
       user_id: auth.user.id, status: "active", role: invite.role, revision: Number(member.revision || 0) + 1,
       accepted_at: now, activated_at: now, updated_at: now,
     }).eq("id", member.id).eq("workspace_id", invite.workspace_id).eq("owner_id", invite.owner_id);
-    if (memberUpdateError) return jsonResponse({ error: "Could not activate membership" }, 500, origin);
+    if (memberUpdateError) {
+      // Do not burn a one-time invite when the database rejects activation
+      // (for example, if another invite used the final team slot concurrently).
+      await auth.admin.from("invite_codes").update({ used: false, used_by: null, used_at: null, updated_at: new Date().toISOString() })
+        .eq("id", invite.id).eq("used_by", auth.user.id);
+      const message = String(memberUpdateError.message || "");
+      if (message.startsWith("PLAN_LIMIT_REACHED|") || message.startsWith("PLAN_FEATURE_LOCKED|")) {
+        return jsonResponse({ error: message }, 409, origin);
+      }
+      return jsonResponse({ error: "Could not activate membership" }, 500, origin);
+    }
 
     const { error: profileUpdateError } = await auth.admin.from("profiles").update({ role: invite.role, workspace_id: invite.workspace_id }).eq("id", auth.user.id);
     if (profileUpdateError) return jsonResponse({ error: "Membership activated, but profile update failed" }, 500, origin);
