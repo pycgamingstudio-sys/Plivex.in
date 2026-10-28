@@ -150,7 +150,7 @@ export function PaywallProvider({ children }) {
       setBlockReason(reason);
       setBlocked(true);
       setShowPaywall(true);
-    } else if (safeBlockReason.startsWith("Your plan limit has been exceeded:")) {
+    } else if (String(blockReason || "").startsWith("Your plan limit has been exceeded:")) {
       setBlockReason("");
       setBlocked(false);
       setShowPaywall(false);
