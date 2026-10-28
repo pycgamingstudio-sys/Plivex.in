@@ -156,3 +156,40 @@ table { max-width: 100%; }
   /* Do not force desktop-sized columns into phone-width screens. */
   .app-shell .grid { min-width: 0; }
 }
+
+
+/* Plivex responsive polish: scoped to the workspace dashboard only. */
+.plivex-dashboard,
+.plivex-dashboard * { min-width: 0; }
+.plivex-dashboard { width: 100%; max-width: 100%; }
+.plivex-dashboard-main { width: 100%; max-width: 100%; }
+.plivex-dashboard-main > * { max-width: 100%; }
+.plivex-dashboard-main img,
+.plivex-dashboard-main canvas { height: auto; }
+.plivex-dashboard-main input,
+.plivex-dashboard-main select,
+.plivex-dashboard-main textarea { max-width: 100%; }
+.plivex-bottom-nav {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.plivex-bottom-nav::-webkit-scrollbar { display: none; }
+.plivex-bottom-nav > button {
+  flex: 1 0 68px;
+  min-height: 58px;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+.plivex-dashboard header { padding-top: env(safe-area-inset-top, 0px); }
+@media (max-width: 380px) {
+  .plivex-dashboard-main { padding-left: 12px; padding-right: 12px; }
+  .plivex-dashboard-main .grid { column-gap: 10px; }
+  .plivex-dashboard-main h1 { max-width: 38vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .plivex-bottom-nav > button { flex-basis: 64px; padding-left: 6px; padding-right: 6px; }
+}
+@media (min-width: 768px) {
+  .plivex-dashboard-main { padding: 24px; }
+  .plivex-dashboard-main > * { min-width: 0; }
+}
