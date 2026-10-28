@@ -1,4 +1,5 @@
 import { backend as db, supabase } from '@/api/backendClient';
+import { useAuth } from '@/lib/AuthContext';
 
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { X, Check, Sparkles, Lock, Crown, Star, XCircle } from "lucide-react";
