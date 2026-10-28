@@ -5,22 +5,14 @@
 DO $$
 DECLARE
   v_def text;
-  v_anchor text := $anchor$  IF auth.role() = 'service_role' THEN
-    IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
-  END IF;
+  v_anchor text := $anchor$  IF auth.role()='service_role' THEN IF TG_OP='DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF; END IF;$anchor$;
+  v_replacement text := $replacement$  IF auth.role()='service_role' THEN IF TG_OP='DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF; END IF;
 
-  IF auth.uid() IS NOT NULL THEN$anchor$;
-  v_replacement text := $replacement$  IF auth.role() = 'service_role' THEN
-    IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
-  END IF;
-
-  -- Existing records must remain manageable after downgrade; quota enforcement
-  -- on INSERT and the dedicated feature/team update guards remain in place.
+  -- Quota checks are for new rows. RLS and dedicated per-resource guards still
+  -- control which existing rows a caller may update or delete.
   IF TG_OP <> 'INSERT' THEN
-    IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
-  END IF;
-
-  IF auth.uid() IS NOT NULL THEN$replacement$;
+    IF TG_OP='DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+  END IF;$replacement$;
 BEGIN
   SELECT pg_get_functiondef('public.guard_workspace_over_limit_write()'::regprocedure)
     INTO v_def;
