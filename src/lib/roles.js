@@ -50,7 +50,7 @@ export function getRoleLabel(role) {
 
 export function useRole() {
   const { user } = useAuth();
-  const role = normalizeRole(user?.role || "admin");
+  const role = normalizeRole(user?.role);
   return {
     role,
     isAdmin: role === "admin",
