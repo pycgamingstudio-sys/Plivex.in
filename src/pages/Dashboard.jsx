@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { LayoutDashboard, Receipt, ShoppingCart, BarChart3, Users, UsersRound, Package, Sparkles, Zap, LayoutGrid, X, RefreshCw, FileText, ScrollText, Lock } from "lucide-react";
 import DashboardTab from "@/components/dashboard/DashboardTab";
@@ -36,6 +36,7 @@ const TABS = [
 export default function Dashboard({ initialTab }) {
   const [tab, setTab] = useState(initialTab || "dashboard");
   const [workspaceReady, setWorkspaceReady] = useState(() => isWorkspaceDataReady());
+  const workspaceReadyRef = useRef(isWorkspaceDataReady());
   const [dataRevision, setDataRevision] = useState(0);
   const [intent, setIntent] = useState(null);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -48,10 +49,11 @@ export default function Dashboard({ initialTab }) {
     const onWorkspaceDataReady = () => {
       // On a first visit there is no snapshot, so remount the active panel once
       // its initial server data is available. Returning users keep their live UI state.
-      setWorkspaceReady((wasReady) => {
-        if (!wasReady) setDataRevision((revision) => revision + 1);
-        return true;
-      });
+      if (!workspaceReadyRef.current) {
+        workspaceReadyRef.current = true;
+        setDataRevision((revision) => revision + 1);
+      }
+      setWorkspaceReady(true);
     };
     window.addEventListener("plivex-workspace-data-ready", onWorkspaceDataReady);
     return () => window.removeEventListener("plivex-workspace-data-ready", onWorkspaceDataReady);
