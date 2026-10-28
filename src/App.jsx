@@ -122,7 +122,9 @@ function SyncErrorListener() {
   const { openPaywall, planName, plan, limits, usage } = usePaywall();
   useEffect(() => {
     const onError = (e) => {
-      const message = String(e?.detail?.message || e?.detail?.error || "");
+      const detail = e?.detail;
+      const rawMessage = typeof detail === "string" ? detail : (detail?.message ?? detail?.error ?? "");
+      const message = typeof rawMessage === "string" ? rawMessage : String(rawMessage ?? "");
       if (message.startsWith("PLAN_LIMIT_REACHED|") || message.startsWith("PLAN_FEATURE_LOCKED|")) {
         if (typeof e?.detail?.rollback === "function") { try { e.detail.rollback(); } catch { /* best-effort optimistic rollback */ } }
         const parts = message.split("|").map((part) => part.trim());
