@@ -11,13 +11,13 @@ export default function SubscriptionLockScreen() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#F5F3FF] to-slate-50 p-4">
       <div className="w-full max-w-[520px] rounded-3xl border border-[#E5E7EB] bg-white p-6 text-center shadow-xl sm:p-8">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#6D28D9] to-[#7C3AED] text-white"><Lock className="h-6 w-6" /></div>
-        <h1 className="mt-4 text-[22px] font-bold text-slate-900">Your 14-day free trial has ended</h1>
+        <h1 className="mt-4 text-[22px] font-bold text-slate-900">Your workspace is on the Free plan</h1>
         <p className="mt-2 text-[13px] leading-relaxed text-slate-500">
-          The workspace is locked to keep your data safe. Upgrade to instantly restore access to billing, inventory, GST reports and your team — all your data is exactly where you left it.
+          Your saved data stays safe on the Free plan. Upgrade for higher limits and premium features, or continue using Plivex for free.
         </p>
 
         <button onClick={openPaywall} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#6D28D9] to-[#7C3AED] px-4 py-3 text-[13px] font-bold text-white transition-opacity hover:opacity-95">
-          <Sparkles className="h-4 w-4" />Choose a plan &amp; unlock now
+          <Sparkles className="h-4 w-4" />View plans
         </button>
 
         <div className="mt-5 grid gap-2 text-left sm:grid-cols-2">
