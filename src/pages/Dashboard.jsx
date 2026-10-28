@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { LayoutDashboard, Receipt, ShoppingCart, BarChart3, Users, UsersRound, Package, Sparkles, Zap, LayoutGrid, X, RefreshCw, FileText, ScrollText, Lock } from "lucide-react";
 import DashboardTab from "@/components/dashboard/DashboardTab";
@@ -20,6 +20,7 @@ import { useRole, canAccessTab } from "@/lib/roles";
 import AccountProfileModal from "@/components/AccountProfileModal";
 import PresenceBeacon from "@/components/PresenceBeacon";
 import { processDueReminders } from "@/lib/reminders";
+import { isWorkspaceDataReady } from "@/lib/stores";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -34,6 +35,9 @@ const TABS = [
 
 export default function Dashboard({ initialTab }) {
   const [tab, setTab] = useState(initialTab || "dashboard");
+  const [workspaceReady, setWorkspaceReady] = useState(() => isWorkspaceDataReady());
+  const workspaceReadyRef = useRef(isWorkspaceDataReady());
+  const [dataRevision, setDataRevision] = useState(0);
   const [intent, setIntent] = useState(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -41,6 +45,19 @@ export default function Dashboard({ initialTab }) {
   const { isPremium, openPaywall, planName, canAccess } = usePaywall();
   const { user } = useAuth();
   const { role, isAccountant } = useRole();
+  useEffect(() => {
+    const onWorkspaceDataReady = () => {
+      // Remount the active panel once its first server data load is available.
+      // This avoids leaving components initialized with empty in-memory caches.
+      if (!workspaceReadyRef.current) {
+        workspaceReadyRef.current = true;
+        setDataRevision((revision) => revision + 1);
+      }
+      setWorkspaceReady(true);
+    };
+    window.addEventListener("plivex-workspace-data-ready", onWorkspaceDataReady);
+    return () => window.removeEventListener("plivex-workspace-data-ready", onWorkspaceDataReady);
+  }, []);
   useEffect(() => {
     seedDashboard();
     // Best-effort daily reminder sweep — true server-side cron requires scheduled workflows on a paid plan.
@@ -58,6 +75,15 @@ export default function Dashboard({ initialTab }) {
 
   return (
     <div className="plivex-dashboard min-h-screen bg-slate-50 text-slate-900">
+      {!workspaceReady && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-white/80 px-6 backdrop-blur-sm" role="status" aria-live="polite">
+          <div className="w-full max-w-xs rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-lg">
+            <div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-slate-200 border-t-[#6D28D9]" />
+            <p className="mt-4 text-sm font-bold text-slate-900">Preparing your workspace</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">Loading your latest business data securely…</p>
+          </div>
+        </div>
+      )}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col overflow-y-auto border-r border-[#E5E7EB] bg-white md:flex">
         <div className="flex items-center gap-2.5 px-5 py-6">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#6D28D9] text-[14px] font-bold text-white">P</div>
@@ -128,14 +154,14 @@ export default function Dashboard({ initialTab }) {
           </div>
         </header>
         <main className="plivex-dashboard-main p-4 pb-24 sm:p-6 md:pb-6">
-          {tab === "dashboard" && <DashboardTab onNavigate={go} onCreateInvoice={createInvoice} role={role} teamUnlocked={canAccess("team_management")} />}
-          {tab === "sales" && <SalesTab intent={intent} onConsumeIntent={consume} />}
-          {tab === "purchase" && <PurchaseTab intent={intent} onConsumeIntent={consume} />}
-          {tab === "reports" && <ReportsTab />}
-          {tab === "crm" && <CrmTab intent={intent} onConsumeIntent={consume} />}
-          {tab === "stock" && <StockTab />}
-          {tab === "team" && (teamUnlocked ? <TeamManagement /> : <div className="mx-auto max-w-lg rounded-2xl border border-[#E5E7EB] bg-white p-8 text-center shadow-sm"><Lock className="mx-auto h-8 w-8 text-[#6D28D9]" /><h2 className="mt-3 text-lg font-bold">Team management is a Pro feature</h2><p className="mt-2 text-sm text-slate-500">Upgrade to Pro to add and manage workspace members.</p><button onClick={openPaywall} className="mt-5 rounded-xl bg-[#6D28D9] px-5 py-2.5 text-sm font-bold text-white">Upgrade to Pro</button></div>)}
-          {tab === "reconciliation" && <ReconciliationTab />}
+          {tab === "dashboard" && <DashboardTab key={dataRevision} onNavigate={go} onCreateInvoice={createInvoice} role={role} teamUnlocked={canAccess("team_management")} />}
+          {tab === "sales" && <SalesTab key={dataRevision} intent={intent} onConsumeIntent={consume} />}
+          {tab === "purchase" && <PurchaseTab key={dataRevision} intent={intent} onConsumeIntent={consume} />}
+          {tab === "reports" && <ReportsTab key={dataRevision} />}
+          {tab === "crm" && <CrmTab key={dataRevision} intent={intent} onConsumeIntent={consume} />}
+          {tab === "stock" && <StockTab key={dataRevision} />}
+          {tab === "team" && (teamUnlocked ? <TeamManagement key={dataRevision} /> : <div className="mx-auto max-w-lg rounded-2xl border border-[#E5E7EB] bg-white p-8 text-center shadow-sm"><Lock className="mx-auto h-8 w-8 text-[#6D28D9]" /><h2 className="mt-3 text-lg font-bold">Team management is a Pro feature</h2><p className="mt-2 text-sm text-slate-500">Upgrade to Pro to add and manage workspace members.</p><button onClick={openPaywall} className="mt-5 rounded-xl bg-[#6D28D9] px-5 py-2.5 text-sm font-bold text-white">Upgrade to Pro</button></div>)}
+          {tab === "reconciliation" && <ReconciliationTab key={dataRevision} />}
         </main>
       </div>
 

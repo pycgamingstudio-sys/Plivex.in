@@ -99,8 +99,13 @@ export const AuthProvider = ({ children }) => {
       }
 
       setTenantId(currentUser?.id);
-      // Load this workspace's invoices, clients, stock etc. from the server before any screen opens.
-      if (currentUser?.workspace_id) { await hydrateWorkspaceData(); }
+      // Start data hydration before revealing the workspace so a saved local snapshot
+      // can be restored synchronously. Do not make the entire app wait for every API call.
+      if (currentUser?.workspace_id) {
+        void hydrateWorkspaceData().catch((error) => {
+          console.error('Workspace data hydration failed:', error);
+        });
+      }
       setUser(currentUser);
       signedInRef.current = true;
       setIsAuthenticated(true);

@@ -184,8 +184,8 @@ async function fetchProfile() {
   return res?.data?.record || null;
 }
 
-// Loads every business record for the signed-in user's workspace. A table the user's
-// role cannot read simply stays empty. Called once after sign-in and on window focus.
+// Loads business records concurrently without persisting private business data in browser storage.
+// The UI may render its shell immediately, but stays non-interactive until this first load settles.
 export async function hydrateWorkspaceData() {
   const overlay = readOverlay();
   const jobs = [
@@ -195,6 +195,11 @@ export async function hydrateWorkspaceData() {
   ];
   await Promise.allSettled(jobs);
   _hydrated = true;
+  try {
+    window.dispatchEvent(new CustomEvent("plivex-workspace-data-ready", { detail: { hadSnapshot: false } }));
+  } catch {
+    // The data is ready even if custom events are unavailable.
+  }
 }
 // Forget the in-memory business data (used on sign-out); nothing is deleted on the server.
 export function resetWorkspaceCache() {
