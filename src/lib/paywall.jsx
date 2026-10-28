@@ -88,7 +88,11 @@ export function PaywallProvider({ children }) {
       setPlanStartedAt(st.startedAt || st.started_at || "");
       setPlanExpiresAt(st.expiresAt || st.expires_at || "");
       setPlanResetsAt(st.resetsAt || st.resets_at || "");
-    } catch { /* retain the last server-confirmed status if refresh fails */ }
+      return true;
+    } catch {
+      // Keep the last server-confirmed state and let callers show a retry message.
+      return false;
+    }
   }, []);
 
   // PayU sends the customer back here after the backend has verified the payment.
@@ -98,14 +102,29 @@ export function PaywallProvider({ children }) {
     const params = new URLSearchParams(window.location.search);
     const payment = params.get("payment");
     if (!payment) return;
-    if (payment === "success") toast({ title: "Payment successful", description: "Your premium plan is now active." });
-    else if (payment === "failed") toast({ title: "Payment failed", description: "No charge was made. You can try again.", variant: "destructive" });
-    else toast({ title: "Payment not verified", description: "We could not confirm this payment. Contact support if you were charged.", variant: "destructive" });
-    params.delete("payment");
-    params.delete("txnid");
-    const query = params.toString();
-    window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
-  }, []);
+    let active = true;
+    const finishPaymentReturn = async () => {
+      if (payment === "success") {
+        const refreshed = await refreshAccessStatus();
+        if (!active) return;
+        if (refreshed) {
+          toast({ title: "Payment successful", description: "Your plan and limits have been refreshed from Plivex." });
+        } else {
+          toast({ title: "Payment received", description: "Your plan status could not refresh yet. Reload the app or contact support if access does not update.", variant: "destructive" });
+        }
+      } else if (payment === "failed") {
+        toast({ title: "Payment failed", description: "No charge was confirmed. You can try again.", variant: "destructive" });
+      } else {
+        toast({ title: "Payment not verified", description: "We could not confirm this payment. Contact support if you were charged.", variant: "destructive" });
+      }
+      params.delete("payment");
+      params.delete("txnid");
+      const query = params.toString();
+      window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+    };
+    void finishPaymentReturn();
+    return () => { active = false; };
+  }, [refreshAccessStatus]);
   const [showPaywall, setShowPaywall] = useState(false);
   const [blocked, setBlocked] = useState(false);
 
