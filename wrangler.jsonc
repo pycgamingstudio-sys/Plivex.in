@@ -1,4 +1,5 @@
 {
+  "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "plivex-in",
   "compatibility_date": "2026-10-24",
   "vars": {
