@@ -184,58 +184,19 @@ async function fetchProfile() {
   return res?.data?.record || null;
 }
 
-const WORKSPACE_SNAPSHOT_KEY = "__workspaceSnapshotV1";
-
-// A tenant-scoped local snapshot lets returning users open the workspace immediately.
-// It is only a startup cache; the server remains the source of truth.
-function restoreWorkspaceSnapshot() {
-  try {
-    const raw = localStorage.getItem(tenantKey(WORKSPACE_SNAPSHOT_KEY));
-    if (!raw) return false;
-    const snapshot = JSON.parse(raw);
-    if (snapshot?.version !== 1 || !Array.isArray(snapshot.history) || !snapshot.records) return false;
-    cache.history = snapshot.history;
-    cache.profile = snapshot.profile || null;
-    RECORD_KEYS.forEach((key) => {
-      if (Array.isArray(snapshot.records[key])) cache[key] = snapshot.records[key];
-    });
-    _hydrated = true;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function persistWorkspaceSnapshot() {
-  try {
-    localStorage.setItem(tenantKey(WORKSPACE_SNAPSHOT_KEY), JSON.stringify({
-      version: 1,
-      savedAt: Date.now(),
-      history: cache.history,
-      profile: cache.profile,
-      records: Object.fromEntries(RECORD_KEYS.map((key) => [key, cache[key]])),
-    }));
-  } catch {
-    // Quota/private-mode storage failures must never block workspace usage.
-  }
-}
-
-// Loads business records concurrently. Cached data is restored synchronously first,
-// while the server refresh runs in the background. A fresh device remains read-only
-// behind the dashboard's loading overlay until this initial fetch settles.
+// Loads business records concurrently without persisting private business data in browser storage.
+// The UI may render its shell immediately, but stays non-interactive until this first load settles.
 export async function hydrateWorkspaceData() {
-  const hadSnapshot = restoreWorkspaceSnapshot();
   const overlay = readOverlay();
   const jobs = [
     fetchInvoices().then((rows) => { cache.history = rows.map((r) => withOverlay(invoiceToUi(r), overlay)); }),
     fetchProfile().then((r) => { cache.profile = r ? profileToUi(r) : null; }),
     ...RECORD_KEYS.map((k) => fetchRecords(k).then((rows) => { cache[k] = rows.map(MAPPERS[k].toUi); })),
   ];
-  const results = await Promise.allSettled(jobs);
+  await Promise.allSettled(jobs);
   _hydrated = true;
-  if (results.every((result) => result.status === "fulfilled")) persistWorkspaceSnapshot();
   try {
-    window.dispatchEvent(new CustomEvent("plivex-workspace-data-ready", { detail: { hadSnapshot } }));
+    window.dispatchEvent(new CustomEvent("plivex-workspace-data-ready", { detail: { hadSnapshot: false } }));
   } catch {
     // The data is ready even if custom events are unavailable.
   }
