@@ -31,6 +31,19 @@ export const AuthProvider = ({ children }) => {
     return () => listener?.subscription?.unsubscribe();
   }, []);
 
+  // Never let a stalled network/auth request leave the app stuck on a blank loading screen.
+  // This releases the public UI after 15 seconds; a slower auth check may still finish later.
+  useEffect(() => {
+    if (!isLoadingAuth && !isLoadingPublicSettings) return undefined;
+    const startupTimeout = window.setTimeout(() => {
+      console.error('[Plivex] Startup checks exceeded 15 seconds; releasing the loading screen.');
+      setIsLoadingAuth(false);
+      setIsLoadingPublicSettings(false);
+      setAuthChecked(true);
+    }, 15000);
+    return () => window.clearTimeout(startupTimeout);
+  }, [isLoadingAuth, isLoadingPublicSettings]);
+
   // Checks whether a signed-in session exists (no separate "app settings" call is needed any more).
   const checkAppState = async () => {
     try {
