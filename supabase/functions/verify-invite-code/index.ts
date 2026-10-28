@@ -35,6 +35,27 @@ Deno.serve(async (req: Request) => {
       if (blocked) return jsonResponse({ error: "User already bound to another workspace" }, 409, origin);
     }
 
+    // This endpoint uses service-role writes, which bypass row triggers.
+    // Re-check feature and quota at acceptance time to close the invite race.
+    const { data: teamAllowed, error: featureError } = await auth.admin.rpc("plan_feature_allowed", {
+      p_workspace_id: invite.workspace_id,
+      p_feature: "team",
+    });
+    if (featureError) return jsonResponse({ error: "Could not verify team access" }, 500, origin);
+    if (!teamAllowed) return jsonResponse({ error: "PLAN_FEATURE_LOCKED|team|pro" }, 403, origin);
+    const { data: plan, error: planError } = await auth.admin.rpc("current_plan", { p_workspace_id: invite.workspace_id });
+    if (planError || !plan) return jsonResponse({ error: "Could not verify workspace plan" }, 500, origin);
+    const { data: quota, error: quotaError } = await auth.admin.from("plan_limits")
+      .select("max_count").eq("plan", plan).eq("resource", "team_members").maybeSingle();
+    if (quotaError || !quota) return jsonResponse({ error: "Could not verify team quota" }, 500, origin);
+    const { count: activeCount, error: countError } = await auth.admin.from("workspace_members")
+      .select("id", { count: "exact", head: true }).eq("workspace_id", invite.workspace_id)
+      .in("status", ["accepted", "active"]).neq("user_id", invite.owner_id);
+    if (countError) return jsonResponse({ error: "Could not verify active team members" }, 500, origin);
+    if (quota.max_count <= 0 || (activeCount || 0) >= quota.max_count) {
+      return jsonResponse({ error: `PLAN_LIMIT_REACHED|team_members|${quota.max_count}|${plan}` }, 409, origin);
+    }
+
     const now = new Date().toISOString();
     const { data: claimed, error: claimError } = await auth.admin.from("invite_codes")
       .update({ used: true, used_by: auth.user.id, used_at: now, updated_at: now })
