@@ -1,7 +1,9 @@
 import { Outlet } from "react-router-dom";
 import { usePaywall } from "@/lib/paywall";
 
-// Access is decided by the server; Free is a real plan and must not be hard-locked.
+// Keep the workspace accessible when a downgrade leaves saved records above the
+// new plan's limits. The backend blocks new over-limit inserts; users must still
+// be able to review, edit, export, and delete their existing data to recover.
 export default function TrialGate({ children }) {
   const { planLoading, overLimit, openPaywall, planName } = usePaywall();
 
@@ -13,28 +15,26 @@ export default function TrialGate({ children }) {
     );
   }
 
-  if (overLimit) {
-    return (
-      <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-50 p-5">
-        <div className="w-full max-w-md rounded-2xl border border-amber-200 bg-white p-6 text-center shadow-xl">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-            <span className="text-2xl font-bold">!</span>
+  return (
+    <>
+      {overLimit && (
+        <div role="status" className="sticky top-0 z-[80] border-b border-amber-200 bg-amber-50 px-4 py-3 text-amber-950">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2">
+            <p className="text-sm leading-5">
+              <strong>{planName || "Current"} plan limit exceeded.</strong>{" "}
+              Your saved records are safe. Remove extras to return within Free limits, or upgrade for more capacity. New records above your limit may be blocked.
+            </p>
+            <button
+              type="button"
+              onClick={() => openPaywall("Your workspace has exceeded its plan limits. Upgrade for more capacity, or return to the plan limits.")}
+              className="shrink-0 rounded-lg bg-[#6D28D9] px-3 py-2 text-xs font-bold text-white"
+            >
+              View plans
+            </button>
           </div>
-          <h1 className="mt-4 text-xl font-bold text-slate-900">Upgrade required to continue</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Your workspace is over the {planName || "current"} plan limits. Your saved records are safe, but Plivex is locked until you upgrade.
-          </p>
-          <button
-            type="button"
-            onClick={() => openPaywall("Your workspace has exceeded its plan limits. Upgrade to restore app access.")}
-            className="mt-5 w-full rounded-xl bg-[#6D28D9] px-4 py-3 text-sm font-bold text-white"
-          >
-            View upgrade plans
-          </button>
         </div>
-      </div>
-    );
-  }
-
-  return children ?? <Outlet />;
+      )}
+      {children ?? <Outlet />}
+    </>
+  );
 }
