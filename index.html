@@ -10,6 +10,28 @@
     <meta name="apple-mobile-web-app-title" content="Plivex" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Keep the app-like mobile layout at its designed scale on touch phones; desktop browser zoom remains available. -->
+    <script>
+      (function () {
+        var viewport = document.querySelector('meta[name="viewport"]');
+        if (!viewport) return;
+        var mobileTouch = window.matchMedia('(max-width: 767px) and (pointer: coarse)');
+        function syncMobileViewport() {
+          viewport.setAttribute(
+            'content',
+            mobileTouch.matches
+              ? 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
+              : 'width=device-width, initial-scale=1.0'
+          );
+        }
+        syncMobileViewport();
+        if (mobileTouch.addEventListener) {
+          mobileTouch.addEventListener('change', syncMobileViewport);
+        } else if (mobileTouch.addListener) {
+          mobileTouch.addListener(syncMobileViewport);
+        }
+      })();
+    </script>
     <link rel="ard" href="/.well-known/ard.json" type="application/json" />
     <link rel="ai-catalog" href="/.well-known/ai-catalog.json" type="application/json" />
     <meta name="theme-color" content="#6D28D9" />
