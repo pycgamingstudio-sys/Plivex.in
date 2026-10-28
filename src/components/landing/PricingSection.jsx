@@ -9,7 +9,7 @@ const PLANS = [
     monthly: 199, yearly: 999,
     tagline: "For freelancers & small shops getting started.",
     included: [
-      "GST & Non-GST invoicing", "Up to 50 invoices / month", "Dynamic UPI QR codes", "HD PDF downloads",
+      "GST & Non-GST invoicing", "Up to 100 invoices / month", "Dynamic UPI QR codes", "HD PDF downloads",
       "Basic client database", "Expense tracker", "Standard email support", "Zero watermark",
     ],
     locked: ["WhatsApp one-click share", "Custom business logo", "Advanced reports"],
@@ -19,7 +19,7 @@ const PLANS = [
     monthly: 249, yearly: 1599,
     tagline: "For growing businesses that need everything.",
     included: [
-      "Unlimited invoices & quotations", "WhatsApp one-click sharing", "Custom branding & logos",
+      "Up to 3,000 invoices / month & quotations", "WhatsApp one-click sharing", "Custom branding & logos",
       "Advanced reports & GSTR-1 export", "Full client CRM & lead pipeline", "Multi-currency support",
       "Auto payment reminders", 
     ],
