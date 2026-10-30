@@ -9,7 +9,7 @@ function PublicShell({ title, subtitle, children }) {
   const location = useLocation();
 
   useEffect(() => {
-    const canonicalUrl = `https://www.plivex.in${location.pathname.replace(/\\/$/, "") || "/"}`;
+    const canonicalUrl = `https://www.plivex.in${location.pathname.replace(/\/$/, "") || "/"}`;
     document.title = `${title} | Plivex`;
 
     let canonical = document.querySelector('link[rel="canonical"]');
