@@ -4,11 +4,11 @@
 
 ## Main pages
 
-- [Home](https://plivex.in/): Product overview and account creation
-- [About Plivex](https://plivex.in/about): Company and founder information
-- [Features](https://plivex.in/features): Billing and business-management features
-- [Pricing](https://plivex.in/pricing): Current plan and pricing information
-- [Contact](https://plivex.in/contact-us): Contact and support options
+- [Home](https://www.plivex.in/): Product overview and account creation
+- [About Plivex](https://www.plivex.in/about): Company and founder information
+- [Features](https://www.plivex.in/features): Billing and business-management features
+- [Pricing](https://www.plivex.in/pricing): Current plan and pricing information
+- [Contact](https://www.plivex.in/contact-us): Contact and support options
 
 ## Product capabilities
 
@@ -16,14 +16,14 @@ Plivex supports GST and non-GST invoices, quotations, client management, expense
 
 ## Policies
 
-- [Privacy policy](https://plivex.in/privacy-policy)
-- [Terms and conditions](https://plivex.in/terms-and-conditions)
-- [Cancellation and refund policy](https://plivex.in/refund-and-cancellation)
+- [Privacy policy](https://www.plivex.in/privacy-policy)
+- [Terms and conditions](https://www.plivex.in/terms-and-conditions)
+- [Cancellation and refund policy](https://www.plivex.in/refund-and-cancellation)
 
 ## Founder
 
 - Yashvant Sharma — Founder and Developer
-- [Founder information](https://plivex.in/about)
+- [Founder information](https://www.plivex.in/about)
 
 ## Contact
 
