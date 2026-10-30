@@ -1,4 +1,4 @@
-Agentmap: https://plivex.in/.well-known/ard.json
+Agentmap: https://www.plivex.in/.well-known/ard.json
 
 # Public website pages can be crawled. Private app routes are excluded.
 User-agent: *
@@ -141,4 +141,4 @@ Disallow: /account-activity
 Disallow: /service-catalog
 Disallow: /team-management
 
-Sitemap: https://plivex.in/sitemap.xml
+Sitemap: https://www.plivex.in/sitemap.xml
