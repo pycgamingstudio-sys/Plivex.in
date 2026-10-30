@@ -2,15 +2,15 @@
   "specVersion": "1.0",
   "host": {
     "displayName": "Plivex",
-    "documentationUrl": "https://plivex.in/about",
-    "logoUrl": "https://plivex.in/favicon.ico"
+    "documentationUrl": "https://www.plivex.in/about",
+    "logoUrl": "https://www.plivex.in/favicon.ico"
   },
   "entries": [
     {
       "identifier": "urn:air:plivex.in:website:llms-txt",
       "displayName": "Plivex AI-readable website summary",
       "type": "text/plain",
-      "url": "https://plivex.in/llms.txt",
+      "url": "https://www.plivex.in/llms.txt",
       "description": "Concise overview of Plivex and links to its public product pages and policies.",
       "representativeQueries": [
         "What is Plivex and what does it do?",
@@ -21,7 +21,7 @@
       "identifier": "urn:air:plivex.in:website:sitemap",
       "displayName": "Plivex public website sitemap",
       "type": "application/xml",
-      "url": "https://plivex.in/sitemap.xml",
+      "url": "https://www.plivex.in/sitemap.xml",
       "description": "Index of public Plivex website pages.",
       "representativeQueries": [
         "Find public pages on the Plivex website",
@@ -32,7 +32,7 @@
       "identifier": "urn:air:plivex.in:website:homepage",
       "displayName": "Plivex homepage",
       "type": "text/html",
-      "url": "https://plivex.in/",
+      "url": "https://www.plivex.in/",
       "description": "Official product overview for Plivex GST billing and business management software.",
       "representativeQueries": [
         "What features does Plivex offer?",
