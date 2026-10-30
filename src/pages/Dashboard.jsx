@@ -38,7 +38,7 @@ export default function Dashboard({ initialTab }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const navigate = useNavigate();
-  const { isPremium, openPaywall, planName, canAccess } = usePaywall();
+  const { isPremium, openPaywall, planName, plan, canAccess } = usePaywall();
   const { user } = useAuth();
   const { role, isAccountant } = useRole();
   useEffect(() => {
@@ -53,7 +53,8 @@ export default function Dashboard({ initialTab }) {
   const consume = () => setIntent(null);
   const visibleTabs = TABS.filter((t) => canAccessTab(role, t.id));
   const active = visibleTabs.find((t) => t.id === tab) || visibleTabs[0] || TABS[0];
-  const pages = navItems.filter((i) => i.to !== "/" && !HIDDEN_FROM_SIDEBAR.includes(i.to) && (!i.roles || i.roles.includes(role)));
+  const hasGstrAccess = ["basic", "pro"].includes(String(plan || "").toLowerCase());
+  const pages = navItems.filter((i) => i.to !== "/" && (!HIDDEN_FROM_SIDEBAR.includes(i.to) || i.to === "/tax-summary") && (!i.roles || i.roles.includes(role)) && (i.to !== "/tax-summary" || hasGstrAccess));
   const teamUnlocked = canAccess("team_management");
 
   return (
