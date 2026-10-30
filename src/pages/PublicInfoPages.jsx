@@ -1,10 +1,40 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { ArrowLeft, ArrowRight, Receipt, Users, Wallet, BarChart3, Package, ShieldCheck } from "lucide-react";
 import Logo from "@/components/Logo";
 import AboutSection from "@/components/landing/AboutSection";
 import PricingSection from "@/components/landing/PricingSection";
 
 function PublicShell({ title, subtitle, children }) {
+  const location = useLocation();
+
+  useEffect(() => {
+    const canonicalUrl = `https://www.plivex.in${location.pathname.replace(/\\/$/, "") || "/"}`;
+    document.title = `${title} | Plivex`;
+
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.setAttribute("rel", "canonical");
+      document.head.appendChild(canonical);
+    }
+    canonical.setAttribute("href", canonicalUrl);
+
+    const setMeta = (selector, attribute, value) => {
+      let element = document.querySelector(selector);
+      if (!element) {
+        element = document.createElement("meta");
+        element.setAttribute(attribute, selector.includes("property=") ? selector.match(/property="([^"]+)"/)[1] : selector.match(/name="([^"]+)"/)[1]);
+        document.head.appendChild(element);
+      }
+      element.setAttribute("content", value);
+    };
+    setMeta('meta[property="og:url"]', "property", canonicalUrl);
+    setMeta('meta[property="og:title"]', "property", `${title} | Plivex`);
+    setMeta('meta[property="og:description"]', "property", subtitle);
+    setMeta('meta[name="description"]', "name", subtitle);
+  }, [location.pathname, title, subtitle]);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
