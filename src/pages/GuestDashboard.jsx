@@ -167,7 +167,7 @@ export default function GuestDashboard() {
         </div>
 
         <div className="scroll-mt-24" id="pricing"><PricingSection /></div>
-        <div className="scroll-mt-24" id="about"><AboutSection /></div>
+        <div className="scroll-mt-24" id="about"><AboutSection showFounderPhotos={false} /></div>
 
         <footer id="contact" className="scroll-mt-24 rounded-3xl border border-[#E5E7EB] bg-white p-6 sm:p-8">
           <div className="grid gap-6 sm:grid-cols-2">
