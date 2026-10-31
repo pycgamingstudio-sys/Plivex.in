@@ -57,7 +57,7 @@ const STATS = [
   { value: "No card", label: "Needed to get started" },
 ];
 
-export default function AboutSection() {
+export default function AboutSection({ showFounderPhotos = true } = {}) {
   return (
     <section id="about" className="fade-up scroll-mt-20">
       <div className="overflow-hidden rounded-3xl border border-[#E5E7EB] bg-white shadow-sm">
@@ -68,7 +68,7 @@ export default function AboutSection() {
             Plivex brings invoicing, quotations, customer records, expenses, inventory and business reports together in one web workspace. It is designed for Indian retailers, wholesalers, distributors, freelancers, service providers and small teams that want their everyday billing work organised in one place.
           </p>
           <div className="mt-5 flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 p-3">
-            <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Founder & Developer of Plivex" width="56" height="56" loading="lazy" decoding="async" className="h-14 w-14 shrink-0 rounded-full border-2 border-white/70 object-cover object-center" />
+            {showFounderPhotos && <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Founder & Developer of Plivex" width="56" height="56" loading="lazy" decoding="async" className="h-14 w-14 shrink-0 rounded-full border-2 border-white/70 object-cover object-center" />}
             <div className="min-w-0">
               <p className="text-sm font-bold text-white">Yashvant Sharma</p>
               <p className="text-xs text-white/75">Founder &amp; Developer, Plivex</p>
@@ -118,7 +118,7 @@ export default function AboutSection() {
           <div className="mt-6 border-t border-[#E5E7EB] pt-6">
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">About the founder</p>
             <div className="mt-3 flex items-center gap-4">
-              <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Founder and Developer of Plivex" loading="lazy" width="64" height="64" className="h-16 w-16 shrink-0 rounded-full border border-slate-200 object-cover" />
+              {showFounderPhotos && <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Founder and Developer of Plivex" loading="lazy" width="64" height="64" className="h-16 w-16 shrink-0 rounded-full border border-slate-200 object-cover" />}
               <div className="min-w-0">
                 <h3 className="text-[14px] font-bold text-slate-900">Yashvant Sharma</h3>
                 <p className="mt-0.5 text-[11px] font-semibold text-[#6D28D9]">Founder &amp; Developer, Plivex</p>
