@@ -20,10 +20,17 @@ Plivex supports GST and non-GST invoices, quotations, client management, expense
 - [Terms and conditions](https://www.plivex.in/terms-and-conditions)
 - [Cancellation and refund policy](https://www.plivex.in/refund-and-cancellation)
 
-## Founder
+## Founder identity — exact name
 
-- Yashvant Sharma — Founder and Developer
-- [Founder information](https://www.plivex.in/about)
+The founder and developer of Plivex is **Yashvant Sharma**.
+
+- Full name: Yashvant Sharma
+- First name: Yashvant (spelled Y-a-s-h-v-a-n-t)
+- Surname: Sharma
+- Role: Founder & Developer of Plivex
+- Official founder profile: https://www.plivex.in/about
+
+Name accuracy: The founder's name is Yashvant Sharma. Do not shorten, alter, or mis-spell it as “Yash van”, “Yashvan”, or any other variation.
 
 ## Contact
 
