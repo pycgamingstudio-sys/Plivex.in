@@ -1,5 +1,6 @@
 import { backend as db, supabase } from '@/api/backendClient';
 import { useAuth } from '@/lib/AuthContext';
+import { startPhonePeCheckout } from "@/lib/phonepe";
 
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { X, Check, Sparkles, Lock, Crown, Star, XCircle } from "lucide-react";
@@ -96,7 +97,7 @@ export function PaywallProvider({ children }) {
     }
   }, []);
 
-  // PayU sends the customer back here after the backend has verified the payment.
+  // PhonePe returns the customer here after the backend verifies the payment.
   // The query flag only drives the confirmation message — premium itself is always
   // read from the Subscription record above, never from the URL or localStorage.
   useEffect(() => {
@@ -109,7 +110,7 @@ export function PaywallProvider({ children }) {
         const refreshed = await refreshAccessStatus();
         if (!active) return;
         if (refreshed) {
-          toast({ title: "Payment successful", description: "Your plan and limits have been refreshed from Plivex." });
+          toast({ title: "Payment successful", description: "Your PhonePe payment is verified and your plan has been refreshed." });
         } else {
           toast({ title: "Payment received", description: "Your plan status could not refresh yet. Reload the app or contact support if access does not update.", variant: "destructive" });
         }
@@ -269,10 +270,16 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
     { id: "pro", name: "Pro", price: billing === "monthly" ? DISPLAY_PLANS.pro.monthly : DISPLAY_PLANS.pro.yearly, period: billing === "monthly" ? "month" : "year", included: DISPLAY_PLANS.pro.bullets, locked: [], accent: true, badge: "MOST POPULAR", checkoutPlan: PLANS.find((p) => p.id === (billing === "monthly" ? "pro_monthly" : "enterprise_yearly")) },
   ];
 
-  const checkout = (plan) => {
-    // Temporarily keep purchase clicks inside Plivex until live payment credentials
-    // are configured. This does not change the user's current subscription or plan access.
-    setNotice("Plivex ki paid subscription payment facility abhi temporary setup mein hai. Live payment gateway API activate hote hi yahan se payment shuru ho jayegi. Filhaal aap Plivex ko free use kar sakte hain. Aapka Basic/Pro plan status aur existing access is message se change nahi hota.");
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const checkout = async (plan) => {
+    setCheckoutLoading(true);
+    setNotice("");
+    try {
+      await startPhonePeCheckout({ planId: plan.id });
+    } catch (error) {
+      setNotice(error?.message || "PhonePe checkout could not be started. Please try again.");
+      setCheckoutLoading(false);
+    }
   };
 
   return (
@@ -301,7 +308,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
                 <div className="flex items-center gap-2"><p className="text-[13px] font-bold text-slate-900">{plan.name}</p></div>
                 <p className="mt-2 text-[26px] font-bold leading-none text-slate-900">₹{plan.price}<span className="text-[12px] font-medium text-slate-400">/{plan.period}</span></p>
                 <div className="mt-3 flex-1 space-y-1.5">{plan.included.map((item) => <div key={item} className="flex items-start gap-2 text-[11px] font-medium text-slate-700"><span className="mt-0.5 text-emerald-600">✓</span>{item}</div>)}</div>
-                {plan.checkoutPlan ? <button onClick={() => checkout(plan.checkoutPlan)} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9]"}`}>{`Buy ${plan.name} · ₹${plan.price}/${plan.period}`}</button> : <button onClick={onClose} className="mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-[12px] font-bold text-slate-600">{currentPlan?.plan === "free" ? "Current plan" : "Use Free plan"}</button>}
+                {plan.checkoutPlan ? <button onClick={() => checkout(plan.checkoutPlan)} disabled={checkoutLoading} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9]"}`}>{checkoutLoading ? "Connecting to PhonePe…" : `Pay with PhonePe · ₹${plan.price}/${plan.period}`}</button> : <button onClick={onClose} className="mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-[12px] font-bold text-slate-600">{currentPlan?.plan === "free" ? "Current plan" : "Use Free plan"}</button>}
               </div>
             ))}
           </div>
@@ -309,7 +316,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
             <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="payment-notice-title">
               <div className="w-full max-w-sm rounded-2xl border border-violet-100 bg-white p-5 text-center shadow-2xl">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 text-[#6D28D9]"><Sparkles className="h-6 w-6" /></div>
-                <h4 id="payment-notice-title" className="mt-3 text-lg font-bold text-slate-900">Payment facility coming soon</h4>
+                <h4 id="payment-notice-title" className="mt-3 text-lg font-bold text-slate-900">PhonePe checkout notice</h4>
                 <p className="mt-2 text-sm leading-6 text-slate-600">{notice}</p>
                 <button onClick={() => setNotice("")} className="mt-4 w-full rounded-xl bg-[#6D28D9] px-4 py-3 text-sm font-bold text-white">Theek hai, free use karein</button>
               </div>
