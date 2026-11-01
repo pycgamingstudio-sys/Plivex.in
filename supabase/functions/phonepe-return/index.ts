@@ -17,5 +17,5 @@ Deno.serve(async(req:Request)=>{
   if(r.ok&&status?.state==="COMPLETED"&&Number(status.amount)===Number(order.amount_paise)){const result=await activatePayment(admin,order,status,"phonepe-return");return dest(origin,{...details,payment:result.ok?"success":"pending"});}
   if(r.ok&&status?.state==="FAILED"){await admin.from("subscriptions").update({status:"failed",updated_at:new Date().toISOString()}).eq("id",order.id).eq("status","created");return dest(origin,{...details,payment:"failed"});}
   return dest(origin,{...details,payment:"pending"});
- }catch(e){console.error("PhonePe return verify failed",e);return dest(origin,path,{payment:"pending",txnid:id});}
+ }catch(e){console.error("PhonePe return verify failed",e);return dest(origin,{...details,payment:"pending"});}
 });
