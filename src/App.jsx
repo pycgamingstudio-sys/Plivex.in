@@ -42,8 +42,14 @@ const HomeGate = lazy(() => import("./components/HomeGate"));
 const AboutPage = lazy(() => import("./pages/PublicInfoPages").then((module) => ({ default: module.AboutPage })));
 const FeaturesPage = lazy(() => import("./pages/PublicInfoPages").then((module) => ({ default: module.FeaturesPage })));
 const PricingPage = lazy(() => import("./pages/PublicInfoPages").then((module) => ({ default: module.PricingPage })));
+const PaymentResult = lazy(() => import("./pages/PaymentResult"));
 
 const AuthenticatedApp = () => {
+  // Payment callbacks must remain visible even if the customer session expires during checkout.
+  if (window.location.pathname === "/payment-result") {
+    return <Routes><Route path="/payment-result" element={<PaymentResult />} /></Routes>;
+  }
+
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
   // Show loading spinner while checking app public settings or auth
