@@ -18,7 +18,7 @@ export default function PaymentResult() {
   const navigate = useNavigate();
   const status = params.get("payment") || "pending";
   const nextPath = useMemo(() => safeNextPath(params.get("next")), [params]);
-  const [seconds, setSeconds] = useState(5);
+  const [seconds, setSeconds] = useState(15);
   const amount = money(params.get("amount"));
   const txnid = params.get("txnid");
   const plan = params.get("plan");
@@ -27,7 +27,7 @@ export default function PaymentResult() {
     if (status !== "success" && status !== "failed" && status !== "pending") return;
     const startedAt = Date.now();
     const tick = () => {
-      const remaining = Math.max(0, 5 - Math.floor((Date.now() - startedAt) / 1000));
+      const remaining = Math.max(0, 15 - Math.floor((Date.now() - startedAt) / 1000));
       setSeconds(remaining);
       if (remaining === 0) navigate(nextPath, { replace: true });
     };
@@ -81,7 +81,7 @@ export default function PaymentResult() {
             <Home className="h-3.5 w-3.5" /> Returning automatically in {seconds}s
           </div>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-violet-100">
-            <div className="h-full rounded-full bg-violet-600 transition-[width] duration-300" style={{ width: `${((5 - seconds) / 5) * 100}%` }} />
+            <div className="h-full rounded-full bg-violet-600 transition-[width] duration-300" style={{ width: `${((15 - seconds) / 15) * 100}%` }} />
           </div>
         </div>
         <p className="mt-8 text-[11px] text-slate-400">Secure payment experience by Plivex</p>
