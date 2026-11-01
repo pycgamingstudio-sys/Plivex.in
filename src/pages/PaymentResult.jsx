@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, CheckCircle2, Clock3, Home, X, XCircle } from "lucide-react";
 
 const safeNextPath = (value) => {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//") || value.includes("\\\\")) return "/dashboard";
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//") || value.includes(String.fromCharCode(92))) return "/dashboard";
   return value.split("?")[0].split("#")[0] || "/dashboard";
 };
 
