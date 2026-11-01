@@ -8,9 +8,9 @@ export type PlanId=keyof typeof PLANS;
 export const isPlanId=(v:unknown):v is PlanId=>typeof v==="string"&&Object.prototype.hasOwnProperty.call(PLANS,v);
 export const addPeriod=(from:Date,period:"month"|"year")=>{const d=new Date(from),day=d.getUTCDate();if(period==="month")d.setUTCMonth(d.getUTCMonth()+1);else d.setUTCFullYear(d.getUTCFullYear()+1);if(d.getUTCDate()!==day)d.setUTCDate(0);return d;};
 export const config=()=>{
- const clientId=Deno.env.get("PHONEPE_CLIENT_ID"),clientSecret=Deno.env.get("PHONEPE_CLIENT_SECRET"),clientVersion=Deno.env.get("PHONEPE_CLIENT_VERSION");
+ const clientId=Deno.env.get("PHONEPE_CLIENT_ID"),clientSecret=Deno.env.get("PHONEPE_CLIENT_SECRET"),clientVersion="1";
  const environment=Deno.env.get("PHONEPE_ENV")==="production"?"production":"sandbox";
- if(!clientId||!clientSecret||!clientVersion)throw new Error("PhonePe test credentials are not configured.");
+ if(!clientId||!clientSecret)throw new Error("PhonePe test credentials are not configured.");
  const apiBase=environment==="production"?"https://api.phonepe.com/apis/pg":"https://api-preprod.phonepe.com/apis/pg-sandbox";
  return {clientId,clientSecret,clientVersion,environment,apiBase,appBase:(Deno.env.get("APP_BASE_URL")||"https://plivex.in").replace(/\/$/,"")};
 };
