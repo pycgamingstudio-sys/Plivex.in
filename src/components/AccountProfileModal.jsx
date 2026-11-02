@@ -66,6 +66,16 @@ export default function AccountProfileModal({ onClose }) {
           <button onClick={onClose} className="rounded-lg p-2 hover:bg-white/10" aria-label="Close"><X className="h-4 w-4" /></button>
         </div>
         <div className="p-4 sm:p-5">
+          {isSumitPremiumCustomer && (
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-100 p-3 shadow-sm" role="status" aria-label="Premium customer recognition">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-200 text-amber-800"><span aria-hidden="true" className="text-xl">👑</span></div>
+              <div className="min-w-0">
+                <p className="text-[12px] font-extrabold tracking-wide text-amber-900">Proud to be a Plivex Premium Customer</p>
+                <p className="mt-0.5 text-[10px] font-medium text-amber-800">Special recognition from Team Plivex</p>
+              </div>
+              <span className="ml-auto shrink-0 rounded-full bg-amber-200 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wide text-amber-900">Pro</span>
+            </div>
+          )}
           <div className="flex items-center gap-4">
             <div className="relative">
               {avatar ? <img src={avatar} alt="avatar" className="h-16 w-16 rounded-full object-cover" /> : <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#6D28D9] text-[20px] font-bold text-white">{initial}</div>}
