@@ -55,6 +55,8 @@ export default function AccountProfileModal({ onClose }) {
   };
 
   const initial = (user?.full_name || user?.email || "U").charAt(0).toUpperCase();
+  // This recognition banner is intentionally restricted to Sumit’s exact account.
+  const isSumitPremiumCustomer = String(user?.email || "").trim().toLowerCase() === "sumitgorai1986@gmail.com";
 
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/50 px-3 py-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
