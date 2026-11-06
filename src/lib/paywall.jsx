@@ -262,7 +262,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   const { user, checkUserAuth } = useAuth();
   const [notice, setNotice] = useState("");
   const [billing, setBilling] = useState("monthly");
-  const [phone, setPhone] = useState(() => { const digits = String(user?.phone || "").replace(/\\D/g, ""); return digits.length > 10 && digits.startsWith("91") ? digits.slice(-10) : digits; });
+  const [phone, setPhone] = useState(() => { const digits = String(user?.phone || "").replace(/\D/g, ""); return digits.length > 10 && digits.startsWith("91") ? digits.slice(-10) : digits; });
   const [phonePrompt, setPhonePrompt] = useState(false);
   const [pendingPlan, setPendingPlan] = useState(null);
   const [savingPhone, setSavingPhone] = useState(false);
@@ -377,8 +377,8 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
         </div>
       </div>
       {phonePrompt && (
-        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="cashfree-phone-title">
-          <div className="relative w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl sm:p-6">
+        <div className="fixed inset-0 z-[140] flex items-start justify-center overflow-y-auto overscroll-contain bg-slate-950/60 px-4 py-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center" role="dialog" aria-modal="true" aria-labelledby="cashfree-phone-title">
+          <div className="relative my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-2xl bg-white p-5 shadow-2xl sm:p-6">
             <button type="button" onClick={() => { setPhonePrompt(false); setPendingPlan(null); setNotice(""); }} aria-label="Close mobile number form" className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button>
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-violet-100 text-[#6D28D9]"><Sparkles className="h-7 w-7" /></div>
             <h4 id="cashfree-phone-title" className="mt-4 text-center text-lg font-bold text-slate-900">Add your mobile number</h4>
