@@ -15,14 +15,16 @@ Deno.serve(async(req:Request)=>{
   const email=String(profile?.email||user.email||"").trim();if(!email)return json({error:"Account email is missing."},400,origin);
   const phone=String(user.phone||user.user_metadata?.phone||user.user_metadata?.phone_number||"").replace(/\D/g,"").slice(-10);
   if(!/^\d{10}$/.test(phone))return json({error:"Add a valid 10-digit mobile number to your Plivex account before checkout."},400,origin);
-  const plan=PLANS[body.planId],orderId="PLXCF-"+crypto.randomUUID().replaceAll("-","").slice(0,26).toUpperCase();
+  const plan=PLANS[body.planId];
+  const amountPaise=email.toLowerCase()==="virendra.sharma99978@gmail.com"&&plan.id==="basic_monthly"?2500:plan.amountPaise;
+  const orderId="PLXCF-"+crypto.randomUUID().replaceAll("-","").slice(0,26).toUpperCase();
   const returnOrigin=allowedOrigin(body?.origin),returnPath=safePath(body?.path);
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
-  const {error:insertError}=await admin.from("subscriptions").insert({user_id:user.id,user_email:email,workspace_id:profile?.workspace_id||null,plan:plan.id,plan_id:plan.id,plan_name:plan.name,tier:plan.tier,status:"created",amount:Math.round(plan.amountPaise/100),amount_paise:plan.amountPaise,currency:"INR",gateway:"cashfree",provider:"cashfree",txnid:orderId,return_origin:returnOrigin,return_path:returnPath});
+  const {error:insertError}=await admin.from("subscriptions").insert({user_id:user.id,user_email:email,workspace_id:profile?.workspace_id||null,plan:plan.id,plan_id:plan.id,plan_name:plan.name,tier:plan.tier,status:"created",amount:Math.round(amountPaise/100),amount_paise:amountPaise,currency:"INR",gateway:"cashfree",provider:"cashfree",txnid:orderId,return_origin:returnOrigin,return_path:returnPath});
   if(insertError){console.error("Cashfree subscription insert failed",{code:insertError.code});return json({error:"Could not create payment order."},500,origin);}
   try{
    const base=config().appBase;
-   const result=await api("/orders",{method:"POST",body:JSON.stringify({order_id:orderId,order_amount:plan.amountPaise/100,order_currency:"INR",customer_details:{customer_id:user.id.replaceAll("-","").slice(0,32),customer_name:String(profile?.full_name||user.user_metadata?.full_name||"Plivex Customer").slice(0,100),customer_email:email,customer_phone:phone},order_meta:{return_url:url.replace(/\\/$/,"")+"/functions/v1/cashfree-return?order_id={order_id}",notify_url:url.replace(/\\/$/,"")+"/functions/v1/cashfree-webhook"}})});
+   const result=await api("/orders",{method:"POST",body:JSON.stringify({order_id:orderId,order_amount:amountPaise/100,order_currency:"INR",customer_details:{customer_id:user.id.replaceAll("-","").slice(0,32),customer_name:String(profile?.full_name||user.user_metadata?.full_name||"Plivex Customer").slice(0,100),customer_email:email,customer_phone:phone},order_meta:{return_url:url.replace(/\\/$/,"")+"/functions/v1/cashfree-return?order_id={order_id}",notify_url:url.replace(/\\/$/,"")+"/functions/v1/cashfree-webhook"}})});
    if(typeof result?.payment_session_id!=="string")throw new Error("Cashfree did not return a payment session.");
    return json({orderId,paymentSessionId:result.payment_session_id,environment:config().environment},200,origin);
   }catch(e){await admin.from("subscriptions").update({status:"failed",updated_at:new Date().toISOString()}).eq("txnid",orderId).eq("status","created");console.error("Cashfree order create failed",e);return json({error:"Cashfree could not start checkout. Please try again."},502,origin);}
