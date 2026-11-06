@@ -382,7 +382,9 @@ const PRICING_PLANS = [
     locked: [] },
 ];
 
-function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan }) {
+function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEmail }) {
+  const isVirendraAccount = String(userEmail || "").trim().toLowerCase() === "virendra.sharma99978@gmail.com";
+  const displayPlans = PRICING_PLANS.map((plan) => isVirendraAccount && plan.id === "basic_monthly" ? { ...plan, price: 25, amount: 2500, badge: "SPECIAL PRICE" } : plan);
   const activePlan = currentPlan?.planId ? PRICING_PLANS.find((plan) => plan.id === currentPlan.planId) : null;
   return (
     <div className="app-chrome fixed inset-0 z-50 flex items-start justify-center bg-[#1f1c35]/55 p-4 backdrop-blur-md sm:items-center">
@@ -402,7 +404,7 @@ function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan }) {
             <CurrentPlanCard planName={currentPlan.planName} benefits={activePlan?.included || []} startedAt={currentPlan.startedAt} expiresAt={currentPlan.expiresAt} />
           )}
           <div className="grid gap-3 sm:grid-cols-2">
-            {PRICING_PLANS.map((plan) => (
+            {displayPlans.map((plan) => (
               <div key={plan.id} className={`relative flex flex-col rounded-2xl border p-4 ${plan.accent ? "border-primary bg-primary/[.05]" : "border-border bg-background/40"}`}>
                 {plan.badge && <span className={`absolute -top-2.5 right-4 rounded-full px-2.5 py-0.5 font-mono-ui text-[9px] font-bold uppercase tracking-wider text-primary-foreground ${plan.accent ? "bg-primary" : "bg-muted-foreground"}`}>{plan.badge}</span>}
                 <p className="text-[12px] font-bold uppercase tracking-wider text-muted-foreground">{plan.name}</p>
@@ -451,6 +453,7 @@ function WhatsAppNumberModal({ value, onChange, onClose, onSend, sending = false
 }
 
 export default function Home() {
+  const { user } = useAuth();
   const { canAccess, isPremium, planName, planId, planStartedAt, planExpiresAt, limits, usage, remaining, openPaywall, refreshAccessStatus } = usePaywall();
   const [invoice, setInvoice] = useStored("invoicepulse-draft", initialInvoice, "invoicepulse-empty-draft-v1");
   const [isDark, setIsDark] = useStored("invoicepulse-dark", false);
@@ -735,7 +738,7 @@ export default function Home() {
         </main>
       </div>
       {signatureOpen && <SignatureModal onClose={() => setSignatureOpen(false)} onSave={(data) => { setInvoice((old) => ({ ...old, signature: data })); notify("Signature saved"); }} />}
-      {pricingOpen && <PricingModal onClose={() => { setPricingOpen(false); setCheckoutNotice(""); }} onCheckout={checkout} checkoutNotice={checkoutNotice} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} />}
+      {pricingOpen && <PricingModal onClose={() => { setPricingOpen(false); setCheckoutNotice(""); }} onCheckout={checkout} checkoutNotice={checkoutNotice} userEmail={user?.email} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} />}
       {whatsappOpen && <WhatsAppNumberModal value={whatsappNumber} onChange={setWhatsappNumber} onClose={() => setWhatsappOpen(false)} onSend={() => sendWhatsApp(whatsappNumber)} sending={whatsappSending} />}
       <PresenceBeacon />
       <Toast toast={toast} onClose={() => setToast(null)} />
