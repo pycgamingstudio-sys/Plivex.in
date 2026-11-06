@@ -1,6 +1,6 @@
 import { backend as db, supabase } from '@/api/backendClient';
 import { useAuth } from '@/lib/AuthContext';
-import { startCashfreeCheckout } from "@/lib/cashfree";
+import { startCashfreeCheckout } from "@/lib/phonepe";
 
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { X, Check, Sparkles, Lock, Crown, Star, XCircle } from "lucide-react";
