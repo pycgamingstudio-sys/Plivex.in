@@ -289,7 +289,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   const checkout = async (plan) => {
     const digits = String(user?.phone || "").replace(/\D/g, "");
     const normalized = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
-    if (!/^[6-9]\d{9}$/.test(normalized)) {
+    if (!/^\d{10}$/.test(normalized)) {
       setPhone(user?.phone || "");
       setPendingPlan(plan);
       setPhonePrompt(true);
@@ -299,10 +299,10 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
     await startCheckout(plan);
   };
   const savePhoneAndContinue = async () => {
-    const digits = phone.replace(/\D/g, "");
-    const normalized = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
-    if (!/^[6-9]\d{9}$/.test(normalized)) {
-      setNotice("Please enter a valid 10-digit Indian mobile number.");
+    const digits = String(phone || "").replace(/\D/g, "");
+    const normalized = digits.length > 10 && digits.startsWith("91") ? digits.slice(-10) : digits;
+    if (!/^\d{10}$/.test(normalized)) {
+      setNotice("Please enter exactly 10 digits (without +91).");
       return;
     }
     setSavingPhone(true);
