@@ -262,7 +262,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   const { user, checkUserAuth } = useAuth();
   const [notice, setNotice] = useState("");
   const [billing, setBilling] = useState("monthly");
-  const [phone, setPhone] = useState(user?.phone || "");
+  const [phone, setPhone] = useState(() => { const digits = String(user?.phone || "").replace(/\\D/g, ""); return digits.length > 10 && digits.startsWith("91") ? digits.slice(-10) : digits; });
   const [phonePrompt, setPhonePrompt] = useState(false);
   const [pendingPlan, setPendingPlan] = useState(null);
   const [savingPhone, setSavingPhone] = useState(false);
@@ -386,7 +386,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
             <label className="mt-5 block text-sm font-semibold text-slate-700">Mobile number
               <span className="mt-1.5 flex overflow-hidden rounded-xl border border-slate-200 bg-white focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-100">
                 <span className="flex items-center border-r border-slate-200 bg-slate-50 px-4 text-sm text-slate-500">+91</span>
-                <input type="tel" inputMode="numeric" autoComplete="tel-national" maxLength={10} value={phone.replace(/\D/g, "").slice(0, 10)} onChange={(event) => setPhone(event.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="98765 43210" className="min-w-0 flex-1 px-3 py-3 text-base text-slate-900 outline-none" autoFocus />
+                <input type="tel" inputMode="numeric" autoComplete="tel-national" maxLength={10} value={phone.replace(/\D/g, "").slice(0, 10)} onChange={(event) => setPhone(event.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="98765 43210" className="min-w-0 flex-1 px-3 py-3 text-base text-slate-900 outline-none" />
               </span>
             </label>
             {notice && <p className="mt-2 text-sm text-rose-600" role="alert">{notice}</p>}
