@@ -301,14 +301,16 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   const savePhoneAndContinue = async () => {
     const digits = phone.replace(/\D/g, "");
     const normalized = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
-    if (!/^[6-9]\\d{9}$/.test(normalized)) {
+    if (!/^[6-9]\d{9}$/.test(normalized)) {
       setNotice("Please enter a valid 10-digit Indian mobile number.");
       return;
     }
     setSavingPhone(true);
     setNotice("");
     try {
-      const { error } = await supabase.auth.updateUser({ data: { ...(user?.user_metadata || {}), phone: normalized } });
+      const { data: currentAuth, error: currentAuthError } = await supabase.auth.getUser();
+      if (currentAuthError || !currentAuth?.user) throw currentAuthError || new Error("Could not load your signed-in account.");
+      const { error } = await supabase.auth.updateUser({ data: { ...(currentAuth.user.user_metadata || {}), phone: normalized } });
       if (error) throw error;
       const { data: refreshed, error: refreshError } = await supabase.auth.getUser();
       if (refreshError) throw refreshError;
