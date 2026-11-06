@@ -1,6 +1,6 @@
 import { backend as db, supabase } from '@/api/backendClient';
 import { useAuth } from '@/lib/AuthContext';
-import { startCashfreeCheckout } from "@/lib/phonepe";
+import { startCashfreeCheckout } from "@/lib/cashfree";
 
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { X, Check, Sparkles, Lock, Crown, Star, XCircle } from "lucide-react";
@@ -11,7 +11,7 @@ import { PLANS as DISPLAY_PLANS } from "@/lib/plans";
 
 // Read subscription limits directly from the authoritative Supabase RPC.
 // The old Lovable getAccessStatus endpoint can return stale Free-plan limits
-// even after PayU has activated a subscription in Supabase.
+// even after a payment provider has activated a subscription in Supabase.
 async function loadAccessStatus() {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) throw sessionError;
@@ -179,7 +179,7 @@ export function PaywallProvider({ children }) {
   }, [canAccess]);
   const requestAction = useCallback(() => true, []);
 
-  // Called only after the server has verified the PayU response hash and activated
+  // Subscription state is read from the authoritative Supabase RPC after payment verification.
   // the Subscription record. Never trusts a client-supplied plan.
   const applySubscription = useCallback((data) => {
     setSubscription(data?.tier || "pro");
