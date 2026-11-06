@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { KEYS, pushItem, genId, deductStockForInvoice, loadList, loadState, removeState, tenantKey, saveInvoiceToServer } from "@/lib/stores";
 import { useAuth } from "@/lib/AuthContext";
-import { startPhonePeCheckout } from "@/lib/phonepe";
+import { startCashfreeCheckout } from "@/lib/cashfree";
 import { usePaywall } from "@/lib/paywall";
 import { trackStaffAction } from "@/lib/staffTracking";
 import PresenceBeacon from "@/components/PresenceBeacon";
@@ -420,7 +420,7 @@ function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan }) {
         <div className="border-t px-6 py-4">
           <button data-testid="button-close-pricing-text" onClick={onClose} className="w-full text-center text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground">Close</button>
         </div>
-        <div className="flex items-center justify-center gap-1 border-t px-6 py-3 text-[10px] text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" />Secure checkout via PhonePe</div>
+        <div className="flex items-center justify-center gap-1 border-t px-6 py-3 text-[10px] text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" />Secure checkout via Cashfree</div>
       </div>
     </div>
   );
@@ -631,7 +631,7 @@ export default function Home() {
     try { await generatePdf(false); }
     finally { setPdfDownloading(false); }
   };
-  // Returning from PhonePe: premium is now active on the server, so resume the
+  // Returning from Cashfree: premium is now active on the server, so resume the
   // download that the upgrade was started for.
   useEffect(() => {
     if (!isPremium) return;
@@ -644,13 +644,13 @@ export default function Home() {
   const newInvoice = () => { setInvoice({ ...initialInvoice }); setErrors({}); setMobileMenuOpen(false); notify("Fresh invoice started"); };
   const checkout = async (plan) => {
     setCheckoutNotice("");
-    // PhonePe opens a hosted page with a full browser redirect; remember the intent so
+    // Cashfree opens a hosted page with a full browser redirect; remember the intent so
     // the download resumes when the verified payment brings the user back here.
     try { sessionStorage.setItem("plivex:pendingDownload", "1"); } catch { /* ignore */ }
     try {
-      await startPhonePeCheckout({ planId: plan.id });
+      await startCashfreeCheckout({ planId: plan.id });
     } catch (error) {
-      setCheckoutNotice(error?.message || "PhonePe checkout could not be started. Please try again.");
+      setCheckoutNotice(error?.message || "Cashfree checkout could not be started. Please try again.");
       try { sessionStorage.removeItem("plivex:pendingDownload"); } catch { /* ignore */ }
     }
   };
