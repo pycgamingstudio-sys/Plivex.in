@@ -15,7 +15,7 @@ export const PLANS = {
   basic: {
     id: "basic",
     name: "Basic",
-    monthly: 199,
+    monthly: 25,
     yearly: 999,
     bullets: [
       "100 invoices per month",
