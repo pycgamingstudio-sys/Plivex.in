@@ -259,8 +259,13 @@ const PLANS = [
 ];
 
 function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
+  const { user, checkUserAuth } = useAuth();
   const [notice, setNotice] = useState("");
   const [billing, setBilling] = useState("monthly");
+  const [phone, setPhone] = useState(user?.phone || "");
+  const [phonePrompt, setPhonePrompt] = useState(false);
+  const [pendingPlan, setPendingPlan] = useState(null);
+  const [savingPhone, setSavingPhone] = useState(false);
   // Callers may accidentally pass an Error/object as the reason; never call string methods on it.
   const safeBlockReason = typeof blockReason === "string" ? blockReason : String(blockReason?.message || blockReason?.error || "");
   const activePlan = currentPlan?.planId ? PLANS.find((plan) => plan.id === currentPlan.planId) : null;
@@ -271,7 +276,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   ];
 
   const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const checkout = async (plan) => {
+  const startCheckout = async (plan) => {
     setCheckoutLoading(true);
     setNotice("");
     try {
@@ -279,6 +284,40 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
     } catch (error) {
       setNotice(error?.message || "Cashfree checkout could not be started. Please try again.");
       setCheckoutLoading(false);
+    }
+  };
+  const checkout = async (plan) => {
+    const digits = String(user?.phone || "").replace(/\\D/g, "");
+    const normalized = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+    if (!/^[6-9]\\d{9}$/.test(normalized)) {
+      setPhone(user?.phone || "");
+      setPendingPlan(plan);
+      setPhonePrompt(true);
+      setNotice("");
+      return;
+    }
+    await startCheckout(plan);
+  };
+  const savePhoneAndContinue = async () => {
+    const digits = phone.replace(/\\D/g, "");
+    const normalized = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+    if (!/^[6-9]\\d{9}$/.test(normalized)) {
+      setNotice("Please enter a valid 10-digit Indian mobile number.");
+      return;
+    }
+    setSavingPhone(true);
+    setNotice("");
+    try {
+      await db.auth.updateMe({ phone: normalized });
+      if (checkUserAuth) await checkUserAuth();
+      setPhonePrompt(false);
+      const plan = pendingPlan;
+      setPendingPlan(null);
+      if (plan) await startCheckout(plan);
+    } catch (error) {
+      setNotice(error?.message || "Could not save your mobile number. Please try again.");
+    } finally {
+      setSavingPhone(false);
     }
   };
 
@@ -312,16 +351,23 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
               </div>
             ))}
           </div>
-          {notice && (
-            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="payment-notice-title">
-              <div className="w-full max-w-sm rounded-2xl border border-violet-100 bg-white p-5 text-center shadow-2xl">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 text-[#6D28D9]"><Sparkles className="h-6 w-6" /></div>
-                <h4 id="payment-notice-title" className="mt-3 text-lg font-bold text-slate-900">Cashfree checkout notice</h4>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{notice}</p>
-                <button onClick={() => setNotice("")} className="mt-4 w-full rounded-xl bg-[#6D28D9] px-4 py-3 text-sm font-bold text-white">Theek hai, free use karein</button>
+          {phonePrompt && (
+            <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 p-4" role="group" aria-labelledby="cashfree-phone-title">
+              <h4 id="cashfree-phone-title" className="text-sm font-bold text-slate-900">Mobile number required for checkout</h4>
+              <p className="mt-1 text-xs leading-5 text-slate-600">Enter your 10-digit Indian mobile number. We’ll save it to your Plivex account and continue to Cashfree. No OTP or SMS will be sent.</p>
+              <label className="mt-3 block text-xs font-semibold text-slate-700">Mobile number
+                <span className="mt-1 flex overflow-hidden rounded-lg border border-slate-200 bg-white">
+                  <span className="flex items-center border-r border-slate-200 bg-slate-50 px-3 text-sm text-slate-500">+91</span>
+                  <input type="tel" inputMode="numeric" autoComplete="tel-national" maxLength={12} value={phone} onChange={(event) => setPhone(event.target.value.replace(/[^0-9]/g, "").slice(0, 12))} placeholder="98765 43210" className="min-w-0 flex-1 px-3 py-2.5 text-sm text-slate-900 outline-none" />
+                </span>
+              </label>
+              <div className="mt-3 flex gap-2">
+                <button onClick={savePhoneAndContinue} disabled={savingPhone || checkoutLoading} className="flex-1 rounded-lg bg-[#6D28D9] px-3 py-2.5 text-xs font-bold text-white disabled:opacity-60">{savingPhone ? "Saving…" : "Save & continue to payment"}</button>
+                <button onClick={() => { setPhonePrompt(false); setPendingPlan(null); setNotice(""); }} className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-600">Cancel</button>
               </div>
             </div>
           )}
+          {notice && <p className="mb-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-700" role="alert">{notice}</p>}
         </div>
 
         <div className="shrink-0 border-t border-[#E5E7EB] bg-white px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-4">
