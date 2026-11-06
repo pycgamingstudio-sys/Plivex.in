@@ -32,8 +32,8 @@ export default function AuthModal({ open, actionLabel, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-[400px] rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/40 px-4 py-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-[400px] overflow-y-auto overscroll-contain rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 id="auth-modal-title" className="text-[17px] font-bold text-slate-900">Sign in to continue Plivex</h3>
