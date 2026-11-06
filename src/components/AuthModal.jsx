@@ -36,7 +36,7 @@ export default function AuthModal({ open, actionLabel, onClose }) {
       <div className="w-full max-w-[400px] rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-[17px] font-bold text-slate-900">Sign in to continue Plivex</h3>
+            <h3 id="auth-modal-title" className="text-[17px] font-bold text-slate-900">Sign in to continue Plivex</h3>
             <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
               {actionLabel ? `We'll take you straight to "${actionLabel}" after you sign in — nothing is lost.` : "Sign in or create your free workspace to unlock everything."}
             </p>
