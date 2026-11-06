@@ -169,6 +169,7 @@ const auth = {
       trial_expires_at: profile?.trial_expires_at,
       created_date: profile?.created_at || session.user.created_at,
       profilePicture: profile?.profile_picture || '',
+      phone: session.user.user_metadata?.phone || '',
     };
   },
   async loginViaEmailPassword(email, password) {
@@ -208,9 +209,19 @@ const auth = {
     const patch = {};
     if (values.full_name !== undefined) patch.full_name = values.full_name;
     if (values.profilePicture !== undefined) patch.profile_picture = values.profilePicture;
-    if (Object.keys(patch).length === 0) return null;
-    const { error } = await supabase.from('profiles').update(patch).eq('id', uid);
-    if (error) throw new ApiError(error.message || 'Update failed', 400);
+    if (Object.keys(patch).length === 0 && values.phone === undefined) return null;
+    if (Object.keys(patch).length > 0) {
+      const { error } = await supabase.from('profiles').update(patch).eq('id', uid);
+      if (error) throw new ApiError(error.message || 'Update failed', 400);
+    }
+    if (values.phone !== undefined) {
+      const { data: current, error: userError } = await supabase.auth.getUser();
+      if (userError || !current?.user) throw new ApiError(userError?.message || 'Could not load account', 400);
+      const { error: metadataError } = await supabase.auth.updateUser({
+        data: { ...(current.user.user_metadata || {}), phone: values.phone || null },
+      });
+      if (metadataError) throw authError(metadataError, 'Could not save mobile number');
+    }
     return null;
   },
   async logout(redirectUrl) {
