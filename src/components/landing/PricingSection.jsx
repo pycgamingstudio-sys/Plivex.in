@@ -65,7 +65,7 @@ export default function PricingSection() {
             </div>
           ))}
         </div>
-        <p className="mt-4 text-center text-[10px] text-slate-400">Prices in INR · GST applicable · Secure checkout via PhonePe</p>
+        <p className="mt-4 text-center text-[10px] text-slate-400">Prices in INR · GST applicable · Secure checkout via Cashfree</p>
       </div>
     </section>
   );
