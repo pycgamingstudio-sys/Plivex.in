@@ -15,6 +15,7 @@ export default function AccountProfileModal({ onClose }) {
   const planEndsAt = isPremium ? planExpiresAt : trialExpiresAt;
   const [name, setName] = useState(user?.full_name || "");
   const [avatar, setAvatar] = useState(user?.profilePicture || "");
+  const [phone, setPhone] = useState(user?.phone || "");
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState("");
@@ -38,7 +39,13 @@ export default function AccountProfileModal({ onClose }) {
   const save = async () => {
     try {
       setSaving(true);
-      await db.auth.updateMe({ full_name: name, profilePicture: avatar });
+      const digits = phone.replace(/\\D/g, "");
+      const normalizedPhone = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+      if (normalizedPhone && !/^[6-9]\\d{9}$/.test(normalizedPhone)) {
+        notify("Enter a valid 10-digit Indian mobile number");
+        return;
+      }
+      await db.auth.updateMe({ full_name: name, profilePicture: avatar, phone: normalizedPhone });
       if (checkUserAuth) await checkUserAuth();
       notify("Profile updated");
     } catch {
@@ -89,6 +96,7 @@ export default function AccountProfileModal({ onClose }) {
 
           <div className="mt-5 space-y-3">
             <label className="block text-[12px] font-semibold text-slate-500">Display name<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="mt-1 w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-[13px] focus:border-[#6D28D9]" /></label>
+            <label className="block text-[12px] font-semibold text-slate-500">Mobile number (+91)<span className="mt-1 flex overflow-hidden rounded-lg border border-[#E5E7EB] focus-within:border-[#6D28D9]"><span className="flex items-center border-r border-[#E5E7EB] bg-slate-50 px-3 text-[13px] text-slate-500">+91</span><input type="tel" inputMode="numeric" autoComplete="tel-national" maxLength={12} value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, "").slice(0, 12))} placeholder="98765 43210" className="min-w-0 flex-1 px-3 py-2 text-[13px] outline-none" /></span><span className="mt-1 block text-[10px] font-normal text-slate-400">Used for Cashfree checkout. No SMS or OTP is sent.</span></label>
             <div>
               <p className="text-[12px] font-semibold text-slate-500">Unique User ID</p>
               <div className="mt-1 flex items-center gap-2 rounded-lg border border-[#E5E7EB] bg-slate-50 px-3 py-2">
