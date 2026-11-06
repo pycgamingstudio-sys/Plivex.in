@@ -1,6 +1,6 @@
 import { backend as db, supabase } from '@/api/backendClient';
 import { useAuth } from '@/lib/AuthContext';
-import { startPhonePeCheckout } from "@/lib/phonepe";
+import { startCashfreeCheckout } from "@/lib/cashfree";
 
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { X, Check, Sparkles, Lock, Crown, Star, XCircle } from "lucide-react";
@@ -110,7 +110,7 @@ export function PaywallProvider({ children }) {
         const refreshed = await refreshAccessStatus();
         if (!active) return;
         if (refreshed) {
-          toast({ title: "Payment successful", description: "Your PhonePe payment is verified and your plan has been refreshed." });
+          toast({ title: "Payment successful", description: "Your Cashfree payment is verified and your plan has been refreshed." });
         } else {
           toast({ title: "Payment received", description: "Your plan status could not refresh yet. Reload the app or contact support if access does not update.", variant: "destructive" });
         }
@@ -275,9 +275,9 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
     setCheckoutLoading(true);
     setNotice("");
     try {
-      await startPhonePeCheckout({ planId: plan.id });
+      await startCashfreeCheckout({ planId: plan.id });
     } catch (error) {
-      setNotice(error?.message || "PhonePe checkout could not be started. Please try again.");
+      setNotice(error?.message || "Cashfree checkout could not be started. Please try again.");
       setCheckoutLoading(false);
     }
   };
