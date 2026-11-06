@@ -39,9 +39,9 @@ export default function AccountProfileModal({ onClose }) {
   const save = async () => {
     try {
       setSaving(true);
-      const digits = phone.replace(/\\D/g, "");
+      const digits = phone.replace(/\D/g, "");
       const normalizedPhone = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
-      if (normalizedPhone && !/^[6-9]\\d{9}$/.test(normalizedPhone)) {
+      if (normalizedPhone && !/^[6-9]\d{9}$/.test(normalizedPhone)) {
         notify("Enter a valid 10-digit Indian mobile number");
         return;
       }
