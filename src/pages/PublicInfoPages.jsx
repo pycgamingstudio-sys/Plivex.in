@@ -66,6 +66,7 @@ function PublicShell({ title, subtitle, children }) {
             <Link to="/privacy-policy" className="text-slate-600 underline underline-offset-4">Privacy</Link>
             <Link to="/terms-and-conditions" className="text-slate-600 underline underline-offset-4">Terms</Link>
             <Link to="/refund-and-cancellation" className="text-slate-600 underline underline-offset-4">Refunds</Link>
+            <Link to="/about" className="text-slate-600 underline underline-offset-4">About us</Link>
             <Link to="/contact-us" className="text-slate-600 underline underline-offset-4">Contact</Link>
           </nav>
         </div>
@@ -90,6 +91,23 @@ export function AboutPage() {
         <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Founder and Developer of Plivex" width="88" height="88" loading="eager" className="h-20 w-20 rounded-full border-4 border-white object-cover shadow-sm sm:h-22 sm:w-22" />
         <div><p className="text-xs font-bold uppercase tracking-wider text-violet-700">Founder</p><h2 className="mt-1 text-xl font-bold">Yashvant Sharma</h2><p className="mt-1 text-sm text-slate-600">Founder &amp; Developer of Plivex</p><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-700">Building practical business software to make everyday billing and business management simpler for small businesses.</p></div>
       </div>
+      <section aria-labelledby="ownership-heading" className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+        <p className="text-xs font-bold uppercase tracking-wider text-violet-700">Business ownership</p>
+        <h2 id="ownership-heading" className="mt-1 text-xl font-bold text-slate-900">Meet the owner of Plivex</h2>
+        <p className="mt-3 text-sm leading-6 text-slate-600">Plivex is owned by Virendra Sharma. The idea behind Plivex is simple: make everyday billing and business organisation easier for Indian small businesses, with practical tools that bring invoices, customers, expenses and stock together.</p>
+        <p className="mt-2 text-sm leading-6 text-slate-600">Yashvant Sharma leads the product's development as Founder &amp; Developer, working to turn that purpose into a straightforward, useful platform. We value clear communication, dependable service and continuous improvement based on real business needs.</p>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <a href="mailto:virendra.sharma99978@gmail.com" className="rounded-xl border border-slate-200 p-4 transition hover:border-violet-300 hover:bg-violet-50/50">
+            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-500">Owner email</span>
+            <span className="mt-1 block break-all text-sm font-semibold text-violet-700">virendra.sharma99978@gmail.com</span>
+          </a>
+          <a href="tel:+919997869582" className="rounded-xl border border-slate-200 p-4 transition hover:border-violet-300 hover:bg-violet-50/50">
+            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-500">Owner phone</span>
+            <span className="mt-1 block text-sm font-semibold text-violet-700">+91 99978 69582</span>
+          </a>
+        </div>
+        <p className="mt-3 text-xs text-slate-500">For product support, please contact <a href="mailto:support@plivex.in" className="font-semibold text-violet-700 underline underline-offset-2">support@plivex.in</a>.</p>
+      </section>
       <AboutSection />
     </div>
   </PublicShell>;
