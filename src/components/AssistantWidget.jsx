@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, X, Sparkles, CheckCircle2, Loader2, PlusCircle } from "lucide-react";
+import { Send, X, Sparkles, CheckCircle2, Loader2, PlusCircle, ImagePlus } from "lucide-react";
 import { assistantEnabled, supabase } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
 
@@ -25,6 +25,8 @@ export default function AssistantWidget() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
+  const [attachment, setAttachment] = useState(null);
+  const imageInputRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [retryAction, setRetryAction] = useState(null);
@@ -76,8 +78,8 @@ export default function AssistantWidget() {
 
   async function send(raw = draft) {
     const content = String(raw || "").trim().slice(0, 1000);
-    if (!content || busy) return;
-    const next = [...messages, { role: "user", content }];
+    if ((!content && !attachment) || busy) return;
+    const next = [...messages, { role: "user", content: content || "Please inspect this image.", imageDataUrl: attachment || null }];
     setMessages(next);
     setDraft("");
     setError("");
@@ -85,7 +87,10 @@ export default function AssistantWidget() {
     setBusy(true);
     try {
       const { data, error: invokeError } = await supabase.functions.invoke("assistant-chat", {
-        body: { messages: next.slice(-12).map(({ role, content: text }) => ({ role, content: text })) },
+        body: {
+          messages: next.slice(-12).map(({ role, content: text }) => ({ role, content: text })),
+          image: attachment ? { mimeType: attachment.slice(5, attachment.indexOf(";")), data: attachment.split(",")[1] } : null,
+        },
       });
       if (invokeError) throw invokeError;
       if (!data?.reply) throw new Error("AI returned an empty response. Please try again.");
@@ -156,6 +161,7 @@ export default function AssistantWidget() {
             {messages.map((m, i) => <div key={m.id || i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
               <div className={m.role === "user" ? "max-w-[90%] whitespace-pre-wrap rounded-2xl bg-[#6D28D9] px-3.5 py-2.5 text-sm text-white" : "max-w-[94%] whitespace-pre-wrap rounded-2xl bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-sm"}>
                 {m.content}
+                {m.imageDataUrl && <img src={m.imageDataUrl} alt="Attached business document" className="mt-2 max-h-40 max-w-full rounded-lg border border-slate-200 object-contain" />}
                 {m.pendingAction && <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50 p-3">
                   <div className="flex items-center gap-2 text-xs font-semibold text-purple-900"><PlusCircle className="h-4 w-4" /> Ready to add</div>
                   <p className="mt-1 text-sm font-medium text-slate-800">{m.pendingAction.summary}</p>
@@ -173,9 +179,14 @@ export default function AssistantWidget() {
             {error && <div className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{error} <button onClick={() => retryAction ? confirmAction(retryAction.action, retryAction.messageIndex) : send(messages[messages.length - 1]?.content)} className="ml-1 font-bold underline">Retry</button></div>}
             <div ref={bottomRef} />
           </div>
-          <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex items-center gap-2 border-t border-slate-200 bg-white p-3">
-            <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={1000} placeholder="Ask about your live Plivex data…" className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-purple-500" />
-            <button type="submit" disabled={busy || !draft.trim()} aria-label="Send message" className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#6D28D9] text-white disabled:opacity-50"><Send className="h-4 w-4" /></button>
+          <form onSubmit={(e) => { e.preventDefault(); send(); }} className="border-t border-slate-200 bg-white p-3">
+            {attachment && <div className="mb-2 flex items-center gap-2 rounded-lg bg-purple-50 p-2"><img src={attachment} alt="Receipt preview" className="h-12 w-12 rounded object-cover" /><span className="min-w-0 flex-1 text-xs text-purple-900">Image attached · ready for AI review</span><button type="button" onClick={() => setAttachment(null)} className="rounded px-2 py-1 text-xs text-slate-600">Remove</button></div>}
+            <div className="flex items-center gap-2">
+              <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; if (file.size > 4 * 1024 * 1024) { setError("Image must be smaller than 4 MB."); e.target.value = ""; return; } const reader = new FileReader(); reader.onload = () => setAttachment(typeof reader.result === "string" ? reader.result : null); reader.readAsDataURL(file); e.target.value = ""; }} />
+              <button type="button" onClick={() => imageInputRef.current?.click()} disabled={busy} aria-label="Attach receipt or image" title="Attach receipt or image" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-[#6D28D9] disabled:opacity-50"><ImagePlus className="h-5 w-5" /></button>
+              <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={1000} placeholder="Ask Plivex AI or add a receipt…" className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-purple-500" />
+              <button type="submit" disabled={busy || (!draft.trim() && !attachment)} aria-label="Send message" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#6D28D9] text-white disabled:opacity-50"><Send className="h-4 w-4" /></button>
+            </div>
           </form>
         </section>
       )}
