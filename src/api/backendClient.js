@@ -118,7 +118,7 @@ const functions = {
       "add-client", "ensure-owner-role", "send-team-invite", "verify-invite-code",
       "get-workspace-team", "manage-workspace-member", "ping-presence",
       "track-staff-action", "get-team-presence", "get-access-status", "create-payu-order",
-      "workspace-records", "list-invoices", "save-invoice", "set-invoice-status", "send-payment-reminder",
+      "workspace-records", "list-invoices", "save-invoice", "set-invoice-status", "send-payment-reminder", "set-invoice-reminder",
     ]);
     const adapter = adapters[name] || {};
     const requestPayload = adapter.request ? adapter.request(payload) : payload;
