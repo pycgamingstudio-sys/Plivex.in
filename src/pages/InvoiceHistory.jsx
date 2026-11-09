@@ -1,16 +1,34 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { History, Trash2, Eye } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import PageShell from "@/components/PageShell";
 import { KEYS, loadList, removeItem, saveList } from "@/lib/stores";
+import { supabase } from "@/api/backendClient";
 
 const sym = (c) => ({ INR: "₹", USD: "$", EUR: "€" }[c] || c);
 const money = (v, c = "INR") => `${sym(c)} ${(Number(v) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const dateLabel = (v) => (v ? new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
+const reminderStage = { before_due_2: "2 days before due", due_date: "Due date", overdue_3: "3 days overdue", overdue_7: "7 days overdue", overdue_15: "15 days overdue" };
+const reminderStatus = { scheduled: "Scheduled", on_hold: "Waiting for your confirmation", sending: "Sending", sent: "Sent", failed: "Failed", cancelled: "Cancelled" };
 
 export default function InvoiceHistory() {
   const [items, setItems] = useState(() => loadList(KEYS.history, { includeCancelled: true }));
   const [view, setView] = useState(null);
+  const [reminderEvents, setReminderEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  useEffect(() => {
+    let active = true;
+    if (!view?.id) { setReminderEvents([]); return undefined; }
+    setEventsLoading(true);
+    supabase.from("invoice_reminder_events").select("id,stage,scheduled_for,status,sent_at,recipient_email,failure_reason")
+      .eq("invoice_id", view.id).order("scheduled_for", { ascending: true })
+      .then(({ data, error }) => {
+        if (!active) return;
+        setReminderEvents(error ? [] : (data || []));
+        setEventsLoading(false);
+      });
+    return () => { active = false; };
+  }, [view?.id]);
   const remove = (id) => { setItems(removeItem(KEYS.history, id)); if (view && view.id === id) setView(null); };
   const updateItem = (id, patch) => {
     const next = items.map((it) => (it.id === id ? { ...it, ...patch } : it));
@@ -39,16 +57,16 @@ export default function InvoiceHistory() {
                 <p className="text-[11px] text-muted-foreground">{it.businessName || "—"} · {dateLabel(it.issueDate)}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2.5">
                   <label className="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground">
-                    <Switch checked={!!it.reminder?.enabled} onCheckedChange={(v) => updateItem(it.id, { reminder: { enabled: v, intervalDays: it.reminder?.intervalDays ?? 7, lastSentDate: it.reminder?.lastSentDate } })} />
+                    <Switch checked={!!it.reminder?.enabled} disabled={!it.dueDate || !reminderEmail(it) || it.status === "Paid" || it.status === "Cancelled"} onCheckedChange={(v) => updateItem(it.id, { reminder: { ...it.reminder, enabled: v, language: it.reminder?.language || "en" } })} />
                     Auto Reminder
                   </label>
                   {it.reminder?.enabled && (
-                    <span className="flex flex-wrap items-center gap-1 text-[11px] font-medium text-muted-foreground">
-                      Send reminder
-                      <input type="number" min="0" value={it.reminder.intervalDays ?? 7} onChange={(e) => updateItem(it.id, { reminder: { enabled: true, intervalDays: Math.max(0, Number(e.target.value) || 0), lastSentDate: it.reminder.lastSentDate } })} className="w-14 rounded-md border bg-card px-1.5 py-1 text-[11px]" aria-label="Reminder interval days" />
-                      days after Issue Date · to {reminderEmail(it) || "no client email saved"}
+                    <span className="text-[11px] text-muted-foreground">
+                      Schedule: 2 days before, due date, 3, 7 & 15 days after · {reminderEmail(it) || "No customer email"}
                     </span>
                   )}
+                  {!it.reminder?.enabled && !reminderEmail(it) && <span className="text-[11px] text-amber-700">Add customer email to enable reminders</span>}
+                  {!it.dueDate && <span className="text-[11px] text-amber-700">Add a due date to enable reminders</span>}
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -74,6 +92,28 @@ export default function InvoiceHistory() {
               <div><p className="text-muted-foreground">IGST</p><p className="font-semibold">{money(view.igst, view.currency)}</p></div>
               <div><p className="text-muted-foreground">Total</p><p className="font-bold text-primary">{money(view.total, view.currency)}</p></div>
             </div>
+            <section className="mt-5 border-t pt-4">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-bold">Payment reminder history</h4>
+                <span className="text-[10px] text-muted-foreground">{view.reminder?.enabled ? "Automatic reminders ON" : "Reminders OFF"}</span>
+              </div>
+              {eventsLoading ? <p className="mt-3 text-xs text-muted-foreground">Loading reminder history…</p> : reminderEvents.length === 0 ? (
+                <p className="mt-3 rounded-lg bg-secondary/60 p-3 text-xs text-muted-foreground">No reminder activity yet. Enable Auto Reminder to create a schedule.</p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {reminderEvents.map((event) => (
+                    <div key={event.id} className="flex items-start justify-between gap-3 rounded-lg border p-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold">{reminderStage[event.stage] || event.stage}</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">{dateLabel(event.scheduled_for)}</p>
+                        {event.failure_reason && <p className="mt-1 text-[11px] text-destructive">{event.failure_reason}</p>}
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${event.status === "sent" ? "bg-emerald-100 text-emerald-700" : event.status === "failed" ? "bg-red-100 text-red-700" : "bg-secondary text-muted-foreground"}`}>{reminderStatus[event.status] || event.status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
         </div>
       )}
