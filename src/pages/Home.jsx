@@ -328,8 +328,8 @@ function InvoicePreview({ invoice, design }) {
   const total = taxable + taxValue;
   const upiId = (invoice.upiId || "").trim();
   const upiValid = Boolean(upiId) && /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z][a-zA-Z0-9.\-_]{1,64}$/.test(upiId);
-  const upiUri = upiValid ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=Plivex&am=${total.toFixed(2)}&cu=INR` : "";
-  const qrUrl = upiValid ? `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=${encodeURIComponent(upiUri)}` : "";
+  const upiUri = upiValid ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(invoice.business.name || "Business")}&am=${total.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Invoice ${invoice.number || ""}`)}` : "";
+  const qrUrl = upiValid ? `https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=2&data=${encodeURIComponent(upiUri)}` : "";
   return (
     <div className="p-2 sm:p-4">
       <ScaledPreview>
@@ -533,7 +533,7 @@ export default function Home() {
     let canvas;
     try {
       if (document.fonts && document.fonts.ready) await document.fonts.ready;
-      canvas = await html2canvas(copy, { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false, windowWidth: INVOICE_WIDTH });
+      canvas = await html2canvas(copy, { scale: 3, useCORS: true, backgroundColor: "#ffffff", logging: false, windowWidth: INVOICE_WIDTH });
     } finally {
       document.body.removeChild(stage);
     }
@@ -544,13 +544,13 @@ export default function Home() {
     const addFreeFooter = () => { if (planName !== "Free") return; const pages = pdf.getNumberOfPages(); for (let page = 1; page <= pages; page += 1) { pdf.setPage(page); pdf.setFontSize(8); pdf.setTextColor(120); pdf.text("Made with Plivex", pageWidth / 2, pageHeight - 4, { align: "center" }); } };
     const mmPerPx = pageWidth / canvas.width;
     const imageHeight = canvas.height * mmPerPx;
-    const toJpeg = (c) => c.toDataURL("image/jpeg", 0.92);
+    const toPng = (c) => c.toDataURL("image/png");
     // Invoice only slightly taller than one A4 page: shrink it a little so it stays on a single clean page.
     if (imageHeight <= pageHeight * 1.1) {
       const fit = Math.min(1, pageHeight / imageHeight);
       const w = pageWidth * fit;
       const h = imageHeight * fit;
-      pdf.addImage(toJpeg(canvas), "JPEG", (pageWidth - w) / 2, 0, w, h, undefined, "FAST");
+      pdf.addImage(toPng(canvas), "PNG", (pageWidth - w) / 2, 0, w, h, undefined, "SLOW");
       addFreeFooter();
       return pdf;
     }
@@ -595,7 +595,7 @@ export default function Home() {
       sliceCtx.fillRect(0, 0, slice.width, slice.height);
       sliceCtx.drawImage(canvas, 0, start, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
       if (pageIndex > 0) pdf.addPage();
-      pdf.addImage(toJpeg(slice), "JPEG", 0, topMm, pageWidth, sliceHeight * mmPerPx, undefined, "FAST");
+      pdf.addImage(toPng(slice), "PNG", 0, topMm, pageWidth, sliceHeight * mmPerPx, undefined, "SLOW");
       start = end;
       pageIndex += 1;
     }
