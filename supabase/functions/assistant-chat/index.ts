@@ -162,7 +162,12 @@ async function handleRequest(req: Request) {
     }).filter((item) => item.parts.some((part) => Boolean(part.text?.trim()) || Boolean(part.inline_data)));
     if (!messages.length || messages[messages.length - 1].role !== "user") return json({ error: "Please enter a message." }, 400);
 
-    const liveContext = await loadLiveContext(supabase, profile.workspace_id);
+    const latestUserText = [...incoming].reverse().find((item: { role?: string }) => item?.role !== "assistant")?.content || "";
+    const isRecordCreationRequest = /\b(add|create|save|record|jod(?:o)?|bana(?:o|na)?|darj)\b/i.test(String(latestUserText));
+    // Image analysis and record creation do not need a 500-row workspace snapshot.
+    const liveContext = image || isRecordCreationRequest
+      ? { business: null, summaries: {}, records: {}, limitNote: "Live workspace data was intentionally not loaded for this image/record-creation request." }
+      : await loadLiveContext(supabase, profile.workspace_id);
     const systemInstruction = [
       "You are Plivex AI, a business assistant for the signed-in user's own workspace.",
       "Answer briefly and directly in the user's language (Hindi/Hinglish or English), usually 1–4 short sentences. Use the LIVE DATA JSON below to answer questions about their invoices, clients, stock, expenses, quotations, leads, services and business profile.",
