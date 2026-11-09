@@ -283,6 +283,16 @@ function normalizePhone(raw) {
 }
 
 const INVOICE_WIDTH = 794; // A4 at 96dpi
+let pdfLibraryPromise;
+const loadPdfLibraries = () => {
+  if (!pdfLibraryPromise) {
+    pdfLibraryPromise = Promise.all([import("html2canvas"), import("jspdf")]).catch((error) => {
+      pdfLibraryPromise = null;
+      throw error;
+    });
+  }
+  return pdfLibraryPromise;
+};
 
 // Draws the invoice at its true A4 width and shrinks it to fit whatever space is available,
 // so the whole preview is always visible without sideways scrolling.
@@ -471,6 +481,17 @@ export default function Home() {
   const [errors, setErrors] = useState({});
   const toastTimer = useRef(undefined);
 
+  useEffect(() => {
+    let idleId;
+    let timerId;
+    const warmPdfTools = () => { void loadPdfLibraries().catch(() => {}); };
+    if ("requestIdleCallback" in window) idleId = window.requestIdleCallback(warmPdfTools, { timeout: 1800 });
+    else timerId = window.setTimeout(warmPdfTools, 900);
+    return () => {
+      if (idleId !== undefined && "cancelIdleCallback" in window) window.cancelIdleCallback(idleId);
+      if (timerId !== undefined) window.clearTimeout(timerId);
+    };
+  }, []);
   useEffect(() => { document.documentElement.classList.toggle("dark", isDark); }, [isDark]);
   useEffect(() => () => { if (toastTimer.current) window.clearTimeout(toastTimer.current); }, []);
   // Persistent UPI profile — auto-fills the business profile's saved UPI ID into every new invoice draft & payment QR.
@@ -521,7 +542,7 @@ export default function Home() {
   const renderPdfDocument = async () => {
     const source = document.querySelector("[data-testid='invoice-preview']");
     if (!source) return null;
-    const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
+    const [{ default: html2canvas }, { jsPDF }] = await loadPdfLibraries();
     const stage = document.createElement("div");
     stage.style.cssText = `position:fixed;left:0;top:0;width:${INVOICE_WIDTH}px;z-index:-1;pointer-events:none;background:#fff;`;
     const copy = source.cloneNode(true);
