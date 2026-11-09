@@ -167,7 +167,7 @@ export default function AssistantWidget() {
                   <p className="mt-1 text-sm font-medium text-slate-800">{m.pendingAction.summary}</p>
                   <p className="mt-1 text-[11px] text-slate-600">Nothing is saved until you confirm. Plivex permissions still apply.</p>
                   <div className="mt-3 flex gap-2">
-                    <button disabled={busy} onClick={() => confirmAction(m.pendingAction, i)} className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#6D28D9] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Confirm & Add</button>
+                    <button disabled={busy} onClick={() => confirmAction(m.pendingAction, i)} className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#6D28D9] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</> : <><CheckCircle2 className="h-3.5 w-3.5" /> Confirm & Add</>}</button>
                     <button disabled={busy} onClick={() => cancelAction(i)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 disabled:opacity-50">Cancel</button>
                   </div>
                 </div>}
@@ -175,7 +175,7 @@ export default function AssistantWidget() {
                 {m.actionStatus === "cancelled" && <p className="mt-2 text-[11px] text-slate-500">Addition cancelled; nothing was saved.</p>}
               </div>
             </div>)}
-            {busy && <p className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Gemini is checking your workspace…</p>}
+            {busy && <p className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Plivex AI is reading your request…</p>}
             {error && <div className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{error} <button onClick={() => retryAction ? confirmAction(retryAction.action, retryAction.messageIndex) : send(messages[messages.length - 1]?.content)} className="ml-1 font-bold underline">Retry</button></div>}
             <div ref={bottomRef} />
           </div>
