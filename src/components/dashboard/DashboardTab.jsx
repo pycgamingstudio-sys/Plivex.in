@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FileText, FilePlus2, ShoppingCart, Users, UserPlus, ArrowRight, Phone, Mail, HelpCircle, Package, UsersRound, AlertTriangle, Settings2, X, Check } from "lucide-react";
+import { FileText, FilePlus2, ShoppingCart, Users, UserPlus, ArrowRight, Phone, Mail, HelpCircle, Package, UsersRound, AlertTriangle, Settings2, X, Check, BellRing, Send } from "lucide-react";
 import { KEYS, useLocalState, loadList } from "@/lib/stores";
 import { InvoiceArt, QuoteArt, ExpenseArt, CrmArt, LeadArt, StockArt, TeamArt } from "@/components/dashboard/CardArt";
 import OwnerMasterControl from "@/components/dashboard/OwnerMasterControl";
 import OwnerTrackingWidgets from "@/components/dashboard/OwnerTrackingWidgets";
 import PlanStatusCard from "@/components/PlanStatusCard";
 import { usePaywall } from "@/lib/paywall";
+import { supabase } from "@/api/backendClient";
 
 const CARD_KEY = "invoicepulse:cardVisibility";
 const DEFAULT_VIS = { invoices: true, quotations: true, expenses: true, crm: true, leads: true, stock: true, team: true };
@@ -26,6 +27,62 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
   const [profile] = useLocalState(KEYS.businessProfile, { name: "", address: "", gstin: "", email: "", phone: "", logo: "" });
   const [vis, setVis] = useLocalState(CARD_KEY, DEFAULT_VIS);
   const [visOpen, setVisOpen] = useState(false);
+  const [reminderItems, setReminderItems] = useState([]);
+  const [reminderLoading, setReminderLoading] = useState(false);
+  const [reminderBusyId, setReminderBusyId] = useState("");
+  const [reminderNotice, setReminderNotice] = useState("");
+  const canConfirmReminders = ["admin", "manager", "accountant"].includes(role);
+
+  useEffect(() => {
+    if (!canConfirmReminders) return undefined;
+    let active = true;
+    const loadReminders = async () => {
+      setReminderLoading(true);
+      const today = new Date().toISOString().slice(0, 10);
+      const { data: events, error } = await supabase.from("invoice_reminder_events")
+        .select("id,invoice_id,stage,scheduled_for,recipient_email,status")
+        .eq("status", "on_hold").lte("scheduled_for", today)
+        .order("scheduled_for", { ascending: true }).limit(8);
+      if (!active) return;
+      if (error || !events?.length) {
+        setReminderItems([]);
+        setReminderLoading(false);
+        return;
+      }
+      const invoiceIds = [...new Set(events.map((event) => event.invoice_id))];
+      const { data: invoices } = await supabase.from("invoices")
+        .select("id,number,client_name,total,status,is_draft,reminder_enabled")
+        .in("id", invoiceIds);
+      if (!active) return;
+      const byId = new Map((invoices || []).map((invoice) => [invoice.id, invoice]));
+      setReminderItems(events.filter((event) => {
+        const invoice = byId.get(event.invoice_id);
+        return invoice && String(invoice.status).toLowerCase() !== "paid" &&
+          String(invoice.status).toLowerCase() !== "cancelled" && !invoice.is_draft && invoice.reminder_enabled;
+      }).map((event) => ({ ...event, invoice: byId.get(event.invoice_id) })));
+      setReminderLoading(false);
+    };
+    loadReminders();
+    const timer = window.setInterval(loadReminders, 60000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [role]);
+
+  const confirmReminder = async (event) => {
+    if (!window.confirm("Confirm that this customer has still NOT paid? Plivex will send the reminder email now.")) return;
+    setReminderBusyId(event.id);
+    setReminderNotice("");
+    try {
+      const { data, error } = await supabase.functions.invoke("confirm-payment-reminder", { body: { eventId: event.id } });
+      if (error) throw error;
+      if (!data?.emailSent) throw new Error(data?.error || "Reminder email was not sent.");
+      setReminderItems((items) => items.filter((item) => item.id !== event.id));
+      setReminderNotice("Reminder email sent.");
+    } catch (error) {
+      setReminderNotice(error?.message || "Could not send this reminder.");
+    } finally {
+      setReminderBusyId("");
+    }
+  };
   const fields = ["name", "address", "gstin", "email", "phone", "logo"];
   const done = fields.filter((f) => profile[f] && String(profile[f]).trim()).length;
   const pct = Math.round((done / fields.length) * 100);
@@ -56,6 +113,30 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
   return (
     <div className="plivex-dashboard-tab space-y-5 sm:space-y-6">
       <PlanStatusCard />
+      {canConfirmReminders && (reminderItems.length > 0 || reminderLoading || reminderNotice) && (
+        <section className="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm sm:p-5" aria-label="Payment reminder centre">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><BellRing className="h-4 w-4" /></span>
+              <div><h3 className="text-sm font-bold text-slate-900">Payment Reminder Centre</h3><p className="text-[11px] text-slate-500">Review unpaid invoices before sending an email.</p></div>
+            </div>
+            <Link to="/invoice-history" className="text-xs font-semibold text-[#6D28D9]">View history</Link>
+          </div>
+          {reminderNotice && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{reminderNotice}</p>}
+          {reminderLoading && reminderItems.length === 0 ? <p className="mt-3 text-xs text-slate-500">Checking reminders…</p> : reminderItems.length === 0 ? (
+            <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">No reminders are waiting for confirmation.</p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {reminderItems.map((event) => (
+                <div key={event.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
+                  <div className="min-w-0"><p className="text-xs font-bold text-slate-900">{event.invoice?.number || "Invoice"} · {event.invoice?.client_name || "Customer"}</p><p className="mt-0.5 text-[11px] text-slate-500">Due reminder · {event.scheduled_for} · {event.recipient_email}</p><p className="mt-0.5 text-xs font-semibold text-slate-700">₹{Number(event.invoice?.total || 0).toLocaleString("en-IN")}</p></div>
+                  <button onClick={() => confirmReminder(event)} disabled={!!reminderBusyId} className="inline-flex items-center gap-1.5 rounded-lg bg-[#6D28D9] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{reminderBusyId === event.id ? "Sending…" : <><Send className="h-3.5 w-3.5" /> Still unpaid · Send</>}</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
       <section className="plivex-usage-grid grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4" aria-label="Plan usage">
         {quotaCards.map((item) => {
           const hasLimit = Number.isFinite(Number(item.limit)) && item.limit !== null && item.limit !== undefined;
