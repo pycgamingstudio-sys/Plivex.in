@@ -3,7 +3,7 @@ import { History, Trash2, Eye } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import PageShell from "@/components/PageShell";
 import { KEYS, loadList, removeItem, saveList } from "@/lib/stores";
-import { supabase } from "@/api/backendClient";
+import { backend, supabase } from "@/api/backendClient";
 
 const sym = (c) => ({ INR: "₹", USD: "$", EUR: "€" }[c] || c);
 const money = (v, c = "INR") => `${sym(c)} ${(Number(v) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -16,6 +16,8 @@ export default function InvoiceHistory() {
   const [view, setView] = useState(null);
   const [reminderEvents, setReminderEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [sendingEventId, setSendingEventId] = useState("");
+  const [reminderMessage, setReminderMessage] = useState("");
   useEffect(() => {
     let active = true;
     if (!view?.id) { setReminderEvents([]); return undefined; }
@@ -30,6 +32,19 @@ export default function InvoiceHistory() {
     return () => { active = false; };
   }, [view?.id]);
   const remove = (id) => { setItems(removeItem(KEYS.history, id)); if (view && view.id === id) setView(null); };
+  const sendConfirmedReminder = async (event) => {
+    if (!window.confirm("Please confirm: has the customer still NOT paid this invoice? The reminder email will be sent now.")) return;
+    setSendingEventId(event.id); setReminderMessage("");
+    try {
+      const result = await backend.functions.invoke("confirmPaymentReminder", { eventId: event.id });
+      if (!result?.data?.emailSent) throw new Error(result?.data?.error || "Reminder was not sent.");
+      setReminderEvents((prev) => prev.map((item) => item.id === event.id ? { ...item, status: "sent", sent_at: new Date().toISOString() } : item));
+      setReminderMessage("Reminder email sent successfully.");
+    } catch (error) {
+      setReminderMessage(error?.message || "Could not send reminder.");
+      setReminderEvents((prev) => prev.map((item) => item.id === event.id ? { ...item, status: "failed" } : item));
+    } finally { setSendingEventId(""); }
+  };
   const updateItem = (id, patch) => {
     const next = items.map((it) => (it.id === id ? { ...it, ...patch } : it));
     saveList(KEYS.history, next);
@@ -97,6 +112,7 @@ export default function InvoiceHistory() {
                 <h4 className="text-sm font-bold">Payment reminder history</h4>
                 <span className="text-[10px] text-muted-foreground">{view.reminder?.enabled ? "Automatic reminders ON" : "Reminders OFF"}</span>
               </div>
+              {reminderMessage && <p className="mt-2 rounded-lg bg-secondary p-2 text-xs">{reminderMessage}</p>}
               {eventsLoading ? <p className="mt-3 text-xs text-muted-foreground">Loading reminder history…</p> : reminderEvents.length === 0 ? (
                 <p className="mt-3 rounded-lg bg-secondary/60 p-3 text-xs text-muted-foreground">No reminder activity yet. Enable Auto Reminder to create a schedule.</p>
               ) : (
@@ -108,7 +124,14 @@ export default function InvoiceHistory() {
                         <p className="mt-0.5 text-[11px] text-muted-foreground">{dateLabel(event.scheduled_for)}</p>
                         {event.failure_reason && <p className="mt-1 text-[11px] text-destructive">{event.failure_reason}</p>}
                       </div>
-                      <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${event.status === "sent" ? "bg-emerald-100 text-emerald-700" : event.status === "failed" ? "bg-red-100 text-red-700" : "bg-secondary text-muted-foreground"}`}>{reminderStatus[event.status] || event.status}</span>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${event.status === "sent" ? "bg-emerald-100 text-emerald-700" : event.status === "failed" ? "bg-red-100 text-red-700" : "bg-secondary text-muted-foreground"}`}>{reminderStatus[event.status] || event.status}</span>
+                        {["on_hold", "scheduled", "failed"].includes(event.status) && event.scheduled_for <= new Date().toISOString().slice(0, 10) && (
+                          <button onClick={() => sendConfirmedReminder(event)} disabled={!!sendingEventId} className="rounded-md bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground disabled:opacity-50">
+                            {sendingEventId === event.id ? "Sending…" : "Still unpaid · Send"}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
