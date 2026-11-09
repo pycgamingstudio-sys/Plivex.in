@@ -119,6 +119,7 @@ export default function ResetPassword() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="pl-10 h-12"
+              minLength={6}
               required
             />
           </div>
