@@ -521,9 +521,7 @@ export default function Home() {
   const renderPdfDocument = async () => {
     const source = document.querySelector("[data-testid='invoice-preview']");
     if (!source) return null;
-    // Heavy libraries load only when a PDF is really needed, so the page itself opens faster.
     const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
-    // Render a clean, unscaled A4-width copy off to the side — independent of the on-screen zoom or active tab.
     const stage = document.createElement("div");
     stage.style.cssText = `position:fixed;left:0;top:0;width:${INVOICE_WIDTH}px;z-index:-1;pointer-events:none;background:#fff;`;
     const copy = source.cloneNode(true);
@@ -531,9 +529,20 @@ export default function Home() {
     stage.appendChild(copy);
     document.body.appendChild(stage);
     let canvas;
+    let qrBounds = null;
     try {
-      if (document.fonts && document.fonts.ready) await document.fonts.ready;
-      canvas = await html2canvas(copy, { scale: 3, useCORS: true, backgroundColor: "#ffffff", logging: false, windowWidth: INVOICE_WIDTH });
+      if (document.fonts?.ready) await document.fonts.ready;
+      const images = [...copy.querySelectorAll("img")];
+      await Promise.all(images.map((img) => img.decode?.().catch(() => undefined)));
+      const qr = copy.querySelector('img[alt="UPI payment QR code"]');
+      if (qr) {
+        const section = qr.parentElement || qr;
+        const base = copy.getBoundingClientRect();
+        const box = section.getBoundingClientRect();
+        const pxRatio = 3;
+        qrBounds = { top: Math.max(0, (box.top - base.top) * pxRatio), bottom: Math.max(0, (box.bottom - base.top) * pxRatio) };
+      }
+      canvas = await html2canvas(copy, { scale: 3, useCORS: true, backgroundColor: "#ffffff", logging: false, windowWidth: INVOICE_WIDTH, imageTimeout: 5000 });
     } finally {
       document.body.removeChild(stage);
     }
@@ -545,32 +554,19 @@ export default function Home() {
     const mmPerPx = pageWidth / canvas.width;
     const imageHeight = canvas.height * mmPerPx;
     const toPng = (c) => c.toDataURL("image/png");
-    // Invoice only slightly taller than one A4 page: shrink it a little so it stays on a single clean page.
-    if (imageHeight <= pageHeight * 1.1) {
-      const fit = Math.min(1, pageHeight / imageHeight);
-      const w = pageWidth * fit;
-      const h = imageHeight * fit;
-      pdf.addImage(toPng(canvas), "PNG", (pageWidth - w) / 2, 0, w, h, undefined, "SLOW");
+    if (imageHeight <= pageHeight) {
+      pdf.addImage(toPng(canvas), "PNG", 0, 0, pageWidth, imageHeight, undefined, "FAST");
       addFreeFooter();
       return pdf;
     }
-    // Longer invoice: never cut through text. Each page breaks on a blank strip, with a small margin top and bottom.
     const MARGIN_MM = 8;
+    const scaleRatio = canvas.width / INVOICE_WIDTH;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    const BAND = 6;
-    const isBlankBand = (y) => {
-      if (y - BAND < 0) return false;
-      const data = ctx.getImageData(0, y - BAND, canvas.width, BAND).data;
-      const rowBytes = canvas.width * 4;
-      let mismatches = 0;
-      for (let r = 1; r < BAND; r++) {
-        for (let x = 0; x < canvas.width; x += 2) {
-          const a = x * 4;
-          const b = r * rowBytes + a;
-          if (Math.abs(data[a] - data[b]) > 12 || Math.abs(data[a + 1] - data[b + 1]) > 12 || Math.abs(data[a + 2] - data[b + 2]) > 12) {
-            if (++mismatches > 2) return false;
-          }
-        }
+    const isWhiteRow = (y) => {
+      const row = ctx.getImageData(0, y, canvas.width, 1).data;
+      for (let x = 0; x < canvas.width; x += 24) {
+        const i = x * 4;
+        if (row[i] < 248 || row[i + 1] < 248 || row[i + 2] < 248 || row[i + 3] < 240) return false;
       }
       return true;
     };
@@ -581,11 +577,16 @@ export default function Home() {
       const usablePx = Math.floor((pageHeight - topMm - MARGIN_MM) / mmPerPx);
       let end = Math.min(start + usablePx, canvas.height);
       if (end < canvas.height) {
-        const lowest = Math.max(start + Math.floor(usablePx * 0.5), end - Math.floor(usablePx * 0.35));
-        for (let y = end; y > lowest; y--) {
-          if (isBlankBand(y)) { end = y; break; }
+        if (qrBounds && end > qrBounds.top && end < qrBounds.bottom) {
+          const beforeQr = Math.floor(qrBounds.top - 10 * scaleRatio);
+          if (beforeQr > start + usablePx * 0.4) end = beforeQr;
+        }
+        const lowest = Math.max(start + Math.floor(usablePx * 0.68), end - Math.floor(usablePx * 0.22));
+        for (let y = end; y > lowest; y -= 6) {
+          if (isWhiteRow(y)) { end = y; break; }
         }
       }
+      if (end <= start) throw new Error("Could not create a clean A4 page break. Please try again.");
       const sliceHeight = end - start;
       const slice = document.createElement("canvas");
       slice.width = canvas.width;
@@ -595,7 +596,7 @@ export default function Home() {
       sliceCtx.fillRect(0, 0, slice.width, slice.height);
       sliceCtx.drawImage(canvas, 0, start, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
       if (pageIndex > 0) pdf.addPage();
-      pdf.addImage(toPng(slice), "PNG", 0, topMm, pageWidth, sliceHeight * mmPerPx, undefined, "SLOW");
+      pdf.addImage(toPng(slice), "PNG", 0, topMm, pageWidth, sliceHeight * mmPerPx, undefined, "FAST");
       start = end;
       pageIndex += 1;
     }
@@ -612,7 +613,6 @@ export default function Home() {
       notify("Preparing invoice PDF… please wait.", "info", 0);
       const pdf = await renderPdfDocument();
       if (!pdf) return;
-      await recordInvoice();
       notify("PDF ready — starting download…", "info", 0);
       pdf.save(filename);
       deductStockForInvoice(invoice);
