@@ -285,7 +285,10 @@ export function saveList(key, items) {
     const incoming = new Map(items.map((i) => [i.id, i]));
     // Keep cancelled invoices (screens may not have loaded them) and apply the incoming changes.
     cache.history = [...items, ...prev.filter((p) => !incoming.has(p.id) && p.status === "Cancelled")];
-    enqueue(() => syncInvoices(prev, cache.history)).then(() => {});
+    enqueue(async () => {
+      try { await syncInvoices(prev, cache.history); }
+      catch (e) { await refreshKey("history"); throw e; }
+    });
     return;
   }
   if (MAPPERS[key]) {
