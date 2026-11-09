@@ -161,7 +161,11 @@ const OVERLAY_KEY = "invoiceOverlay";
 const OVERLAY_FIELDS = ["utrReference"];
 const readOverlay = () => { try { const s = localStorage.getItem(tenantKey(OVERLAY_KEY)); return s ? JSON.parse(s) : {}; } catch { return {}; } };
 const writeOverlay = (o) => { try { localStorage.setItem(tenantKey(OVERLAY_KEY), JSON.stringify(o)); } catch { /* best effort */ } };
-const withOverlay = (inv, overlay) => (overlay[inv.id] ? { ...inv, ...overlay[inv.id] } : inv);
+const withOverlay = (inv, overlay) => {
+  const extra = overlay[inv.id];
+  if (!extra) return inv;
+  return { ...inv, ...Object.fromEntries(OVERLAY_FIELDS.filter((field) => extra[field] !== undefined).map((field) => [field, extra[field]])) };
+};
 
 let _queue = Promise.resolve();
 let _pending = 0;
