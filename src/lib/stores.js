@@ -139,6 +139,7 @@ const invoiceToUi = (r) => {
     total: num(r.total), cgst: num(r.cgst), sgst: num(r.sgst), igst: num(r.igst), taxValue: num(r.tax_value), subtotal: num(r.subtotal),
     issueDate: str(r.issue_date).slice(0, 10), dueDate: str(r.due_date).slice(0, 10), createdDate: str(r.created_at), currency: r.currency || "INR",
     itemCount: items.length, taxMode: r.tax_mode || "split", taxRate: num(r.tax_rate), status: r.status || "Pending", isDraft: !!r.is_draft,
+    reminder: { enabled: !!r.reminder_enabled, language: r.reminder_language === "hi" ? "hi" : "en" },
     items: items.map((it) => ({ description: str(it.description), quantity: num(it.quantity), rate: num(it.rate), gstRate: it.gst_rate === null || it.gst_rate === undefined ? undefined : num(it.gst_rate) })),
   };
 };
@@ -157,7 +158,7 @@ const errText = (e) => (e && e.message) || "Request failed";
 
 // Extra per-invoice fields the server has no column for (UTR reference, reminder settings) stay in this browser.
 const OVERLAY_KEY = "invoiceOverlay";
-const OVERLAY_FIELDS = ["utrReference", "reminder"];
+const OVERLAY_FIELDS = ["utrReference"];
 const readOverlay = () => { try { const s = localStorage.getItem(tenantKey(OVERLAY_KEY)); return s ? JSON.parse(s) : {}; } catch { return {}; } };
 const writeOverlay = (o) => { try { localStorage.setItem(tenantKey(OVERLAY_KEY), JSON.stringify(o)); } catch { /* best effort */ } };
 const withOverlay = (inv, overlay) => (overlay[inv.id] ? { ...inv, ...overlay[inv.id] } : inv);
@@ -249,6 +250,11 @@ async function syncInvoices(prev, next) {
     if (!before) continue; // invoices are created only through saveInvoiceToServer
     if (before.status !== n.status && ["Pending", "Paid", "Cancelled"].includes(n.status)) {
       await api.functions.invoke("setInvoiceStatus", { id: n.id, status: n.status });
+    }
+    const beforeReminder = before.reminder || {};
+    const nextReminder = n.reminder || {};
+    if (!!beforeReminder.enabled !== !!nextReminder.enabled || (beforeReminder.language || "en") !== (nextReminder.language || "en")) {
+      await api.functions.invoke("setInvoiceReminder", { id: n.id, enabled: !!nextReminder.enabled, language: nextReminder.language || "en" });
     }
     const extras = {};
     OVERLAY_FIELDS.forEach((f) => { if (n[f] !== undefined) extras[f] = n[f]; });
