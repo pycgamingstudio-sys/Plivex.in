@@ -87,7 +87,7 @@ export default function AssistantWidget() {
     setBusy(true);
     try {
       const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 3200);
+      const timeout = window.setTimeout(() => controller.abort(), 15000);
       let response;
       try {
         response = await supabase.functions.invoke("assistant-chat", {
