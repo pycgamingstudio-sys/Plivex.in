@@ -92,7 +92,7 @@ function UpiBlock({ upiValid, qrUrl }) {
 function Footer({ light = false }) {
   return (
     <div className={`mt-16 flex items-center justify-between border-t pt-4 text-[13px] ${light ? "border-white/20 text-white/60" : "border-[#eeeef2] text-[#aaa7b8]"}`}>
-      <span>Made with Plivex</span><span className="font-mono-ui">Invoice copy</span>
+      <span>Made with Plivex</span>
     </div>
   );
 }
