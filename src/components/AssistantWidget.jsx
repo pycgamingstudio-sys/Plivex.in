@@ -79,7 +79,7 @@ export default function AssistantWidget() {
   async function send(raw = draft) {
     const content = String(raw || "").trim().slice(0, 1000);
     if ((!content && !attachment) || busy) return;
-    const next = [...messages, { role: "user", content: content || "Please inspect this image.", imageDataUrl: attachment || null }];
+    const next = [...messages, { role: "user", content: content || (attachment ? "Please add this receipt as an expense and prepare the extracted details for confirmation." : ""), imageDataUrl: attachment || null }];
     setMessages(next);
     setDraft("");
     setError("");
