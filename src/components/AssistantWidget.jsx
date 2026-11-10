@@ -79,8 +79,10 @@ export default function AssistantWidget() {
   async function send(raw = draft) {
     const content = String(raw || "").trim().slice(0, 1000);
     if ((!content && !attachment) || busy) return;
-    const next = [...messages, { role: "user", content: content || (attachment ? "Please add this receipt as an expense and prepare the extracted details for confirmation." : ""), imageDataUrl: attachment || null }];
+    const sentAttachment = attachment;
+    const next = [...messages, { role: "user", content: content || (sentAttachment ? "Please add this receipt as an expense and prepare the extracted details for confirmation." : ""), imageDataUrl: sentAttachment || null }];
     setMessages(next);
+    setAttachment(null);
     setDraft("");
     setError("");
     setRetryAction(null);
@@ -93,7 +95,7 @@ export default function AssistantWidget() {
         response = await supabase.functions.invoke("assistant-chat", {
           body: {
             messages: next.slice(-6).map(({ role, content: text }) => ({ role, content: String(text || "").slice(0, 500) })),
-            image: attachment ? { mimeType: attachment.slice(5, attachment.indexOf(";")), data: attachment.split(",")[1] } : null,
+            image: sentAttachment ? { mimeType: sentAttachment.slice(5, sentAttachment.indexOf(";")), data: sentAttachment.split(",")[1] } : null,
           },
           signal: controller.signal,
         });
@@ -189,7 +191,7 @@ export default function AssistantWidget() {
           <form onSubmit={(e) => { e.preventDefault(); send(); }} className="border-t border-slate-200 bg-white p-3">
             {attachment && <div className="mb-2 flex items-center gap-2 rounded-lg bg-purple-50 p-2"><img src={attachment} alt="Receipt preview" className="h-12 w-12 rounded object-cover" /><span className="min-w-0 flex-1 text-xs text-purple-900">Image attached · ready for AI review</span><button type="button" onClick={() => setAttachment(null)} className="rounded px-2 py-1 text-xs text-slate-600">Remove</button></div>}
             <div className="flex items-center gap-2">
-              <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; if (file.size > 12 * 1024 * 1024) { setError("Image must be smaller than 12 MB."); e.target.value = ""; return; } const reader = new FileReader(); reader.onload = () => { const source = typeof reader.result === "string" ? reader.result : ""; const img = new Image(); img.onload = () => { const max = 1400; const ratio = Math.min(1, max / Math.max(img.width, img.height)); const canvas = document.createElement("canvas"); canvas.width = Math.max(1, Math.round(img.width * ratio)); canvas.height = Math.max(1, Math.round(img.height * ratio)); const ctx = canvas.getContext("2d"); if (!ctx) { setError("Image processing unavailable."); return; } ctx.drawImage(img, 0, 0, canvas.width, canvas.height); setAttachment(canvas.toDataURL("image/jpeg", 0.78)); }; img.onerror = () => setError("Could not read this image. Please choose another photo."); img.src = source; }; reader.readAsDataURL(file); e.target.value = ""; }} />
+              <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; if (file.size > 12 * 1024 * 1024) { setError("Image must be smaller than 12 MB."); e.target.value = ""; return; } const reader = new FileReader(); reader.onload = () => { const source = typeof reader.result === "string" ? reader.result : ""; const img = new Image(); img.onload = () => { const max = 1800; const ratio = Math.min(1, max / Math.max(img.width, img.height)); const canvas = document.createElement("canvas"); canvas.width = Math.max(1, Math.round(img.width * ratio)); canvas.height = Math.max(1, Math.round(img.height * ratio)); const ctx = canvas.getContext("2d"); if (!ctx) { setError("Image processing unavailable."); return; } ctx.drawImage(img, 0, 0, canvas.width, canvas.height); setAttachment(canvas.toDataURL("image/jpeg", 0.9)); }; img.onerror = () => setError("Could not read this image. Please choose another photo."); img.src = source; }; reader.readAsDataURL(file); e.target.value = ""; }} />
               <button type="button" onClick={() => imageInputRef.current?.click()} disabled={busy} aria-label="Attach receipt or image" title="Attach receipt or image" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-[#6D28D9] disabled:opacity-50"><ImagePlus className="h-5 w-5" /></button>
               <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={1000} placeholder="Ask Plivex AI or add a receipt…" className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-purple-500" />
               <button type="submit" disabled={busy || (!draft.trim() && !attachment)} aria-label="Send message" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#6D28D9] text-white disabled:opacity-50"><Send className="h-4 w-4" /></button>
