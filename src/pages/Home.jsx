@@ -557,15 +557,14 @@ export default function Home() {
       if (document.fonts?.ready) await document.fonts.ready;
       const images = [...copy.querySelectorAll("img")];
       await Promise.all(images.map((img) => img.decode?.().catch(() => undefined)));
-      const qr = copy.querySelector('img[alt="UPI payment QR code"]');
-      if (qr) {
-        const section = qr.closest('[data-pdf-keep-together="upi"]') || qr.parentElement || qr;
-        const base = copy.getBoundingClientRect();
+      const base = copy.getBoundingClientRect();
+      const keepTogether = [...copy.querySelectorAll('[data-pdf-keep-together="upi"]')].map((section) => {
         const box = section.getBoundingClientRect();
-        const pxRatio = 3;
-        qrBounds = { top: Math.max(0, (box.top - base.top) * pxRatio), bottom: Math.max(0, (box.bottom - base.top) * pxRatio) };
-      }
+        return { top: Math.max(0, box.top - base.top), bottom: Math.max(0, box.bottom - base.top) };
+      });
       canvas = await html2canvas(copy, { scale: 3, useCORS: true, backgroundColor: "#ffffff", logging: false, windowWidth: INVOICE_WIDTH, imageTimeout: 5000 });
+      const scaleRatio = canvas.width / INVOICE_WIDTH;
+      qrBounds = keepTogether.map((bounds) => ({ top: Math.floor(bounds.top * scaleRatio), bottom: Math.ceil(bounds.bottom * scaleRatio) }));
     } finally {
       document.body.removeChild(stage);
     }
@@ -610,12 +609,13 @@ export default function Home() {
       const usablePx = Math.floor((pageHeight - topMm - MARGIN_MM) / mmPerPx);
       let end = Math.min(start + usablePx, canvas.height);
       if (end < canvas.height) {
-        if (qrBounds && end > qrBounds.top && end < qrBounds.bottom) {
-          // Keep the complete UPI payment panel together, even if this leaves
-          // extra whitespace at the bottom of the preceding A4 page.
-          const beforeQr = Math.floor(qrBounds.top - 12 * scaleRatio);
-          if (beforeQr > start + 80 * scaleRatio) end = beforeQr;
-          else if (qrBounds.bottom - start <= usablePx) end = Math.floor(qrBounds.top - 8 * scaleRatio);
+        const splitPanel = qrBounds.find((bounds) => end > bounds.top && end < bounds.bottom);
+        if (splitPanel) {
+          // Never slice through a UPI QR panel. Move the page break above it.
+          const safeEnd = Math.floor(splitPanel.top - 10 * scaleRatio);
+          if (safeEnd > start + 24 * scaleRatio) end = safeEnd;
+          else if (splitPanel.bottom - start <= usablePx) end = safeEnd;
+          else throw new Error("UPI QR panel is taller than the available A4 page area.");
         }
         const lowest = Math.max(start + Math.floor(usablePx * 0.68), end - Math.floor(usablePx * 0.22));
         for (let y = end; y > lowest; y -= 6) {
