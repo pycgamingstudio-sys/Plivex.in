@@ -76,9 +76,18 @@ export default function InvoiceHistory() {
                     Auto Reminder
                   </label>
                   {it.reminder?.enabled && (
-                    <span className="text-[11px] text-muted-foreground">
-                      Schedule: 2 days before, due date, 3, 7 & 15 days after · {reminderEmail(it) || "No customer email"}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground">
+                        Schedule: 2 days before, due date, 3, 7 & 15 days after · {reminderEmail(it) || "No customer email"}
+                      </span>
+                      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        Email language
+                        <select aria-label="Reminder email language" className="rounded-md border bg-card px-2 py-1 text-[11px] text-foreground" value={it.reminder?.language || "en"} onChange={(event) => updateItem(it.id, { reminder: { ...it.reminder, language: event.target.value } })}>
+                          <option value="en">English</option>
+                          <option value="hi">हिन्दी</option>
+                        </select>
+                      </label>
+                    </div>
                   )}
                   {!it.reminder?.enabled && !reminderEmail(it) && <span className="text-[11px] text-amber-700">Add customer email to enable reminders</span>}
                   {!it.dueDate && <span className="text-[11px] text-amber-700">Add a due date to enable reminders</span>}
