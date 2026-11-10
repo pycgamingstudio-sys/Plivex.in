@@ -18,6 +18,7 @@ export default function InvoiceHistory() {
   const [eventsLoading, setEventsLoading] = useState(false);
   const [sendingEventId, setSendingEventId] = useState("");
   const [reminderMessage, setReminderMessage] = useState("");
+  const [emailSavingId, setEmailSavingId] = useState("");
   useEffect(() => {
     let active = true;
     if (!view?.id) { setReminderEvents([]); return undefined; }
@@ -50,6 +51,27 @@ export default function InvoiceHistory() {
     saveList(KEYS.history, next);
     setItems(next);
     if (view && view.id === id) setView({ ...view, ...patch });
+  };
+  const addCustomerEmail = async (it) => {
+    const entered = window.prompt("Enter the customer's email address:", reminderEmail(it) || "");
+    if (entered === null) return;
+    const email = entered.trim().toLowerCase();
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(email)) {
+      setReminderMessage("Please enter a valid customer email address.");
+      return;
+    }
+    setEmailSavingId(it.id);
+    setReminderMessage("");
+    try {
+      const result = await backend.functions.invoke("updateInvoiceClientEmail", { id: it.id, email });
+      if (result?.error || result?.data?.error || result?.data?.ok === false) throw new Error(result?.data?.error || result?.error?.message || "Could not save customer email.");
+      updateItem(it.id, { clientEmail: email });
+      setReminderMessage("Customer email saved. You can now turn Auto Reminder on.");
+    } catch (error) {
+      setReminderMessage(error?.message || "Could not save customer email.");
+    } finally {
+      setEmailSavingId("");
+    }
   };
   // Automatic recipient mapping — pulled from the saved invoice record or client database, never typed manually.
   const reminderEmail = (it) => {
@@ -89,7 +111,7 @@ export default function InvoiceHistory() {
                       </label>
                     </div>
                   )}
-                  {!it.reminder?.enabled && !reminderEmail(it) && <span className="text-[11px] text-amber-700">Add customer email to enable reminders</span>}
+                  {!reminderEmail(it) && <button type="button" onClick={() => addCustomerEmail(it)} disabled={emailSavingId === it.id} className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 disabled:opacity-50">{emailSavingId === it.id ? "Saving email…" : "Add customer email"}</button>}
                   {!it.dueDate && <span className="text-[11px] text-amber-700">Add a due date to enable reminders</span>}
                 </div>
               </div>
