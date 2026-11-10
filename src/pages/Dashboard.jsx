@@ -49,7 +49,7 @@ export default function Dashboard({ initialTab }) {
     return () => clearInterval(sweep);
   }, []);
   const go = (t, i = null) => { setTab(t); setIntent(i); window.scrollTo({ top: 0 }); };
-  const createInvoice = () => navigate("/invoice-builder");
+  const createInvoice = () => navigate("/invoice-builder", { state: { newInvoice: true } });
   const consume = () => setIntent(null);
   const visibleTabs = TABS.filter((t) => canAccessTab(role, t.id));
   const active = visibleTabs.find((t) => t.id === tab) || visibleTabs[0] || TABS[0];
