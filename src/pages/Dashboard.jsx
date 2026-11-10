@@ -114,18 +114,17 @@ export default function Dashboard({ initialTab }) {
 
       <div className="md:pl-64">
         <header className="sticky top-0 z-20 border-b border-[#E5E7EB] bg-white/90 backdrop-blur-xl">
-          <div className="flex items-center justify-between px-4 py-3 sm:px-6">
-            <div className="flex items-center gap-2"><active.icon className="h-5 w-5 text-[#6D28D9]" /><h1 className="text-[17px] font-bold tracking-[-0.03em]">{active.label}</h1></div>
-            <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center justify-between gap-2 px-3 py-3 sm:px-6">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2"><active.icon className="h-5 w-5 shrink-0 text-[#6D28D9]" /><h1 className="whitespace-nowrap text-[15px] font-bold tracking-[-0.03em] sm:text-[17px]">{active.label}</h1></div>
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 sm:inline">{`● ${planName || "Free"}`}</span>
               <span className="hidden items-center gap-1.5 rounded-full bg-[#6D28D9]/10 px-2.5 py-1 text-[11px] font-semibold text-[#6D28D9] sm:inline-flex"><Sparkles className="h-3 w-3" />Current Plan: {planName}</span>
-              <button onClick={openPaywall} className="flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#6D28D9] to-[#7C3AED] px-3 py-2 text-[11px] font-bold text-white hover:opacity-95 sm:hidden"><Sparkles className="h-3.5 w-3.5" />Pricing</button>
-              {!isAccountant && <button onClick={createInvoice} aria-label="Create new invoice" title="Create new invoice" className="flex h-9 items-center gap-1 rounded-lg bg-[#6D28D9] px-2.5 text-[11px] font-bold text-white hover:bg-[#7C3AED] md:hidden">+ Invoice</button>}
-              <button onClick={() => setAccountOpen(true)} className="flex items-center gap-2 rounded-full border border-[#E5E7EB] py-1 pl-1 pr-2.5 hover:bg-slate-50">
+              {!isAccountant && <button onClick={createInvoice} aria-label="Create new invoice" title="Create new invoice" className="flex h-9 items-center gap-1 rounded-lg bg-[#6D28D9] px-2 sm:px-2.5 text-[11px] font-bold text-white hover:bg-[#7C3AED] md:hidden">+ <span>Invoice</span></button>}
+              <button onClick={() => setAccountOpen(true)} aria-label="Account" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E5E7EB] p-0.5 hover:bg-slate-50 sm:w-auto sm:gap-2 sm:py-1 sm:pl-1 sm:pr-2.5">
                 {user?.profilePicture ? <img src={user.profilePicture} alt="avatar" className="h-7 w-7 rounded-full object-cover" /> : <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#6D28D9] text-[11px] font-bold text-white">{(user?.full_name || user?.email || "U").charAt(0).toUpperCase()}</div>}
                 <span className="hidden text-[11px] font-semibold text-slate-700 sm:inline">{user?.full_name?.split(" ")[0] || "Account"}</span>
               </button>
-              <button onClick={() => setMoreOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] px-2.5 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 md:hidden"><LayoutGrid className="h-4 w-4" />More</button>
+              <button onClick={() => setMoreOpen(true)} className="flex h-9 items-center gap-1 rounded-lg border border-[#E5E7EB] px-2 text-[11px] font-bold text-slate-600 hover:bg-slate-50 md:hidden"><LayoutGrid className="h-4 w-4" /><span>More</span></button>
             </div>
           </div>
         </header>
