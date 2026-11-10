@@ -279,12 +279,13 @@ export function loadList(key, opts = {}) {
   try { const s = localStorage.getItem(tenantKey(key)); return s ? JSON.parse(s) : []; } catch { return []; }
 }
 
-export function saveList(key, items) {
+export function saveList(key, items, options = {}) {
   if (key === KEYS.history) {
     const prev = cache.history;
     const incoming = new Map(items.map((i) => [i.id, i]));
     // Keep cancelled invoices (screens may not have loaded them) and apply the incoming changes.
     cache.history = [...items, ...prev.filter((p) => !incoming.has(p.id) && p.status === "Cancelled")];
+    if (options.sync === false) return;
     enqueue(async () => {
       try { await syncInvoices(prev, cache.history); }
       catch (e) { await refreshKey("history"); throw e; }
