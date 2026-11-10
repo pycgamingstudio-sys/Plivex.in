@@ -1,7 +1,7 @@
 import { base44 as db } from '@/api/base44Client';
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { KEYS, pushItem, genId, deductStockForInvoice, loadList, loadState, removeState, tenantKey, saveInvoiceToServer } from "@/lib/stores";
 import { useAuth } from "@/lib/AuthContext";
 import { startCashfreeCheckout } from "@/lib/cashfree";
@@ -464,6 +464,8 @@ function WhatsAppNumberModal({ value, onChange, onClose, onSend, sending = false
 
 export default function Home() {
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { canAccess, isPremium, planName, planId, planStartedAt, planExpiresAt, limits, usage, remaining, openPaywall, refreshAccessStatus } = usePaywall();
   const [invoice, setInvoice] = useStored("invoicepulse-draft", initialInvoice, "invoicepulse-empty-draft-v1");
   const [isDark, setIsDark] = useStored("invoicepulse-dark", false);
@@ -557,7 +559,7 @@ export default function Home() {
       await Promise.all(images.map((img) => img.decode?.().catch(() => undefined)));
       const qr = copy.querySelector('img[alt="UPI payment QR code"]');
       if (qr) {
-        const section = qr.parentElement || qr;
+        const section = qr.closest('[data-pdf-keep-together="upi"]') || qr.parentElement || qr;
         const base = copy.getBoundingClientRect();
         const box = section.getBoundingClientRect();
         const pxRatio = 3;
@@ -571,13 +573,22 @@ export default function Home() {
     pdf.setProperties({ title: `Plivex Invoice ${invoice.number || ""}`, subject: "Invoice", creator: "Plivex — Smart Invoicing & Business OS", author: "Plivex" });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const addFreeFooter = () => { if (planName !== "Free") return; const pages = pdf.getNumberOfPages(); for (let page = 1; page <= pages; page += 1) { pdf.setPage(page); pdf.setFontSize(8); pdf.setTextColor(120); pdf.text("Made with Plivex", pageWidth / 2, pageHeight - 4, { align: "center" }); } };
+    const addPdfFooters = () => {
+      const pages = pdf.getNumberOfPages();
+      for (let page = 1; page <= pages; page += 1) {
+        pdf.setPage(page);
+        pdf.setFontSize(7);
+        pdf.setTextColor(120);
+        if (planName === "Free") pdf.text("Made with Plivex", MARGIN_MM, pageHeight - 4);
+        pdf.text(`Page ${page} of ${pages}`, pageWidth - MARGIN_MM, pageHeight - 4, { align: "right" });
+      }
+    };
     const mmPerPx = pageWidth / canvas.width;
     const imageHeight = canvas.height * mmPerPx;
     const toPng = (c) => c.toDataURL("image/png");
     if (imageHeight <= pageHeight) {
       pdf.addImage(toPng(canvas), "PNG", 0, 0, pageWidth, imageHeight, undefined, "FAST");
-      addFreeFooter();
+      addPdfFooters();
       return pdf;
     }
     const MARGIN_MM = 8;
@@ -599,8 +610,11 @@ export default function Home() {
       let end = Math.min(start + usablePx, canvas.height);
       if (end < canvas.height) {
         if (qrBounds && end > qrBounds.top && end < qrBounds.bottom) {
-          const beforeQr = Math.floor(qrBounds.top - 10 * scaleRatio);
-          if (beforeQr > start + usablePx * 0.4) end = beforeQr;
+          // Keep the complete UPI payment panel together, even if this leaves
+          // extra whitespace at the bottom of the preceding A4 page.
+          const beforeQr = Math.floor(qrBounds.top - 12 * scaleRatio);
+          if (beforeQr > start + 80 * scaleRatio) end = beforeQr;
+          else if (qrBounds.bottom - start <= usablePx) end = Math.floor(qrBounds.top - 8 * scaleRatio);
         }
         const lowest = Math.max(start + Math.floor(usablePx * 0.68), end - Math.floor(usablePx * 0.22));
         for (let y = end; y > lowest; y -= 6) {
@@ -621,7 +635,7 @@ export default function Home() {
       start = end;
       pageIndex += 1;
     }
-    addFreeFooter();
+    addPdfFooters();
     return pdf;
   };
   const generatePdf = async (shouldValidate = true) => {
@@ -665,7 +679,12 @@ export default function Home() {
     try { sessionStorage.removeItem("plivex:pendingDownload"); } catch { /* ignore */ }
     generatePdf();
   }, [isPremium]);
-  const newInvoice = () => { setInvoice({ ...initialInvoice }); setErrors({}); setMobileMenuOpen(false); notify("Fresh invoice started"); };
+  const newInvoice = () => { setInvoice({ ...initialInvoice, items: [{ ...initialInvoice.items[0], id: `item-${Date.now()}` }] }); setErrors({}); setMobileMenuOpen(false); setMobileTab("edit"); notify("Fresh invoice started"); };
+  useEffect(() => {
+    if (!location.state?.newInvoice) return;
+    newInvoice();
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.key]);
   const checkout = async (plan) => {
     setCheckoutNotice("");
     // Cashfree opens a hosted page with a full browser redirect; remember the intent so
