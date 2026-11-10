@@ -46,9 +46,9 @@ export default function InvoiceHistory() {
       setReminderEvents((prev) => prev.map((item) => item.id === event.id ? { ...item, status: "failed" } : item));
     } finally { setSendingEventId(""); }
   };
-  const updateItem = (id, patch) => {
+  const updateItem = (id, patch, sync = true) => {
     const next = items.map((it) => (it.id === id ? { ...it, ...patch } : it));
-    saveList(KEYS.history, next);
+    saveList(KEYS.history, next, { sync });
     setItems(next);
     if (view && view.id === id) setView({ ...view, ...patch });
   };
@@ -66,7 +66,7 @@ export default function InvoiceHistory() {
       const result = await backend.functions.invoke("updateInvoiceClientEmail", { id: it.id, email });
       if (result?.error || result?.data?.error || result?.data?.ok !== true) throw new Error(result?.data?.error || result?.error?.message || "Could not save customer email.");
       const next = items.map((item) => item.id === it.id ? { ...item, clientEmail: email } : item);
-      saveList(KEYS.history, next);
+      saveList(KEYS.history, next, { sync: false });
       setItems(next);
       if (view?.id === it.id) setView({ ...view, clientEmail: email });
       setReminderMessage("Customer email saved successfully. Auto Reminder can now be enabled.");
@@ -97,7 +97,7 @@ export default function InvoiceHistory() {
                 <p className="text-[11px] text-muted-foreground">{it.businessName || "—"} · {dateLabel(it.issueDate)}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2.5">
                   <label className="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground">
-                    <Switch checked={!!it.reminder?.enabled} disabled={!it.dueDate || !reminderEmail(it) || it.status === "Paid" || it.status === "Cancelled" || emailSavingId === it.id} onCheckedChange={async (v) => { setEmailSavingId(it.id); setReminderMessage(""); try { const result = await backend.functions.invoke("setInvoiceReminder", { id: it.id, enabled: v, language: it.reminder?.language || "en" }); if (result?.data?.ok !== true) throw new Error(result?.data?.error || "Reminder settings were not saved."); updateItem(it.id, { reminder: { ...it.reminder, enabled: v, language: it.reminder?.language || "en" } }); setReminderMessage(v ? "Auto Reminder enabled and schedule saved." : "Auto Reminder disabled."); } catch (error) { setReminderMessage(error?.message || "Could not save reminder settings."); } finally { setEmailSavingId(""); } }} />
+                    <Switch checked={!!it.reminder?.enabled} disabled={!it.dueDate || !reminderEmail(it) || it.status === "Paid" || it.status === "Cancelled" || emailSavingId === it.id} onCheckedChange={async (v) => { setEmailSavingId(it.id); setReminderMessage(""); try { const result = await backend.functions.invoke("setInvoiceReminder", { id: it.id, enabled: v, language: it.reminder?.language || "en" }); if (result?.data?.ok !== true) throw new Error(result?.data?.error || "Reminder settings were not saved."); updateItem(it.id, { reminder: { ...it.reminder, enabled: v, language: it.reminder?.language || "en" } }, false); setReminderMessage(v ? "Auto Reminder enabled and schedule saved." : "Auto Reminder disabled."); } catch (error) { setReminderMessage(error?.message || "Could not save reminder settings."); } finally { setEmailSavingId(""); } }} />
                     Auto Reminder
                   </label>
                   {it.reminder?.enabled && (
@@ -107,7 +107,7 @@ export default function InvoiceHistory() {
                       </span>
                       <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         Email language
-                        <select aria-label="Reminder email language" className="rounded-md border bg-card px-2 py-1 text-[11px] text-foreground" value={it.reminder?.language || "en"} onChange={async (event) => { const language = event.target.value; try { const result = await backend.functions.invoke("setInvoiceReminder", { id: it.id, enabled: true, language }); if (result?.data?.ok !== true) throw new Error(result?.data?.error || "Could not save language."); updateItem(it.id, { reminder: { ...it.reminder, enabled: true, language } }); } catch (error) { setReminderMessage(error?.message || "Could not save reminder language."); } }}>
+                        <select aria-label="Reminder email language" className="rounded-md border bg-card px-2 py-1 text-[11px] text-foreground" value={it.reminder?.language || "en"} onChange={async (event) => { const language = event.target.value; try { const result = await backend.functions.invoke("setInvoiceReminder", { id: it.id, enabled: true, language }); if (result?.data?.ok !== true) throw new Error(result?.data?.error || "Could not save language."); updateItem(it.id, { reminder: { ...it.reminder, enabled: true, language } }, false); } catch (error) { setReminderMessage(error?.message || "Could not save reminder language."); } }}>
                           <option value="en">English</option>
                           <option value="hi">हिन्दी</option>
                         </select>
