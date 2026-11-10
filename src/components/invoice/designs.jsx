@@ -287,7 +287,7 @@ function ExecutiveDesign({ invoice, subtotal, discount, discountValue, taxValue,
           <p className="mt-1 text-[13px] text-white/60">Due <span className="font-medium text-white">{dateLabel(invoice.dueDate)}</span></p>
         </div>
         {upiValid && (
-          <div className="mt-auto pt-8">
+          <div data-pdf-keep-together="upi" className="mt-auto pt-8">
             <img src={qrUrl} alt="UPI payment QR code" crossOrigin="anonymous" className="h-[140px] w-[140px] rounded-lg bg-white p-1" />
             <p className="mt-2 font-mono-ui text-[13px] uppercase tracking-[0.14em] text-white/55">Scan to pay via UPI</p>
           </div>
