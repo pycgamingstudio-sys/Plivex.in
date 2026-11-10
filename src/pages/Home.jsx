@@ -575,11 +575,12 @@ export default function Home() {
     const pageHeight = pdf.internal.pageSize.getHeight();
     const addPdfFooters = () => {
       const pages = pdf.getNumberOfPages();
+      const footerMargin = 8;
       for (let page = 1; page <= pages; page += 1) {
         pdf.setPage(page);
         pdf.setFontSize(7);
         pdf.setTextColor(120);
-        if (planName === "Free") pdf.text("Made with Plivex", MARGIN_MM, pageHeight - 4);
+        if (planName === "Free") pdf.text("Made with Plivex", footerMargin, pageHeight - 4);
         pdf.text(`Page ${page} of ${pages}`, pageWidth - MARGIN_MM, pageHeight - 4, { align: "right" });
       }
     };
