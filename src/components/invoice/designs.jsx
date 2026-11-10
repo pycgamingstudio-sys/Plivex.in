@@ -82,7 +82,7 @@ function SignatureBlock({ invoice }) {
 function UpiBlock({ upiValid, qrUrl }) {
   if (!upiValid) return null;
   return (
-    <div className="mt-10 flex flex-col items-center gap-2 border-t border-[#eeeef2] pt-6">
+    <div data-pdf-keep-together="upi" className="mt-10 flex flex-col items-center gap-2 border-t border-[#eeeef2] pt-6">
       <img src={qrUrl} alt="UPI payment QR code" crossOrigin="anonymous" className="h-[150px] w-[150px] rounded-md bg-white" />
       <p className="font-mono-ui text-[13px] uppercase tracking-[0.14em] text-[#8b889b]">Scan to Pay via UPI</p>
     </div>
@@ -92,7 +92,7 @@ function UpiBlock({ upiValid, qrUrl }) {
 function Footer({ light = false }) {
   return (
     <div className={`mt-16 flex items-center justify-between border-t pt-4 text-[13px] ${light ? "border-white/20 text-white/60" : "border-[#eeeef2] text-[#aaa7b8]"}`}>
-      <span>Made with Plivex</span><span className="font-mono-ui">01 / 01</span>
+      <span>Made with Plivex</span><span className="font-mono-ui">Invoice copy</span>
     </div>
   );
 }
