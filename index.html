@@ -98,28 +98,51 @@
   </head>
   <body>
     <div id="root">
-      <main id="plivex-boot-fallback" role="status" aria-live="polite" style="min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;background:#F8F7FC;color:#171717;font-family:system-ui,sans-serif;text-align:center">
-        <section style="max-width:360px">
-          <div aria-hidden="true" style="width:48px;height:48px;margin:0 auto 16px;display:grid;place-items:center;border-radius:14px;background:#6D28D9;color:#fff;font-weight:800;font-size:20px">P</div>
-          <h1 id="plivex-boot-title" style="margin:0 0 8px;font-size:22px;font-weight:750">Loading Plivex…</h1>
-          <p id="plivex-boot-message" style="margin:0;color:#6B7280;line-height:1.6">Please wait while your workspace opens.</p>
+      <!-- Useful, crawlable public content while the React app starts. React replaces this
+           fallback after mounting; visitors and preview bots never see an empty app shell. -->
+      <main id="plivex-boot-fallback" style="min-height:100dvh;background:#F8F7FC;color:#171717;font-family:system-ui,sans-serif">
+        <header style="max-width:1120px;margin:0 auto;padding:22px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px">
+          <a href="/" aria-label="Plivex home" style="display:flex;align-items:center;gap:10px;color:#171717;text-decoration:none;font-weight:800;font-size:21px"><span aria-hidden="true" style="display:grid;place-items:center;width:38px;height:38px;border-radius:11px;background:#6D28D9;color:white">P</span>Plivex</a>
+          <nav aria-label="Main navigation" style="display:flex;gap:18px;align-items:center;font-size:14px"><a href="/features" style="color:#4B5563;text-decoration:none">Features</a><a href="/pricing" style="color:#4B5563;text-decoration:none">Pricing</a><a href="/login" style="color:#4B5563;text-decoration:none">Log in</a></nav>
+        </header>
+        <section style="max-width:1120px;margin:0 auto;padding:58px 24px 72px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:42px;align-items:center">
+          <div>
+            <p style="margin:0 0 14px;color:#6D28D9;font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">Business management for Indian SMEs</p>
+            <h1 style="max-width:620px;margin:0 0 18px;font-size:clamp(36px,6vw,58px);line-height:1.08;letter-spacing:-.04em">GST billing and everyday business, in one workspace.</h1>
+            <p style="max-width:570px;margin:0 0 26px;color:#5B6472;font-size:17px;line-height:1.7">Create invoices and quotations, manage customers and stock, track expenses, and review business reports with Plivex.</p>
+            <div style="display:flex;flex-wrap:wrap;gap:12px"><a href="/register" style="display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 22px;border-radius:10px;background:#6D28D9;color:white;text-decoration:none;font-weight:750">Create your free account</a><a href="/features" style="display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 22px;border:1px solid #DDD6FE;border-radius:10px;color:#5B21B6;text-decoration:none;font-weight:700">Explore features</a></div>
+            <p style="margin:14px 0 0;color:#6B7280;font-size:12px">GST invoicing · Inventory · CRM · Quotations · Expenses</p>
+          </div>
+          <div aria-label="Plivex product feature preview" style="padding:24px;border:1px solid #E9E5F2;border-radius:22px;background:white;box-shadow:0 18px 55px rgba(31,24,50,.08)">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:18px;border-bottom:1px solid #F0EDF5"><strong style="font-size:17px">Business overview</strong><span style="padding:6px 10px;border-radius:20px;background:#F3EEFF;color:#6D28D9;font-size:11px;font-weight:700">PRODUCT PREVIEW</span></div>
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:18px 0">
+              <div style="padding:16px;border-radius:13px;background:#F8F7FC"><span style="color:#6B7280;font-size:12px">Invoicing</span><strong style="display:block;margin-top:7px;font-size:20px">GST invoices</strong></div>
+              <div style="padding:16px;border-radius:13px;background:#F8F7FC"><span style="color:#6B7280;font-size:12px">Inventory</span><strong style="display:block;margin-top:7px;font-size:20px">Stock tracking</strong></div>
+              <div style="padding:16px;border-radius:13px;background:#F8F7FC"><span style="color:#6B7280;font-size:12px">Customers</span><strong style="display:block;margin-top:7px;font-size:20px">CRM records</strong></div>
+              <div style="padding:16px;border-radius:13px;background:#F8F7FC"><span style="color:#6B7280;font-size:12px">Operations</span><strong style="display:block;margin-top:7px;font-size:20px">Expenses & reports</strong></div>
+            </div>
+            <p style="margin:0;color:#7B8190;font-size:12px;line-height:1.6">Illustrative feature summary, not live customer or business data.</p>
+          </div>
         </section>
+        <footer style="padding:20px 24px;border-top:1px solid #E9E5F2;text-align:center;color:#7B8190;font-size:12px">Plivex · GST billing and business management software</footer>
+        <noscript><p style="max-width:700px;margin:0 auto;padding:0 24px 30px;color:#6B7280;text-align:center">JavaScript is required for the interactive Plivex workspace. You can still explore the <a href="/features">features</a> and <a href="/pricing">pricing</a>.</p></noscript>
       </main>
     </div>
     <script>
       window.setTimeout(function () {
-        var title = document.getElementById('plivex-boot-title');
-        var message = document.getElementById('plivex-boot-message');
-        if (!title || !message) return;
-        title.textContent = 'Plivex is taking longer than expected';
-        message.textContent = 'The page did not finish loading. Reload Plivex to try again.';
+        var fallback = document.getElementById('plivex-boot-fallback');
+        if (!fallback || !fallback.isConnected) return;
+        var notice = document.createElement('p');
+        notice.setAttribute('role', 'status');
+        notice.style.cssText = 'max-width:700px;margin:0 auto 24px;padding:14px 20px;border:1px solid #DDD6FE;border-radius:12px;background:#fff;color:#5B21B6;text-align:center;font:14px/1.5 system-ui,sans-serif';
+        notice.textContent = 'The interactive app is taking longer than expected. You can still explore Plivex features or reload this page.';
         var link = document.createElement('a');
         link.href = window.location.href;
-        link.textContent = 'Reload Plivex';
-        link.style.cssText = 'display:inline-block;margin-top:18px;padding:12px 20px;border-radius:10px;background:#6D28D9;color:#fff;text-decoration:none;font-weight:700';
-        message.appendChild(document.createElement('br'));
-        message.appendChild(link);
-      }, 10000);
+        link.textContent = ' Reload';
+        link.style.cssText = 'color:#5B21B6;font-weight:700';
+        notice.appendChild(link);
+        fallback.appendChild(notice);
+      }, 12000);
     </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
