@@ -557,6 +557,8 @@ export default function Home() {
       if (document.fonts?.ready) await document.fonts.ready;
       const images = [...copy.querySelectorAll("img")];
       await Promise.all(images.map((img) => img.decode?.().catch(() => undefined)));
+      const qrImage = copy.querySelector('img[alt="UPI payment QR code"]');
+      if (qrImage && !qrImage.naturalWidth) throw new Error("UPI QR image could not be loaded. Check your connection and retry the PDF.");
       const base = copy.getBoundingClientRect();
       const keepTogether = [...copy.querySelectorAll('[data-pdf-keep-together="upi"]')].map((section) => {
         const box = section.getBoundingClientRect();
@@ -580,7 +582,7 @@ export default function Home() {
         pdf.setFontSize(7);
         pdf.setTextColor(120);
         if (planName === "Free") pdf.text("Made with Plivex", footerMargin, pageHeight - 4);
-        pdf.text(`Page ${page} of ${pages}`, pageWidth - MARGIN_MM, pageHeight - 4, { align: "right" });
+        pdf.text(`Page ${page} of ${pages}`, pageWidth - footerMargin, pageHeight - 4, { align: "right" });
       }
     };
     const toPng = (c) => c.toDataURL("image/png");
