@@ -136,6 +136,7 @@ const invoiceToUi = (r) => {
   const items = Array.isArray(r.invoice_items) ? r.invoice_items : [];
   return {
     id: r.id, number: str(r.number), clientName: str(r.client_name), clientEmail: str(r.client_email), businessName: str(r.business_name),
+    invoiceSnapshot: r.invoice_snapshot && typeof r.invoice_snapshot === "object" ? r.invoice_snapshot : null,
     total: num(r.total), cgst: num(r.cgst), sgst: num(r.sgst), igst: num(r.igst), taxValue: num(r.tax_value), subtotal: num(r.subtotal),
     issueDate: str(r.issue_date).slice(0, 10), dueDate: str(r.due_date).slice(0, 10), createdDate: str(r.created_at), currency: r.currency || "INR",
     itemCount: items.length, taxMode: r.tax_mode || "split", taxRate: num(r.tax_rate), status: r.status || "Pending", isDraft: !!r.is_draft,
@@ -392,6 +393,7 @@ export async function saveInvoiceToServer(inv) {
     issue_date: dateOrNull(inv.issueDate) || new Date().toISOString().slice(0, 10),
     due_date: dateOrNull(inv.dueDate),
     currency: inv.currency || "INR", notes: str(inv.notes), terms: str(inv.terms),
+    invoice_snapshot: inv && typeof inv === "object" ? { ...inv, design: String(inv.design || "classic") } : null,
   };
   const res = await api.functions.invoke("saveInvoice", payload);
   const saved = res?.data?.invoice;
