@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, X, Sparkles, CheckCircle2, Loader2, PlusCircle, ImagePlus } from "lucide-react";
+import { Send, X, Sparkles, CheckCircle2, Loader2, PlusCircle, ImagePlus, Mic, MicOff } from "lucide-react";
 import { assistantEnabled, supabase } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
 
@@ -30,6 +30,8 @@ export default function AssistantWidget() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [retryAction, setRetryAction] = useState(null);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef(null);
   const bottomRef = useRef(null);
   const dragRef = useRef(null);
   const suppressFabClickRef = useRef(false);
@@ -147,8 +149,38 @@ export default function AssistantWidget() {
   function cancelAction(messageIndex) {
     setRetryAction(null);
     setMessages((current) => current.map((message, index) => index === messageIndex
-      ? { ...message, pendingAction: null, actionStatus: "cancelled" }
+      ? { ...message, pendingAction: null, pendingActions: null, idempotencyKey: null, actionStatus: "cancelled" }
       : message));
+  }
+
+  function toggleVoiceInput() {
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setError("Voice typing is not supported in this browser. Please use your phone keyboard microphone.");
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = /[\u0900-\u097F]/.test(draft) ? "hi-IN" : "hi-IN";
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results).map((result) => result[0]?.transcript || "").join(" ");
+      setDraft((current) => (current ? current + " " : "") + transcript);
+    };
+    recognition.onerror = () => {
+      setListening(false);
+      setError("Voice could not be captured. Please try again or type your request.");
+    };
+    recognition.onend = () => setListening(false);
+    recognitionRef.current = recognition;
+    setError("");
+    setListening(true);
+    recognition.start();
   }
 
   return (
@@ -195,6 +227,7 @@ export default function AssistantWidget() {
             <div className="flex items-center gap-2">
               <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; if (file.size > 12 * 1024 * 1024) { setError("Image must be smaller than 12 MB."); e.target.value = ""; return; } const reader = new FileReader(); reader.onload = () => { const source = typeof reader.result === "string" ? reader.result : ""; const img = new Image(); img.onload = () => { const max = 1800; const ratio = Math.min(1, max / Math.max(img.width, img.height)); const canvas = document.createElement("canvas"); canvas.width = Math.max(1, Math.round(img.width * ratio)); canvas.height = Math.max(1, Math.round(img.height * ratio)); const ctx = canvas.getContext("2d"); if (!ctx) { setError("Image processing unavailable."); return; } ctx.drawImage(img, 0, 0, canvas.width, canvas.height); setAttachment(canvas.toDataURL("image/jpeg", 0.9)); }; img.onerror = () => setError("Could not read this image. Please choose another photo."); img.src = source; }; reader.readAsDataURL(file); e.target.value = ""; }} />
               <button type="button" onClick={() => imageInputRef.current?.click()} disabled={busy} aria-label="Attach receipt or image" title="Attach receipt or image" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-[#6D28D9] disabled:opacity-50"><ImagePlus className="h-5 w-5" /></button>
+              <button type="button" onClick={toggleVoiceInput} disabled={busy} aria-label={listening ? "Stop voice input" : "Start voice input"} title={listening ? "Stop voice input" : "Speak to Plivex AI"} className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border disabled:opacity-50 ${listening ? "border-red-300 bg-red-50 text-red-600" : "border-slate-200 text-[#6D28D9]"}`}>{listening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button>
               <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={1000} placeholder="Ask Plivex AI or add a receipt…" className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-purple-500" />
               <button type="submit" disabled={busy || (!draft.trim() && !attachment)} aria-label="Send message" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#6D28D9] text-white disabled:opacity-50"><Send className="h-4 w-4" /></button>
             </div>
