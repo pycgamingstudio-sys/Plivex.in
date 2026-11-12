@@ -12,12 +12,14 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
   const url = Deno.env.get("SUPABASE_URL");
   const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const apiKey = Deno.env.get("RESEND_API_KEY");
+  const resendApiKey = Deno.env.get("RESEND_API_KEY");
+  const brevoApiKey = Deno.env.get("BREVO_API_KEY");
   const from = Deno.env.get("MAIL_FROM");
+  const provider = resendApiKey ? "resend" : brevoApiKey ? "brevo" : "";
   if (!url || !service) return Response.json({ error: "Scheduler is not configured." }, { status: 503 });
-  if (!apiKey || !from) {
+  if (!provider || !from) {
     console.error("invoice reminder email service is not configured");
-    return Response.json({ error: "Email delivery is not configured. Add RESEND_API_KEY and MAIL_FROM." }, { status: 503 });
+    return Response.json({ error: "Email delivery is not configured. Add BREVO_API_KEY or RESEND_API_KEY, plus MAIL_FROM, in Supabase Edge Function secrets." }, { status: 503 });
   }
 
   try {
@@ -114,15 +116,27 @@ Deno.serve(async (req: Request) => {
         : '<!doctype html><html><body style="margin:0;background:#fff;font-family:Arial,sans-serif;color:#171717"><div style="max-width:560px;margin:auto;padding:24px"><p>From ' + businessName + '</p><h2>Payment reminder</h2><p>Hi ' + clientName + ',</p><p>Payment for invoice <b>' + invoiceNumber + '</b> is still marked as pending. This is a friendly reminder (' + esc(stageLabels[event.stage] || "payment follow-up") + ').</p><p>Amount due: <b>' + esc(currency) + ' ' + esc(amount) + '</b></p>' + (due ? '<p>Due date: <b>' + esc(due) + '</b></p>' : "") + '<p>If you have already paid, please ignore this message and contact the business so the records can be updated.</p><p>Thank you.</p></div></body></html>';
 
       try {
-        const response = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            Authorization: "Bearer " + apiKey,
-            "Content-Type": "application/json",
-            "Idempotency-Key": "plivex-invoice-reminder/" + event.id,
-          },
-          body: JSON.stringify({ from, to: [to], subject, html }),
-        });
+        let response: Response;
+        if (provider === "resend") {
+          response = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer " + resendApiKey,
+              "Content-Type": "application/json",
+              "Idempotency-Key": "plivex-invoice-reminder/" + event.id,
+            },
+            body: JSON.stringify({ from, to: [to], subject, html }),
+          });
+        } else {
+          const senderMatch = from.match(/^(.*?)\s*<([^<>]+)>$/);
+          const senderEmail = (senderMatch?.[2] || from).trim();
+          const senderName = (senderMatch?.[1] || Deno.env.get("MAIL_FROM_NAME") || "Plivex").trim();
+          response = await fetch("https://api.brevo.com/v3/smtp/email", {
+            method: "POST",
+            headers: { "api-key": brevoApiKey || "", "Content-Type": "application/json", "accept": "application/json" },
+            body: JSON.stringify({ sender: { name: senderName, email: senderEmail }, to: [{ email: to }], subject, htmlContent: html }),
+          });
+        }
         if (!response.ok) {
           const detail = (await response.text()).slice(0, 240);
           await admin.from("invoice_reminder_events")
@@ -134,7 +148,7 @@ Deno.serve(async (req: Request) => {
         }
         const result = await response.json().catch(() => ({}));
         const { error: sentUpdateError } = await admin.from("invoice_reminder_events")
-          .update({ status: "sent", sent_at: new Date().toISOString(), provider_message_id: result?.id || null, failure_reason: null, updated_at: new Date().toISOString() })
+          .update({ status: "sent", sent_at: new Date().toISOString(), provider_message_id: result?.id || result?.messageId || null, failure_reason: null, updated_at: new Date().toISOString() })
           .eq("id", event.id).eq("status", "sending");
         if (sentUpdateError) {
           console.error("reminder sent but event update failed", event.id, sentUpdateError.message);
@@ -155,7 +169,12 @@ Deno.serve(async (req: Request) => {
         }
       } catch (sendError) {
         await admin.from("invoice_reminder_events")
-          .update({ status: "failed", failure_reason: "Temporary email delivery error. The scheduler will retry.", updated_at: new Date().toISOString() })
+          .update({
+            status: "failed",
+            attempt_count: provider === "brevo" ? 3 : Number(event.attempt_count || 0) + 1,
+            failure_reason: "Temporary email delivery error. The scheduler will retry when safe.",
+            updated_at: new Date().toISOString(),
+          })
           .eq("id", event.id).eq("status", "sending");
         failed++;
         console.error("reminder email request failed", event.id, sendError instanceof Error ? sendError.message : "unknown error");
