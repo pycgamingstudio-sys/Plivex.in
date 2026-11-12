@@ -43,7 +43,7 @@ Deno.serve(async (req: Request) => {
       recipientEmail = String(client?.email || "").trim().toLowerCase();
       if (recipientEmail) await admin.from("invoices").update({ client_email: recipientEmail }).eq("id", id).eq("workspace_id", profile.workspace_id);
     }
-    if (enabled && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(recipientEmail)) return json({ error: "Add a valid customer email before enabling reminders." }, 400, origin);
+    if (enabled && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(recipientEmail)) return json({ error: "Add a valid customer email before enabling reminders." }, 400, origin);
 
     const version = Number(invoice.reminder_schedule_version || 1) + 1;
     const { error: updateError } = await admin.from("invoices").update({
