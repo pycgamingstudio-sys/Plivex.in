@@ -139,7 +139,7 @@ const invoiceToUi = (r) => {
     invoiceSnapshot: r.invoice_snapshot && typeof r.invoice_snapshot === "object" ? r.invoice_snapshot : null,
     total: num(r.total), cgst: num(r.cgst), sgst: num(r.sgst), igst: num(r.igst), taxValue: num(r.tax_value), subtotal: num(r.subtotal),
     issueDate: str(r.issue_date).slice(0, 10), dueDate: str(r.due_date).slice(0, 10), createdDate: str(r.created_at), currency: r.currency || "INR",
-    itemCount: items.length, taxMode: r.tax_mode || "split", taxRate: num(r.tax_rate), status: r.status || "Pending", isDraft: !!r.is_draft,
+    itemCount: items.length, taxMode: r.tax_mode || "split", taxRate: num(r.tax_rate), discountType: r.discount_type || "percent", discount: num(r.discount), notes: str(r.notes), terms: str(r.terms), status: r.status || "Pending", isDraft: !!r.is_draft,
     reminder: { enabled: !!r.reminder_enabled, language: r.reminder_language === "hi" ? "hi" : "en" },
     items: items.map((it) => ({ description: str(it.description), quantity: num(it.quantity), rate: num(it.rate), gstRate: it.gst_rate === null || it.gst_rate === undefined ? undefined : num(it.gst_rate) })),
   };
