@@ -125,6 +125,8 @@ export default function InvoiceHistory() {
       const source = stage.querySelector("[data-testid='invoice-preview']");
       if (!source) throw new Error("Original invoice preview could not be rendered.");
       await Promise.all([...source.querySelectorAll("img")].map((img) => img.decode?.().catch(() => undefined)));
+      const qrImage = source.querySelector('img[alt="UPI payment QR code"]');
+      if (qrImage && !qrImage.naturalWidth) throw new Error("UPI QR image could not be loaded. Check your connection and retry the PDF.");
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
       const canvas = await html2canvas(source, {
         scale: 3,
