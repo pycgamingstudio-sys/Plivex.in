@@ -24,7 +24,7 @@ function json(body: unknown, status: number, origin: string | null) {
 }
 
 const text = (value: unknown, max = 200) => String(value ?? "").trim().slice(0, max);
-const number = (value: unknown, fallback = 0) => {
+const number = (value: unknown, fallback = NaN) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
@@ -34,48 +34,53 @@ function validateAction(action: unknown) {
   if (!action || typeof action !== "object") return null;
   const candidate = action as Record<string, unknown>;
   const type = text(candidate.type, 40);
-  const raw = candidate.payload && typeof candidate.payload === "object"
-    ? candidate.payload as Record<string, unknown>
-    : {};
-
-  if (type === "create_client") {
-    const name = text(raw.name, 120);
-    if (!name) return null;
-    return { type, payload: { name, company: text(raw.company, 120), email: text(raw.email, 180), phone: text(raw.phone, 40), gstin: text(raw.gstin, 30), address: text(raw.address, 400) } };
+  const raw = candidate.payload && typeof candidate.payload === "object" ? candidate.payload as Record<string, unknown> : {};
+  if (type === "create_invoice") {
+    const client_name = text(raw.client_name,120);
+    const items = Array.isArray(raw.items) ? raw.items.slice(0,100).map((entry: any) => ({
+      description: text(entry?.description,500),
+      quantity: number(entry?.quantity,-1),
+      rate: number(entry?.rate,-1),
+      gst_rate: number(entry?.gst_rate,0),
+    })) : [];
+    if (!client_name || !items.length || items.some((item: any) => !item.description || !(item.quantity > 0) || !(item.rate >= 0) || item.gst_rate < 0 || item.gst_rate > 100)) return null;
+    const tax_mode = raw.tax_mode === "igst" ? "igst" : "split";
+    const discount_type = raw.discount_type === "flat" ? "flat" : "percent";
+    const discount = number(raw.discount,0), tax_rate = number(raw.tax_rate,0);
+    if (tax_rate < 0 || tax_rate > 100 || discount < 0 || (discount_type === "percent" && discount > 100)) return null;
+    return { type, payload: {
+      client_name, client_email: text(raw.client_email,180), business_name: text(raw.business_name,160),
+      issue_date: text(raw.issue_date,10), due_date: text(raw.due_date,10),
+      currency: "INR", tax_mode, tax_rate, discount_type, discount,
+      notes: text(raw.notes,1000), terms: text(raw.terms,1000), status: "Pending", is_draft: true, items,
+    } };
   }
   if (type === "create_expense") {
-    const amount = number(raw.amount, -1);
-    if (amount <= 0) return null;
-    const category = allowedCategories.includes(text(raw.category, 40)) ? text(raw.category, 40) : "Other";
-    const date = text(raw.date, 10);
-    return { type, payload: { vendor: text(raw.vendor, 120), category, amount, ...( /^\d{4}-\d{2}-\d{2}$/.test(date) ? { date } : {}), status: text(raw.status, 40), method: text(raw.method, 40), notes: text(raw.notes, 500) } };
-  }
-  if (type === "create_lead") {
-    const name = text(raw.name, 120);
-    if (!name) return null;
-    return { type, payload: { name, phone: text(raw.phone, 40), requirement: text(raw.requirement, 500), value: Math.max(0, number(raw.value, 0)), stage: text(raw.stage, 60) || "New" } };
+    const amount = number(raw.amount);
+    if (!(amount > 0)) return null;
+    return { type, payload: { vendor: text(raw.vendor,120), category: allowedCategories.includes(text(raw.category,40)) ? text(raw.category,40) : "Other", amount, date: text(raw.date,10), status: text(raw.status,40), method: text(raw.method,40), notes: text(raw.notes,500) } };
   }
   if (type === "create_stock") {
-    const name = text(raw.name, 120);
-    const quantity = number(raw.quantity, -1);
-    const price = number(raw.price, -1);
-    if (!name || quantity < 0 || price < 0) return null;
-    return { type, payload: { name, sku: text(raw.sku, 80), quantity, unit: text(raw.unit, 30) || "pcs", price, low_stock: Math.max(0, number(raw.low_stock, 5)) } };
+    const quantity = number(raw.quantity), price = number(raw.price);
+    const name = text(raw.name,120);
+    if (!name || !(quantity > 0) || !(price >= 0)) return null;
+    return { type, payload: { name, sku: text(raw.sku,80), quantity, unit: text(raw.unit,30) || "pcs", price, low_stock: Math.max(0,number(raw.low_stock,5)) } };
+  }
+  if (type === "create_client") {
+    const name=text(raw.name,120); if(!name) return null;
+    return {type,payload:{name,company:text(raw.company,120),email:text(raw.email,180),phone:text(raw.phone,40),gstin:text(raw.gstin,30),address:text(raw.address,400)}};
+  }
+  if (type === "create_lead") {
+    const name=text(raw.name,120); if(!name) return null;
+    return {type,payload:{name,phone:text(raw.phone,40),requirement:text(raw.requirement,500),value:Math.max(0,number(raw.value,0)),stage:text(raw.stage,60)||"New"}};
   }
   if (type === "create_quotation") {
-    const client_name = text(raw.client_name, 120);
-    const total = number(raw.total, -1);
-    if (!client_name || total < 0) return null;
-    const items = Array.isArray(raw.items) ? raw.items.slice(0, 30).map((entry) => {
-      const item = entry && typeof entry === "object" ? entry as Record<string, unknown> : {};
-      return { description: text(item.description, 160), quantity: Math.max(0, number(item.quantity, 0)), rate: Math.max(0, number(item.rate, 0)), gst_rate: Math.max(0, number(item.gst_rate, 0)) };
-    }) : [];
-    const date = text(raw.date, 10);
-    return { type, payload: { client_name, total, ...( /^\d{4}-\d{2}-\d{2}$/.test(date) ? { date } : {}), status: raw.status === "sent" ? "sent" : "draft", tax_rate: Math.max(0, number(raw.tax_rate, 0)), items } };
+    const client_name=text(raw.client_name,120), total=number(raw.total);
+    if(!client_name || !(total>=0)) return null;
+    return {type,payload:{client_name,total,date:text(raw.date,10),status:raw.status==="sent"?"sent":"draft",tax_rate:Math.max(0,number(raw.tax_rate,0)),items:Array.isArray(raw.items)?raw.items.slice(0,30):[]}};
   }
   return null;
 }
-
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
   if (origin && !ALLOWED_ORIGINS.has(origin)) {
@@ -107,35 +112,29 @@ Deno.serve(async (req: Request) => {
     if (profileError || !profile?.workspace_id) return json({ error: "Your Plivex workspace could not be found." }, 403, origin);
 
     const body = await req.json().catch(() => null);
-    const action = validateAction(body?.action);
-    if (!action) return json({ error: "The proposed record is incomplete or invalid. Please try again with the required details." }, 400, origin);
-
-    const tableByType: Record<string, string> = {
-      create_client: "clients",
-      create_expense: "expenses",
-      create_lead: "leads",
-      create_stock: "stock",
-      create_quotation: "quotations",
-    };
-    const table = tableByType[action.type];
-    const { data, error } = await supabase
-      .from(table)
-      .insert({ workspace_id: profile.workspace_id, ...action.payload })
-      .select("id")
-      .single();
-
+    const rawActions = Array.isArray(body?.actions) ? body.actions : [body?.action];
+    if (!rawActions.length || rawActions.length > 10) return json({ error: "Please confirm between 1 and 10 valid actions." }, 400, origin);
+    const actions = rawActions.map(validateAction);
+    if (actions.some((action: unknown) => !action)) return json({ error: "Some action details are missing or invalid. Nothing was saved." }, 400, origin);
+    const idempotencyKey = text(body?.idempotencyKey,160);
+    if (idempotencyKey.length < 16) return json({ error: "Confirmation key is missing. Please refresh the pending action and try again." }, 400, origin);
+    const canonical = JSON.stringify(actions);
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+    const requestHash = [...new Uint8Array(digest)].map((b)=>b.toString(16).padStart(2,"0")).join("");
+    const { data, error } = await supabase.rpc("execute_assistant_action_batch", {
+      p_idempotency_key: idempotencyKey,
+      p_request_hash: requestHash,
+      p_actions: actions,
+    });
     if (error) {
-      console.error("Assistant confirmation rejected", { table, code: error.code, userId: user.id });
+      console.error("Assistant batch confirmation rejected", { code: error.code, message: error.message, userId: user.id });
       const message = String(error.message || "");
-      // Keep structured quota/feature errors intact so the client can open the
-      // upgrade lock instead of hiding the real plan-enforcement decision.
-      if (message.startsWith("PLAN_LIMIT_REACHED|") || message.startsWith("PLAN_FEATURE_LOCKED|")) {
-        return json({ error: message }, 409, origin);
-      }
-      return json({ error: error.code === "42501" ? "Your Plivex role does not have permission to add this record." : "Could not add the record. Check required fields and workspace permissions." }, error.code === "42501" ? 403 : 400, origin);
+      if (message.includes("PERMISSION_DENIED")) return json({ error: "Your Plivex role does not have permission for one or more requested actions. Nothing was saved." }, 403, origin);
+      if (message.startsWith("PLAN_LIMIT_REACHED|") || message.startsWith("PLAN_FEATURE_LOCKED|")) return json({ error: message }, 409, origin);
+      if (message.includes("AUTH_REQUIRED") || message.includes("WORKSPACE_NOT_FOUND")) return json({ error: "Your workspace session could not be verified." }, 403, origin);
+      return json({ error: "The action batch could not be completed. No partial records were saved." }, 400, origin);
     }
-
-    return json({ ok: true, reply: "The record was saved to your Plivex workspace.", created: { type: action.type, id: data.id } }, 200, origin);
+    return json({ ok: true, reply: actions.length === 1 ? "The record was saved to your Plivex workspace." : "All requested records were saved together to your Plivex workspace.", created: data?.created || [], duplicate: Boolean(data?.duplicate), batchId: data?.batch_id }, 200, origin);
   } catch (error) {
     console.error("Assistant confirmation failed", error);
     return json({ error: "Something went wrong while confirming the action." }, 500, origin);
