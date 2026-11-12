@@ -339,7 +339,7 @@ export function InvoicePreview({ invoice, design }) {
   const upiId = (invoice.upiId || "").trim();
   const upiValid = Boolean(upiId) && /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z][a-zA-Z0-9.\-_]{1,64}$/.test(upiId);
   const upiUri = upiValid ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(invoice.business.name || "Business")}&am=${total.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Invoice ${invoice.number || ""}`)}` : "";
-  const qrUrl = upiValid ? `https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=2&data=${encodeURIComponent(upiUri)}` : "";
+  const qrUrl = upiValid ? `https://quickchart.io/qr?size=600&margin=2&ecLevel=Q&text=${encodeURIComponent(upiUri)}` : "";
   return (
     <div className="p-2 sm:p-4">
       <ScaledPreview>
@@ -583,59 +583,18 @@ export default function Home() {
         pdf.text(`Page ${page} of ${pages}`, pageWidth - MARGIN_MM, pageHeight - 4, { align: "right" });
       }
     };
-    const mmPerPx = pageWidth / canvas.width;
-    const imageHeight = canvas.height * mmPerPx;
     const toPng = (c) => c.toDataURL("image/png");
-    if (imageHeight <= pageHeight) {
-      pdf.addImage(toPng(canvas), "PNG", 0, 0, pageWidth, imageHeight, undefined, "FAST");
-      addPdfFooters();
-      return pdf;
-    }
-    const MARGIN_MM = 8;
-    const scaleRatio = canvas.width / INVOICE_WIDTH;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    const isWhiteRow = (y) => {
-      const row = ctx.getImageData(0, y, canvas.width, 1).data;
-      for (let x = 0; x < canvas.width; x += 24) {
-        const i = x * 4;
-        if (row[i] < 248 || row[i + 1] < 248 || row[i + 2] < 248 || row[i + 3] < 240) return false;
-      }
-      return true;
-    };
-    let start = 0;
-    let pageIndex = 0;
-    while (canvas.height - start > 4) {
-      const topMm = pageIndex === 0 ? 0 : MARGIN_MM;
-      const usablePx = Math.floor((pageHeight - topMm - MARGIN_MM) / mmPerPx);
-      let end = Math.min(start + usablePx, canvas.height);
-      if (end < canvas.height) {
-        const splitPanel = qrBounds.find((bounds) => end > bounds.top && end < bounds.bottom);
-        if (splitPanel) {
-          // Never slice through a UPI QR panel. Move the page break above it.
-          const safeEnd = Math.floor(splitPanel.top - 10 * scaleRatio);
-          if (safeEnd > start + 24 * scaleRatio) end = safeEnd;
-          else if (splitPanel.bottom - start <= usablePx) end = safeEnd;
-          else throw new Error("UPI QR panel is taller than the available A4 page area.");
-        }
-        const lowest = Math.max(start + Math.floor(usablePx * 0.68), end - Math.floor(usablePx * 0.22));
-        for (let y = end; y > lowest; y -= 6) {
-          if (isWhiteRow(y)) { end = y; break; }
-        }
-      }
-      if (end <= start) throw new Error("Could not create a clean A4 page break. Please try again.");
-      const sliceHeight = end - start;
-      const slice = document.createElement("canvas");
-      slice.width = canvas.width;
-      slice.height = sliceHeight;
-      const sliceCtx = slice.getContext("2d");
-      sliceCtx.fillStyle = "#ffffff";
-      sliceCtx.fillRect(0, 0, slice.width, slice.height);
-      sliceCtx.drawImage(canvas, 0, start, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
-      if (pageIndex > 0) pdf.addPage();
-      pdf.addImage(toPng(slice), "PNG", 0, topMm, pageWidth, sliceHeight * mmPerPx, undefined, "FAST");
-      start = end;
-      pageIndex += 1;
-    }
+    // Always produce exactly one A4 sheet. Fit the complete invoice proportionally
+    // inside printable margins instead of splitting totals/UPI blocks onto page two.
+    const marginX = 7;
+    const marginTop = 7;
+    const marginBottom = 12;
+    const fitScale = Math.min((pageWidth - marginX * 2) / canvas.width, (pageHeight - marginTop - marginBottom) / canvas.height);
+    const fittedWidth = canvas.width * fitScale;
+    const fittedHeight = canvas.height * fitScale;
+    const x = (pageWidth - fittedWidth) / 2;
+    const y = marginTop + Math.max(0, (pageHeight - marginTop - marginBottom - fittedHeight) / 2);
+    pdf.addImage(toPng(canvas), "PNG", x, y, fittedWidth, fittedHeight, undefined, "FAST");
     addPdfFooters();
     return pdf;
   };
