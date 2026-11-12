@@ -43,6 +43,13 @@ export default function AssistantWidget() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, busy, open]);
   useEffect(() => {
+    if (!storageKey) { setMessages([]); return; }
+    try {
+      const saved = localStorage.getItem(storageKey);
+      setMessages(saved ? JSON.parse(saved).slice(-40) : []);
+    } catch { setMessages([]); }
+  }, [storageKey]);
+  useEffect(() => {
     if (!storageKey) return;
     try {
       const safeMessages = messages.slice(-40).map(({ imageDataUrl, ...message }) => message);
