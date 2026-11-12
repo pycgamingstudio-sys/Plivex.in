@@ -132,7 +132,7 @@ export default function AssistantWidget() {
       setRetryAction(null);
       setMessages((current) => {
         const updated = current.map((message, index) => index === messageIndex
-          ? { ...message, pendingAction: null, actionStatus: "done" }
+          ? { ...message, pendingAction: null, pendingActions: null, actionStatus: "done" }
           : message);
         return [...updated, { role: "assistant", content: data?.reply || "The record was saved." }];
       });
