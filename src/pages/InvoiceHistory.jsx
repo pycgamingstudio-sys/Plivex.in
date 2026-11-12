@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { createRoot } from "react-dom/client";
+import { InvoicePreview } from "./Home";
 import { History, Trash2, Eye, Download } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import PageShell from "@/components/PageShell";
@@ -80,62 +82,124 @@ export default function InvoiceHistory() {
   const downloadOldInvoice = async (it) => {
     if (downloadingId) return;
     setDownloadingId(it.id);
+    let root;
+    let stage;
     try {
-      const { jsPDF } = await import("jspdf");
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const margin = 16;
-      let y = 20;
-      const line = (label, value, x = margin, width = pageWidth - margin * 2) => {
-        pdf.setFont("helvetica", "normal"); pdf.setFontSize(9);
-        pdf.text(String(label || "—"), x, y, { maxWidth: width * 0.58 });
-        pdf.setFont("helvetica", "bold");
-        pdf.text(String(value || "—"), x + width * 0.60, y, { maxWidth: width * 0.40, align: "right" });
-        y += 7;
+      const saved = it.invoiceSnapshot;
+      const hasOriginalSnapshot = saved && typeof saved === "object" && saved.business && saved.client && Array.isArray(saved.items);
+      const invoice = hasOriginalSnapshot ? {
+        ...saved,
+        number: it.number || saved.number || "INV-000",
+        issueDate: it.issueDate || saved.issueDate || "",
+        dueDate: it.dueDate || saved.dueDate || "",
+        currency: it.currency || saved.currency || "INR",
+        items: saved.items,
+        design: saved.design || "classic",
+      } : {
+        business: { name: it.businessName || "", email: "", phone: "", gstin: "", address: "" },
+        client: { name: it.clientName || "", company: "", email: it.clientEmail || "", phone: "", gstin: "", address: "" },
+        number: it.number || "INV-000",
+        issueDate: it.issueDate || "",
+        dueDate: it.dueDate || "",
+        currency: it.currency || "INR",
+        items: (it.items || []).map((item, index) => ({ ...item, id: item.id || `history-item-${index}` })),
+        taxRate: Number(it.taxRate) || 0,
+        taxMode: it.taxMode || "split",
+        discountType: it.discountType || "percent",
+        discount: Number(it.discount) || 0,
+        notes: it.notes || "",
+        terms: it.terms || "",
+        design: "classic",
       };
-      pdf.setTextColor(91, 33, 182); pdf.setFont("helvetica", "bold"); pdf.setFontSize(22);
-      pdf.text("PLIVEX", margin, y); y += 9;
-      pdf.setTextColor(25, 25, 25); pdf.setFontSize(16);
-      pdf.text("INVOICE", margin, y);
-      pdf.setFontSize(9); pdf.setFont("helvetica", "normal");
-      pdf.text(it.number || "INV-000", pageWidth - margin, y, { align: "right" }); y += 9;
-      pdf.setDrawColor(220); pdf.line(margin, y, pageWidth - margin, y); y += 8;
-      line("Business", it.businessName);
-      line("Bill to", it.clientName);
-      line("Invoice date", dateLabel(it.issueDate));
-      line("Due date", dateLabel(it.dueDate));
-      line("Status", it.status);
-      y += 3;
-      pdf.setFillColor(245, 243, 250); pdf.rect(margin, y - 4, pageWidth - margin * 2, 9, "F");
-      pdf.setFont("helvetica", "bold"); pdf.setFontSize(8);
-      pdf.text("ITEM", margin + 2, y + 2); pdf.text("QTY", 125, y + 2, { align: "right" });
-      pdf.text("RATE", 155, y + 2, { align: "right" }); pdf.text("AMOUNT", pageWidth - margin - 2, y + 2, { align: "right" }); y += 12;
-      (it.items || []).forEach((item) => {
-        if (y > 255) { pdf.addPage(); y = 20; }
-        const qty = Number(item.quantity) || 0, rate = Number(item.rate) || 0;
-        pdf.setFont("helvetica", "normal"); pdf.setFontSize(8);
-        const desc = pdf.splitTextToSize(String(item.description || "Item"), 95);
-        pdf.text(desc, margin + 2, y);
-        pdf.text(String(qty), 125, y, { align: "right" });
-        pdf.text(money(rate, it.currency), 155, y, { align: "right" });
-        pdf.text(money(qty * rate, it.currency), pageWidth - margin - 2, y, { align: "right" });
-        y += Math.max(7, desc.length * 4);
+      const supportedDesigns = new Set(["classic", "modern", "minimal", "executive", "elegant"]);
+      const design = supportedDesigns.has(invoice.design) ? invoice.design : "classic";
+
+      stage = document.createElement("div");
+      stage.style.cssText = "position:fixed;left:0;top:0;width:826px;z-index:-1;pointer-events:none;background:#fff;";
+      document.body.appendChild(stage);
+      root = createRoot(stage);
+      root.render(<InvoicePreview invoice={invoice} design={design} />);
+
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      if (document.fonts?.ready) await document.fonts.ready;
+      const source = stage.querySelector("[data-testid='invoice-preview']");
+      if (!source) throw new Error("Original invoice preview could not be rendered.");
+      await Promise.all([...source.querySelectorAll("img")].map((img) => img.decode?.().catch(() => undefined)));
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
+      const canvas = await html2canvas(source, {
+        scale: 3,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+        windowWidth: 826,
+        imageTimeout: 5000,
       });
-      y += 5; pdf.setDrawColor(220); pdf.line(margin, y, pageWidth - margin, y); y += 8;
-      line("Subtotal", money(it.subtotal, it.currency));
-      if (it.taxMode === "split") { line("CGST", money(it.cgst, it.currency)); line("SGST", money(it.sgst, it.currency)); }
-      else line("IGST", money(it.igst, it.currency));
-      line("Tax total", money(it.taxValue, it.currency));
-      y += 2; pdf.setFillColor(245, 243, 250); pdf.rect(margin, y - 5, pageWidth - margin * 2, 12, "F");
-      pdf.setFont("helvetica", "bold"); pdf.setFontSize(12);
-      pdf.text("TOTAL", margin + 2, y + 3);
-      pdf.text(money(it.total, it.currency), pageWidth - margin - 2, y + 3, { align: "right" });
-      pdf.setFont("helvetica", "normal"); pdf.setFontSize(8); pdf.setTextColor(110);
-      pdf.text("Downloaded from Plivex Invoice History · Historical copy (read-only)", pageWidth / 2, 285, { align: "center" });
-      pdf.save(`Plivex_${String(it.number || "INV-000").replace(/[^a-zA-Z0-9]+/g, "-")}.pdf`);
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
+      pdf.setProperties({
+        title: `Plivex Invoice ${invoice.number || ""}`,
+        subject: "Historical invoice copy",
+        creator: "Plivex — Smart Invoicing & Business OS",
+        author: "Plivex",
+      });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const mmPerPx = pageWidth / canvas.width;
+      const context = canvas.getContext("2d");
+      const isWhiteRow = (y) => {
+        const row = context.getImageData(0, y, canvas.width, 1).data;
+        for (let x = 0; x < canvas.width; x += 24) {
+          const p = x * 4;
+          if (row[p] < 248 || row[p + 1] < 248 || row[p + 2] < 248 || row[p + 3] < 240) return false;
+        }
+        return true;
+      };
+      const pageSlices = [];
+      let offset = 0;
+      while (offset < canvas.height) {
+        const topMm = pageSlices.length === 0 ? 0 : 8;
+        const bottomMm = 8;
+        const maxPx = Math.min(canvas.height, offset + Math.floor((pageHeight - topMm - bottomMm) / mmPerPx));
+        let endPx = maxPx;
+        if (maxPx < canvas.height) {
+          const minBreak = Math.max(offset + 80, maxPx - 180);
+          for (let y = maxPx; y >= minBreak; y -= 1) {
+            if (isWhiteRow(y)) { endPx = y; break; }
+          }
+          if (endPx <= offset) endPx = maxPx;
+        }
+        pageSlices.push({ start: offset, end: endPx, topMm });
+        offset = endPx;
+      }
+      pageSlices.forEach((slice, index) => {
+        const part = document.createElement("canvas");
+        part.width = canvas.width;
+        part.height = slice.end - slice.start;
+        const ctx = part.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, part.width, part.height);
+        ctx.drawImage(canvas, 0, slice.start, canvas.width, part.height, 0, 0, part.width, part.height);
+        if (index > 0) pdf.addPage();
+        pdf.addImage(part.toDataURL("image/png"), "PNG", 0, slice.topMm, pageWidth, part.height * mmPerPx, undefined, "FAST");
+      });
+      const pageCount = pdf.getNumberOfPages();
+      for (let page = 1; page <= pageCount; page += 1) {
+        pdf.setPage(page);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(7);
+        pdf.setTextColor(120);
+        pdf.text(`Page ${page} of ${pageCount}`, pageWidth - 8, pageHeight - 4, { align: "right" });
+      }
+      pdf.save(`Plivex_${String(invoice.number || "INV-000").replace(/[^a-zA-Z0-9]+/g, "-")}.pdf`);
+      if (!hasOriginalSnapshot) {
+        setReminderMessage("This older invoice did not contain a saved design snapshot, so it was rebuilt using Plivex Classic. New invoices will retain their exact original design.");
+      }
     } catch (error) {
       setReminderMessage(error?.message || "Could not download this invoice.");
-    } finally { setDownloadingId(""); }
+    } finally {
+      root?.unmount();
+      if (stage?.parentNode) stage.parentNode.removeChild(stage);
+      setDownloadingId("");
+    }
   };
   // Automatic recipient mapping — pulled from the saved invoice record or client database, never typed manually.
   const reminderEmail = (it) => {
