@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { History, Trash2, Eye } from "lucide-react";
+import { History, Trash2, Eye, Download } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import PageShell from "@/components/PageShell";
 import { KEYS, loadList, removeItem, saveList } from "@/lib/stores";
@@ -19,6 +19,7 @@ export default function InvoiceHistory() {
   const [sendingEventId, setSendingEventId] = useState("");
   const [reminderMessage, setReminderMessage] = useState("");
   const [emailSavingId, setEmailSavingId] = useState("");
+  const [downloadingId, setDownloadingId] = useState("");
   useEffect(() => {
     let active = true;
     if (!view?.id) { setReminderEvents([]); return undefined; }
@@ -76,6 +77,66 @@ export default function InvoiceHistory() {
       setEmailSavingId("");
     }
   };
+  const downloadOldInvoice = async (it) => {
+    if (downloadingId) return;
+    setDownloadingId(it.id);
+    try {
+      const { jsPDF } = await import("jspdf");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 16;
+      let y = 20;
+      const line = (label, value, x = margin, width = pageWidth - margin * 2) => {
+        pdf.setFont("helvetica", "normal"); pdf.setFontSize(9);
+        pdf.text(String(label || "—"), x, y, { maxWidth: width * 0.58 });
+        pdf.setFont("helvetica", "bold");
+        pdf.text(String(value || "—"), x + width * 0.60, y, { maxWidth: width * 0.40, align: "right" });
+        y += 7;
+      };
+      pdf.setTextColor(91, 33, 182); pdf.setFont("helvetica", "bold"); pdf.setFontSize(22);
+      pdf.text("PLIVEX", margin, y); y += 9;
+      pdf.setTextColor(25, 25, 25); pdf.setFontSize(16);
+      pdf.text("INVOICE", margin, y);
+      pdf.setFontSize(9); pdf.setFont("helvetica", "normal");
+      pdf.text(it.number || "INV-000", pageWidth - margin, y, { align: "right" }); y += 9;
+      pdf.setDrawColor(220); pdf.line(margin, y, pageWidth - margin, y); y += 8;
+      line("Business", it.businessName);
+      line("Bill to", it.clientName);
+      line("Invoice date", dateLabel(it.issueDate));
+      line("Due date", dateLabel(it.dueDate));
+      line("Status", it.status);
+      y += 3;
+      pdf.setFillColor(245, 243, 250); pdf.rect(margin, y - 4, pageWidth - margin * 2, 9, "F");
+      pdf.setFont("helvetica", "bold"); pdf.setFontSize(8);
+      pdf.text("ITEM", margin + 2, y + 2); pdf.text("QTY", 125, y + 2, { align: "right" });
+      pdf.text("RATE", 155, y + 2, { align: "right" }); pdf.text("AMOUNT", pageWidth - margin - 2, y + 2, { align: "right" }); y += 12;
+      (it.items || []).forEach((item) => {
+        if (y > 255) { pdf.addPage(); y = 20; }
+        const qty = Number(item.quantity) || 0, rate = Number(item.rate) || 0;
+        pdf.setFont("helvetica", "normal"); pdf.setFontSize(8);
+        const desc = pdf.splitTextToSize(String(item.description || "Item"), 95);
+        pdf.text(desc, margin + 2, y);
+        pdf.text(String(qty), 125, y, { align: "right" });
+        pdf.text(money(rate, it.currency), 155, y, { align: "right" });
+        pdf.text(money(qty * rate, it.currency), pageWidth - margin - 2, y, { align: "right" });
+        y += Math.max(7, desc.length * 4);
+      });
+      y += 5; pdf.setDrawColor(220); pdf.line(margin, y, pageWidth - margin, y); y += 8;
+      line("Subtotal", money(it.subtotal, it.currency));
+      if (it.taxMode === "split") { line("CGST", money(it.cgst, it.currency)); line("SGST", money(it.sgst, it.currency)); }
+      else line("IGST", money(it.igst, it.currency));
+      line("Tax total", money(it.taxValue, it.currency));
+      y += 2; pdf.setFillColor(245, 243, 250); pdf.rect(margin, y - 5, pageWidth - margin * 2, 12, "F");
+      pdf.setFont("helvetica", "bold"); pdf.setFontSize(12);
+      pdf.text("TOTAL", margin + 2, y + 3);
+      pdf.text(money(it.total, it.currency), pageWidth - margin - 2, y + 3, { align: "right" });
+      pdf.setFont("helvetica", "normal"); pdf.setFontSize(8); pdf.setTextColor(110);
+      pdf.text("Downloaded from Plivex Invoice History · Historical copy (read-only)", pageWidth / 2, 285, { align: "center" });
+      pdf.save(`Plivex_${String(it.number || "INV-000").replace(/[^a-zA-Z0-9]+/g, "-")}.pdf`);
+    } catch (error) {
+      setReminderMessage(error?.message || "Could not download this invoice.");
+    } finally { setDownloadingId(""); }
+  };
   // Automatic recipient mapping — pulled from the saved invoice record or client database, never typed manually.
   const reminderEmail = (it) => {
     if (it.clientEmail) return it.clientEmail;
@@ -121,7 +182,7 @@ export default function InvoiceHistory() {
               </div>
               <div className="flex items-center gap-3">
                 <p className="text-[16px] font-bold tracking-[-0.03em]">{money(it.total, it.currency)}</p>
-                <button onClick={() => setView(it)} className="rounded-lg border p-2 hover:bg-secondary" aria-label="View invoice"><Eye className="h-4 w-4" /></button>
+                <button onClick={() => setView(it)} className="rounded-lg border p-2 hover:bg-secondary" aria-label="View invoice"><Eye className="h-4 w-4" /></button>\n                <button onClick={() => downloadOldInvoice(it)} disabled={!!downloadingId} className="rounded-lg border p-2 text-primary hover:bg-secondary disabled:opacity-50" aria-label="Download old invoice PDF" title="Download PDF"><Download className="h-4 w-4" /></button>
                 <button onClick={() => remove(it.id)} className="rounded-lg border p-2 text-destructive hover:bg-destructive/10" aria-label="Delete invoice"><Trash2 className="h-4 w-4" /></button>
               </div>
             </div>
