@@ -325,7 +325,7 @@ function ScaledPreview({ children }) {
   );
 }
 
-function InvoicePreview({ invoice, design }) {
+export function InvoicePreview({ invoice, design }) {
   const subtotal = useMemo(() => invoice.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.rate) || 0), 0), [invoice.items]);
   const discount = Number(invoice.discount) || 0;
   const discountValue = invoice.discountType === "percent" ? subtotal * Math.max(0, discount) / 100 : Math.max(0, discount);
