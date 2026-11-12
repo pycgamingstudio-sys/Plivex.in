@@ -24,6 +24,15 @@ export default function InvoiceHistory() {
   const [emailSavingId, setEmailSavingId] = useState("");
   const [downloadingId, setDownloadingId] = useState("");
   useEffect(() => {
+    const refreshFromWorkspace = (event) => {
+      if (!event?.detail?.keys || event.detail.keys.includes("history")) {
+        setItems(loadList(KEYS.history, { includeCancelled: true }));
+      }
+    };
+    window.addEventListener("plivex-workspace-data-updated", refreshFromWorkspace);
+    return () => window.removeEventListener("plivex-workspace-data-updated", refreshFromWorkspace);
+  }, []);
+  useEffect(() => {
     let active = true;
     if (!view?.id) { setReminderEvents([]); return undefined; }
     setEventsLoading(true);
