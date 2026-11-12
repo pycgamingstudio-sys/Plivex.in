@@ -32,6 +32,9 @@ Deno.serve(async (req: Request) => {
     const enabled = body?.enabled;
     const language = body?.language === "hi" ? "hi" : "en";
     if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id) || typeof enabled !== "boolean") return json({ error: "Invalid reminder settings." }, 400, origin);
+    if (enabled && (!(Deno.env.get("BREVO_API_KEY") || Deno.env.get("RESEND_API_KEY")) || !Deno.env.get("MAIL_FROM"))) {
+      return json({ error: "Auto Reminder email delivery is not configured yet. Add BREVO_API_KEY or RESEND_API_KEY and MAIL_FROM in Supabase Edge Function secrets." }, 503, origin);
+    }
 
     const { data: invoice, error: invoiceError } = await admin.from("invoices").select("id,workspace_id,status,is_draft,due_date,client_email,client_id,reminder_schedule_version").eq("id", id).eq("workspace_id", profile.workspace_id).maybeSingle();
     if (invoiceError || !invoice) return json({ error: "Invoice not found or access denied." }, 404, origin);
