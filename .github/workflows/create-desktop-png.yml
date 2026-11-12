@@ -42,10 +42,14 @@ jobs:
               if anchor in s:
                   s = s.replace(anchor, anchor + chr(10) + tag, 1)
               else:
-                  anchor = '    <link rel="icon" href="/favicon.ico" sizes="any" />'
-                  if anchor not in s:
-                      raise SystemExit("Could not find the existing ICO favicon declaration.")
-                  s = s.replace(anchor, anchor + chr(10) + tag, 1)
+                  anchor = '    <link rel="icon" type="image/png" sizes="32x32" href="https://plivex.in/plivex-identity-2026.png?v=999999">'
+                  if anchor in s:
+                      s = s.replace(anchor, anchor + chr(10) + tag, 1)
+                  else:
+                      anchor = '    <link rel="icon" href="/favicon.ico" sizes="any" />'
+                      if anchor not in s:
+                          raise SystemExit("Could not find an existing favicon declaration.")
+                      s = s.replace(anchor, anchor + chr(10) + tag, 1)
           p.write_text(s)
           PY
 
