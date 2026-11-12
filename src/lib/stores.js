@@ -217,6 +217,11 @@ async function refreshKey(key) {
   } catch { /* keep the cache as is */ }
 }
 
+export async function refreshWorkspaceKey(key) {
+  await refreshKey(key);
+  return key === "history" ? cache.history : key === "businessProfile" ? cache.profile : cache[key];
+}
+
 const sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 async function syncRecords(key, prev, next) {
