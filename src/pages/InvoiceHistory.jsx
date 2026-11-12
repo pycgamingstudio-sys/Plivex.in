@@ -16,6 +16,7 @@ const reminderStatus = { scheduled: "Scheduled", on_hold: "Queued for automatic 
 export default function InvoiceHistory() {
   const [items, setItems] = useState(() => loadList(KEYS.history, { includeCancelled: true }));
   const [view, setView] = useState(null);
+  const [filter, setFilter] = useState("all");
   const [reminderEvents, setReminderEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [sendingEventId, setSendingEventId] = useState("");
@@ -35,6 +36,7 @@ export default function InvoiceHistory() {
       });
     return () => { active = false; };
   }, [view?.id]);
+  const visibleItems = items.filter((item) => filter === "all" || (filter === "drafts" ? item.isDraft : !item.isDraft));
   const remove = (id) => { setItems(removeItem(KEYS.history, id)); if (view && view.id === id) setView(null); };
   const sendConfirmedReminder = async (event) => {
     if (!window.confirm("Please confirm: has the customer still NOT paid this invoice? The reminder email will be sent now.")) return;
@@ -185,14 +187,17 @@ export default function InvoiceHistory() {
   return (
     <PageShell icon={History} title="Invoice history" subtitle="Every invoice you've generated and saved to your workspace." >
       {reminderMessage && <div role="status" aria-live="polite" className="mb-3 rounded-lg border bg-card px-3 py-2 text-xs text-foreground">{reminderMessage}</div>}
+      {items.length > 0 && <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Invoice type filters">
+        {[["all","All invoices"],["drafts","Drafts"],["final","Final invoices"]].map(([value,label]) => <button key={value} role="tab" aria-selected={filter === value} onClick={() => setFilter(value)} className={`rounded-full border px-3 py-2 text-xs font-semibold ${filter === value ? "border-primary bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-secondary"}`}>{label}{value === "drafts" ? ` (${items.filter((item) => item.isDraft).length})` : value === "final" ? ` (${items.filter((item) => !item.isDraft).length})` : ` (${items.length})`}</button>)}
+      </div>}
       {items.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-card p-10 text-center text-[13px] text-muted-foreground">No saved invoices yet. Generate and download an invoice from the desk to see it here.</div>
       ) : (
-        <div className="space-y-3">
-          {items.map((it) => (
+        visibleItems.length === 0 ? <div className="rounded-xl border border-dashed bg-card p-8 text-center text-[13px] text-muted-foreground">{filter === "drafts" ? "No invoice drafts yet. AI-prepared and saved drafts will appear here." : "No invoices in this filter."}</div> : <div className="space-y-3">
+          {visibleItems.map((it) => (
             <div key={it.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
               <div className="min-w-0">
-                <div className="flex items-center gap-2"><p className="font-mono-ui text-[10px] uppercase tracking-wider text-primary">{it.number || "INV-000"}</p><span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium">{it.itemCount || 0} items</span></div>
+                <div className="flex items-center gap-2"><p className="font-mono-ui text-[10px] uppercase tracking-wider text-primary">{it.number || "INV-000"}</p><span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium">{it.itemCount || 0} items</span>{it.isDraft && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Draft · Not issued</span>}</div>
                 <p className="mt-1 text-[14px] font-bold">{it.clientName || "Client"}</p>
                 <p className="text-[11px] text-muted-foreground">{it.businessName || "—"} · {dateLabel(it.issueDate)}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2.5">
