@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Send, X, Sparkles, CheckCircle2, Loader2, PlusCircle, ImagePlus, Mic, MicOff } from "lucide-react";
 import { assistantEnabled, supabase } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
+import { refreshWorkspaceKey } from "@/lib/stores";
 
 const STARTERS = [
   "Mere pending invoices aur total pending amount batao",
@@ -148,6 +149,12 @@ export default function AssistantWidget() {
       });
       if (invokeError) throw invokeError;
       setRetryAction(null);
+      const affectedKeys = [...new Set(actions.map((action) => ({
+        create_invoice: "history", create_expense: "expenses", create_stock: "stock",
+        create_client: "clients", create_lead: "leads", create_quotation: "quotations",
+      }[action?.type]).filter(Boolean))];
+      await Promise.all(affectedKeys.map((key) => refreshWorkspaceKey(key)));
+      window.dispatchEvent(new CustomEvent("plivex-workspace-data-updated", { detail: { keys: affectedKeys } }));
       setMessages((current) => {
         const updated = current.map((message, index) => index === messageIndex
           ? { ...message, pendingAction: null, pendingActions: null, actionStatus: "done" }
