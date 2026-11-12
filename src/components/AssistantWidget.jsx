@@ -152,7 +152,7 @@ export default function AssistantWidget() {
       const affectedKeys = [...new Set(actions.map((action) => ({
         create_invoice: "history", create_expense: "expenses", create_stock: "stock",
         create_client: "clients", create_lead: "leads", create_quotation: "quotations",
-      }[action?.type]).filter(Boolean))];
+      }[action?.type])).filter(Boolean))];
       await Promise.all(affectedKeys.map((key) => refreshWorkspaceKey(key)));
       window.dispatchEvent(new CustomEvent("plivex-workspace-data-updated", { detail: { keys: affectedKeys } }));
       setMessages((current) => {
