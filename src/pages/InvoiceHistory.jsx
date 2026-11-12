@@ -143,44 +143,16 @@ export default function InvoiceHistory() {
       });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const mmPerPx = pageWidth / canvas.width;
-      const context = canvas.getContext("2d");
-      const isWhiteRow = (y) => {
-        const row = context.getImageData(0, y, canvas.width, 1).data;
-        for (let x = 0; x < canvas.width; x += 24) {
-          const p = x * 4;
-          if (row[p] < 248 || row[p + 1] < 248 || row[p + 2] < 248 || row[p + 3] < 240) return false;
-        }
-        return true;
-      };
-      const pageSlices = [];
-      let offset = 0;
-      while (offset < canvas.height) {
-        const topMm = pageSlices.length === 0 ? 0 : 8;
-        const bottomMm = 8;
-        const maxPx = Math.min(canvas.height, offset + Math.floor((pageHeight - topMm - bottomMm) / mmPerPx));
-        let endPx = maxPx;
-        if (maxPx < canvas.height) {
-          const minBreak = Math.max(offset + 80, maxPx - 180);
-          for (let y = maxPx; y >= minBreak; y -= 1) {
-            if (isWhiteRow(y)) { endPx = y; break; }
-          }
-          if (endPx <= offset) endPx = maxPx;
-        }
-        pageSlices.push({ start: offset, end: endPx, topMm });
-        offset = endPx;
-      }
-      pageSlices.forEach((slice, index) => {
-        const part = document.createElement("canvas");
-        part.width = canvas.width;
-        part.height = slice.end - slice.start;
-        const ctx = part.getContext("2d");
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, part.width, part.height);
-        ctx.drawImage(canvas, 0, slice.start, canvas.width, part.height, 0, 0, part.width, part.height);
-        if (index > 0) pdf.addPage();
-        pdf.addImage(part.toDataURL("image/png"), "PNG", 0, slice.topMm, pageWidth, part.height * mmPerPx, undefined, "FAST");
-      });
+      const marginX = 7;
+      const marginTop = 7;
+      const marginBottom = 12;
+      // Historical downloads also stay on one physical A4 page.
+      const fitScale = Math.min((pageWidth - marginX * 2) / canvas.width, (pageHeight - marginTop - marginBottom) / canvas.height);
+      const fittedWidth = canvas.width * fitScale;
+      const fittedHeight = canvas.height * fitScale;
+      const x = (pageWidth - fittedWidth) / 2;
+      const y = marginTop + Math.max(0, (pageHeight - marginTop - marginBottom - fittedHeight) / 2);
+      pdf.addImage(canvas.toDataURL("image/png"), "PNG", x, y, fittedWidth, fittedHeight, undefined, "FAST");
       const pageCount = pdf.getNumberOfPages();
       for (let page = 1; page <= pageCount; page += 1) {
         pdf.setPage(page);
