@@ -9,7 +9,7 @@ const sym = (c) => ({ INR: "₹", USD: "$", EUR: "€" }[c] || c);
 const money = (v, c = "INR") => `${sym(c)} ${(Number(v) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const dateLabel = (v) => (v ? new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
 const reminderStage = { before_due_2: "2 days before due", due_date: "Due date", overdue_3: "3 days overdue", overdue_7: "7 days overdue", overdue_15: "15 days overdue" };
-const reminderStatus = { scheduled: "Scheduled", on_hold: "Waiting for your confirmation", sending: "Sending", sent: "Sent", failed: "Failed", cancelled: "Cancelled" };
+const reminderStatus = { scheduled: "Scheduled", on_hold: "Queued for automatic sending", sending: "Sending", sent: "Sent", failed: "Retry scheduled", cancelled: "Cancelled" };
 
 export default function InvoiceHistory() {
   const [items, setItems] = useState(() => loadList(KEYS.history, { includeCancelled: true }));
@@ -85,6 +85,7 @@ export default function InvoiceHistory() {
 
   return (
     <PageShell icon={History} title="Invoice history" subtitle="Every invoice you've generated and saved to your workspace." >
+      {reminderMessage && <div role="status" aria-live="polite" className="mb-3 rounded-lg border bg-card px-3 py-2 text-xs text-foreground">{reminderMessage}</div>}
       {items.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-card p-10 text-center text-[13px] text-muted-foreground">No saved invoices yet. Generate and download an invoice from the desk to see it here.</div>
       ) : (
@@ -103,7 +104,7 @@ export default function InvoiceHistory() {
                   {it.reminder?.enabled && (
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-[11px] text-muted-foreground">
-                        Schedule: 2 days before, due date, 3, 7 & 15 days after · {reminderEmail(it) || "No customer email"}
+                        Automatic email schedule: 2 days before, due date, 3, 7 & 15 days after · {reminderEmail(it)}
                       </span>
                       <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         Email language
