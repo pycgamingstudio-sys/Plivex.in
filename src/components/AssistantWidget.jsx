@@ -21,9 +21,10 @@ async function readableError(error) {
 }
 
 export default function AssistantWidget() {
-  const { isAuthenticated, isLoadingAuth } = useAuth();
+  const { isAuthenticated, isLoadingAuth, user } = useAuth();
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState([]);
+  const storageKey = user?.id ? `plivex-ai-chat:${user.id}` : null;
+  const [messages, setMessages] = useState(() => { try { const saved = user?.id ? localStorage.getItem(`plivex-ai-chat:${user.id}`) : null; return saved ? JSON.parse(saved).slice(-40) : []; } catch { return []; } });
   const [draft, setDraft] = useState("");
   const [attachment, setAttachment] = useState(null);
   const imageInputRef = useRef(null);
@@ -41,6 +42,14 @@ export default function AssistantWidget() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, busy, open]);
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      const safeMessages = messages.slice(-40).map(({ imageDataUrl, ...message }) => message);
+      localStorage.setItem(storageKey, JSON.stringify(safeMessages));
+    } catch { /* chat history is best-effort; never block assistant use */ }
+  }, [messages, storageKey]);
+
 
   if (!enabled) return null;
 
@@ -96,7 +105,7 @@ export default function AssistantWidget() {
       try {
         response = await supabase.functions.invoke("assistant-chat", {
           body: {
-            messages: next.slice(-6).map(({ role, content: text }) => ({ role, content: String(text || "").slice(0, 500) })),
+            messages: next.slice(-16).map(({ role, content: text }) => ({ role, content: String(text || "").slice(0, 1200) })),
             image: sentAttachment ? { mimeType: sentAttachment.slice(5, sentAttachment.indexOf(";")), data: sentAttachment.split(",")[1] } : null,
           },
           signal: controller.signal,
@@ -136,7 +145,7 @@ export default function AssistantWidget() {
         const updated = current.map((message, index) => index === messageIndex
           ? { ...message, pendingAction: null, pendingActions: null, actionStatus: "done" }
           : message);
-        return [...updated, { role: "assistant", content: data?.reply || "The record was saved." }];
+        return [...updated, { role: "assistant", content: actions.some((action) => action?.type === "create_invoice") ? "Invoice draft saved. Open Invoice History → Drafts to find and download it." : (data?.reply || "The record was saved.") }];
       });
     } catch (err) {
       setRetryAction({ actions, idempotencyKey, messageIndex });
@@ -198,7 +207,7 @@ export default function AssistantWidget() {
           <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 px-3 py-4">
             {messages.length === 0 && <div className="rounded-xl bg-white p-3 text-sm text-slate-600 shadow-sm">
               <p className="font-semibold text-slate-800">Namaste! I can check live data in your Plivex workspace.</p>
-              <p className="mt-1 text-xs">I can read invoices, clients, stock, expenses, quotations, leads and services. I can prepare new clients, expenses, leads, stock items and quotations for your confirmation. I won't save anything until you tap Confirm & Add.</p>
+              <p className="mt-1 text-xs">I can read invoices, clients, stock, expenses, quotations, leads and services. I can prepare invoice drafts, clients, expenses, leads, stock items and quotations for your confirmation. I won't save anything until you tap Confirm & Add.</p>
               <div className="mt-3 flex flex-wrap gap-2">{STARTERS.map((q) => <button key={q} onClick={() => send(q)} className="rounded-full border border-purple-200 bg-purple-50 px-3 py-2 text-left text-xs text-purple-800">{q}</button>)}</div>
             </div>}
             {messages.map((m, i) => <div key={m.id || i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
