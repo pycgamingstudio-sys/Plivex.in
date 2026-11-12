@@ -496,14 +496,28 @@ export default function Home() {
   }, []);
   useEffect(() => { document.documentElement.classList.toggle("dark", isDark); }, [isDark]);
   useEffect(() => () => { if (toastTimer.current) window.clearTimeout(toastTimer.current); }, []);
-  // Persistent UPI profile — auto-fills the business profile's saved UPI ID into every new invoice draft & payment QR.
+  // Business profile is the single source of defaults for every invoice.
+  // Fill only blank fields so a user's invoice-specific edits are never overwritten.
+  const applyBusinessProfile = (invoiceDraft) => {
+    const profile = loadState(KEYS.businessProfile, {}) || {};
+    const business = invoiceDraft.business || {};
+    return {
+      ...invoiceDraft,
+      business: {
+        ...business,
+        name: business.name || profile.name || "",
+        email: business.email || profile.email || "",
+        phone: business.phone || profile.phone || "",
+        gstin: business.gstin || profile.gstin || "",
+        address: business.address || profile.address || "",
+      },
+      logo: invoiceDraft.logo || profile.logo || "",
+      upiId: invoiceDraft.upiId || profile.upiId || "",
+    };
+  };
   useEffect(() => {
-    try {
-      const profile = loadState(KEYS.businessProfile, {});
-      const upi = (profile.upiId || "").trim();
-      if (upi) setInvoice((old) => ({ ...old, upiId: (old.upiId || "").trim() ? old.upiId : upi }));
-    } catch { /* ignore malformed profile */ }
-  }, []);
+    setInvoice((old) => applyBusinessProfile(old));
+  }, [user?.id]);
   useEffect(() => {
     try {
       const pending = loadState(KEYS.pendingClient, null);
@@ -641,7 +655,7 @@ export default function Home() {
     try { sessionStorage.removeItem("plivex:pendingDownload"); } catch { /* ignore */ }
     generatePdf();
   }, [isPremium]);
-  const newInvoice = () => { setInvoice({ ...initialInvoice, items: [{ ...initialInvoice.items[0], id: `item-${Date.now()}` }] }); setErrors({}); setMobileMenuOpen(false); setMobileTab("edit"); notify("Fresh invoice started"); };
+  const newInvoice = () => { setInvoice(applyBusinessProfile({ ...initialInvoice, items: [{ ...initialInvoice.items[0], id: `item-${Date.now()}` }] })); setErrors({}); setMobileMenuOpen(false); setMobileTab("edit"); notify("Fresh invoice started with your saved business details"); };
   useEffect(() => {
     if (!location.state?.newInvoice) return;
     newInvoice();
