@@ -107,7 +107,9 @@ export default function AssistantWidget() {
         role: "assistant",
         content: data.reply,
         pendingAction: data.pendingAction || null,
-        actionStatus: data.pendingAction ? "pending" : null,
+        pendingActions: data.pendingActions || null,
+        idempotencyKey: data.idempotencyKey || data.pendingAction?.idempotencyKey || null,
+        actionStatus: (data.pendingAction || data.pendingActions?.length) ? "pending" : null,
       }]);
     } catch (err) {
       setRetryAction(null);
@@ -117,14 +119,14 @@ export default function AssistantWidget() {
     }
   }
 
-  async function confirmAction(action, messageIndex) {
-    if (!action || busy) return;
+  async function confirmAction(actions, idempotencyKey, messageIndex) {
+    if (!actions?.length || !idempotencyKey || busy) return;
     setError("");
     setRetryAction(null);
     setBusy(true);
     try {
       const { data, error: invokeError } = await supabase.functions.invoke("assistant-confirm", {
-        body: { action },
+        body: { actions, idempotencyKey },
       });
       if (invokeError) throw invokeError;
       setRetryAction(null);
@@ -135,7 +137,7 @@ export default function AssistantWidget() {
         return [...updated, { role: "assistant", content: data?.reply || "The record was saved." }];
       });
     } catch (err) {
-      setRetryAction({ action, messageIndex });
+      setRetryAction({ actions, idempotencyKey, messageIndex });
       setError(await readableError(err));
     } finally {
       setBusy(false);
@@ -171,12 +173,12 @@ export default function AssistantWidget() {
               <div className={m.role === "user" ? "max-w-[90%] whitespace-pre-wrap rounded-2xl bg-[#6D28D9] px-3.5 py-2.5 text-sm text-white" : "max-w-[94%] whitespace-pre-wrap rounded-2xl bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-sm"}>
                 {m.content}
                 {m.imageDataUrl && <img src={m.imageDataUrl} alt="Attached business document" className="mt-2 max-h-40 max-w-full rounded-lg border border-slate-200 object-contain" />}
-                {m.pendingAction && <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50 p-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-purple-900"><PlusCircle className="h-4 w-4" /> Ready to add</div>
-                  <p className="mt-1 text-sm font-medium text-slate-800">{m.pendingAction.summary}</p>
-                  <p className="mt-1 text-[11px] text-slate-600">Nothing is saved until you confirm. Plivex permissions still apply.</p>
+                {(m.pendingAction || m.pendingActions?.length) && <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50 p-3">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-purple-900"><PlusCircle className="h-4 w-4" /> {m.pendingActions?.length > 1 ? "Ready to complete " + m.pendingActions.length + " actions" : "Ready to add"}</div>
+                  <div className="mt-2 space-y-2">{(m.pendingActions || [m.pendingAction]).map((action, actionIndex) => <p key={actionIndex} className="text-sm font-medium text-slate-800">{actionIndex + 1}. {action.summary}</p>)}</div>
+                  <p className="mt-2 text-[11px] text-slate-600">Nothing is saved until you confirm. All actions are validated together; if one fails, the batch is rolled back.</p>
                   <div className="mt-3 flex gap-2">
-                    <button disabled={busy} onClick={() => confirmAction(m.pendingAction, i)} className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#6D28D9] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</> : <><CheckCircle2 className="h-3.5 w-3.5" /> Confirm & Add</>}</button>
+                    <button disabled={busy} onClick={() => confirmAction(m.pendingActions || [m.pendingAction], m.idempotencyKey || m.pendingAction?.idempotencyKey, i)} className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#6D28D9] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</> : <><CheckCircle2 className="h-3.5 w-3.5" /> Confirm & Add</>}</button>
                     <button disabled={busy} onClick={() => cancelAction(i)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 disabled:opacity-50">Cancel</button>
                   </div>
                 </div>}
@@ -185,7 +187,7 @@ export default function AssistantWidget() {
               </div>
             </div>)}
             {busy && <p className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Plivex AI is reading your request…</p>}
-            {error && <div className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{error} <button onClick={() => retryAction ? confirmAction(retryAction.action, retryAction.messageIndex) : send(messages[messages.length - 1]?.content)} className="ml-1 font-bold underline">Retry</button></div>}
+            {error && <div className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{error} <button onClick={() => retryAction ? confirmAction(retryAction.actions, retryAction.idempotencyKey, retryAction.messageIndex) : send(messages[messages.length - 1]?.content)} className="ml-1 font-bold underline">Retry</button></div>}
             <div ref={bottomRef} />
           </div>
           <form onSubmit={(e) => { e.preventDefault(); send(); }} className="border-t border-slate-200 bg-white p-3">
