@@ -82,8 +82,8 @@ function SignatureBlock({ invoice }) {
 function UpiBlock({ upiValid, qrUrl }) {
   if (!upiValid) return null;
   return (
-    <div data-pdf-keep-together="upi" className="mt-10 flex flex-col items-center gap-2 border-t border-[#eeeef2] pt-6">
-      <img src={qrUrl} alt="UPI payment QR code" crossOrigin="anonymous" className="h-[150px] w-[150px] rounded-md bg-white" />
+    <div data-pdf-keep-together="upi" className="mt-5 flex flex-col items-center gap-1.5 border-t border-[#eeeef2] pt-4">
+      <img src={qrUrl} alt="UPI payment QR code" crossOrigin="anonymous" className="h-[104px] w-[104px] rounded-md bg-white" />
       <p className="font-mono-ui text-[13px] uppercase tracking-[0.14em] text-[#8b889b]">Scan to Pay via UPI</p>
     </div>
   );
@@ -99,7 +99,7 @@ function Footer({ light = false }) {
 
 function ClassicDesign({ invoice, subtotal, discount, discountValue, taxValue, total, upiValid, qrUrl, money, dateLabel, amountInWords }) {
   return (
-    <div className="min-h-[1122px] p-7 sm:p-12">
+    <div className="p-7 sm:p-12">
       <div className="flex items-start justify-between gap-6 border-b-2 border-[#2e2857] pb-7">
         <div className="flex items-start gap-3">
           {invoice.logo ? <img src={invoice.logo} alt="Business logo" className="h-12 w-12 rounded-lg object-contain" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#2e2857] text-sm font-bold text-white">{initials(invoice.business.name)}</div>}
@@ -143,7 +143,7 @@ function ClassicDesign({ invoice, subtotal, discount, discountValue, taxValue, t
 
 function ModernDesign({ invoice, subtotal, discount, discountValue, taxValue, total, upiValid, qrUrl, money, dateLabel, amountInWords }) {
   return (
-    <div className="min-h-[1122px]">
+    <div className="">
       <div className="bg-[#6D28D9] px-7 py-9 text-white sm:px-12">
         <div className="flex items-start justify-between gap-6">
           <div className="flex items-center gap-3">
@@ -210,7 +210,7 @@ function ModernDesign({ invoice, subtotal, discount, discountValue, taxValue, to
 
 function MinimalDesign({ invoice, subtotal, discount, discountValue, taxValue, total, upiValid, qrUrl, money, dateLabel, amountInWords }) {
   return (
-    <div className="min-h-[1122px] p-8 sm:p-14">
+    <div className="p-8 sm:p-14">
       <div className="flex items-start justify-between gap-8">
         <div className="flex items-start gap-3.5">
           {invoice.logo ? <img src={invoice.logo} alt="Business logo" className="h-11 w-11 rounded-lg object-contain" /> : <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#28263a] text-[13px] font-bold tracking-[-0.02em]">{initials(invoice.business.name)}</div>}
@@ -271,7 +271,7 @@ function MinimalDesign({ invoice, subtotal, discount, discountValue, taxValue, t
 
 function ExecutiveDesign({ invoice, subtotal, discount, discountValue, taxValue, total, upiValid, qrUrl, money, dateLabel, amountInWords }) {
   return (
-    <div className="flex min-h-[1122px] flex-col sm:flex-row">
+    <div className="flex flex-col sm:flex-row">
       <div className="flex w-full shrink-0 flex-col bg-[#241f45] p-7 text-white sm:w-[230px]">
         <div className="h-1 w-12 bg-[#c9a24a]" />
         <div className="mt-6 flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-[15px] font-bold tracking-[-0.02em]">{initials(invoice.business.name)}</div>
@@ -325,7 +325,7 @@ function ExecutiveDesign({ invoice, subtotal, discount, discountValue, taxValue,
 
 function ElegantDesign({ invoice, subtotal, discount, discountValue, taxValue, total, upiValid, qrUrl, money, dateLabel, amountInWords }) {
   return (
-    <div className="min-h-[1122px] p-8 sm:p-14">
+    <div className="p-8 sm:p-14">
       <div className="border-b-4 border-double border-[#b9a86a] pb-6 text-center">
         <p className="font-display text-[26px] font-normal tracking-[-0.02em] text-[#28263a]">{invoice.business.name || "Your business"}</p>
         <p className="mt-2 text-[13px] uppercase tracking-[0.32em] text-[#8b889b]">Invoice</p>
