@@ -7,10 +7,10 @@ const safeNextPath = (value) => {
   return value.split("?")[0].split("#")[0] || "/dashboard";
 };
 
-const money = (value) => {
-  const paise = Number(value);
-  if (!Number.isFinite(paise) || paise <= 0) return null;
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(paise / 100);
+const money = (value, currency) => {
+  const minor = Number(value);
+  if (!Number.isSafeInteger(minor) || minor <= 0 || !/^[A-Z]{3}$/.test(currency || "")) return null;
+  try { return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(minor / 100); } catch { return null; }
 };
 
 export default function PaymentResult() {
