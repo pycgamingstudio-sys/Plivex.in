@@ -65,18 +65,18 @@ jobs:
           END
           $function$;
           CREATE OR REPLACE FUNCTION public.get_access_status(p_workspace_id text)
-          RETURNS jsonb LANGUAGE sql STABLE AS $ SELECT '{}'::jsonb $;
+          RETURNS jsonb LANGUAGE sql STABLE AS $body$ SELECT '{}'::jsonb $body$;
           SQL
           if psql -v ON_ERROR_STOP=1 -f supabase/migrations/202611130004_converge_effective_subscription_priority.sql; then
             echo "ERROR: migration unexpectedly accepted later function drift"
             exit 1
           fi
           psql -v ON_ERROR_STOP=1 <<'SQL'
-          DO $ BEGIN
+          DO $block$ BEGIN
             IF position('order by case s.tier::text when ''pro'' then 2' IN pg_get_functiondef('public.current_plan(text)'::regprocedure)) = 0 THEN
               RAISE EXCEPTION 'Failed migration did not roll back the earlier current_plan replacement';
             END IF;
-          END $;
+          END $block$;
           SQL
           echo "PASS: failed migration rolled back its earlier function replacement"
       - name: Verify unknown function definitions fail closed
