@@ -165,6 +165,9 @@ BEGIN
  IF v_mismatches <> 0 THEN
    RAISE EXCEPTION 'Migration 010 rollback did not restore refund RPC state';
  END IF;
+ IF to_regprocedure('public.apply_cashfree_refund_event(uuid,text,bigint,text,text,jsonb)') IS NULL THEN
+   RAISE EXCEPTION 'Migration 010 rollback removed the pre-existing refund RPC';
+ END IF;
 END
 $migration010_rollback_assert$;
 RELEASE SAVEPOINT migration010_rollback_probe;
