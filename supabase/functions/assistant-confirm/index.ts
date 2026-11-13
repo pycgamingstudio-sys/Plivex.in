@@ -51,11 +51,39 @@ function validateAction(action: unknown) {
     const discount_type = raw.discount_type === "flat" ? "flat" : "percent";
     const discount = number(raw.discount,0), tax_rate = number(raw.tax_rate,0);
     if (tax_rate < 0 || tax_rate > 100 || discount < 0 || (discount_type === "percent" && discount > 100)) return null;
+    const issue_date = /^\d{4}-\d{2}-\d{2}$/.test(text(raw.issue_date,10)) ? text(raw.issue_date,10) : undefined;
+    const due_date = /^\d{4}-\d{2}-\d{2}$/.test(text(raw.due_date,10)) ? text(raw.due_date,10) : undefined;
+    const rawSnapshot = raw.invoice_snapshot && typeof raw.invoice_snapshot === "object" ? raw.invoice_snapshot as Record<string, any> : {};
+    const rawSnapshotBusiness = rawSnapshot.business && typeof rawSnapshot.business === "object" ? rawSnapshot.business : {};
+    const rawSnapshotClient = rawSnapshot.client && typeof rawSnapshot.client === "object" ? rawSnapshot.client : {};
+    const rawSnapshotItems = Array.isArray(rawSnapshot.items) ? rawSnapshot.items : [];
+    const invoice_snapshot = {
+      business: {
+        name: text(rawSnapshotBusiness.name || raw.business_name,160),
+        email: text(rawSnapshotBusiness.email,180), phone: text(rawSnapshotBusiness.phone,40),
+        gstin: text(rawSnapshotBusiness.gstin,30), address: text(rawSnapshotBusiness.address,400),
+      },
+      client: {
+        name: client_name, company: text(rawSnapshotClient.company,120),
+        email: text(raw.client_email || rawSnapshotClient.email,180),
+        phone: text(rawSnapshotClient.phone,40), gstin: text(rawSnapshotClient.gstin,30),
+        address: text(rawSnapshotClient.address,400),
+      },
+      number: text(rawSnapshot.number,80), issueDate: issue_date || "",
+      dueDate: due_date || "", currency,
+      items: items.map((item: any, index: number) => ({
+        id: text(rawSnapshotItems[index]?.id,80) || "ai-item-" + (index + 1),
+        description: item.description, quantity: item.quantity, rate: item.rate, gstRate: item.gst_rate,
+      })),
+      taxRate: tax_rate, taxMode: tax_mode, discountType: discount_type, discount,
+      notes: text(raw.notes || rawSnapshot.notes,1000), terms: text(raw.terms || rawSnapshot.terms,1000),
+      upiId: text(rawSnapshot.upiId,180), logo: text(rawSnapshot.logo,2000),
+      design: ["classic","modern","minimal"].includes(text(rawSnapshot.design,30)) ? text(rawSnapshot.design,30) : "classic",
+    };
     return { type, payload: {
       client_name, client_email: text(raw.client_email,180), business_name: text(raw.business_name,160),
-      issue_date: text(raw.issue_date,10), due_date: text(raw.due_date,10),
-      currency, tax_mode, tax_rate, discount_type, discount,
-      notes: text(raw.notes,1000), terms: text(raw.terms,1000), status: "Pending", is_draft: true, items,
+      issue_date, due_date, currency, tax_mode, tax_rate, discount_type, discount,
+      notes: text(raw.notes,1000), terms: text(raw.terms,1000), status: "Pending", is_draft: true, items, invoice_snapshot,
     } };
   }
   if (type === "create_expense") {
