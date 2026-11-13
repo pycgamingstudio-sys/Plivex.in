@@ -21,7 +21,7 @@ BEGIN
  SELECT s.tier INTO v_plan FROM public.subscriptions s
  WHERE s.workspace_id = p_workspace_id AND s.status::text = 'active'
    AND s.expires_at > clock_timestamp() AND s.started_at <= clock_timestamp()
- ORDER BY case s.tier::text when 'pro' then 2 when 'basic' then 1 else 0 end desc, s.expires_at desc, s.created_at desc
+ order by case s.tier::text when 'pro' then 2 when 'basic' then 1 else 0 end desc, s.expires_at desc, s.created_at desc
  LIMIT 1;
  RETURN coalesce(v_plan, 'free');
 END
@@ -81,7 +81,7 @@ BEGIN
  SELECT s.tier INTO v_plan FROM public.subscriptions s
  WHERE s.workspace_id = p_workspace_id AND s.status::text = 'active'
    AND s.expires_at > clock_timestamp() AND s.started_at <= clock_timestamp()
- ORDER BY CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at desc, s.created_at desc
+ order by CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at desc, s.created_at desc
  LIMIT 1;
  RETURN coalesce(v_plan, 'free');
 END
