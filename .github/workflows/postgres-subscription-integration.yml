@@ -50,7 +50,7 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/subscription-priority.integration.sql
       - name: Verify workspace country migration and constraints
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/workspace-country.integration.sql
-      - name: Verify global billing, NULL-workspace isolation, Migration 009 rollback, refund identity immutability and RLS
+      - name: Verify global billing, NULL-workspace cross-user isolation, Migration 009 rollback, Cashfree and refund RLS
         run: |
           createdb plivex_billing_test
           psql -d plivex_billing_test -v ON_ERROR_STOP=1 -f supabase/tests/global-billing.integration.sql

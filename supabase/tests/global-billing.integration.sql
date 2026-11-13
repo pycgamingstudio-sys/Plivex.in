@@ -554,6 +554,29 @@ SELECT public.apply_cashfree_refund_event(
  (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
  'CFREFUND-IMMUTABLE',100,'USD','failed','{"test":"failed"}'::jsonb
 );
+RESET ROLE;
+
+DO $refund_failed_immutability$
+DECLARE v_result jsonb;
+BEGIN
+ v_result := public.apply_cashfree_refund_event(
+   (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+   'CFREFUND-IMMUTABLE',102,'USD','failed','{"test":"failed-amount-mismatch"}'::jsonb
+ );
+ IF v_result->>'reason' <> 'refund_amount_conflict' THEN
+   RAISE EXCEPTION 'Failed refund amount mismatch was not rejected: %',v_result;
+ END IF;
+ v_result := public.apply_cashfree_refund_event(
+   (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+   'CFREFUND-IMMUTABLE',100,'CAD','failed','{"test":"failed-currency-mismatch"}'::jsonb
+ );
+ IF v_result->>'reason' <> 'refund_amount_conflict' THEN
+   RAISE EXCEPTION 'Failed refund currency mismatch was not rejected: %',v_result;
+ END IF;
+END
+$refund_failed_immutability$;
+
+SET ROLE service_role;
 SELECT public.apply_cashfree_refund_event(
  (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
  'CFREFUND-IMMUTABLE',100,'USD','success','{"test":"success"}'::jsonb
