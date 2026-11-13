@@ -78,16 +78,15 @@ else (select min(s.started_at) from public.subscriptions s where s.workspace_id=
 else (select s.started_at from public.subscriptions s where s.workspace_id=p_workspace_id and s.status::text='active' and s.expires_at > clock_timestamp() and s.started_at <= clock_timestamp() and s.tier::text in ('basic','pro') order by CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at desc, s.created_at desc limit 1) end,$final$;
 
   IF position(v_final IN v_def) = 0 THEN
-    IF position('else (select min(s.started_at)' IN v_def) = 0
-       OR position('s.tier::text = v_plan) end,' IN v_def) = 0 THEN
-      RAISE EXCEPTION 'Unexpected get_access_status startedAt query after 202610280004; refusing to modify';
-    END IF;
     v_def := regexp_replace(
       v_def,
-      'else \(select min\(s\.started_at\).*?end,',
+      'else \\(select min\\(s\\.started_at\\).*?end,',
       v_final,
       'g'
     );
+    IF position('else (select s.started_at' IN v_def) = 0 THEN
+      RAISE EXCEPTION 'Unexpected get_access_status startedAt query after 202610280004; refusing to modify';
+    END IF;
   END IF;
 
   EXECUTE v_def;
