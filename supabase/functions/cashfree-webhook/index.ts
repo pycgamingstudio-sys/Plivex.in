@@ -30,7 +30,15 @@ Deno.serve(async(req:Request)=>{
   const refundMinor=Math.round(refundAmount*100);
   if(!refundId||!["SUCCESS","PENDING","FAILED","CANCELLED"].includes(refundStatus)||!Number.isSafeInteger(refundMinor)||refundMinor<=0)
    return json({error:"Invalid refund event"},400);
-  if(refundMinor>Number(order.amount_minor_units??order.amount_paise??0))return json({error:"Refund exceeds original payment amount"},400);
+  const originalAmount=Number(order.amount_minor_units??order.amount_paise??0);
+  if(refundMinor>originalAmount)return json({error:"Refund exceeds original payment amount"},400);
+  const {data:priorRefundRows,error:priorSumError}=await admin.from("payment_refunds").select("amount_minor_units")
+   .eq("subscription_id",order.id).eq("status","success");
+  if(priorSumError)return json({error:"Refund reconciliation failed"},503);
+  const priorTotal=(priorRefundRows||[]).reduce((sum:any,item:any)=>sum+Number(item.amount_minor_units||0),0);
+  const addsSuccessfulRefund=refundStatus==="SUCCESS"&&priorRefund?.status!=="success";
+  if(priorTotal+(addsSuccessfulRefund?refundMinor:0)>originalAmount)
+   return json({error:"Cumulative refunds exceed original payment amount"},409);
   const {error:refundWriteError}=await admin.from("payment_refunds").upsert({
    subscription_id:order.id,user_id:order.user_id,workspace_id:order.workspace_id,
    provider:"cashfree",provider_refund_id:refundId,amount_minor_units:refundMinor,
@@ -41,7 +49,6 @@ Deno.serve(async(req:Request)=>{
   const {data:refundRows,error:sumError}=await admin.from("payment_refunds").select("amount_minor_units").eq("subscription_id",order.id).eq("status","success");
   if(sumError)return json({error:"Refund reconciliation failed"},503);
   const totalRefunded=(refundRows||[]).reduce((sum:any,item:any)=>sum+Number(item.amount_minor_units||0),0);
-  const originalAmount=Number(order.amount_minor_units??order.amount_paise??0);
   if(totalRefunded>originalAmount)return json({error:"Cumulative refunds exceed original payment amount"},409);
   const fullyRefunded=totalRefunded>=originalAmount;
   const nextRefundStatus=fullyRefunded?"success":totalRefunded>0?"partially_refunded":refundStatus.toLowerCase();
