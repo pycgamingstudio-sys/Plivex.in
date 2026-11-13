@@ -33,11 +33,23 @@ Deno.serve(async (req:Request) => {
     if(error){console.error("invoice share tracking failed",error);return json({error:"Could not record invoice activity."},503,origin);}
     return json({ok:true},200,origin);
    }
-   const {data:invoice,error:invoiceError}=await admin.from("invoices").select("id,workspace_id,number,client_name,business_name,issue_date,due_date,currency,status,subtotal,tax_value,cgst,sgst,igst,total,notes,terms,invoice_snapshot,invoice_items(id,description,quantity,rate)").eq("id",link.invoice_id).eq("workspace_id",link.workspace_id).maybeSingle();
+   const {data:invoice,error:invoiceError}=await admin.from("invoices").select("number,client_name,business_name,issue_date,due_date,currency,status,subtotal,cgst,sgst,igst,total,invoice_snapshot,invoice_items(id,description,quantity,rate)").eq("id",link.invoice_id).eq("workspace_id",link.workspace_id).maybeSingle();
    if(invoiceError||!invoice) return json({error:"Invoice is no longer available."},404,origin);
    const {error:viewError}=await admin.rpc("record_invoice_share_view",{share_link_id:link.id});
    if(viewError){console.error("invoice share view tracking failed",viewError);return json({error:"Could not load invoice activity."},503,origin);}
-   return json({invoice},200,origin);
+   const snapshot=invoice.invoice_snapshot&&typeof invoice.invoice_snapshot==="object"?invoice.invoice_snapshot:{};
+   const business=snapshot.business&&typeof snapshot.business==="object"?snapshot.business:{};
+   const client=snapshot.client&&typeof snapshot.client==="object"?snapshot.client:{};
+   const publicSnapshot={
+    business:{name:business.name,address:business.address,gstin:business.gstin,locale:business.locale,countryLocale:business.countryLocale},
+    client:{name:client.name,company:client.company,address:client.address,gstin:client.gstin},
+    items:Array.isArray(snapshot.items)?snapshot.items.map((item:Record<string,unknown>)=>({
+     id:item.id,description:item.description,quantity:item.quantity,rate:item.rate,gstRate:item.gstRate,
+    })) : [],
+    notes:snapshot.notes,
+    terms:snapshot.terms,
+   };
+   return json({invoice:{...invoice,invoice_snapshot:publicSnapshot}},200,origin);
   }
   const authorization=req.headers.get("Authorization");
   if(!authorization?.startsWith("Bearer ")) return json({error:"Please sign in."},401,origin);
