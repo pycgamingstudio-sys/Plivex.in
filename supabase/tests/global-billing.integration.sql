@@ -138,6 +138,7 @@ RELEASE SAVEPOINT migration009_rollback_probe;
 \ir ../migrations/202611130009_global_billing_concurrency_and_definer_hardening.sql
 -- Reapply the hardening migration to verify CREATE OR REPLACE/ACL convergence.
 \ir ../migrations/202611130009_global_billing_concurrency_and_definer_hardening.sql
+\ir ../migrations/202611130010_cashfree_refund_identity_immutability.sql
 GRANT SELECT ON public.subscriptions TO service_role;
 
 DO $legacy$
