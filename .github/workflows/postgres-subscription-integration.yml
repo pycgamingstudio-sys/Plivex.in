@@ -1,0 +1,79 @@
+name: PostgreSQL Subscription Integration
+
+on:
+  push:
+    branches: [global-dev]
+  pull_request:
+    branches: [global-dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: plivex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d plivex_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: plivex_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Existing India membership regression
+        run: npm run test:membership
+      - name: Global and India regression tests
+        run: npm run test:global
+      - name: Execute migration convergence and PostgreSQL RLS integration fixture
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/subscription-priority.integration.sql
+      - name: Verify unknown function definitions fail closed
+        shell: bash
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE OR REPLACE FUNCTION public.current_plan(p_workspace_id text)
+          RETURNS text LANGUAGE sql STABLE AS $$ SELECT 'unexpected'::text $$;
+          SQL
+          if psql -v ON_ERROR_STOP=1 -f supabase/migrations/202611130004_converge_effective_subscription_priority.sql; then
+            echo "ERROR: migration unexpectedly accepted an unknown current_plan definition"
+            exit 1
+          else
+            echo "PASS: migration rejected an unknown current_plan definition"
+          fi
+      - name: Verify clean database without prerequisite functions fails safely
+        shell: bash
+        run: |
+          createdb plivex_clean
+          if psql -d plivex_clean -v ON_ERROR_STOP=1 -f supabase/migrations/202611130004_converge_effective_subscription_priority.sql; then
+            echo "ERROR: migration unexpectedly succeeded without prerequisite functions"
+            exit 1
+          else
+            echo "PASS: clean schema without prerequisites fails closed"
+          fi
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Production build
+        run: npm run build
