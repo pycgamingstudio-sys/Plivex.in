@@ -1,0 +1,17 @@
+project_id = "sqzpaiibmfsvarrkwkvb"
+
+# Cashfree calls these endpoints directly. JWT is disabled only at the gateway;
+# each request is authenticated by Cashfree's HMAC webhook signature or by the
+# signed, opaque order ID followed by server-to-server Cashfree verification.
+[functions.cashfree-webhook]
+verify_jwt = false
+
+[functions.cashfree-return]
+verify_jwt = false
+
+# User-facing subscription operations still require a valid Supabase JWT.
+[functions.create-cashfree-order]
+verify_jwt = true
+
+[functions.manage-cashfree-subscription]
+verify_jwt = true
