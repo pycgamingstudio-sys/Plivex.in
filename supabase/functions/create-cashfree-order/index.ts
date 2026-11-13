@@ -31,7 +31,7 @@ Deno.serve(async(req:Request)=>{
   // international workspaces must explicitly save their country in settings.
   const countryCode=String(business?.country_code||"IN").toUpperCase();
   const localeCode=String(business?.locale_code||getCountryByCode(countryCode)?.locales?.[0]||"en-IN");
-  const plan=resolvePlan(body.planId,countryCode,email);
+  const plan=resolvePlan(body.planId,countryCode);
   if(!plan.available){
     if(plan.reason==="cashfree_currency_unavailable")return json({error:"Cashfree checkout is not yet enabled for "+plan.currency+". Your plan price is saved, but payment will open only after the merchant account confirms this currency.",code:"CURRENCY_NOT_ENABLED"},409,origin);
     return json({error:"This plan is not available for the selected workspace country.",code:"PLAN_NOT_AVAILABLE"},409,origin);
