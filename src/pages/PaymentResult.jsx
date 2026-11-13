@@ -7,10 +7,10 @@ const safeNextPath = (value) => {
   return value.split("?")[0].split("#")[0] || "/dashboard";
 };
 
-const money = (value, currency) => {
+const money = (value, currency, locale) => {
   const minor = Number(value);
   if (!Number.isSafeInteger(minor) || minor <= 0 || !/^[A-Z]{3}$/.test(currency || "")) return null;
-  try { return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(minor / 100); } catch { return null; }
+  try { return new Intl.NumberFormat(locale || undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(minor / 100); } catch { return null; }
 };
 
 export default function PaymentResult() {
@@ -20,7 +20,8 @@ export default function PaymentResult() {
   const nextPath = useMemo(() => safeNextPath(params.get("next")), [params]);
   const [seconds, setSeconds] = useState(15);
   const currency = (params.get("currency") || "INR").toUpperCase();
-  const amount = money(params.get("amount"), currency);
+  const locale = params.get("locale") || undefined;
+  const amount = money(params.get("amount"), currency, locale);
   const txnid = params.get("txnid");
   const plan = params.get("plan");
 
