@@ -1,5 +1,7 @@
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import {api,verifyWebhook,activatePaidOrder} from "../_shared/cashfree.ts";
+import {isCashfreeOrderId} from "../_shared/cashfree.ts";
+import {handleCashfreeRefundEvent} from "./refund.ts";
 const json=(b:unknown,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{"Content-Type":"application/json","Cache-Control":"no-store"}});
 Deno.serve(async(req:Request)=>{
  if(req.method!=="POST")return json({error:"Method not allowed"},405);
@@ -8,7 +10,7 @@ Deno.serve(async(req:Request)=>{
  catch{return json({error:"Webhook verification unavailable"},503);}
  let event:any;try{event=JSON.parse(raw);}catch{return json({error:"Invalid JSON"},400);}
  const data=event?.data||{},orderId=String(data?.order?.order_id||data?.refund?.order_id||""),payment=data?.payment||{};
- if(!/^PLXCF-[A-Z0-9]{20,30}$/.test(orderId))return json({received:true,ignored:true});
+ if(!isCashfreeOrderId(orderId))return json({received:true,ignored:true});
  const url=Deno.env.get("SUPABASE_URL"),key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
  if(!url||!key)return json({error:"Webhook backend unavailable"},503);
  const admin=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
@@ -16,31 +18,8 @@ Deno.serve(async(req:Request)=>{
  if(error)return json({error:"Order lookup failed"},503);
  if(!order)return json({received:true,ignored:true});
 
- const refund=data?.refund||{};
- const eventType=String(event?.type||event?.event_type||"").toUpperCase();
- if(eventType.includes("REFUND")||refund?.refund_id||refund?.cf_refund_id){
-  const refundId=String(refund?.cf_refund_id||refund?.refund_id||"");
-  const refundStatus=String(refund?.refund_status||"").toUpperCase();
-  const refundAmount=Number(refund?.refund_amount??refund?.amount);
-  const refundMinor=Math.round(refundAmount*100);
-  if(!refundId||!["SUCCESS","PENDING","FAILED","CANCELLED"].includes(refundStatus)||!Number.isSafeInteger(refundMinor)||refundMinor<=0)
-   return json({error:"Invalid refund event"},400);
-  const normalizedStatus=refundStatus==="CANCELLED"?"failed":refundStatus.toLowerCase();
-  const {data:result,error:refundError}=await admin.rpc("apply_cashfree_refund_event",{
-   p_subscription_id:order.id,
-   p_provider_refund_id:refundId,
-   p_amount_minor:refundMinor,
-   p_currency:String(order.currency||"INR").toUpperCase(),
-   p_refund_status:normalizedStatus,
-   p_raw:event
-  });
-  if(refundError)return json({error:"Atomic refund reconciliation failed"},503);
-  if(!result?.ok){
-   const conflict=result?.reason==="cumulative_refund_exceeds_payment"||result?.reason==="refund_amount_conflict"||result?.reason==="refund_id_already_used";
-   return json({error:"Refund could not be reconciled",reason:result?.reason||"refund_not_applied"},conflict?409:503);
-  }
-  return json({received:true,refundStatus:result.refund_status||result.reason||normalizedStatus,refundedMinorUnits:result.refunded_minor_units??null,alreadyApplied:Boolean(result.already_applied)});
- }
+ const refundResponse=await handleCashfreeRefundEvent(event,order,async(args)=>admin.rpc("apply_cashfree_refund_event",args));
+ if(refundResponse)return refundResponse;
 
  const paymentStatus=String(payment?.payment_status||"").toUpperCase();
  if(paymentStatus!=="SUCCESS"){

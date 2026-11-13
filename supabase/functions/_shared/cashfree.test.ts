@@ -53,3 +53,52 @@ Deno.test("Cashfree webhook HMAC accepts only the exact signed timestamp and raw
     throw new Error("Missing webhook signature was accepted");
   }
 });
+
+
+Deno.test("Cashfree order IDs use the PLXCF prefix and the exact provider-safe format", async () => {
+  const { createCashfreeOrderId, isCashfreeOrderId } = await import("./cashfree.ts");
+  const id = createCashfreeOrderId(() => "12345678-1234-1234-1234-123456789abc");
+  if (id !== "PLXCF-12345678123412341234123456") throw new Error("Unexpected Cashfree order ID");
+  if (!isCashfreeOrderId(id)) throw new Error("Generated order ID failed validation");
+  for (const invalid of [
+    "PLX-12345678123412341234123456",
+    "PLXCF-short",
+    "PLXCF-1234567812341234123412345678901",
+    "PLXCF-1234567812341234123412345!",
+    "",
+    null,
+  ]) {
+    if (isCashfreeOrderId(invalid)) throw new Error("Invalid order ID was accepted: " + String(invalid));
+  }
+});
+
+Deno.test("Cashfree India payment activation preserves INR minor units and RPC identity", async () => {
+  const { activatePaidOrder } = await import("./cashfree.ts");
+  let received: Record<string, unknown> | null = null;
+  const admin = {
+    rpc: async (_name: string, args: Record<string, unknown>) => {
+      received = args;
+      return { data: { ok: true, already_applied: false }, error: null };
+    },
+  };
+  const order = {
+    id: "00000000-0000-0000-0000-000000000001",
+    txnid: "PLXCF-12345678123412341234123456",
+    status: "created",
+    plan_id: "basic_monthly",
+    currency: "INR",
+    amount_minor_units: 19900,
+  };
+  const result = await activatePaidOrder(
+    admin,
+    order,
+    { order_id: order.txnid, order_status: "PAID", order_currency: "INR", order_amount: 199 },
+    { payment_status: "SUCCESS", payment_currency: "INR", payment_amount: 199, cf_payment_id: "CI-PAYMENT-1" },
+    "cashfree-webhook-test",
+  );
+  if (!result.ok || result.alreadyApplied) throw new Error("Valid India payment was not accepted");
+  if (received?.p_currency !== "INR" || received?.p_amount_minor !== 19900 ||
+      received?.p_subscription_id !== order.id) {
+    throw new Error("India payment RPC arguments changed");
+  }
+});

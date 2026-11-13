@@ -23,6 +23,9 @@ export function resolvePlan(planId:PlanId,countryCode:string){
   return {available:true,plan,currency:country.currency,countryCode,amountMinor,period:plan.period} as const;
 }
 
+export const createCashfreeOrderId=(randomUUID:()=>string=()=>crypto.randomUUID())=>"PLXCF-"+randomUUID().replaceAll("-","").slice(0,26).toUpperCase();
+export const isCashfreeOrderId=(value:unknown):value is string=>typeof value==="string"&&/^PLXCF-[A-Z0-9]{20,30}$/.test(value);
+
 export const addPeriod=(from:Date,period:"month"|"year")=>{const d=new Date(from),day=d.getUTCDate();if(period==="month")d.setUTCMonth(d.getUTCMonth()+1);else d.setUTCFullYear(d.getUTCFullYear()+1);if(d.getUTCDate()!==day)d.setUTCDate(0);return d;};
 export const safePath=(p:unknown)=>typeof p==="string"&&p.startsWith("/")&&!p.startsWith("//")&&!p.includes("\\")&&p.length<=200?p.split("?")[0]?.split("#")[0]||"/":"/";
 export const origins=new Set(["https://plivex.in","https://www.plivex.in","https://plivex.netlify.app"]);
