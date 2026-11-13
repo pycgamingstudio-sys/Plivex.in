@@ -140,7 +140,9 @@ export default function InvoiceHistory() {
       if (qrImage && !qrImage.naturalWidth) throw new Error("UPI QR image could not be loaded. Check your connection and retry the PDF.");
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
       const canvas = await html2canvas(source, {
-        scale: 3,
+        // 2x A4 raster is roughly 190 DPI: crisp for invoices/QR while
+        // reducing mobile canvas memory and rasterization work versus 3x.
+        scale: 2,
         useCORS: true,
         backgroundColor: "#ffffff",
         logging: false,
