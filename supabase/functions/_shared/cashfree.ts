@@ -39,13 +39,17 @@ export const api=async(path:string,init:RequestInit={})=>{
  if(!r.ok)throw new Error("Cashfree API request failed ("+r.status+").");
  return data;
 };
-export const verifyWebhook=async(raw:string,timestamp:string,signature:string)=>{
- if(!timestamp||!signature)return false;
- const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(config().secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
+export const verifyWebhookSignature=async(raw:string,timestamp:string,signature:string,secret:string)=>{
+ if(!timestamp||!signature||!secret)return false;
+ const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
  const digest=await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(timestamp+raw));
  const expected=btoa(String.fromCharCode(...new Uint8Array(digest)));
  if(signature.length!==expected.length)return false;
  let diff=0;for(let i=0;i<signature.length;i++)diff|=signature.charCodeAt(i)^expected.charCodeAt(i);return diff===0;
+};
+export const verifyWebhook=async(raw:string,timestamp:string,signature:string)=>{
+ if(!timestamp||!signature)return false;
+ return verifyWebhookSignature(raw,timestamp,signature,config().secret);
 };
 
 export async function activatePaidOrder(admin:any,order:any,providerOrder:any,payment:any,source:string){
