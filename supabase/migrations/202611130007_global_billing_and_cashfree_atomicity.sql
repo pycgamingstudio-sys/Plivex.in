@@ -194,7 +194,7 @@ BEGIN
     'cashfree', 'cashfree', upper(p_currency), v_order.country_code, v_period,
     v_order.plan_id, v_order.plan_name, v_order.tier,
     CASE WHEN p_amount_minor <= 2147483647 THEN p_amount_minor::integer ELSE NULL END,
-    p_amount_minor, (p_amount_minor::numeric / 100),
+    p_amount_minor, (p_amount_minor::numeric / 100), v_order.locale_code,
     'success', 'applied', true, upper(p_provider_payment_status), upper(p_provider_order_status),
     p_provider_payment_id, COALESCE(p_raw, '{}'::jsonb), v_now, NULL,
     'Cashfree payment verified and subscription activated', COALESCE(p_source, 'cashfree-webhook')
