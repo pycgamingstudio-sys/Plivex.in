@@ -30,7 +30,7 @@ async function loadLiveContext(supabase: ReturnType<typeof createClient>, worksp
     supabase.from("quotations").select("number,client_name,date,total,status,tax_rate,items,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("leads").select("name,phone,requirement,value,stage,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("services").select("name,rate,gst_rate,description").eq("workspace_id", workspaceId).limit(500),
-    supabase.from("business_profile").select("name,email,phone,gstin,address,upi_id").eq("workspace_id", workspaceId).maybeSingle(),
+    supabase.from("business_profile").select("name,email,phone,gstin,address,upi_id,logo_url").eq("workspace_id", workspaceId).maybeSingle(),
   ]);
   const names = ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile"];
   const rows = Object.fromEntries(names.map((name, i) => [name, results[i].data ?? (name === "business_profile" ? null : [])]));
@@ -79,6 +79,139 @@ async function loadLiveContext(supabase: ReturnType<typeof createClient>, worksp
   };
 }
 
+
+function indiaToday() {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const get = (type: string) => parts.find((part) => part.type === type)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+function captureField(source: string, pattern: RegExp) {
+  const match = source.match(pattern);
+  return text(match?.[1], 160).replace(/[.,;:]+$/, "").trim();
+}
+
+function parseClientConversation(incoming: any[]) {
+  const history = incoming.slice(-16);
+  const userTurns = history.filter((item) => item?.role !== "assistant").map((item) => text(item?.content, 1200)).filter(Boolean);
+  const latest = userTurns[userTurns.length - 1] || "";
+  const assistantTurns = history.filter((item) => item?.role === "assistant").map((item) => text(item?.content, 1200));
+  const lastAssistant = assistantTurns[assistantTurns.length - 1] || "";
+  const hadClientCommand = userTurns.some((value) => /(?:client|customer|grahak).{0,30}(?:add|create|jod|bana|darj)|(?:add|create|jod|bana|darj).{0,30}(?:client|customer|grahak)/i.test(value));
+  const explicitNow = /(?:client|customer|grahak).{0,35}(?:add|create|jod|bana|darj)|(?:add|create|jod|bana|darj).{0,35}(?:client|customer|grahak)/i.test(latest);
+  const awaitingName = /(?:kiska naam|client ka naam|customer ka naam|naam se client|client.*naam).{0,100}(?:bata|please|kiska|\?)/i.test(lastAssistant);
+  if (!explicitNow && !(hadClientCommand && awaitingName)) return null;
+  let name = "";
+  if (explicitNow) {
+    const m = latest.match(/(?:client|customer)(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)\s*$/i)
+      || latest.match(/(?:add|create|jod(?:o)?|bana(?:o)?|darj)\s+(?:a\s+)?(?:client|customer)\s+(?:named\s+)?(.+?)\s*$/i);
+    name = text(m?.[1], 120);
+  }
+  if (!name && awaitingName) name = text(latest, 120);
+  name = name.replace(/^(?:naam|name)\s+(?:hai|is)\s+/i, "").replace(/[.,;:]+$/, "").trim();
+  if (!name || name.length > 120 || /^(?:haan|yes|ok|okay|nahi|no)$/i.test(name)) {
+    return { pending: true, reply: "Client ka poora naam bata dijiye." };
+  }
+  return { pending: false, action: { type: "create_client", payload: { name } }, reply: "Client draft ready: " + name + ". Review and confirm to save." };
+}
+
+function parseInvoiceConversation(incoming: any[], businessProfile: any = null) {
+  const history = incoming.slice(-16);
+  const userTurns = history.filter((item) => item?.role !== "assistant").map((item) => text(item?.content, 1200)).filter(Boolean);
+  const combined = userTurns.join("\n");
+  if (!/(?:invoice|inv[o]?ice|bill|billing|इ invoice|इनवॉइस|बिल)/i.test(combined) ||
+      !/(?:bnao|banao|banana|banado|create|make|generate|prepare|बनाओ|बना दो)/i.test(combined)) return null;
+  const client = captureField(combined, /client(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:mera|my|issue|due|date|item|product|price|rate|quantity|qty)\b|[,;\n]|$)/i);
+  const business = captureField(combined, /(?:mera|my)\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:issue|due|date|item|product|price|rate|quantity|qty)\b|[,;\n]|$)/i);
+  const item = captureField(combined, /(?:item|product)\s+(?:hai|is)\s+(.+?)(?=\s+(?:quantity|qty|price|rate|ki|ka|ke|and|aur)\b|[,;\n]|$)/i);
+  const priceMatch = combined.match(/(?:price|rate|daam|keemat|कीमत|दाम)\s*(?:hai|is|[:=])?\s*(?:₹|rs\.?\s*)?([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+  const quantityMatch = combined.match(/(?:quantity|qty|matra|मात्रा)\s*(?:hai|is|[:=])?\s*([0-9][0-9,]*(?:\.[0-9]+)?)/i);
+  let quantity = quantityMatch ? Number(quantityMatch[1].replace(/,/g, "")) : NaN;
+  const latest = userTurns[userTurns.length - 1] || "";
+  const latestNumber = latest.match(/^\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*$/);
+  const lastAssistant = [...history].reverse().find((item) => item?.role === "assistant")?.content || "";
+  if (!(quantity > 0) && latestNumber && /(?:quantity|qty|kitni|kitna|how many|how much)/i.test(String(lastAssistant))) {
+    quantity = Number(latestNumber[1].replace(/,/g, ""));
+  }
+  const price = priceMatch ? Number(priceMatch[1].replace(/,/g, "")) : NaN;
+  const asksToday = /(?:aaj|today|आज)/i.test(combined);
+  const issueDate = /(?:issue\s*date|issued\s*on)[^\n]{0,60}(?:aaj|today|आज)/i.test(combined) ? indiaToday() : "";
+  const dueDate = /(?:due\s*date|due\s*भी|due)[^\n]{0,60}(?:aaj|today|आज)/i.test(combined) || (asksToday && /issue[^\n]{0,80}due/i.test(combined)) ? indiaToday() : "";
+  const missing = [];
+  if (!client) missing.push("client name");
+  if (!item) missing.push("item name");
+  if (!(quantity > 0)) missing.push(item ? `${item} ki quantity` : "quantity");
+  if (!(Number.isFinite(price) && price >= 0)) missing.push("item price/rate");
+  if (missing.length) {
+    const ask = missing.length === 1 ? missing[0] : missing.join(", ");
+    return { pending: true, reply: `Invoice ke liye ab sirf ${ask} chahiye. Baaki details maine yaad rakhi hain.` };
+  }
+  const profile = businessProfile && typeof businessProfile === "object" ? businessProfile : {};
+  const invoiceBusiness = {
+    name: business || text(profile.name, 160),
+    email: text(profile.email, 180), phone: text(profile.phone, 40),
+    gstin: text(profile.gstin, 30), address: text(profile.address, 400),
+  };
+  const invoiceSnapshot = {
+    business: invoiceBusiness,
+    client: { name: client, company: "", email: "", phone: "", gstin: "", address: "" },
+    number: "", issueDate, dueDate, currency: "INR",
+    items: [{ id: "ai-item-1", description: item, quantity, rate, gstRate: 0 }],
+    taxRate: 0, taxMode: "split", discountType: "percent", discount: 0,
+    notes: "", terms: "", upiId: text(profile.upi_id, 180),
+    logo: text(profile.logo_url, 2000), design: "classic",
+  };
+  const action = { type: "create_invoice", payload: {
+    client_name: client, business_name: invoiceBusiness.name,
+    issue_date: issueDate, due_date: dueDate,
+    currency: "INR", tax_mode: "split", tax_rate: 0, discount_type: "percent", discount: 0,
+    is_draft: true, status: "Pending", invoice_snapshot: invoiceSnapshot,
+    items: [{ description: item, quantity, rate: price, gst_rate: 0 }]
+  }};
+  return { pending: false, action, reply: `Invoice draft ready: ${client} · ${item} × ${quantity} × ₹${price.toLocaleString("en-IN")} = ₹${(quantity * price).toLocaleString("en-IN")}. Review and confirm to save.` };
+}
+
+
+function parseExpenseConversation(incoming: any[]) {
+  const history = incoming.slice(-16);
+  const userTurns = history.filter((item) => item?.role !== "assistant").map((item) => text(item?.content, 1200)).filter(Boolean);
+  const combined = userTurns.join("\n");
+  if (!/(?:expense|kharcha|kharch|खर्च)/i.test(combined) ||
+      !/(?:add|create|save|record|jod(?:o|na)?|bnao|banao|बनाओ|जोड़ो)/i.test(combined)) return null;
+  const parseMoney = (raw: string, scale = "") => {
+    const base = Number(String(raw || "").replace(/,/g, ""));
+    if (!Number.isFinite(base)) return NaN;
+    return base * (/^(?:k|thousand)$/i.test(scale) ? 1000 : /^(?:lakh|lac)$/i.test(scale) ? 100000 : 1);
+  };
+  const amountMatch = combined.match(/(?:amount|price|total|cost|value|rakam|रकम|कीमत|दाम)\s*(?:hai|is|[:=])?\s*(?:₹|rs\.?\s*)?([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(k|thousand|lakh|lac)?/i)
+    || combined.match(/(?:₹|rs\.?\s*)([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(k|thousand|lakh|lac)?/i);
+  let amount = amountMatch ? parseMoney(amountMatch[1], amountMatch[2] || "") : NaN;
+  const latest = userTurns[userTurns.length - 1] || "";
+  const latestNumber = latest.match(/^\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(k|thousand|lakh|lac)?\s*$/i);
+  const lastAssistant = [...history].reverse().find((item) => item?.role === "assistant")?.content || "";
+  if (!(amount > 0) && latestNumber && /(?:amount|price|total|kitna|kitne|how much|रकम)/i.test(String(lastAssistant))) {
+    amount = parseMoney(latestNumber[1], latestNumber[2] || "");
+  }
+  const namedVendor = combined.match(/(?:vendor|payee|supplier|name|naam|नाम)\s*(?:hai|is|[:=])?\s*([A-Za-z][A-Za-z .'-]{0,80}?)(?=\s+(?:amount|price|total|cost|value|description|purpose|reason|note|category|date|payment|method)\b|[,;\n]|$)/i);
+  const leadingVendor = combined.match(/(?:^|\n)\s*([A-Za-z][A-Za-z .'-]{1,50}?)\s+(?=(?:amount|price|total|description|purpose)\b)/i);
+  const vendor = text(namedVendor?.[1] || leadingVendor?.[1], 120).replace(/[.,;:]+$/, "").trim();
+  const descriptionMatch = combined.match(/(?:description|purpose|reason|note)\s*(?:hai|is|[:=])?\s*([A-Za-z][A-Za-z0-9 /&().'-]{0,120}?)(?=\s+(?:amount|price|total|cost|value|vendor|payee|supplier|name|naam|category|date|payment|method)\b|[,;\n]|$)/i);
+  const notes = text(descriptionMatch?.[1], 500).replace(/[.,;:]+$/, "").trim();
+  const explicitCategory = combined.match(/category\s*(?:hai|is|[:=])?\s*([A-Za-z ]{2,40}?)(?=\s+(?:amount|price|description|date)\b|[,;\n]|$)/i);
+  const lowerNotes = notes.toLowerCase();
+  const categoryText = text(explicitCategory?.[1], 50).toLowerCase();
+  const categorySource = lowerNotes + " " + categoryText;
+  const category = /salary|wage|payroll/i.test(categorySource) ? "Salary"
+    : /rent|kiraya/i.test(categorySource) ? "Rent"
+    : /material|raw material|maal/i.test(categorySource) ? "Raw Materials"
+    : /electric|bill|utility|bijli/i.test(categorySource) ? "Utilities"
+    : /delivery|transport|freight|logistic/i.test(categorySource) ? "Logistics"
+    : /software|subscription|hosting/i.test(categorySource) ? "Software"
+    : /ad|advertis|marketing/i.test(categorySource) ? "Marketing"
+    : allowedCategories.find((value) => value.toLowerCase() === categoryText) || "Other";
+  if (!(amount > 0)) return { pending: true, reply: "Expense ke liye ab sirf total amount batao. Naam aur description maine yaad rakhe hain." };
+  const action = { type: "create_expense", payload: { vendor, amount, category, notes } };
+  return { pending: false, action, reply: "Expense draft ready: " + (vendor ? vendor + " · " : "") + "₹" + amount.toLocaleString("en-IN") + " · " + category + (notes ? " · " + notes : "") + ". Review and confirm to save." };
+}
 function validateAction(action: any) {
   if (!action || typeof action !== "object") return null;
   const type = text(action.type, 40);
@@ -99,8 +232,8 @@ function validateAction(action: any) {
     if (tax_rate < 0 || tax_rate > 100 || discount < 0 || (discount_type === "percent" && discount > 100)) return null;
     const payload = {
       client_name, client_email: text(p.client_email, 180), business_name: text(p.business_name, 160),
-      issue_date: /^\\d{4}-\\d{2}-\\d{2}$/.test(text(p.issue_date, 10)) ? text(p.issue_date, 10) : undefined,
-      due_date: /^\\d{4}-\\d{2}-\\d{2}$/.test(text(p.due_date, 10)) ? text(p.due_date, 10) : undefined,
+      issue_date: /^\d{4}-\d{2}-\d{2}$/.test(text(p.issue_date, 10)) ? text(p.issue_date, 10) : undefined,
+      due_date: /^\d{4}-\d{2}-\d{2}$/.test(text(p.due_date, 10)) ? text(p.due_date, 10) : undefined,
       currency: "INR", tax_mode, tax_rate, discount_type, discount,
       notes: text(p.notes, 1000), terms: text(p.terms, 1000), status: "Pending", is_draft: true, items,
     };
@@ -179,8 +312,8 @@ async function handleRequest(req: Request) {
     if (image && (!imageMime || !/^[A-Za-z0-9+/]+={0,2}$/.test(imageData) || imageData.length > 5_600_000)) {
       return json({ error: "Please attach a JPG, PNG or WebP image smaller than 4 MB." }, 400);
     }
-    const messages = incoming.slice(-6).map((item: { role?: string; content?: string }, index: number, list: unknown[]) => {
-      const parts: any[] = [{ text: String(item?.content || "").trim().slice(0, 500) }];
+    const messages = incoming.slice(-16).map((item: { role?: string; content?: string }, index: number, list: unknown[]) => {
+      const parts: any[] = [{ text: String(item?.content || "").trim().slice(0, 1200) }];
       if (imageMime && imageData && index === list.length - 1 && item?.role !== "assistant") {
         parts.push({ inline_data: { mime_type: imageMime, data: imageData } });
       }
@@ -201,6 +334,14 @@ async function handleRequest(req: Request) {
       "Do not invent facts or totals. Say when a record/module is not present in the supplied data. The lists are recent samples and summaries are calculated from loaded rows; disclose the stated limit when relevant.",
       "RECEIPT / PAYMENT IMAGE UNDERSTANDING (MANDATORY): When an image is attached, inspect the image itself together with the user's text. For PhonePe, Google Pay, bank transfer, cash memo, bills and receipts, extract only visibly supported fields: amount, payee/merchant/vendor, transaction/receipt date, payment method, transaction/reference ID, and line-item descriptions when legible. Do not say the image is unreadable if these fields are visible. Distinguish a payment confirmation screenshot from a purchase invoice/receipt: a completed outgoing payment may support an expense; an incoming payment is not an expense; a mere QR code, balance screen, failed/pending transaction, or unclear direction is not proof of an expense. If user says 'expense add kar do' with a visible completed outgoing payment, propose create_expense using the visible amount/vendor/date/method and put reference ID plus concise image-derived context in notes. If the image is a purchase bill and user requests stock, extract item names, quantities, units and rates only when legible; do not assume all billed goods are inventory unless user asks to add stock. If the user asks to add both expense and stock, create separate actions only when the evidence and instruction support both. If a mandatory field is obscured or uncertain, ask one focused clarification and do not invent it. Never infer that the full account balance is the transaction amount. Currency amounts must be parsed exactly, including Indian comma grouping.",
       "FOLLOW-UP CONTEXT: Treat the last several user/assistant turns as one ongoing task. When user replies with only a number, price, vendor, date or payment method, attach it to the matching pending intent from the conversation. Update that pending action rather than creating a duplicate. If there are multiple plausible pending actions, ask which one the detail belongs to.",
+      "CONVERSATION STATE TRACKING: Read conversation as user facts, corrections, clarifications, questions and confirmations. Track each pending task's intent, module, supplied fields, missing fields, ambiguity and save authorization. A correction replaces the earlier value for the same field. A new independent request starts a separate task. Do not confuse assistant examples with user facts or carry completed-task fields into unrelated tasks.",
+      "FIELD SEMANTICS: For invoices, client_name is the billed customer; business_name comes from live business data unless explicitly provided. Each item requires description, quantity and rate. '5 kg chini at ₹50' means quantity 5, unit kg, description chini, rate 50 and line amount 250. Preserve unit in description if no unit field exists. For expenses, vendor is payee/supplier, amount is total money spent, category is a supported category or Other, and notes hold purpose such as salary. A person's name is not an item description unless stated.",
+      "NUMERIC NORMALIZATION: Parse Indian formats such as ₹50,000, Rs 50,000, 50k, 1.5 lakh and decimals carefully. If wording does not distinguish unit rate from grand total, ask one focused question. Validate quantity > 0, rate >= 0, expense amount > 0, GST 0–100, discount bounds and dates. Never silently convert missing price or amount to zero.",
+      "DATE AND LANGUAGE: Understand Hindi, Hinglish, English, common misspellings, transliteration and voice-typing variations. Resolve aaj/today only from a reliable current India-local date supplied by runtime; otherwise ask. Recognize DD/MM/YYYY, DD-MM-YYYY and relative dates, normalize to YYYY-MM-DD, and never confuse due date with issue date.",
+      "CLARIFICATION POLICY: Ask only for genuinely missing required fields. If one field is missing, ask only for that field and retain all known fields. Merge the next answer into the pending task and revalidate. Repeated details must not create duplicate actions. Never ask generically for amount/quantity/price/name when the exact missing field is known.",
+      "ACTION QUALITY GATE: Before any write action, check required fields, types, ranges, arithmetic, intent consistency, duplicate actions and explicit user intent. For invoices, estimate quantity × rate and GST/discount but treat server save_invoice as authoritative. For expenses, never substitute item unit price for expense total. If validation fails, return no write action and ask a precise clarification.",
+      "MULTI-TASK ISOLATION: Keep invoice, expense, stock, client, lead and quotation tasks separate. A reply like 'Rohit 50000 salary' belongs to an expense only if that expense task is still the active unresolved intent. Never transform expense into stock or invoice because fields overlap. If two modules are explicitly requested, return two separately validated actions.",
+      "RESPONSE HONESTY: Distinguish prepared draft, awaiting confirmation, saved, failed and read-only answers. Never say a record is saved until the confirmation/save operation reports success. If unsupported, explain briefly and do not invent an action.",
       "TYPO AND HINGLISH ROBUSTNESS: Understand common Hindi/Hinglish transliterations, spelling mistakes, speech-to-text errors and reordered words semantically. Do not require exact keyword matches. Ask a clarification only when the meaning or required data is genuinely ambiguous.",
       "EXPENSE VS INVENTORY SAFETY: 'maal/stock/item add karo' means inventory only when quantity/product are specified; 'paise diye/paid/spent/kharcha/payment hua' means expense only when it is an outgoing payment. Buying goods may involve both inventory and expense, but never create both automatically from a single amount: create only the module(s) explicitly requested. A product's unit price is not automatically the total expense amount.",
       "MULTI-INTENT COMPLETENESS: Split compound requests into separate actions and preserve each named person, item, amount, date, quantity, unit and note. Up to 10 actions may be proposed. Do not drop an intent just because another intent is easier. For read-only ledger questions, answer from live workspace context and do not create a write action.",
@@ -219,8 +360,8 @@ async function handleRequest(req: Request) {
         system_instruction: { parts: [{ text: systemInstruction }] },
         contents: messages,
         generationConfig: {
-          maxOutputTokens: 600,
-          thinkingConfig: { thinkingLevel: "minimal" },
+          maxOutputTokens: 1400,
+          thinkingConfig: { thinkingLevel: "medium" },
           responseMimeType: "application/json",
           responseSchema: {
             type: "OBJECT",
@@ -290,15 +431,90 @@ async function handleRequest(req: Request) {
     if (!raw) return json({ error: "Gemini returned no text. Please try again." }, 502);
     let parsed: any;
     try { parsed = JSON.parse(raw); } catch { return json({ error: "Gemini returned an invalid response format. Please try again." }, 502); }
+    // Treat history as context, not as a standing command. Old completed tasks must never
+    // be replayed when the user starts an unrelated message.
+    const lastUserIndex = [...incoming].map((item: any) => item?.role !== "assistant").lastIndexOf(true);
+    const currentUserText = text(incoming[lastUserIndex]?.content, 1200);
+    const priorAssistantText = [...incoming.slice(0, lastUserIndex)].reverse()
+      .find((item: any) => item?.role === "assistant")?.content || "";
+    const explicitWriteIntent = /(?:\b(?:add|create|save|record|jod(?:o|na)?|bana(?:o|na)?|darj)\b|जोड़(?:ो|ना)?|बना(?:ओ|ना)?|दर्ज करो)/i.test(currentUserText);
+    // Only the immediately preceding assistant turn can keep a task open, and
+    // only when it is genuinely requesting a missing field rather than showing a draft.
+    const assistantAwaitingField = (fieldPattern: RegExp) => {
+      const prompt = String(priorAssistantText);
+      const asksForValue = /(?:\?|please (?:tell|share|provide|enter)|what is|how much|how many|kitna|kitni|which|kiska|bata|बताइए|बताओ|कितना|कितनी)/i.test(prompt);
+      const isOnlyAReviewOrConfirmation = /(?:ready to review|confirm(?: and)? save|cancel|saved to plivex|already added|successfully added)/i.test(prompt);
+      return asksForValue && !isOnlyAReviewOrConfirmation && fieldPattern.test(prompt);
+    };
+    const plausibleFieldAnswer = (() => {
+      const value = currentUserText.trim();
+      if (!value || value.length > 180 || value.includes("?")) return false;
+      if (/^(?:what|how|why|when|where|who|can you|tell me|show|report|status|mera|meri|mere|my|please explain|kaisa|kaisi|kaise|kyun|kya|kab|kahan|मेरा|मेरी|मेरे|क्या|कैसे|कैसा|क्यों|कब|कहाँ)\b/i.test(value)) return false;
+      if (/(?:\b(?:report|dashboard|sales|business performance|work status|how is my work|chal raha|kaisa chal)\b|कैसा चल|कैसी चल)/i.test(value)) return false;
+      return value.split(/\s+/).length <= 16;
+    })();
+    const invoiceClarificationActive = plausibleFieldAnswer && assistantAwaitingField(/(?:invoice|bill|client|item|quantity|qty|rate|price|due date|issue date|इनवॉइस|बिल|मात्रा)/i);
+    const expenseClarificationActive = plausibleFieldAnswer && assistantAwaitingField(/(?:expense|amount|vendor|payee|supplier|description|purpose|खर्च|रकम)/i);
+    const stockClarificationActive = plausibleFieldAnswer && assistantAwaitingField(/(?:stock|quantity|qty|price|rate|item|मात्रा|कीमत)/i);
+    const clientClarificationActive = plausibleFieldAnswer && assistantAwaitingField(/(?:client|customer|grahak|क्लाइंट|name|नाम)/i);
+    const clientIntentActive = /(?:client|customer|grahak|क्लाइंट)/i.test(currentUserText) && explicitWriteIntent || clientClarificationActive;
+    const invoiceIntentActive = /(?:invoice|bill|इनवॉइस|बिल)/i.test(currentUserText) && (explicitWriteIntent || invoiceClarificationActive);
+    const expenseIntentActive = /(?:expense|kharcha|kharch|खर्च)/i.test(currentUserText) && (explicitWriteIntent || expenseClarificationActive)
+      || expenseClarificationActive;
+    const stockIntentActive = /(?:stock|inventory|स्टॉक)/i.test(currentUserText) && explicitWriteIntent || stockClarificationActive;
+    const clientDraft = clientIntentActive ? parseClientConversation(incoming) : null;
+    const invoiceDraft = invoiceIntentActive ? parseInvoiceConversation(incoming, liveContext.business) : null;
+    if (invoiceDraft) {
+      if (invoiceDraft.pending) {
+        parsed.actions = [];
+        parsed.action = { type: "none", payload: {} };
+        parsed.reply = invoiceDraft.reply;
+      } else {
+        parsed.actions = [invoiceDraft.action];
+        parsed.action = invoiceDraft.action;
+        parsed.reply = invoiceDraft.reply;
+      }
+    }
+    if (clientDraft) {
+      if (clientDraft.pending) {
+        parsed.actions = [];
+        parsed.action = { type: "none", payload: {} };
+        parsed.reply = clientDraft.reply;
+      } else {
+        parsed.actions = [clientDraft.action];
+        parsed.action = clientDraft.action;
+        parsed.reply = clientDraft.reply;
+      }
+    }
+    if (!invoiceDraft && expenseIntentActive) {
+      const expenseDraft = parseExpenseConversation(incoming);
+      if (expenseDraft) {
+        if (expenseDraft.pending) {
+          parsed.actions = [];
+          parsed.action = { type: "none", payload: {} };
+          parsed.reply = expenseDraft.reply;
+        } else {
+          parsed.actions = [expenseDraft.action];
+          parsed.action = expenseDraft.action;
+          parsed.reply = expenseDraft.reply;
+        }
+      }
+    }
     // Deterministic expense amount recovery for short replies such as "100rs".
     const recentUserTexts = incoming
       .filter((item: { role?: string }) => item?.role !== "assistant")
       .slice(-6)
       .map((item: { content?: string }) => String(item?.content || ""));
-    const expenseFlow = recentUserTexts.some((value: string) =>
+    const expenseFlow = expenseIntentActive && recentUserTexts.some((value: string) =>
       /\b(expense|receipt|purchase|bill|kharcha|kharch|rasid|खर्च|रसीद|बिल)\b/i.test(value)
     );
     const latestText = recentUserTexts[recentUserTexts.length - 1] || "";
+    // Never allow Gemini to replay a completed or unrelated write action from old chat history.
+    const activeWriteTask = Boolean(clientIntentActive || invoiceIntentActive || expenseIntentActive || stockIntentActive);
+    if (!activeWriteTask) {
+      parsed.actions = [];
+      parsed.action = { type: "none", payload: {} };
+    }
     const amountMatch = latestText.match(/(?:₹|rs\.?\s*)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)|\b([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(?:rs\.?|rupees?)/i)
       || (expenseFlow && /^\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?\s*$/.test(latestText) ? [latestText, latestText.trim()] : null);
     if (expenseFlow && amountMatch) {
@@ -322,7 +538,7 @@ async function handleRequest(req: Request) {
     const stockText = String(latestText || "").trim();
     const stockMatch = stockText.match(stockCommandRe);
     const stockPriceMatch = stockText.match(/(?:kimat|keemat|price|daam|rate|कीमत|दाम)\s*(?:hai|is|:|=)?\s*(?:₹|rs\.?\s*)?([0-9][0-9,]*(?:\.[0-9]{1,2})?)|(?:₹|rs\.?\s*)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
-    if (stockMatch) {
+    if (stockIntentActive && stockMatch) {
       const rawUnit = stockMatch[2].toLowerCase();
       const unit = ["kg", "kgs", "kilo", "kilos", "kilogram"].includes(rawUnit) ? "kg"
         : ["gram", "g"].includes(rawUnit) ? "g"
@@ -346,7 +562,7 @@ async function handleRequest(req: Request) {
     // If the user supplies the price in a separate message, attach it to the recent stock request.
     const stockFollowupSource = recentUserTexts.slice(0, -1).reverse().find((value: string) => stockCommandRe.test(value.trim()));
     const stockPriceFollowup = latestText.match(/(?:kimat|keemat|price|daam|rate|कीमत|दाम)\s*(?:hai|is|:|=)?\s*(?:₹|rs\.?\s*)?([0-9][0-9,]*(?:\.[0-9]{1,2})?)|(?:₹|rs\.?\s*)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)|^\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*$/i);
-    if (!stockMatch && stockFollowupSource && stockPriceFollowup) {
+    if (stockIntentActive && !stockMatch && stockFollowupSource && stockPriceFollowup) {
       const previousStock = stockFollowupSource.trim().match(stockCommandRe);
       const priceText = stockPriceFollowup[1] || stockPriceFollowup[2] || stockPriceFollowup[3];
       const price = Number(priceText.replace(/,/g, ""));
@@ -365,6 +581,50 @@ async function handleRequest(req: Request) {
       }
     }
     let reply = text(parsed.reply, 3000) || "I checked your Plivex workspace. What would you like to know?";
+    // Enrich every AI-generated invoice draft with the signed-in workspace's saved business defaults.
+    // Final write-intent gate: a normal question or unrelated sentence cannot
+    // resurrect a create_* action merely because an old command remains in chat history.
+    const hasCurrentWriteIntent = explicitWriteIntent || invoiceClarificationActive || expenseClarificationActive || stockClarificationActive || clientClarificationActive;
+    if (!hasCurrentWriteIntent) {
+      parsed.actions = (Array.isArray(parsed.actions) ? parsed.actions : []).filter((item: any) => !/^create_/.test(String(item?.type || "")));
+      if (parsed.action && /^create_/.test(String(parsed.action.type || ""))) parsed.action = { type: "none", payload: {} };
+    }
+    const candidateActions = Array.isArray(parsed.actions) ? parsed.actions : (parsed.action && parsed.action.type !== "none" ? [parsed.action] : []);
+    const enrichedActions = candidateActions.map((candidate: any) => {
+      if (candidate?.type !== "create_invoice" || !candidate.payload || typeof candidate.payload !== "object") return candidate;
+      const payload = candidate.payload;
+      const profile = liveContext.business && typeof liveContext.business === "object" ? liveContext.business : {};
+      const clientRecord = (liveContext.records?.clients || []).find((row: any) => String(row?.name || "").trim().toLowerCase() === String(payload.client_name || "").trim().toLowerCase()) || {};
+      const items = Array.isArray(payload.items) ? payload.items.slice(0, 100) : [];
+      const invoiceSnapshot = payload.invoice_snapshot && typeof payload.invoice_snapshot === "object" ? payload.invoice_snapshot : {
+        business: {
+          name: text(payload.business_name || profile.name, 160), email: text(profile.email, 180),
+          phone: text(profile.phone, 40), gstin: text(profile.gstin, 30), address: text(profile.address, 400),
+        },
+        client: {
+          name: text(payload.client_name, 120), company: text(clientRecord.company, 120),
+          email: text(payload.client_email || clientRecord.email, 180), phone: text(clientRecord.phone, 40),
+          gstin: text(clientRecord.gstin, 30), address: text(clientRecord.address, 400),
+        },
+        number: "", issueDate: text(payload.issue_date, 10), dueDate: text(payload.due_date, 10),
+        currency: "INR",
+        items: items.map((item: any, index: number) => ({
+          id: "ai-item-" + (index + 1), description: text(item?.description, 500),
+          quantity: number(item?.quantity, 0), rate: number(item?.rate, 0),
+          gstRate: number(item?.gst_rate, number(payload.tax_rate, 0)),
+        })),
+        taxRate: number(payload.tax_rate, 0), taxMode: payload.tax_mode === "igst" ? "igst" : "split",
+        discountType: payload.discount_type === "flat" ? "flat" : "percent",
+        discount: number(payload.discount, 0), notes: text(payload.notes, 1000), terms: text(payload.terms, 1000),
+        upiId: text(profile.upi_id, 180), logo: text(profile.logo_url, 2000), design: "classic",
+      };
+      return { ...candidate, payload: {
+        ...payload, business_name: text(payload.business_name || profile.name, 160),
+        invoice_snapshot: invoiceSnapshot,
+      }};
+    });
+    parsed.actions = enrichedActions;
+    if (parsed.action?.type === "create_invoice") parsed.action = enrichedActions.find((action: any) => action?.type === "create_invoice") || parsed.action;
     const rawActions = Array.isArray(parsed.actions) ? parsed.actions : (parsed.action && parsed.action.type !== "none" ? [parsed.action] : []);
     const uniqueRawActions = [...new Map(rawActions.map((item: any) => [JSON.stringify(item), item])).values()];
     const proposedActions = uniqueRawActions.slice(0, 10).map((item: unknown) => validateAction(item)).filter(Boolean);
