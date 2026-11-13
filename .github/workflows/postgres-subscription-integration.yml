@@ -238,3 +238,5 @@ jobs:
         run: deno test supabase/functions/_shared/cashfree.test.ts supabase/functions/cashfree-webhook/refund.test.ts
       - name: Production build
         run: npm run build
+      - name: Verify public build configuration
+        run: npm run verify:build-env

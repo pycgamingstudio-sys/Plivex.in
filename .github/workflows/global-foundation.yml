@@ -53,3 +53,5 @@ jobs:
 
       - name: Build application
         run: npm run build
+      - name: Verify public build configuration
+        run: npm run verify:build-env

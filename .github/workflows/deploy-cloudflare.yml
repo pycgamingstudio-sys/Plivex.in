@@ -47,6 +47,8 @@ jobs:
 
       - name: Build production app
         run: npm run build
+      - name: Verify public build configuration
+        run: npm run verify:build-env
 
       - name: Deploy existing Plivex Worker
         uses: cloudflare/wrangler-action@v4

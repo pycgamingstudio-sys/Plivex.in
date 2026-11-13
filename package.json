@@ -11,7 +11,8 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview",
-    "test:global": "node --test src/global/tests/*.test.mjs"
+    "test:global": "node --test src/global/tests/*.test.mjs",
+    "verify:build-env": "node scripts/verify-build-env.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^17.0.0",
