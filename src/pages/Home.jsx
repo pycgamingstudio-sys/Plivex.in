@@ -4,6 +4,7 @@ import { KEYS, pushItem, genId, deductStockForInvoice, loadList, loadState, remo
 import { useAuth } from "@/lib/AuthContext";
 import { startCashfreeCheckout } from "@/lib/cashfree";
 import { usePaywall } from "@/lib/paywall";
+import { createInvoiceShareLink } from "@/lib/invoiceShare";
 import { trackStaffAction } from "@/lib/staffTracking";
 import PresenceBeacon from "@/components/PresenceBeacon";
 import Logo from "@/components/Logo";
@@ -708,6 +709,8 @@ export default function Home() {
       // Persist first: the server assigns the official invoice number and deducts stock
       // exactly once. This prevents WhatsApp sharing from creating an unsaved invoice.
       const savedInvoice = await recordInvoice();
+      if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
+      const shareLink = await createInvoiceShareLink(savedInvoice.id);
       if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
         setInvoice((current) => ({ ...current, number: savedInvoice.number }));
         // Let React update the visible invoice preview before rasterizing it.
@@ -725,7 +728,7 @@ export default function Home() {
       const upi = (invoice.upiId || "").trim();
       const bizName = invoice.business.name || "Plivex";
       const paymentLine = upi ? `💳 Payment Details / UPI: ${upi}` : "💳 Payment Details: Please contact us for payment details.";
-      const message = `Hi ${clientName}! 👋\nHope you are doing well!\n\nThank you for your business. Here is your invoice #${safeNumber} for ${totalAmt}.\n📅 Due Date: ${due}\n${paymentLine}\n\nIf you have any questions, feel free to reply to this message.\nBest regards,\n${bizName}`;
+      const message = `Hi ${clientName}! 👋\nHope you are doing well!\n\nThank you for your business. Here is your invoice #${safeNumber} for ${totalAmt}.\n📅 Due Date: ${due}\n${paymentLine}\n\n🔗 View / download your invoice securely: ${shareLink.url}\n\nIf you have any questions, feel free to reply to this message.\nBest regards,\n${bizName}`;
 
       // On supported phones, share the actual PDF file through the native share sheet.
       let canShareFile = false;
@@ -795,6 +798,8 @@ export default function Home() {
     notify("Saving invoice and preparing PDF…", "info", 0);
     try {
       const savedInvoice = await recordInvoice();
+      if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
+      const shareLink = await createInvoiceShareLink(savedInvoice.id);
       if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
         setInvoice((current) => ({ ...current, number: savedInvoice.number }));
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -812,8 +817,8 @@ export default function Home() {
       const bizName = invoice.business.name || "Plivex";
       const paymentLine = upi ? `Payment Details / UPI: ${upi}` : "Please contact us for payment details.";
       const body = channel === "email"
-        ? `Hi ${clientName},\n\nPlease find the details for invoice #${safeNumber}.\nInvoice amount: ${totalAmt}\nDue date: ${due}\n${paymentLine}\n\nThe invoice PDF has been downloaded. Please attach the PDF before sending this email.\n\nRegards,\n${bizName}`
-        : `Hi ${clientName}, invoice #${safeNumber} from ${bizName}. Amount: ${totalAmt}. Due: ${due}. ${paymentLine} Invoice PDF downloaded separately; attach it if your SMS app supports attachments.`;
+        ? `Hi ${clientName},\n\nPlease find the details for invoice #${safeNumber}.\nInvoice amount: ${totalAmt}\nDue date: ${due}\n${paymentLine}\n\nView and download your invoice securely: ${shareLink.url}\n\nThe PDF is also downloaded as an attachment option.\n\nRegards,\n${bizName}`
+        : `Hi ${clientName}, invoice #${safeNumber} from ${bizName}. Amount: ${totalAmt}. Due: ${due}. ${paymentLine} View/download invoice: ${shareLink.url}`;
       if (channel === "email") {
         const subject = `Invoice ${safeNumber} from ${bizName}`;
         window.location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
