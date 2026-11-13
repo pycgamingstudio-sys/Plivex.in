@@ -1,5 +1,6 @@
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import {api,config,isPlanId,resolvePlan,safePath,allowedOrigin} from "../_shared/cashfree.ts";
+import {getCountryByCode} from "../../../src/global/countries/country-registry.js";
 const cors=(o:string|null)=>({"Access-Control-Allow-Origin":o&&["https://plivex.in","https://www.plivex.in","https://plivex.netlify.app"].includes(o)?o:"https://plivex.in","Vary":"Origin","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"});
 const json=(b:unknown,s:number,o:string|null)=>new Response(JSON.stringify(b),{status:s,headers:{...cors(o),"Content-Type":"application/json","Cache-Control":"no-store"}});
 Deno.serve(async(req:Request)=>{
@@ -29,7 +30,7 @@ Deno.serve(async(req:Request)=>{
   // Legacy workspaces without an explicit country retain India billing. New
   // international workspaces must explicitly save their country in settings.
   const countryCode=String(business?.country_code||"IN").toUpperCase();
-  const localeCode=String(business?.locale_code||(countryCode==="IN"?"en-IN":"en"));
+  const localeCode=String(business?.locale_code||getCountryByCode(countryCode)?.locales?.[0]||"en-IN");
   const plan=resolvePlan(body.planId,countryCode,email);
   if(!plan.available){
     if(plan.reason==="cashfree_currency_unavailable")return json({error:"Cashfree checkout is not yet enabled for "+plan.currency+". Your plan price is saved, but payment will open only after the merchant account confirms this currency.",code:"CURRENCY_NOT_ENABLED"},409,origin);
