@@ -5,6 +5,7 @@ ALTER TABLE public.subscriptions
   ADD COLUMN IF NOT EXISTS amount_minor_units bigint,
   ADD COLUMN IF NOT EXISTS amount_major numeric(14,2),
   ADD COLUMN IF NOT EXISTS country_code text,
+  ADD COLUMN IF NOT EXISTS locale_code text,
   ADD COLUMN IF NOT EXISTS billing_period text NOT NULL DEFAULT 'month',
   ADD COLUMN IF NOT EXISTS payment_status text NOT NULL DEFAULT 'created',
   ADD COLUMN IF NOT EXISTS provider_order_status text,
@@ -20,6 +21,7 @@ ALTER TABLE public.payment_logs
   ADD COLUMN IF NOT EXISTS amount_minor_units bigint,
   ADD COLUMN IF NOT EXISTS amount_major numeric(14,2),
   ADD COLUMN IF NOT EXISTS country_code text,
+  ADD COLUMN IF NOT EXISTS locale_code text,
   ADD COLUMN IF NOT EXISTS billing_period text,
   ADD COLUMN IF NOT EXISTS refund_status text,
   ADD COLUMN IF NOT EXISTS provider_refund_id text,
@@ -184,7 +186,7 @@ BEGIN
   INSERT INTO public.payment_logs (
     user_id, user_email, workspace_id, txnid, subscription_id,
     provider, gateway, currency, country_code, billing_period,
-    plan_id, plan_name, tier, amount, amount_minor_units, amount_major,
+    plan_id, plan_name, tier, amount, amount_minor_units, amount_major, locale_code,
     status, outcome, hash_verified, provider_status, gateway_status,
     provider_payment_id, raw, verified_at, reason, message, source
   ) VALUES (
