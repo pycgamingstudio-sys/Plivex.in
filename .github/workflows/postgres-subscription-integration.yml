@@ -167,6 +167,7 @@ jobs:
           CREATE OR REPLACE FUNCTION public.execute_assistant_action_batch(text, text, jsonb)
           RETURNS jsonb LANGUAGE sql SECURITY DEFINER
           SET search_path = public, auth, pg_temp AS $ SELECT '{}'::jsonb $;
+          REVOKE ALL ON FUNCTION public.execute_assistant_action_batch(text, text, jsonb) FROM PUBLIC;
           GRANT EXECUTE ON FUNCTION public.execute_assistant_action_batch(text, text, jsonb) TO anon, authenticated, service_role;
           SQL
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/202611130005_revoke_anon_assistant_batch_execute.sql
