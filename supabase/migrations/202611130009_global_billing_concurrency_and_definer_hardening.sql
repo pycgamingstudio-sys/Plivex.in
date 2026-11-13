@@ -93,14 +93,20 @@ BEGIN
   IF v_order.tier::text = 'basic' THEN
     SELECT max(expires_at) INTO v_start
     FROM public.subscriptions
-    WHERE workspace_id = v_order.workspace_id
+    WHERE (
+        (v_order.workspace_id IS NOT NULL AND workspace_id = v_order.workspace_id)
+        OR (v_order.workspace_id IS NULL AND workspace_id IS NULL AND user_id = v_order.user_id)
+      )
       AND status::text = 'active'
       AND expires_at > v_now
       AND tier::text IN ('basic','pro');
   ELSE
     SELECT max(expires_at) INTO v_start
     FROM public.subscriptions
-    WHERE workspace_id = v_order.workspace_id
+    WHERE (
+        (v_order.workspace_id IS NOT NULL AND workspace_id = v_order.workspace_id)
+        OR (v_order.workspace_id IS NULL AND workspace_id IS NULL AND user_id = v_order.user_id)
+      )
       AND status::text = 'active'
       AND expires_at > v_now
       AND tier::text = 'pro';
