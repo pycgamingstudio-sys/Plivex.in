@@ -28,6 +28,6 @@ Deno.serve(async(req:Request)=>{
    }
   }catch(e){console.error("Cashfree return verification",e);}
   const amount=String(row.amount_minor_units??row.amount_paise??"");
-  return redirect(origin,{payment:status,txnid:id,amount,currency:String(row.currency||"INR"),plan:String(row.plan_name||row.plan_id||""),next});
+  return redirect(origin,{payment:status,txnid:id,amount,currency:String(row.currency||"INR"),locale:String(row.locale_code||"en-IN"),plan:String(row.plan_name||row.plan_id||""),next});
  }catch(e){console.error("cashfree-return failed",e);return redirect(appBase(),{payment:"pending",next:"/dashboard"});}
 });
