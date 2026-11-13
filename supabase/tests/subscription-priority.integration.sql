@@ -48,6 +48,9 @@ BEGIN
 END
 $function$;
 
+-- PostgreSQL 17.12 actual rendered definition for historical outcome A.
+\echo 'PG17 FUNCTION DEFINITION — HISTORICAL OUTCOME A'
+SELECT pg_get_functiondef('public.get_access_status(text)'::regprocedure);
 -- Outcome A: the first historical duplicate migration body was applied.
 \ir ../migrations/202611130004_converge_effective_subscription_priority.sql
 DO $$ BEGIN
@@ -74,6 +77,9 @@ DO $$ BEGIN
  IF public.get_access_status('B')->>'plan' <> 'basic' THEN RAISE EXCEPTION 'Access status B plan mismatch'; END IF;
 END $$;
 
+-- PostgreSQL 17.12 actual rendered definition for historical outcome B.
+\echo 'PG17 FUNCTION DEFINITION — HISTORICAL OUTCOME B'
+SELECT pg_get_functiondef('public.get_access_status(text)'::regprocedure);
 -- Outcome B: recreate the already-converged historical definition and re-run migration idempotently.
 CREATE OR REPLACE FUNCTION public.current_plan(p_workspace_id text)
 RETURNS text LANGUAGE plpgsql STABLE AS $function$
