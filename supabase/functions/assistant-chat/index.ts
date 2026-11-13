@@ -250,12 +250,39 @@ function validateAction(action: any) {
     const discount = number(p.discount, 0);
     const tax_rate = number(p.tax_rate, 0);
     if (tax_rate < 0 || tax_rate > 100 || discount < 0 || (discount_type === "percent" && discount > 100)) return null;
+    const issue_date = /^\d{4}-\d{2}-\d{2}$/.test(text(p.issue_date, 10)) ? text(p.issue_date, 10) : undefined;
+    const due_date = /^\d{4}-\d{2}-\d{2}$/.test(text(p.due_date, 10)) ? text(p.due_date, 10) : undefined;
+    const rawSnapshot = p.invoice_snapshot && typeof p.invoice_snapshot === "object" ? p.invoice_snapshot : {};
+    const rawSnapshotBusiness = rawSnapshot.business && typeof rawSnapshot.business === "object" ? rawSnapshot.business : {};
+    const rawSnapshotClient = rawSnapshot.client && typeof rawSnapshot.client === "object" ? rawSnapshot.client : {};
+    const rawSnapshotItems = Array.isArray(rawSnapshot.items) ? rawSnapshot.items : [];
+    const invoice_snapshot = {
+      business: {
+        name: text(rawSnapshotBusiness.name || p.business_name, 160),
+        email: text(rawSnapshotBusiness.email, 180), phone: text(rawSnapshotBusiness.phone, 40),
+        gstin: text(rawSnapshotBusiness.gstin, 30), address: text(rawSnapshotBusiness.address, 400),
+      },
+      client: {
+        name: client_name, company: text(rawSnapshotClient.company, 120),
+        email: text(p.client_email || rawSnapshotClient.email, 180),
+        phone: text(rawSnapshotClient.phone, 40), gstin: text(rawSnapshotClient.gstin, 30),
+        address: text(rawSnapshotClient.address, 400),
+      },
+      number: text(rawSnapshot.number, 80), issueDate: issue_date || "",
+      dueDate: due_date || "", currency,
+      items: items.map((item: any, index: number) => ({
+        id: text(rawSnapshotItems[index]?.id, 80) || "ai-item-" + (index + 1),
+        description: item.description, quantity: item.quantity, rate: item.rate, gstRate: item.gst_rate,
+      })),
+      taxRate: tax_rate, taxMode: tax_mode, discountType: discount_type, discount,
+      notes: text(p.notes || rawSnapshot.notes, 1000), terms: text(p.terms || rawSnapshot.terms, 1000),
+      upiId: text(rawSnapshot.upiId, 180), logo: text(rawSnapshot.logo, 2000),
+      design: ["classic", "modern", "minimal"].includes(text(rawSnapshot.design, 30)) ? text(rawSnapshot.design, 30) : "classic",
+    };
     const payload = {
       client_name, client_email: text(p.client_email, 180), business_name: text(p.business_name, 160),
-      issue_date: /^\d{4}-\d{2}-\d{2}$/.test(text(p.issue_date, 10)) ? text(p.issue_date, 10) : undefined,
-      due_date: /^\d{4}-\d{2}-\d{2}$/.test(text(p.due_date, 10)) ? text(p.due_date, 10) : undefined,
-      currency, tax_mode, tax_rate, discount_type, discount,
-      notes: text(p.notes, 1000), terms: text(p.terms, 1000), status: "Pending", is_draft: true, items,
+      issue_date, due_date, currency, tax_mode, tax_rate, discount_type, discount,
+      notes: text(p.notes, 1000), terms: text(p.terms, 1000), status: "Pending", is_draft: true, items, invoice_snapshot,
     };
     const subtotal = items.reduce((sum: number, item: any) => sum + item.quantity * item.rate, 0);
     const discountValue = discount_type === "percent" ? subtotal * discount / 100 : Math.min(discount, subtotal);
