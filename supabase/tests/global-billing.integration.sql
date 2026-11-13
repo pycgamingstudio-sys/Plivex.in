@@ -138,6 +138,39 @@ RELEASE SAVEPOINT migration009_rollback_probe;
 \ir ../migrations/202611130009_global_billing_concurrency_and_definer_hardening.sql
 -- Reapply the hardening migration to verify CREATE OR REPLACE/ACL convergence.
 \ir ../migrations/202611130009_global_billing_concurrency_and_definer_hardening.sql
+-- Prove the new refund-identity migration is transactional and re-applicable.
+CREATE TEMP TABLE migration010_before AS
+SELECT
+  'public.apply_cashfree_refund_event(uuid,text,bigint,text,text,jsonb)'::text AS signature,
+  pg_get_functiondef('public.apply_cashfree_refund_event(uuid,text,bigint,text,text,jsonb)'::regprocedure) AS definition,
+  proconfig, proacl, proowner, prosecdef
+FROM pg_catalog.pg_proc
+WHERE oid = 'public.apply_cashfree_refund_event(uuid,text,bigint,text,text,jsonb)'::regprocedure;
+
+SAVEPOINT migration010_rollback_probe;
+\ir ../migrations/202611130010_cashfree_refund_identity_immutability.sql
+ROLLBACK TO SAVEPOINT migration010_rollback_probe;
+
+DO $migration010_rollback_assert$
+DECLARE v_mismatches integer;
+BEGIN
+ SELECT count(*) INTO v_mismatches
+ FROM migration010_before b
+ JOIN pg_catalog.pg_proc p ON p.oid = to_regprocedure(b.signature)
+ WHERE pg_get_functiondef(p.oid) IS DISTINCT FROM b.definition
+    OR p.proconfig IS DISTINCT FROM b.proconfig
+    OR p.proacl IS DISTINCT FROM b.proacl
+    OR p.proowner IS DISTINCT FROM b.proowner
+    OR p.prosecdef IS DISTINCT FROM b.prosecdef;
+ IF v_mismatches <> 0 THEN
+   RAISE EXCEPTION 'Migration 010 rollback did not restore refund RPC state';
+ END IF;
+END
+$migration010_rollback_assert$;
+RELEASE SAVEPOINT migration010_rollback_probe;
+
+-- Apply and reapply normally to prove convergence.
+\ir ../migrations/202611130010_cashfree_refund_identity_immutability.sql
 \ir ../migrations/202611130010_cashfree_refund_identity_immutability.sql
 GRANT SELECT ON public.subscriptions TO service_role;
 
