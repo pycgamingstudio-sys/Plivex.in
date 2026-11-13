@@ -48,10 +48,10 @@ BEGIN
   v_final := $final$
  select s.expires_at into v_expires
    from public.subscriptions s
-    where s.workspace_id = p_workspace_id
-      and s.status::text = 'active'
-      and s.expires_at > clock_timestamp()
-      and s.started_at <= clock_timestamp()
+   where s.workspace_id = p_workspace_id
+     and s.status::text = 'active'
+     and s.expires_at > clock_timestamp()
+     and s.started_at <= clock_timestamp()
      and s.tier::text in ('basic','pro')
    order by CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at desc, s.created_at desc
    limit 1;$final$;
