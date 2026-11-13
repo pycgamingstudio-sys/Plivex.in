@@ -20,11 +20,11 @@ export function sanitizePublicInvoice(invoice) {
       business: pick(business, ["name", "address", "gstin", "locale", "countryLocale"]),
       client: pick(client, ["name", "company", "address", "gstin"]),
       items: (items.length ? items : (Array.isArray(invoice?.invoice_items) ? invoice.invoice_items : []))
-        .map((item) => pick(item, ["id", "description", "quantity", "rate", "gstRate"])),
+        .map((item) => pick(item, ["description", "quantity", "rate", "gstRate"])),
       ...pick(snapshot, ["notes", "terms"]),
     },
     invoice_items: Array.isArray(invoice?.invoice_items)
-      ? invoice.invoice_items.map((item) => pick(item, ["id", "description", "quantity", "rate"]))
+      ? invoice.invoice_items.map((item) => pick(item, ["description", "quantity", "rate"]))
       : [],
   };
 }
