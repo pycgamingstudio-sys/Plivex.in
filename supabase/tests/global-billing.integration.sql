@@ -74,6 +74,7 @@ CREATE TABLE public.payment_logs (
 );
 
 \ir ../migrations/202611130007_global_billing_and_cashfree_atomicity.sql
+GRANT SELECT ON public.subscriptions TO service_role;
 
 DO $privileges$
 BEGIN
