@@ -83,8 +83,8 @@ INSERT INTO public.business_profile (workspace_id, name) VALUES
   ('workspace-a', 'Legacy A'),
   ('workspace-b', 'Private B');
 
-\\ir ../migrations/202611130006_workspace_country_identity.sql
-\\ir ../migrations/202611130006_workspace_country_identity.sql
+\ir ../migrations/202611130006_workspace_country_identity.sql
+\ir ../migrations/202611130006_workspace_country_identity.sql
 
 DO $constraints$
 DECLARE
