@@ -127,21 +127,21 @@ GRANT USAGE ON SCHEMA public TO authenticated, anon, service_role;
 GRANT SELECT ON public.subscriptions TO authenticated, anon, service_role;
 SET request.jwt.claim.workspace_id = 'A';
 SET ROLE authenticated;
-DO $ DECLARE n int; BEGIN
+DO $$ DECLARE n int; BEGIN
  SELECT count(*) INTO n FROM public.subscriptions;
  IF n <> 2 THEN RAISE EXCEPTION 'Workspace A saw % rows, expected 2',n; END IF;
  IF EXISTS (SELECT 1 FROM public.subscriptions WHERE workspace_id <> 'A') THEN
    RAISE EXCEPTION 'Workspace A can read workspace B rows';
  END IF;
-END $;
+END $$;
 SET request.jwt.claim.workspace_id = 'B';
-DO $ DECLARE n int; BEGIN
+DO $$ DECLARE n int; BEGIN
  SELECT count(*) INTO n FROM public.subscriptions;
  IF n <> 2 THEN RAISE EXCEPTION 'Workspace B saw % rows, expected 2',n; END IF;
  IF EXISTS (SELECT 1 FROM public.subscriptions WHERE workspace_id <> 'B') THEN
    RAISE EXCEPTION 'Workspace B can read workspace A rows';
  END IF;
-END $;
+END $$;
 RESET ROLE;
 SET ROLE anon;
 DO $$ DECLARE n int; BEGIN SELECT count(*) INTO n FROM public.subscriptions; IF n <> 0 THEN RAISE EXCEPTION 'Anonymous role saw subscription rows'; END IF; END $$;
