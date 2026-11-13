@@ -1,4 +1,5 @@
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { isCashfreeSubscription } from "./authorization.mjs";
 const ORIGINS=new Set(["https://plivex.in","https://www.plivex.in","https://plivex.netlify.app"]);
 const cors=(origin:string|null)=>({"Access-Control-Allow-Origin":origin&&ORIGINS.has(origin)?origin:"https://plivex.in","Vary":"Origin","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"});
 const json=(body:unknown,status:number,origin:string|null)=>new Response(JSON.stringify(body),{status,headers:{...cors(origin),"Content-Type":"application/json","Cache-Control":"no-store"}});
@@ -22,19 +23,23 @@ Deno.serve(async(req:Request)=>{
   const action=body?.action;
   if(action!=="cancel"&&action!=="resume"&&action!=="status")return json({error:"Unsupported subscription action."},400,origin);
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
-  const {data:subscription,error:subscriptionError}=await admin.from("subscriptions").select("id,expires_at,cancel_at_period_end")
-   .eq("workspace_id",profile.workspace_id).eq("status","active").lte("started_at",new Date().toISOString()).gt("expires_at",new Date().toISOString())
+  const {data:subscription,error:subscriptionError}=await admin.from("subscriptions").select("id,expires_at,cancel_at_period_end,gateway,provider")
+   .eq("workspace_id",profile.workspace_id).eq("gateway","cashfree").eq("provider","cashfree").eq("status","active").lte("started_at",new Date().toISOString()).gt("expires_at",new Date().toISOString())
    .order("expires_at",{ascending:false}).limit(1).maybeSingle();
   if(subscriptionError)return json({error:"Could not load active subscription."},503,origin);
-  if(!subscription)return json({error:"No active paid subscription was found for this workspace."},404,origin);
-  if(action==="status")return json({ok:true,cancelAtPeriodEnd:Boolean(subscription.cancel_at_period_end),expiresAt:subscription.expires_at},200,origin);
+  if(!subscription||!isCashfreeSubscription(subscription)) {
+   if(action==="status")return json({ok:true,available:false,cancelAtPeriodEnd:false},200,origin);
+   return json({error:"No active Cashfree subscription was found for this workspace."},404,origin);
+  }
+  if(action==="status")return json({ok:true,available:true,cancelAtPeriodEnd:Boolean(subscription.cancel_at_period_end),expiresAt:subscription.expires_at},200,origin);
   const requestedAt=action==="cancel"?new Date().toISOString():null;
-  const {error:updateError}=await admin.from("subscriptions").update({
+  const {data:updated,error:updateError}=await admin.from("subscriptions").update({
    cancel_at_period_end:action==="cancel",
    cancellation_requested_at:requestedAt,
    updated_at:new Date().toISOString()
-  }).eq("id",subscription.id).eq("workspace_id",profile.workspace_id).eq("status","active");
+  }).eq("id",subscription.id).eq("workspace_id",profile.workspace_id).eq("gateway","cashfree").eq("provider","cashfree").eq("status","active").select("id").maybeSingle();
   if(updateError)return json({error:"Could not update subscription cancellation."},503,origin);
+  if(!updated)return json({error:"Subscription changed. Refresh and try again."},409,origin);
   return json({ok:true,action,cancelAtPeriodEnd:action==="cancel",expiresAt:subscription.expires_at,message:action==="cancel"?"Cancellation is scheduled for the end of the current paid period. Access remains active until expiry.":"Scheduled cancellation was withdrawn."},200,origin);
  }catch(error){console.error("manage-cashfree-subscription failed",error);return json({error:"Could not manage subscription."},500,origin);}
 });
