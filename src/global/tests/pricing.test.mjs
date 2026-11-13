@@ -1,11 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CASHFREE_CURRENCIES, GLOBAL_BILLING, formatPlanPrice, getBillingForCountry } from "../billing/pricing.js";
+import { COUNTRY_REGISTRY } from "../countries/country-registry.js";
 
 test("all seven supported countries have explicit local currencies and prices", () => {
   assert.deepEqual(Object.keys(GLOBAL_BILLING).sort(), ["AE","AU","CA","GB","IN","SG","US"]);
-  for (const config of Object.values(GLOBAL_BILLING)) {
-    assert.equal(typeof config.currency, "string");
+  for (const country of COUNTRY_REGISTRY) {
+    const config = GLOBAL_BILLING[country.code];
+    assert.ok(config, `Missing billing configuration for ${country.code}`);
+    assert.equal(config.currency, country.currencyCode);
     assert.ok(config.monthly.basic > 0 && config.monthly.pro > config.monthly.basic);
   }
 });
