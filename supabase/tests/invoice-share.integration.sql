@@ -51,6 +51,7 @@ INSERT INTO public.assistant_action_batches (id,user_id) VALUES
   ('60000000-0000-0000-0000-000000000006','20000000-0000-0000-0000-000000000002');
 
 \ir ../migrations/20261114000001_optimize_assistant_batch_rls_policy.sql
+\ir ../migrations/20261114000001_optimize_assistant_batch_rls_policy.sql
 
 DO $index_and_policy$
 DECLARE v_policy text;
