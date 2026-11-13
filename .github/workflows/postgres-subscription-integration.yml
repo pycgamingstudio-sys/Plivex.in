@@ -169,6 +169,8 @@ jobs:
           else
             echo "PASS: clean schema without prerequisites fails closed"
           fi
+      - name: Apply and verify assistant batch RLS optimization migration in disposable PostgreSQL
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/assistant-batch-rls.integration.sql
       - name: Verify assistant batch RPC anon privilege is removed without breaking signed-in callers
         shell: bash
         run: |
@@ -232,7 +234,7 @@ jobs:
           deno check supabase/functions/cashfree-webhook/index.ts
           deno check supabase/functions/cashfree-return/index.ts
           deno check supabase/functions/manage-cashfree-subscription/index.ts
-          deno test supabase/functions/manage-cashfree-subscription/authorization.test.mjs
+          deno test supabase/functions/manage-cashfree-subscription/authorization.test.mjs supabase/functions/manage-cashfree-subscription/handler.test.mjs
           deno check supabase/functions/invoice-share/index.ts
           deno test supabase/functions/_shared/cashfree.test.ts
       - name: Test Cashfree webhook refund-event handler and order ID validation
