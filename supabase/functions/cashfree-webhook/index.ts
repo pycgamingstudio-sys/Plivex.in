@@ -41,14 +41,15 @@ Deno.serve(async(req:Request)=>{
   const nextRefundStatus=fullyRefunded?"success":totalRefunded>0?"partially_refunded":refundStatus.toLowerCase();
   const {error:subscriptionRefundError}=await admin.from("subscriptions").update({
    refund_status:nextRefundStatus,
-   payment_status:fullyRefunded?"refunded":totalRefunded>0?"partially_refunded":refundStatus.toLowerCase(),
+   payment_status:fullyRefunded?"refunded":totalRefunded>0?"partially_refunded":(order.payment_status||"success"),
    refunded_at:fullyRefunded?new Date().toISOString():null,
    status:fullyRefunded?"failed":order.status,
    updated_at:new Date().toISOString()
   }).eq("id",order.id);
   if(subscriptionRefundError)return json({error:"Subscription refund reconciliation failed"},503);
-  await admin.from("payment_logs").update({refund_status:nextRefundStatus,refund_amount_minor_units:totalRefunded})
+  const {error:logRefundError}=await admin.from("payment_logs").update({refund_status:nextRefundStatus,refund_amount_minor_units:totalRefunded})
    .eq("subscription_id",order.id).eq("provider","cashfree");
+  if(logRefundError)return json({error:"Payment log refund update failed"},503);
   return json({received:true,refundStatus:nextRefundStatus,refundedMinorUnits:totalRefunded});
  }
 
