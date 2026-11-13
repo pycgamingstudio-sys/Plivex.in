@@ -1,5 +1,5 @@
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import {api,config,isPlanId,resolvePlan,safePath,allowedOrigin} from "../_shared/cashfree.ts";
+import {api,config,isPlanId,resolvePlan,safePath,allowedOrigin,createCashfreeOrderId} from "../_shared/cashfree.ts";
 import {getCountryByCode} from "../../../src/global/countries/country-registry.js";
 const cors=(o:string|null)=>({"Access-Control-Allow-Origin":o&&["https://plivex.in","https://www.plivex.in","https://plivex.netlify.app"].includes(o)?o:"https://plivex.in","Vary":"Origin","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"});
 const json=(b:unknown,s:number,o:string|null)=>new Response(JSON.stringify(b),{status:s,headers:{...cors(o),"Content-Type":"application/json","Cache-Control":"no-store"}});
@@ -41,7 +41,7 @@ Deno.serve(async(req:Request)=>{
   if(countryCode==="IN"?!/^[0-9]{10}$/.test(phone):! /^[0-9]{8,15}$/.test(phone))
     return json({error:"Add a valid mobile number to your Plivex account before checkout."},400,origin);
   const amountMinor=plan.amountMinor,currency=plan.currency;
-  const orderId="PLXCF-"+crypto.randomUUID().replaceAll("-","").slice(0,26).toUpperCase();
+  const orderId=createCashfreeOrderId();
   const returnOrigin=allowedOrigin(body?.origin),returnPath=safePath(body?.path);
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
   const {error:insertError}=await admin.from("subscriptions").insert({
