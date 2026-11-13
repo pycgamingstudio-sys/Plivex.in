@@ -23,6 +23,7 @@ const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Home = lazy(() => import("./pages/Home"));
 const InvoiceHistory = lazy(() => import("./pages/InvoiceHistory"));
+const InvoiceShareManagement = lazy(() => import("./pages/InvoiceShareManagement"));
 const BusinessProfile = lazy(() => import("./pages/BusinessProfile"));
 const ClientDatabase = lazy(() => import("./pages/ClientDatabase"));
 const UsageReports = lazy(() => import("./pages/UsageReports"));
@@ -98,6 +99,7 @@ const AuthenticatedApp = () => {
             <Route path="/invoice-builder" element={<Home />} />
         <Route element={<AppLayout />}>
           <Route path="/invoice-history" element={<InvoiceHistory />} />
+          <Route path="/invoice-shares" element={<InvoiceShareManagement />} />
           <Route path="/business-profile" element={<BusinessProfile />} />
           <Route path="/client-database" element={<ClientDatabase />} />
           <Route path="/usage-reports" element={<UsageReports />} />
