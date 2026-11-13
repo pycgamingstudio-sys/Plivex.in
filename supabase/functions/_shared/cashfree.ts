@@ -76,8 +76,8 @@ export function majorToMinorUnits(value: unknown): number | null {
 }
 
 export async function activatePaidOrder(admin:any,order:any,providerOrder:any,payment:any,source:string){
- const currency=typeof order?.currency==="string"?order.currency.toUpperCase():"";
- const expected=order?.amount_minor_units;
+ const currency=String(order?.currency||"INR").toUpperCase();
+ const expected=order?.amount_minor_units??(currency==="INR"?order?.amount_paise:null);
  const actualMinor=majorToMinorUnits(providerOrder?.order_amount);
  const paymentMinor=majorToMinorUnits(payment?.payment_amount);
  const providerOrderCurrency=typeof providerOrder?.order_currency==="string"?providerOrder.order_currency.toUpperCase():"";
