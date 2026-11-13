@@ -74,3 +74,28 @@ INSERT INTO public.subscriptions (
   'USD','US','en-US','month','cashfree','cashfree','ORDER-PARALLEL-1',NULL,NULL),
  ('11111111-1111-1111-1111-111111111111','owner@example.test','ws-parallel','basic_monthly','Basic Monthly','basic','created',6,599,5.99,
   'USD','US','en-US','month','cashfree','cashfree','ORDER-PARALLEL-2',NULL,NULL);
+
+-- Dedicated paid order for a true two-session refund race. Both concurrent
+-- refund events together exceed the original amount; only the first may apply.
+INSERT INTO public.subscriptions (
+ user_id,user_email,workspace_id,plan_id,plan_name,tier,status,amount,
+ currency,gateway,provider,txnid,amount_minor_units,amount_major,
+ country_code,locale_code,billing_period,payment_status,started_at,expires_at
+) VALUES (
+ '77777777-7777-7777-7777-777777777777','refund-race@example.test','ws-refund-parallel',
+ 'pro_monthly','Pro Monthly','pro','active',10,'USD','cashfree','cashfree',
+ 'ORDER-REFUND-PARALLEL',1000,10.00,'US','en-US','month','success',
+ now()-interval '1 day',now()+interval '29 days'
+);
+
+INSERT INTO public.payment_logs (
+ user_id,user_email,workspace_id,gateway,txnid,plan_id,plan_name,tier,amount,
+ currency,status,outcome,hash_verified,provider,subscription_id,provider_status,
+ provider_payment_id,amount_minor_units,amount_major,country_code,locale_code,billing_period
+) VALUES (
+ '77777777-7777-7777-7777-777777777777','refund-race@example.test','ws-refund-parallel',
+ 'cashfree','ORDER-REFUND-PARALLEL','pro_monthly','Pro Monthly','pro',10,
+ 'USD','success','applied',true,'cashfree',
+ (SELECT id FROM public.subscriptions WHERE txnid='ORDER-REFUND-PARALLEL'),
+ 'SUCCESS','CFPAY-REFUND-PARALLEL',1000,10.00,'US','en-US','month'
+);
