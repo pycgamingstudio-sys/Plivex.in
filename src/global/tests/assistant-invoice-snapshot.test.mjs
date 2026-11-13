@@ -111,13 +111,19 @@ test("invoice dates must be real calendar dates", () => {
     type: "create_invoice",
     payload: { ...deterministicAction.payload, issue_date: "2025-02-29" },
   });
-  assert.equal(invalidLeapDay.payload.issue_date, undefined);
+  assert.equal(invalidLeapDay, null);
 
   const invalidMonthDay = validateInvoiceAction({
     type: "create_invoice",
     payload: { ...deterministicAction.payload, due_date: "2025-13-01" },
   });
-  assert.equal(invalidMonthDay.payload.due_date, undefined);
+  assert.equal(invalidMonthDay, null);
+
+  const trailingGarbage = validateInvoiceAction({
+    type: "create_invoice",
+    payload: { ...deterministicAction.payload, issue_date: "2024-02-29extra" },
+  });
+  assert.equal(trailingGarbage, null);
 });
 
 test("public invoice sanitizer excludes private snapshot fields and internal identifiers", () => {
