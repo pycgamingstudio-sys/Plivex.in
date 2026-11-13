@@ -42,7 +42,8 @@ BEGIN
  RETURN jsonb_build_object(
    'plan', v_plan,
    'expiresAt', v_expires,
-   'startedAt', case when v_plan='free' then null else (select min(s.started_at) from public.subscriptions s where s.workspace_id=p_workspace_id and s.status::text='active' and s.expires_at > clock_timestamp() and s.tier::text = v_plan) end
+   'startedAt', case when v_plan='free' then null else (select min(s.started_at) from public.subscriptions s where s.workspace_id=p_workspace_id and s.status::text='active' and s.expires_at > clock_timestamp() and s.tier::text = v_plan) end,
+   'fixtureMarker', true
  );
 END
 $function$;
