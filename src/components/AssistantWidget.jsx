@@ -22,10 +22,9 @@ async function readableError(error) {
 }
 
 export default function AssistantWidget() {
-  const { isAuthenticated, isLoadingAuth, user } = useAuth();
+  const { isAuthenticated, isLoadingAuth } = useAuth();
   const [open, setOpen] = useState(false);
-  const storageKey = user?.id ? `plivex-ai-chat:${user.id}` : null;
-  const [messages, setMessages] = useState(() => { try { const saved = user?.id ? localStorage.getItem(`plivex-ai-chat:${user.id}`) : null; return saved ? JSON.parse(saved).slice(-40) : []; } catch { return []; } });
+  const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [attachment, setAttachment] = useState(null);
   const imageInputRef = useRef(null);
@@ -43,20 +42,8 @@ export default function AssistantWidget() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, busy, open]);
-  useEffect(() => {
-    if (!storageKey) { setMessages([]); return; }
-    try {
-      const saved = localStorage.getItem(storageKey);
-      setMessages(saved ? JSON.parse(saved).slice(-40) : []);
-    } catch { setMessages([]); }
-  }, [storageKey]);
-  useEffect(() => {
-    if (!storageKey) return;
-    try {
-      const safeMessages = messages.slice(-40).map(({ imageDataUrl, ...message }) => message);
-      localStorage.setItem(storageKey, JSON.stringify(safeMessages));
-    } catch { /* chat history is best-effort; never block assistant use */ }
-  }, [messages, storageKey]);
+  // Chat is intentionally session-only: reload starts a fresh conversation.
+  // Do not persist messages in localStorage, so stale tasks cannot reappear.
 
 
   if (!enabled) return null;
