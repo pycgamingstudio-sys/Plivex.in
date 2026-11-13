@@ -81,6 +81,7 @@ BEGIN
 
   v_old_count := (length(v_def) - length(replace(v_def, v_old, ''))) / length(v_old);
   v_final_count := (length(v_def) - length(replace(v_def, v_final, ''))) / length(v_final);
+  RAISE NOTICE 'startedAt diagnostic old_count=%, final_count=%, old_pos=%, excerpt=%', v_old_count, v_final_count, position(v_old IN v_def), substring(v_def from greatest(position('startedAt' IN v_def)-20,1) for 650);
 
   IF v_old_count = 1 AND v_final_count = 0 THEN
     v_def := replace(v_def, v_old, v_final);
