@@ -1,0 +1,41 @@
+name: Global Foundation CI
+
+on:
+  push:
+    branches: [global-dev]
+  pull_request:
+    branches: [global-dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: global-foundation-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Test isolated Global foundation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run existing India team regression tests
+        run: npm run test:membership
+
+      - name: Run Global foundation contract tests
+        run: node --test src/global/tests/*.test.mjs
+
+      - name: Build application
+        run: npm run build
