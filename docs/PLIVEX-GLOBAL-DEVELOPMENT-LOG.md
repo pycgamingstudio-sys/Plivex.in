@@ -71,3 +71,26 @@
 4. Verify India default behavior, INR formatting, invoice sharing and plan-entitlement regression risks.
 5. Fix failures only on `global-dev`, rerun all checks, and report exact evidence and final commit SHA.
 6. Do not start Part 2; Chat 4 approval remains mandatory.
+
+
+## Part 1 re-audit remediation (Chat 3 findings)
+
+- Invoice-share CORS now accepts only the exact configured Plivex origins already present in the function: `https://plivex.in`, `https://www.plivex.in`, and `https://plivex.netlify.app`. The broad `pages.dev` / `workers.dev` hostname patterns were removed. No unverified staging hostname was added.
+- Currency tests now independently assert the expected locale mapping for each registered currency and use fixed known outputs for CAD, AUD and SGD. The expected locale values are declared in the test rather than derived from `getCurrencyLocale()`.
+- Assistant invoice validation now accepts only the supported currency allowlist and preserves the selected currency in both deterministic invoice drafts and model-generated invoice snapshots. A supplied snapshot's currency is normalized to the validated action currency so the payload and snapshot cannot disagree. Omitted currency remains INR for backward compatibility.
+- Rate limiting remains per share-link and per action (60 public views/minute; 30 tracking events/minute). It is a basic abuse bound, not IP-level or WAF-level protection; distributed abuse and link-level denial-of-service remain residual risks.
+- Static SQL review was repeated for migrations `202611130002_invoice_share_links.sql` and `202611130003_invoice_share_rate_limit.sql`: the share-link table references `public.invoices(id)` and `auth.users(id)`; the rate-limit table references `public.invoice_share_links(id)`; both tables enable RLS and revoke direct public-role access; security-definer functions use fixed search paths and service-role-only execute grants. Repository-visible schema evidence is insufficient to prove the deployed `invoices.id`, `invoices.workspace_id`, and related foreign-key types match these declarations. No live or disposable database was available/executed, so runtime migration compatibility and effective RLS behavior remain unverified. Do not treat this static review as migration approval.
+- No migration was applied, no Edge Function was deployed, and no production/main branch, DNS, or live database was changed.
+
+### Files changed in this remediation round
+
+- `supabase/functions/invoice-share/index.ts`
+- `src/global/tests/currency.test.mjs`
+- `supabase/functions/assistant-chat/index.ts`
+- `docs/PLIVEX-GLOBAL-DEVELOPMENT-LOG.md`
+
+### Verification handoff
+
+- Chat 1 has not executed npm/deno tests, lint, typecheck, or build for these new commits. Chat 2 must run the full required checks against the latest `global-dev` HEAD and inspect the assistant Edge Function diff.
+- Chat 3 must independently re-audit the resulting exact commit, including the CORS origin matrix, currency tests, assistant payload/snapshot consistency, and migration/schema limitations.
+- Part 1 remains unapproved until Chat 4 explicitly approves it. Do not begin Part 2.
