@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/api/backendClient";
 import { FileDown, Printer, ShieldCheck, AlertCircle } from "lucide-react";
