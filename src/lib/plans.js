@@ -20,6 +20,7 @@ export const PLANS = {
     bullets: [
       "100 invoices per month",
       "200 clients and 200 stock items",
+      "Lead Management with up to 200 leads",
       "PDF downloads without usage credits",
       "Invoicing, quotations, expenses and reports",
     ],
@@ -33,7 +34,7 @@ export const PLANS = {
       "Up to 3,000 invoices per month",
       "Up to 50,000 clients and stock items",
       "WhatsApp, Gmail & SMS invoice sharing with payment reminders",
-      "Team access and lead pipeline",
+      "Team access and advanced CRM",
       "GSTR-1 export, custom logo and multi-currency",
       "Premium invoice designs",
     ],
