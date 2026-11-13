@@ -142,6 +142,6 @@ test("Supabase migration versions are unique and subscription priority has a for
   const convergence = await read("../../../supabase/migrations/202611130004_converge_effective_subscription_priority.sql");
   assert.match(convergence, /Unexpected current_plan ordering after 202610280004/);
   assert.match(convergence, /Unexpected get_access_status expiry query after 202610280004/);
-  assert.match(convergence, /Unexpected get_access_status startedAt query after 202610280004/);
+  assert.match(convergence, /Unexpected get_access_status startedAt expression after 202610280004/);
   assert.match(convergence, /WHEN 'pro' THEN 2 WHEN 'basic' THEN 1/);
 });
