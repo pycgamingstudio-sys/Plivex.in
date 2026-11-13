@@ -445,6 +445,11 @@ INSERT INTO public.subscriptions (
   'USD','US','en-US','month','cashfree','cashfree','PRIOR-NULL-A',now(),now()+interval '10 days'),
  ('60000000-0000-0000-0000-000000000006','user-b@example.test',NULL,'basic_monthly','Basic Monthly','basic','active',6,599,5.99,
   'USD','US','en-US','month','cashfree','cashfree','PRIOR-NULL-B',now(),now()+interval '20 days');
+
+CREATE TEMP TABLE null_workspace_baseline AS
+SELECT txnid, user_id, started_at, expires_at
+FROM public.subscriptions WHERE txnid IN ('PRIOR-NULL-A','PRIOR-NULL-B');
+
 INSERT INTO public.subscriptions (
  user_id,user_email,workspace_id,plan_id,plan_name,tier,status,amount,amount_minor_units,amount_major,
  currency,country_code,locale_code,billing_period,gateway,provider,txnid
@@ -472,9 +477,8 @@ BEGIN
  IF v_a_start IS DISTINCT FROM v_a_prior OR v_a_expiry IS DISTINCT FROM v_a_prior + interval '1 month' THEN
   RAISE EXCEPTION 'User A renewal did not extend exactly from User A expiry';
  END IF;
- IF v_b_start IS NULL OR v_b_expiry IS NULL
-    OR v_b_start IS DISTINCT FROM (SELECT started_at FROM public.subscriptions WHERE txnid='PRIOR-NULL-B')
-    OR v_b_expiry IS DISTINCT FROM (SELECT expires_at FROM public.subscriptions WHERE txnid='PRIOR-NULL-B') THEN
+ IF v_b_start IS DISTINCT FROM (SELECT started_at FROM null_workspace_baseline WHERE txnid='PRIOR-NULL-B')
+    OR v_b_expiry IS DISTINCT FROM (SELECT expires_at FROM null_workspace_baseline WHERE txnid='PRIOR-NULL-B') THEN
   RAISE EXCEPTION 'User A renewal changed User B subscription or expiry';
  END IF;
 END
@@ -498,8 +502,8 @@ BEGIN
  IF v_b_start IS DISTINCT FROM v_b_prior OR v_b_expiry IS DISTINCT FROM v_b_prior + interval '1 month' THEN
   RAISE EXCEPTION 'User B renewal did not extend exactly from User B expiry';
  END IF;
- IF v_a_start IS DISTINCT FROM (SELECT started_at FROM public.subscriptions WHERE txnid='ORDER-NULL-A')
-    OR v_a_expiry IS DISTINCT FROM (SELECT expires_at FROM public.subscriptions WHERE txnid='ORDER-NULL-A') THEN
+ IF v_a_start IS DISTINCT FROM (SELECT expires_at FROM null_workspace_baseline WHERE txnid='PRIOR-NULL-A')
+    OR v_a_expiry IS DISTINCT FROM (SELECT expires_at FROM null_workspace_baseline WHERE txnid='PRIOR-NULL-A') + interval '1 month' THEN
   RAISE EXCEPTION 'User B renewal changed User A subscription or expiry';
  END IF;
 END
