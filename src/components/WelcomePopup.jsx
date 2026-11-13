@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Sparkles, X } from "lucide-react";
-import { canScheduleWelcomePopup, isWelcomePopupVisible, markWelcomePopupDismissed } from "./welcome-popup-state.js";
+import { canScheduleWelcomePopup, getStorageSafely, isWelcomePopupVisible, markWelcomePopupDismissed } from "./welcome-popup-state.js";
 
 export default function WelcomePopup({ userId, planName = "Free", plan = "free", planLoading = true }) {
 
@@ -9,14 +9,14 @@ export default function WelcomePopup({ userId, planName = "Free", plan = "free",
   useEffect(() => {
     // Reset on account changes/logout and wait for the authoritative plan before showing.
     setOpenForUser(null);
-    if (!canScheduleWelcomePopup({ userId, planLoading, storage: window.localStorage })) return undefined;
+    const storage = getStorageSafely(() => window.localStorage);\n    if (!canScheduleWelcomePopup({ userId, planLoading, storage })) return undefined;
     const timer = window.setTimeout(() => setOpenForUser(userId), 12000);
     return () => window.clearTimeout(timer);
   }, [userId, planLoading, planName, plan]);
 
   const dismiss = () => {
     setOpenForUser(null);
-    markWelcomePopupDismissed({ userId, storage: window.localStorage });
+    markWelcomePopupDismissed({ userId, storage: getStorageSafely(() => window.localStorage) });
   };
 
   if (!isWelcomePopupVisible({ activeUserId: userId, openForUser, planLoading })) return null;

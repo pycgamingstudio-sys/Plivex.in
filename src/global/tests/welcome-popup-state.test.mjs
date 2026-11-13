@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canScheduleWelcomePopup, isWelcomePopupVisible, markWelcomePopupDismissed, welcomePopupSeenKey } from "../../components/welcome-popup-state.js";
+import { canScheduleWelcomePopup, getStorageSafely, isWelcomePopupVisible, markWelcomePopupDismissed, welcomePopupSeenKey } from "../../components/welcome-popup-state.js";
 
 function memoryStorage() {
   const values = new Map();
@@ -39,6 +39,12 @@ test("popup never appears for wrong or logged-out account", () => {
 });
 test("storage failures fail closed", () => {
   const storage = { getItem() { throw Error("blocked"); }, setItem() { throw Error("blocked"); } };
+  assert.equal(canScheduleWelcomePopup({ userId: "A", planLoading: false, storage }), false);
+  assert.equal(markWelcomePopupDismissed({ userId: "A", storage }), false);
+});
+test("localStorage property access failures fail closed before helper invocation", () => {
+  const storage = getStorageSafely(() => { throw Error("SecurityError"); });
+  assert.equal(storage, null);
   assert.equal(canScheduleWelcomePopup({ userId: "A", planLoading: false, storage }), false);
   assert.equal(markWelcomePopupDismissed({ userId: "A", storage }), false);
 });

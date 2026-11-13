@@ -19,3 +19,8 @@ export function markWelcomePopupDismissed({ userId, storage }) {
   try { storage.setItem(welcomePopupSeenKey(userId), "1"); return true; }
   catch { return false; }
 }
+/** Resolve browser storage without allowing a restricted localStorage getter to crash the UI. */
+export function getStorageSafely(readStorage) {
+  try { return typeof readStorage === "function" ? readStorage() : null; }
+  catch { return null; }
+}
