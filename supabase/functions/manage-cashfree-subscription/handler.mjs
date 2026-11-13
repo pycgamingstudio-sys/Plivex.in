@@ -46,7 +46,8 @@ export function createManageCashfreeSubscriptionHandler({ createClient, getEnv, 
         cancellation_requested_at: desired ? timestamp : null,
         updated_at: timestamp,
       }).eq("id", subscription.id).eq("workspace_id", profile.workspace_id)
-        .eq("gateway", "cashfree").eq("provider", "cashfree").eq("status", "active");
+        .eq("gateway", "cashfree").eq("provider", "cashfree").eq("status", "active")
+        .lte("started_at", timestamp).gt("expires_at", timestamp);
       // Compare-and-set: a competing cancel/resume that read the same state
       // cannot overwrite the first writer. Null is handled explicitly.
       update = subscription.cancel_at_period_end === null
