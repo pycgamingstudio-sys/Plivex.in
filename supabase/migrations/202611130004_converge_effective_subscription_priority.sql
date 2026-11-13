@@ -77,6 +77,7 @@ else (select min(s.started_at) from public.subscriptions s where s.workspace_id=
   v_final := $final$
 else (select s.started_at from public.subscriptions s where s.workspace_id=p_workspace_id and s.status::text='active' and s.expires_at > clock_timestamp() and s.started_at <= clock_timestamp() and s.tier::text in ('basic','pro') order by CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at desc, s.created_at desc limit 1) end,$final$;
 
+  RAISE NOTICE 'startedAt old fragment position=%; function excerpt=%', position(v_old IN v_def), substring(v_def from position('startedAt' IN v_def) for 600);
   IF position(v_final IN v_def) = 0 THEN
     IF position(v_old IN v_def) = 0 THEN
       RAISE EXCEPTION 'Unexpected get_access_status startedAt query after 202610280004; refusing to modify';
