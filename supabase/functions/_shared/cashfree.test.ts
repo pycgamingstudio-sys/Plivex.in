@@ -24,3 +24,32 @@ Deno.test("published plan price is consistent across accounts in the same countr
   if (!india.available || india.amountMinor !== 19900 || !usa.available || usa.amountMinor !== 599)
     throw new Error("Published country prices must be stable and account-independent");
 });
+
+
+Deno.test("Cashfree webhook HMAC accepts only the exact signed timestamp and raw body", async () => {
+  const { verifyWebhookSignature } = await import("./cashfree.ts");
+  const secret = "ci-only-cashfree-webhook-secret";
+  const timestamp = "1794580000";
+  const raw = JSON.stringify({ type: "PAYMENT_SUCCESS_WEBHOOK", data: { order: { order_id: "PLXCF-TEST" } } });
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+  );
+  const digest = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(timestamp + raw));
+  const signature = btoa(String.fromCharCode(...new Uint8Array(digest)));
+
+  if (!await verifyWebhookSignature(raw, timestamp, signature, secret)) {
+    throw new Error("Valid Cashfree webhook signature was rejected");
+  }
+  if (await verifyWebhookSignature(raw + " ", timestamp, signature, secret)) {
+    throw new Error("Modified raw webhook body was accepted");
+  }
+  if (await verifyWebhookSignature(raw, timestamp + "1", signature, secret)) {
+    throw new Error("Modified webhook timestamp was accepted");
+  }
+  if (await verifyWebhookSignature(raw, timestamp, signature, "wrong-secret")) {
+    throw new Error("Wrong webhook secret was accepted");
+  }
+  if (await verifyWebhookSignature(raw, timestamp, "", secret)) {
+    throw new Error("Missing webhook signature was accepted");
+  }
+});
