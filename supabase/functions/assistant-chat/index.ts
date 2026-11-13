@@ -257,7 +257,7 @@ function validateAction(action: any) {
     const subtotal = items.reduce((sum: number, item: any) => sum + item.quantity * item.rate, 0);
     const discountValue = discount_type === "percent" ? subtotal * discount / 100 : Math.min(discount, subtotal);
     const tax = items.reduce((sum: number, item: any) => sum + (item.quantity * item.rate) * (item.gst_rate || tax_rate) / 100, 0);
-    return { type, payload, summary: "Prepare invoice draft for " + client_name + " — " + items.length + " item(s), approx. ₹" + Math.max(0, subtotal - discountValue + tax).toLocaleString("en-IN") + " (GST and totals will be calculated by Plivex)" };
+    return { type, payload, summary: "Prepare invoice draft for " + client_name + " — " + items.length + " item(s), approx. " + currency + " " + Math.max(0, subtotal - discountValue + tax).toLocaleString(currency === "INR" ? "en-IN" : undefined) + " (GST and totals will be calculated by Plivex)" };
   }
   if (type === "create_client") {
     const name = text(p.name, 120);
