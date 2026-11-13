@@ -38,7 +38,7 @@ export default function Dashboard({ initialTab }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const navigate = useNavigate();
-  const { isPremium, openPaywall, planName, plan, canAccess } = usePaywall();
+  const { isPremium, openPaywall, planName, plan, planLoading, canAccess } = usePaywall();
   const { user } = useAuth();
   const { role, isAccountant } = useRole();
   useEffect(() => {
@@ -148,7 +148,7 @@ export default function Dashboard({ initialTab }) {
 
       {accountOpen && <AccountProfileModal onClose={() => setAccountOpen(false)} />}
       <PresenceBeacon />
-      <WelcomePopup />
+      <WelcomePopup userId={user?.id} planName={planName} plan={plan} planLoading={planLoading} />
       <ChatWidget />
       <AssistantWidget />
 
