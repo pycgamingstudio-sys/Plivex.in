@@ -1,0 +1,146 @@
+-- Part 3 hardening: serialize Cashfree refund events per subscription.
+-- Prevent concurrent partial refunds from exceeding the original payment amount.
+CREATE OR REPLACE FUNCTION public.apply_cashfree_refund_event(
+  p_subscription_id uuid,
+  p_provider_refund_id text,
+  p_amount_minor bigint,
+  p_currency text,
+  p_refund_status text,
+  p_raw jsonb DEFAULT '{}'::jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  v_order public.subscriptions%ROWTYPE;
+  v_existing public.payment_refunds%ROWTYPE;
+  v_has_existing boolean := false;
+  v_original bigint;
+  v_prior_total bigint;
+  v_total bigint;
+  v_status text := lower(COALESCE(p_refund_status, ''));
+  v_next_status text;
+  v_full boolean;
+BEGIN
+  IF p_subscription_id IS NULL
+     OR p_provider_refund_id IS NULL OR length(trim(p_provider_refund_id)) = 0
+     OR p_amount_minor IS NULL OR p_amount_minor <= 0
+     OR p_currency IS NULL OR upper(p_currency) NOT IN ('INR','USD','GBP','AED','CAD','AUD','SGD')
+     OR v_status NOT IN ('pending','success','failed') THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'invalid_refund_data');
+  END IF;
+
+  SELECT * INTO v_order
+  FROM public.subscriptions
+  WHERE id = p_subscription_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'subscription_not_found');
+  END IF;
+
+  IF lower(COALESCE(v_order.gateway,'')) <> 'cashfree'
+     OR lower(COALESCE(v_order.provider,'')) <> 'cashfree'
+     OR upper(COALESCE(v_order.currency,'')) <> upper(p_currency) THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'refund_order_mismatch');
+  END IF;
+
+  v_original := COALESCE(
+    v_order.amount_minor_units,
+    CASE WHEN upper(v_order.currency) = 'INR' THEN v_order.amount_paise::bigint END
+  );
+  IF v_original IS NULL OR v_original <= 0 OR p_amount_minor > v_original THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'refund_amount_invalid');
+  END IF;
+
+  SELECT * INTO v_existing
+  FROM public.payment_refunds
+  WHERE provider = 'cashfree' AND provider_refund_id = p_provider_refund_id
+  FOR UPDATE;
+  v_has_existing := FOUND;
+
+  IF v_has_existing AND v_existing.subscription_id <> p_subscription_id THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'refund_id_already_used');
+  END IF;
+
+  IF v_has_existing AND v_existing.status = 'success' THEN
+    IF v_status <> 'success' THEN
+      RETURN jsonb_build_object('ok', true, 'already_applied', true, 'reason', 'refund_already_finalized');
+    END IF;
+    IF v_existing.amount_minor_units <> p_amount_minor THEN
+      RETURN jsonb_build_object('ok', false, 'reason', 'refund_amount_conflict');
+    END IF;
+    RETURN jsonb_build_object('ok', true, 'already_applied', true);
+  END IF;
+
+  -- Do not let a delayed PENDING event overwrite a previously failed refund.
+  IF v_has_existing AND v_existing.status = 'failed' AND v_status = 'pending' THEN
+    RETURN jsonb_build_object('ok', true, 'already_applied', true, 'reason', 'stale_refund_event');
+  END IF;
+
+  SELECT COALESCE(sum(amount_minor_units), 0)::bigint INTO v_prior_total
+  FROM public.payment_refunds
+  WHERE subscription_id = p_subscription_id
+    AND status = 'success'
+    AND provider_refund_id <> p_provider_refund_id;
+
+  v_total := v_prior_total + CASE WHEN v_status = 'success' THEN p_amount_minor ELSE 0 END;
+  IF v_total > v_original THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'cumulative_refund_exceeds_payment');
+  END IF;
+
+  INSERT INTO public.payment_refunds (
+    subscription_id, user_id, workspace_id, provider, provider_refund_id,
+    amount_minor_units, currency, status, raw, updated_at
+  ) VALUES (
+    v_order.id, v_order.user_id, v_order.workspace_id, 'cashfree', p_provider_refund_id,
+    p_amount_minor, upper(p_currency), v_status, COALESCE(p_raw, '{}'::jsonb), clock_timestamp()
+  )
+  ON CONFLICT (provider, provider_refund_id) DO UPDATE SET
+    amount_minor_units = EXCLUDED.amount_minor_units,
+    currency = EXCLUDED.currency,
+    status = EXCLUDED.status,
+    raw = EXCLUDED.raw,
+    updated_at = EXCLUDED.updated_at;
+
+  v_full := v_total >= v_original;
+  v_next_status := CASE
+    WHEN v_full THEN 'success'
+    WHEN v_total > 0 THEN 'partially_refunded'
+    ELSE v_status
+  END;
+
+  UPDATE public.subscriptions
+  SET refund_status = v_next_status,
+      payment_status = CASE
+        WHEN v_full THEN 'refunded'
+        WHEN v_total > 0 THEN 'partially_refunded'
+        ELSE payment_status
+      END,
+      refunded_at = CASE WHEN v_full THEN clock_timestamp() ELSE NULL END,
+      status = CASE WHEN v_full THEN 'failed' ELSE status END,
+      updated_at = clock_timestamp()
+  WHERE id = v_order.id;
+
+  UPDATE public.payment_logs
+  SET refund_status = v_next_status,
+      refund_amount_minor_units = v_total,
+      updated_at = clock_timestamp()
+  WHERE subscription_id = v_order.id AND provider = 'cashfree';
+
+  RETURN jsonb_build_object(
+    'ok', true,
+    'already_applied', false,
+    'refund_status', v_next_status,
+    'refunded_minor_units', v_total,
+    'fully_refunded', v_full
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.apply_cashfree_refund_event(uuid,text,bigint,text,text,jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_cashfree_refund_event(uuid,text,bigint,text,text,jsonb)
+  TO service_role;
