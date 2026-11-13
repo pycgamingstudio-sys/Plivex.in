@@ -9,7 +9,8 @@ export default function GoogleSignInButton({ inviteCode = "", countryCode = "IN"
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
-    if (inviteCode) rememberPendingInviteCode(inviteCode);\n    else { try { window.localStorage.setItem("plivex.signup.region", JSON.stringify({ countryCode, localeCode })); } catch {} }
+    if (inviteCode) rememberPendingInviteCode(inviteCode);
+    else { try { window.localStorage.setItem("plivex.signup.region", JSON.stringify({ countryCode, localeCode })); } catch {} }
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
