@@ -37,7 +37,7 @@ if ! { [[ "$cancel_status" == "200" && "$resume_status" == "409" ]] || [[ "$canc
   echo "FAIL: expected exactly one success and one stale conflict; cancel=$cancel_status resume=$resume_status"
   exit 1
 fi
-final="$(psql -X -A -t -F '|' -v ON_ERROR_STOP=1 -c "SELECT cancel_at_period_end::text, cancellation_requested_at IS NOT NULL FROM public.cashfree_cancel_cas_test WHERE id='sub-cas-1'")"
+final="$(psql -X -A -t -F '|' -v ON_ERROR_STOP=1 -c "SELECT CASE WHEN cancel_at_period_end THEN 'true' ELSE 'false' END, CASE WHEN cancellation_requested_at IS NOT NULL THEN 'true' ELSE 'false' END FROM public.cashfree_cancel_cas_test WHERE id='sub-cas-1'")"
 if [[ "$cancel_status" == "200" && "$final" != "true|true" ]]; then
   echo "FAIL: cancel API success did not match final PostgreSQL state: $final"
   exit 1
