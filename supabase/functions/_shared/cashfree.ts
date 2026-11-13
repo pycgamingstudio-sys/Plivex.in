@@ -58,8 +58,7 @@ export async function activatePaidOrder(admin:any,order:any,providerOrder:any,pa
  if(providerOrder?.order_id!==order.txnid||providerOrder?.order_status!=="PAID"||String(providerOrder?.order_currency||"").toUpperCase()!==currency||
     paymentCurrency!==currency||!Number.isSafeInteger(expected)||actualMinor!==expected||paymentAmount!==expected||payment?.payment_status!=="SUCCESS")
    return {ok:false,reason:"payment_not_verified"};
- if(order.status==="active")return {ok:true,alreadyApplied:true};
- if(order.status!=="created"||!isPlanId(order.plan_id))return {ok:false,reason:"order_not_eligible"};
+ if((order.status!=="created"&&order.status!=="active")||!isPlanId(order.plan_id))return {ok:false,reason:"order_not_eligible"};
  const paymentId=String(payment?.cf_payment_id||"");
  if(!paymentId)return {ok:false,reason:"missing_provider_payment_id"};
  const {data,error}=await admin.rpc("apply_cashfree_subscription_payment",{
