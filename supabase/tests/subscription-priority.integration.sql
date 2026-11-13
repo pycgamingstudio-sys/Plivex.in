@@ -115,21 +115,15 @@ DO $$ BEGIN
 END $$;
 
 -- Tenant isolation: authenticated workspace A must not read workspace B subscriptions.
+DO $ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
+ IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF;
+ IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role NOLOGIN BYPASSRLS; END IF;
+END $;
 ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY subscription_tenant_read ON public.subscriptions
  FOR SELECT TO authenticated
  USING (workspace_id = current_setting('request.jwt.claim.workspace_id', true));
-DO $$ BEGIN
- IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN
-   CREATE ROLE authenticated NOLOGIN;
- END IF;
- IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN
-   CREATE ROLE anon NOLOGIN;
- END IF;
- IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN
-   CREATE ROLE service_role NOLOGIN BYPASSRLS;
- END IF;
-END $$;
 GRANT USAGE ON SCHEMA public TO authenticated, anon, service_role;
 GRANT SELECT ON public.subscriptions TO authenticated, anon, service_role;
 SET request.jwt.claim.workspace_id = 'A';
