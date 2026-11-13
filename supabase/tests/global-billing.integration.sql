@@ -188,6 +188,60 @@ BEGIN
 END
 $downgrade$;
 
+
+-- Reusing one provider payment ID for a different order must be rejected.
+INSERT INTO public.subscriptions (
+ user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,
+ billing_period,gateway,provider,txnid
+) VALUES (
+ '10000000-0000-0000-0000-000000000001','ws-other-order','basic_monthly','basic','created',6,599,5.99,
+ 'USD','US','month','cashfree','cashfree','PLXCF-REUSED-PAYMENT000000000001'
+);
+SET ROLE service_role;
+SELECT public.apply_cashfree_subscription_payment(
+ (SELECT id FROM public.subscriptions WHERE txnid='PLXCF-REUSED-PAYMENT000000000001'),
+ 'CFPAY-001','USD',599,'PAID','SUCCESS','{}'::jsonb,'ci-reused-payment'
+);
+RESET ROLE;
+DO $reuse$
+BEGIN
+ IF (SELECT status::text FROM public.subscriptions WHERE txnid='PLXCF-REUSED-PAYMENT000000000001')<>'created' THEN
+  RAISE EXCEPTION 'A provider payment ID was reused for another subscription';
+ END IF;
+END
+$reuse$;
+
+-- A same-tier renewal extends from the existing paid expiry rather than resetting time.
+INSERT INTO public.subscriptions (
+ user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,
+ billing_period,gateway,provider,txnid,started_at,expires_at
+) VALUES (
+ '10000000-0000-0000-0000-000000000001','ws-renew','basic_monthly','basic','active',6,599,5.99,
+ 'USD','US','month','cashfree','cashfree','PRIOR-BASIC-RENEW',
+ now(),now()+interval '5 days'
+);
+INSERT INTO public.subscriptions (
+ user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,
+ billing_period,gateway,provider,txnid
+) VALUES (
+ '10000000-0000-0000-0000-000000000001','ws-renew','basic_monthly','basic','created',6,599,5.99,
+ 'USD','US','month','cashfree','cashfree','PLXCF-BASIC-RENEW0000000000001'
+);
+SET ROLE service_role;
+SELECT public.apply_cashfree_subscription_payment(
+ (SELECT id FROM public.subscriptions WHERE txnid='PLXCF-BASIC-RENEW0000000000001'),
+ 'CFPAY-BASIC-RENEW','USD',599,'PAID','SUCCESS','{}'::jsonb,'ci-renew'
+);
+RESET ROLE;
+DO $renew$
+DECLARE v_start timestamptz; v_previous_end timestamptz;
+BEGIN
+ SELECT started_at INTO v_start FROM public.subscriptions WHERE txnid='PLXCF-BASIC-RENEW0000000000001';
+ SELECT expires_at INTO v_previous_end FROM public.subscriptions WHERE txnid='PRIOR-BASIC-RENEW';
+ IF v_start < v_previous_end THEN RAISE EXCEPTION 'Basic renewal reset or overlapped the existing paid period'; END IF;
+END
+$renew$;
+
 -- Refund rows are visible only to their owning user.
 INSERT INTO public.payment_refunds (
  subscription_id,user_id,workspace_id,provider,provider_refund_id,amount_minor_units,currency,status
