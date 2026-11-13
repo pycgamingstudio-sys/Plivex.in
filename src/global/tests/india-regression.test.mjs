@@ -35,12 +35,12 @@ function calculateInvoice(items, { discountType = "percent", discount = 0, taxMo
 test("India invoice calculation oracle covers subtotal, percent/flat discount, tax and rounding", () => {
   const items = [{ quantity: 2, rate: 100, gstRate: 18 }, { quantity: 1, rate: 50, gstRate: 5 }];
   assert.deepEqual(calculateInvoice(items, { discountType: "percent", discount: 10 }), {
-    subtotal: 250, discount: 25, taxable: 225, tax: 30.15,
-    cgst: 15.08, sgst: 15.08, igst: 0, total: 255.15,
+    subtotal: 250, discount: 25, taxable: 225, tax: 34.65,
+    cgst: 17.33, sgst: 17.33, igst: 0, total: 259.65,
   });
   assert.deepEqual(calculateInvoice(items, { discountType: "flat", discount: 30, taxMode: "igst" }), {
-    subtotal: 250, discount: 30, taxable: 220, tax: 29.6,
-    cgst: 0, sgst: 0, igst: 29.6, total: 249.6,
+    subtotal: 250, discount: 30, taxable: 220, tax: 33.88,
+    cgst: 0, sgst: 0, igst: 33.88, total: 253.88,
   });
   assert.equal(calculateInvoice([{ quantity: 1, rate: 0.05, gstRate: 5 }]).total, 0.05);
   assert.equal(calculateInvoice([{ quantity: 1, rate: 100, gstRate: 18 }], { discountType: "flat", discount: 500 }).total, 0);
