@@ -706,6 +706,11 @@ export default function Home() {
       // Persist first: the server assigns the official invoice number and deducts stock
       // exactly once. This prevents WhatsApp sharing from creating an unsaved invoice.
       const savedInvoice = await recordInvoice();
+      if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
+        setInvoice((current) => ({ ...current, number: savedInvoice.number }));
+        // Let React update the visible invoice preview before rasterizing it.
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      }
       const pdf = await renderPdfDocument();
       if (!pdf) throw new Error("Invoice preview is not ready. Please try again.");
       const safeNumber = savedInvoice?.number || invoice.number || "INV-000";
@@ -721,14 +726,26 @@ export default function Home() {
       const message = `Hi ${clientName}! 👋\\nHope you are doing well!\\n\\nThank you for your business. Here is your invoice #${safeNumber} for ${totalAmt}.\\n📅 Due Date: ${due}\\n${paymentLine}\\n\\nIf you have any questions, feel free to reply to this message.\\nBest regards,\\n${bizName}`;
 
       // On supported phones, share the actual PDF file through the native share sheet.
-      if (typeof navigator.share === "function" && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
-        if (waWindow) waWindow.close();
-        await navigator.share({ files: [file], title: `Invoice ${safeNumber}`, text: message });
-        recordActivity("Shared invoice PDF", "share");
-        setWhatsappOpen(false);
-        setWhatsappNumber("");
-        notify("Invoice PDF shared. Confirm the recipient and tap Send in WhatsApp.");
-        return;
+      let canShareFile = false;
+      try {
+        canShareFile = typeof navigator.share === "function"
+          && typeof navigator.canShare === "function"
+          && navigator.canShare({ files: [file] });
+      } catch { canShareFile = false; }
+      if (canShareFile) {
+        try {
+          await navigator.share({ files: [file], title: `Invoice ${safeNumber}`, text: message });
+          if (waWindow) waWindow.close();
+          recordActivity("Shared invoice PDF", "share");
+          setWhatsappOpen(false);
+          setWhatsappNumber("");
+          notify("Invoice PDF shared. Confirm the recipient and tap Send in WhatsApp.");
+          return;
+        } catch (shareError) {
+          if (shareError?.name === "AbortError") throw shareError;
+          // Some browsers expose file sharing but reject it at runtime; use the
+          // reliable download + WhatsApp text fallback below.
+        }
       }
 
       // Fallback: download the PDF and open WhatsApp with text. Never put a data: URL
