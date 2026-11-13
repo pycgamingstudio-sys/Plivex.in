@@ -44,6 +44,13 @@ CREATE TABLE public.subscriptions (
  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+INSERT INTO public.subscriptions (
+ user_id,workspace_id,plan_id,plan_name,tier,status,amount,currency,gateway,txnid,amount_paise,started_at,expires_at
+) VALUES (
+ '30000000-0000-0000-0000-000000000003','ws-india-legacy','basic_yearly','Basic Yearly','basic','active',999,
+ 'INR','payu','LEGACY-INR-ANNUAL',99900,now()-interval '1 month',now()+interval '11 months'
+);
+
 CREATE TABLE public.payment_logs (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
  user_id uuid,
@@ -75,6 +82,21 @@ CREATE TABLE public.payment_logs (
 
 \ir ../migrations/202611130007_global_billing_and_cashfree_atomicity.sql
 GRANT SELECT ON public.subscriptions TO service_role;
+
+DO $legacy$
+DECLARE v_period text; v_payment text; v_minor bigint; v_major numeric; v_start timestamptz; v_expiry timestamptz;
+BEGIN
+ SELECT billing_period,payment_status,amount_minor_units,amount_major,started_at,expires_at
+ INTO v_period,v_payment,v_minor,v_major,v_start,v_expiry
+ FROM public.subscriptions WHERE txnid='LEGACY-INR-ANNUAL';
+ IF v_period<>'year' OR v_payment<>'success' OR v_minor<>99900 OR v_major<>999 THEN
+  RAISE EXCEPTION 'Legacy India subscription metadata was not safely backfilled';
+ END IF;
+ IF v_start IS NULL OR v_expiry IS NULL OR v_expiry<=v_start THEN
+  RAISE EXCEPTION 'Legacy India subscription access dates were changed';
+ END IF;
+END
+$legacy$;
 
 DO $privileges$
 BEGIN
