@@ -341,4 +341,42 @@ END
 $refund_rls$;
 RESET ROLE;
 
+
+-- A legacy/user-scoped subscription without workspace_id must retain its paid
+-- period when a later Cashfree renewal is applied.
+INSERT INTO public.subscriptions (
+ user_id,user_email,workspace_id,plan_id,plan_name,tier,status,amount,amount_minor_units,amount_major,
+ currency,country_code,locale_code,billing_period,gateway,provider,txnid,started_at,expires_at
+) VALUES (
+ '40000000-0000-0000-0000-000000000004','null-workspace@example.test',NULL,
+ 'basic_monthly','Basic Monthly','basic','active',6,599,5.99,
+ 'USD','US','en-US','month','cashfree','cashfree','PRIOR-NULL-WORKSPACE',
+ now(),now()+interval '5 days'
+);
+INSERT INTO public.subscriptions (
+ user_id,user_email,workspace_id,plan_id,plan_name,tier,status,amount,amount_minor_units,amount_major,
+ currency,country_code,locale_code,billing_period,gateway,provider,txnid
+) VALUES (
+ '40000000-0000-0000-0000-000000000004','null-workspace@example.test',NULL,
+ 'basic_monthly','Basic Monthly','basic','created',6,599,5.99,
+ 'USD','US','en-US','month','cashfree','cashfree','ORDER-NULL-WORKSPACE'
+);
+SET ROLE service_role;
+SELECT public.apply_cashfree_subscription_payment(
+ (SELECT id FROM public.subscriptions WHERE txnid='ORDER-NULL-WORKSPACE'),
+ 'CFPAY-NULL-WORKSPACE','USD',599,'PAID','SUCCESS','{}'::jsonb,'ci-null-workspace'
+);
+RESET ROLE;
+DO $null_workspace_renewal$
+DECLARE v_start timestamptz; v_previous_end timestamptz;
+BEGIN
+ SELECT started_at INTO v_start FROM public.subscriptions WHERE txnid='ORDER-NULL-WORKSPACE';
+ SELECT expires_at INTO v_previous_end FROM public.subscriptions WHERE txnid='PRIOR-NULL-WORKSPACE';
+ IF v_start IS NULL OR v_previous_end IS NULL OR v_start < v_previous_end THEN
+  RAISE EXCEPTION 'NULL workspace renewal lost prior paid duration: start %, prior expiry %',
+    v_start,v_previous_end;
+ END IF;
+END
+$null_workspace_renewal$;
+
 ROLLBACK;
