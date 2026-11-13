@@ -203,3 +203,31 @@ $$;
 
 REVOKE ALL ON FUNCTION public.apply_cashfree_subscription_payment(uuid,text,text,bigint,text,text,jsonb,text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.apply_cashfree_subscription_payment(uuid,text,text,bigint,text,text,jsonb,text) TO service_role;
+
+-- Refund ledger: each provider refund has its own idempotency key, allowing
+-- safe retries and multiple partial refunds without double-counting.
+CREATE TABLE IF NOT EXISTS public.payment_refunds (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  subscription_id uuid NOT NULL REFERENCES public.subscriptions(id) ON DELETE RESTRICT,
+  payment_log_id uuid REFERENCES public.payment_logs(id) ON DELETE RESTRICT,
+  user_id uuid NOT NULL,
+  workspace_id text,
+  provider text NOT NULL DEFAULT 'cashfree' CHECK (provider = 'cashfree'),
+  provider_refund_id text NOT NULL,
+  amount_minor_units bigint NOT NULL CHECK (amount_minor_units > 0),
+  currency text NOT NULL CHECK (currency IN ('INR','USD','GBP','AED','CAD','AUD','SGD')),
+  status text NOT NULL CHECK (status IN ('pending','success','failed')),
+  raw jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT payment_refunds_provider_refund_uidx UNIQUE (provider, provider_refund_id)
+);
+CREATE INDEX IF NOT EXISTS payment_refunds_subscription_status_idx
+  ON public.payment_refunds (subscription_id, status);
+ALTER TABLE public.payment_refunds ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "own payment refunds read" ON public.payment_refunds;
+CREATE POLICY "own payment refunds read" ON public.payment_refunds
+  FOR SELECT TO authenticated USING (user_id = (SELECT auth.uid()));
+REVOKE ALL ON public.payment_refunds FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.payment_refunds TO authenticated;
+GRANT ALL ON public.payment_refunds TO service_role;
