@@ -29,7 +29,7 @@ export async function handleCashfreeRefundEvent(
   const refundId = String(refund.cf_refund_id || refund.refund_id || "");
   const refundStatus = String(refund.refund_status || "").toUpperCase();
   const refundAmount = Number(refund.refund_amount ?? refund.amount);
-  const refundMinor = Math.round(refundAmount * 100);
+  const refundMinor = refundAmount * 100;
   if (
     !refundId ||
     !["SUCCESS", "PENDING", "FAILED", "CANCELLED"].includes(refundStatus) ||
