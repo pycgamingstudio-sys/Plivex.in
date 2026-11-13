@@ -15,9 +15,11 @@ test("every registered Global country currency is supported by invoice formattin
 });
 
 test("currency formatting uses each currency locale and rejects unknown codes", () => {
-  assert.match(formatMoney(1234.5, "CAD"), /CA\$/);
-  assert.match(formatMoney(1234.5, "AUD"), /A\$/);
-  assert.match(formatMoney(1234.5, "SGD"), /S\$/);
+  for (const code of ["CAD", "AUD", "SGD"]) {
+    const locale = getCurrencyLocale(code);
+    const expected = new Intl.NumberFormat(locale, { style: "currency", currency: code, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(1234.5);
+    assert.equal(formatMoney(1234.5, code), expected);
+  }
   assert.throws(() => formatMoney(12, "XYZ"), RangeError);
 });
 
