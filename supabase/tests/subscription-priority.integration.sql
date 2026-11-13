@@ -49,7 +49,9 @@ END
 $function$;
 
 -- PostgreSQL 17.12 actual rendered definition for historical outcome A.
-\echo 'PG17 FUNCTION DEFINITION — HISTORICAL OUTCOME A'
+\echo 'PG17 CURRENT_PLAN — HISTORICAL OUTCOME A'
+SELECT pg_get_functiondef('public.current_plan(text)'::regprocedure);
+\echo 'PG17 GET_ACCESS_STATUS — HISTORICAL OUTCOME A'
 SELECT pg_get_functiondef('public.get_access_status(text)'::regprocedure);
 -- Outcome A: the first historical duplicate migration body was applied.
 \ir ../migrations/202611130004_converge_effective_subscription_priority.sql
@@ -78,7 +80,9 @@ DO $$ BEGIN
 END $$;
 
 -- PostgreSQL 17.12 actual rendered definition for historical outcome B.
-\echo 'PG17 FUNCTION DEFINITION — HISTORICAL OUTCOME B'
+\echo 'PG17 CURRENT_PLAN — HISTORICAL OUTCOME B'
+SELECT pg_get_functiondef('public.current_plan(text)'::regprocedure);
+\echo 'PG17 GET_ACCESS_STATUS — HISTORICAL OUTCOME B'
 SELECT pg_get_functiondef('public.get_access_status(text)'::regprocedure);
 -- Outcome B: recreate the already-converged historical definition and re-run migration idempotently.
 CREATE OR REPLACE FUNCTION public.current_plan(p_workspace_id text)
