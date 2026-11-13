@@ -65,3 +65,26 @@ END
 $expired$;
 SQL
 echo "PASS: expired subscription rejected by active-window predicate"
+
+# Future-start guard: a not-yet-started subscription must not accept cancellation.
+psql -v ON_ERROR_STOP=1 <<'SQL'
+UPDATE public.cashfree_cancel_cas_test
+SET expires_at=clock_timestamp()+interval '30 days',
+    started_at=clock_timestamp()+interval '1 day',
+    cancel_at_period_end=false,
+    updated_at=clock_timestamp()
+WHERE id='sub-cas-1';
+DO $future_started$
+DECLARE v_count integer;
+BEGIN
+  UPDATE public.cashfree_cancel_cas_test
+  SET cancel_at_period_end=true, updated_at=clock_timestamp()
+  WHERE id='sub-cas-1' AND workspace_id='workspace-cas'
+    AND gateway='cashfree' AND provider='cashfree' AND status='active'
+    AND started_at <= clock_timestamp() AND expires_at > clock_timestamp();
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  IF v_count <> 0 THEN RAISE EXCEPTION 'Future-start subscription accepted a cancellation update'; END IF;
+END
+$future_started$;
+SQL
+echo "PASS: future-start subscription rejected by active-window predicate"
