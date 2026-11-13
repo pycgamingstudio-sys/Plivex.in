@@ -104,8 +104,19 @@ export const AuthProvider = ({ children }) => {
       // 2) Standalone accounts become Business Owner of their own workspace.
       if (!hadInvite && (!currentUser?.workspace_id || !currentUser?.role || currentUser.role === 'user')) {
         try {
-          const r = await db.functions.invoke('ensureOwnerRole');
-          if (r?.data?.ok) currentUser = (await db.auth.me()) || currentUser;
+          let signupRegion = {};
+          try {
+            const rawRegion = window.localStorage.getItem('plivex.signup.region');
+            const parsedRegion = rawRegion ? JSON.parse(rawRegion) : null;
+            if (parsedRegion && typeof parsedRegion.countryCode === 'string' && typeof parsedRegion.localeCode === 'string') {
+              signupRegion = { countryCode: parsedRegion.countryCode, localeCode: parsedRegion.localeCode };
+            }
+          } catch { /* ignore stale or malformed local signup preference */ }
+          const r = await db.functions.invoke('ensureOwnerRole', signupRegion);
+          if (r?.data?.ok) {
+            try { window.localStorage.removeItem('plivex.signup.region'); } catch {}
+            currentUser = (await db.auth.me()) || currentUser;
+          }
         } catch (ownerError) {
           console.error('Owner role bootstrap failed:', ownerError);
         }
