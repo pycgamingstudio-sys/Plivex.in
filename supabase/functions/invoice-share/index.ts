@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { sanitizePublicInvoice } from "../_shared/public-invoice-sanitizer.mjs";
 const ORIGINS = new Set(["https://plivex.in", "https://www.plivex.in", "https://plivex.netlify.app"]);
 const allowed = (o: string | null) => !o || ORIGINS.has(o);
 const cors = (o: string | null) => ({ "Access-Control-Allow-Origin": o && allowed(o) ? o : "https://plivex.in", "Vary": "Origin", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" });
@@ -37,19 +38,7 @@ Deno.serve(async (req:Request) => {
    if(invoiceError||!invoice) return json({error:"Invoice is no longer available."},404,origin);
    const {error:viewError}=await admin.rpc("record_invoice_share_view",{share_link_id:link.id});
    if(viewError){console.error("invoice share view tracking failed",viewError);return json({error:"Could not load invoice activity."},503,origin);}
-   const snapshot=invoice.invoice_snapshot&&typeof invoice.invoice_snapshot==="object"?invoice.invoice_snapshot:{};
-   const business=snapshot.business&&typeof snapshot.business==="object"?snapshot.business:{};
-   const client=snapshot.client&&typeof snapshot.client==="object"?snapshot.client:{};
-   const publicSnapshot={
-    business:{name:business.name,address:business.address,gstin:business.gstin,locale:business.locale,countryLocale:business.countryLocale},
-    client:{name:client.name,company:client.company,address:client.address,gstin:client.gstin},
-    items:Array.isArray(snapshot.items)?snapshot.items.map((item:Record<string,unknown>)=>({
-     id:item.id,description:item.description,quantity:item.quantity,rate:item.rate,gstRate:item.gstRate,
-    })) : [],
-    notes:snapshot.notes,
-    terms:snapshot.terms,
-   };
-   return json({invoice:{...invoice,invoice_snapshot:publicSnapshot}},200,origin);
+   return json({invoice:sanitizePublicInvoice(invoice)},200,origin);
   }
   const authorization=req.headers.get("Authorization");
   if(!authorization?.startsWith("Bearer ")) return json({error:"Please sign in."},401,origin);
