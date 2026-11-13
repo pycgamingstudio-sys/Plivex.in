@@ -23,7 +23,7 @@ const number = (value: unknown, fallback = 0) => {
 const allowedCategories = ["Rent", "Raw Materials", "Utilities", "Salary", "Logistics", "Software", "Marketing", "Other"];
 const SUPPORTED_CURRENCIES = new Set(["INR", "USD", "EUR", "GBP", "AED", "CAD", "AUD", "SGD"]);
 
-async function loadLiveContext(supabase: ReturnType<typeof createClient>, workspaceId: string) {
+async function loadLiveContext(supabase: any, workspaceId: string) {
   const results = await Promise.all([
     supabase.from("invoices").select("number,client_name,issue_date,due_date,status,subtotal,tax_value,total,is_draft,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("clients").select("name,company,email,phone,gstin,address,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
@@ -35,7 +35,7 @@ async function loadLiveContext(supabase: ReturnType<typeof createClient>, worksp
     supabase.from("business_profile").select("name,email,phone,gstin,address,upi_id,logo_url").eq("workspace_id", workspaceId).maybeSingle(),
   ]);
   const names = ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile"];
-  const rows = Object.fromEntries(names.map((name, i) => [name, results[i].data ?? (name === "business_profile" ? null : [])]));
+  const rows: Record<string, any> = Object.fromEntries(names.map((name, i) => [name, results[i].data ?? (name === "business_profile" ? null : [])]));
   const errors = names.filter((name, i) => results[i].error).map((name) => name);
   const invoices = rows.invoices || [];
   const clients = rows.clients || [];
@@ -43,10 +43,10 @@ async function loadLiveContext(supabase: ReturnType<typeof createClient>, worksp
   const expenses = rows.expenses || [];
   const quotations = rows.quotations || [];
   const leads = rows.leads || [];
-  const money = (items, field) => items.reduce((sum, item) => sum + number(item[field]), 0);
-  const reportableInvoices = invoices.filter((item) => String(item.status).toLowerCase() !== "cancelled" && !item.is_draft);
-  const paidInvoices = reportableInvoices.filter((item) => String(item.status).toLowerCase() === "paid");
-  const pendingInvoices = reportableInvoices.filter((item) => String(item.status).toLowerCase() === "pending");
+  const money = (items: any[], field: string) => items.reduce((sum: number, item: any) => sum + number(item[field]), 0);
+  const reportableInvoices = invoices.filter((item: any) => String(item.status).toLowerCase() !== "cancelled" && !item.is_draft);
+  const paidInvoices = reportableInvoices.filter((item: any) => String(item.status).toLowerCase() === "paid");
+  const pendingInvoices = reportableInvoices.filter((item: any) => String(item.status).toLowerCase() === "pending");
   const invoiceSummary = {
     loadedRecords: invoices.length,
     reportableCount: reportableInvoices.length,
@@ -62,7 +62,7 @@ async function loadLiveContext(supabase: ReturnType<typeof createClient>, worksp
     summaries: {
       invoices: invoiceSummary,
       clients: { loadedRecords: clients.length },
-      stock: { loadedRecords: stock.length, lowStockCount: stock.filter((item) => number(item.quantity) <= number(item.low_stock, 5)).length, totalUnits: money(stock, "quantity") },
+      stock: { loadedRecords: stock.length, lowStockCount: stock.filter((item: any) => number(item.quantity) <= number(item.low_stock, 5)).length, totalUnits: money(stock, "quantity") },
       expenses: { loadedRecords: expenses.length, totalAmount: money(expenses, "amount") },
       quotations: { loadedRecords: quotations.length, totalValue: money(quotations, "total") },
       leads: { loadedRecords: leads.length, totalPotentialValue: money(leads, "value") },
@@ -330,14 +330,14 @@ async function handleRequest(req: Request) {
         parts.push({ inline_data: { mime_type: imageMime, data: imageData } });
       }
       return { role: item?.role === "assistant" ? "model" : "user", parts };
-    }).filter((item) => item.parts.some((part) => Boolean(part.text?.trim()) || Boolean(part.inline_data)));
+    }).filter((item: any) => item.parts.some((part: any) => Boolean(part.text?.trim()) || Boolean(part.inline_data)));
     if (!messages.length || messages[messages.length - 1].role !== "user") return json({ error: "Please enter a message." }, 400);
 
     const latestUserText = [...incoming].reverse().find((item: { role?: string }) => item?.role !== "assistant")?.content || "";
     const isRecordCreationRequest = /\b(add|create|save|record|jod(?:o)?|bana(?:o|na)?|darj)\b/i.test(String(latestUserText));
     // Image analysis and record creation do not need a 500-row workspace snapshot.
     const hasReadQueryIntent = /(due|balance|ledger|pending|kitna|kitne|baki|baaki|outstanding|total|report|dikha|bata|show|list|how many|how much)/i.test(String(latestUserText));
-    const liveContext = image && !hasReadQueryIntent
+    const liveContext: any = image && !hasReadQueryIntent
       ? { business: null, summaries: {}, records: {}, limitNote: "Live workspace data was not needed for this receipt-only request." }
       : await loadLiveContext(supabase, profile.workspace_id);
     const systemInstruction = [
