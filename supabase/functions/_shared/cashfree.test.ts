@@ -149,8 +149,8 @@ Deno.test("Cashfree payment activation requires exact provider order and payment
     ["negative payment amount", providerOrder, { ...payment, payment_amount: -5.99 }],
   ];
   for (const [label, po, pay] of invalidCases) {
-    const before = rpcCalls;
+    const callsBefore = rpcCalls;
     const result = await run(po, pay);
-    if (result.ok || rpcCalls !== before) throw new Error(label + " was not rejected before the payment RPC");
+    if (result.ok || rpcCalls !== callsBefore) throw new Error(label + " was not rejected before the payment RPC");
   }
 });
