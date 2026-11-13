@@ -45,7 +45,7 @@ Deno.serve(async(req:Request)=>{
     user_id:user.id,user_email:email,workspace_id:profile.workspace_id,
     plan:plan.plan.id,plan_id:plan.plan.id,plan_name:plan.plan.name,tier:plan.plan.tier,
     status:"created",payment_status:"created",
-    amount:Math.round(amountMinor/100),amount_minor_units:amountMinor,
+    amount:Math.round(amountMinor/100),amount_minor_units:amountMinor,amount_major:amountMinor/100,
     amount_paise:currency==="INR"?amountMinor:null,currency,country_code:countryCode,
     billing_period:plan.period,idempotency_key:orderId,
     gateway:"cashfree",provider:"cashfree",txnid:orderId,
