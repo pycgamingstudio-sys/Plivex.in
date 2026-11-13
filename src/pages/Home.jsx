@@ -696,7 +696,7 @@ export default function Home() {
     if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
     if (!requireValid()) { notify("Please complete all required invoice details before sharing on WhatsApp", "error"); return; }
     const digits = normalizePhone(phone);
-    if (!digits) { notify("Please enter a valid 10-digit WhatsApp number.", "error"); return; }
+    if (!digits) { notify("Please enter a valid WhatsApp number with its country code.", "error"); return; }
     // Open the WhatsApp window synchronously (within the user gesture) to avoid
     // popup blockers, then navigate it to the final URL once the PDF link is ready.
     const waWindow = window.open("", "_blank");
