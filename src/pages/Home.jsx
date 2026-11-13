@@ -276,9 +276,10 @@ function computeTotal(invoice) {
 
 function normalizePhone(raw) {
   const digits = String(raw || "").replace(/\D/g, "");
-  if (digits.length === 10) return digits;
-  if (digits.length === 12 && digits.startsWith("91")) return digits.slice(2);
-  if (digits.length === 11 && digits.startsWith("0")) return digits.slice(1);
+  // Accept Indian local numbers and international E.164 numbers (without the +).
+  if (digits.length === 10) return `91${digits}`;
+  if (digits.length === 11 && digits.startsWith("0")) return `91${digits.slice(1)}`;
+  if (digits.length >= 11 && digits.length <= 15 && !digits.startsWith("0")) return digits;
   return null;
 }
 
@@ -549,9 +550,10 @@ export default function Home() {
   const recordInvoice = async () => {
     const total = computeTotal(invoice);
     const taxValue = Math.max(0, total - invoice.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.rate) || 0), 0));
-    await saveInvoiceToServer({ ...invoice, total, taxValue });
+    const savedInvoice = await saveInvoiceToServer({ ...invoice, total, taxValue });
     await refreshAccessStatus();
-    trackStaffAction({ label: `Invoice ${invoice.number || "INV"} generated for ${invoice.client.name || "client"}`, type: "invoice", revenue: total });
+    trackStaffAction({ label: `Invoice ${savedInvoice.number || invoice.number || "INV"} generated for ${invoice.client.name || "client"}`, type: "invoice", revenue: total });
+    return savedInvoice;
   };
   const recordActivity = (label, type = "action") => pushItem(KEYS.activity, { id: genId("act"), type, label, date: new Date().toISOString() });
   const filename = `Plivex_${(invoice.number || "INV-000").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "")}.pdf`;
@@ -699,43 +701,59 @@ export default function Home() {
     // popup blockers, then navigate it to the final URL once the PDF link is ready.
     const waWindow = window.open("", "_blank");
     setWhatsappSending(true);
-    notify("Generating your invoice PDF…", "info");
-    let pdfLink = "";
+    notify("Saving invoice and preparing PDF…", "info", 0);
     try {
+      // Persist first: the server assigns the official invoice number and deducts stock
+      // exactly once. This prevents WhatsApp sharing from creating an unsaved invoice.
+      const savedInvoice = await recordInvoice();
       const pdf = await renderPdfDocument();
-      if (pdf) {
-        const blob = pdf.output("blob");
-        const file = new File([blob], filename, { type: "application/pdf" });
-        const { file_url } = await db.integrations.Core.UploadFile({ file });
-        pdfLink = file_url || "";
+      if (!pdf) throw new Error("Invoice preview is not ready. Please try again.");
+      const safeNumber = savedInvoice?.number || invoice.number || "INV-000";
+      const safeFilename = `Plivex_${String(safeNumber).replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "")}.pdf`;
+      const blob = pdf.output("blob");
+      const file = new File([blob], safeFilename, { type: "application/pdf" });
+      const clientName = invoice.client.name || "there";
+      const totalAmt = money(computeTotal(invoice), invoice.currency);
+      const due = invoice.dueDate ? dateLabel(invoice.dueDate) : "—";
+      const upi = (invoice.upiId || "").trim();
+      const bizName = invoice.business.name || "Plivex";
+      const paymentLine = upi ? `💳 Payment Details / UPI: ${upi}` : "💳 Payment Details: Please contact us for payment details.";
+      const message = `Hi ${clientName}! 👋\\nHope you are doing well!\\n\\nThank you for your business. Here is your invoice #${safeNumber} for ${totalAmt}.\\n📅 Due Date: ${due}\\n${paymentLine}\\n\\nIf you have any questions, feel free to reply to this message.\\nBest regards,\\n${bizName}`;
+
+      // On supported phones, share the actual PDF file through the native share sheet.
+      if (typeof navigator.share === "function" && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
+        if (waWindow) waWindow.close();
+        await navigator.share({ files: [file], title: `Invoice ${safeNumber}`, text: message });
+        recordActivity("Shared invoice PDF", "share");
+        setWhatsappOpen(false);
+        setWhatsappNumber("");
+        notify("Invoice PDF shared. Confirm the recipient and tap Send in WhatsApp.");
+        return;
       }
+
+      // Fallback: download the PDF and open WhatsApp with text. Never put a data: URL
+      // in the message because it is not a public download link.
+      pdf.save(safeFilename);
+      const fallbackMessage = `${message}\\n\\n📎 The invoice PDF has been downloaded. Please attach it from your Downloads before sending.`;
+      const url = `https://wa.me/${digits}?text=${encodeURIComponent(fallbackMessage)}`;
+      if (waWindow) waWindow.location.href = url;
+      else window.location.href = url;
+      recordActivity("Prepared WhatsApp invoice message", "share");
+      setWhatsappOpen(false);
+      setWhatsappNumber("");
+      notify("PDF downloaded and WhatsApp opened. Attach the PDF before tapping Send.");
     } catch (error) {
       if (waWindow) waWindow.close();
-      const message = String(error?.message || "");
-      if (message.startsWith("PLAN_LIMIT_REACHED|")) openPaywall("Invoice limit reached: " + message.split("|").slice(1).join(" · "));
-      else if (message.startsWith("PLAN_FEATURE_LOCKED|")) openPaywall("This feature requires an upgrade: " + message.split("|").slice(1).join(" · "));
-      else notify(message || "Could not save the invoice. Please try again.", "error");
+      if (error?.name === "AbortError") notify("Sharing cancelled. The invoice is saved; you can share it again anytime.", "info");
+      else {
+        const message = String(error?.message || "");
+        if (message.startsWith("PLAN_LIMIT_REACHED|")) openPaywall("Invoice limit reached: " + message.split("|").slice(1).join(" · "));
+        else if (message.startsWith("PLAN_FEATURE_LOCKED|")) openPaywall("This feature requires an upgrade: " + message.split("|").slice(1).join(" · "));
+        else notify(message || "Could not prepare the invoice for WhatsApp. Please try again.", "error");
+      }
+    } finally {
       setWhatsappSending(false);
-      return;
     }
-    const cleanPhone = `91${digits}`;
-    const clientName = invoice.client.name || "there";
-    const invNumber = invoice.number || "INV-000";
-    const totalAmt = money(computeTotal(invoice), invoice.currency);
-    const due = invoice.dueDate ? dateLabel(invoice.dueDate) : "—";
-    const upi = (invoice.upiId || "").trim();
-    const bizName = invoice.business.name || "Plivex";
-    const paymentLine = upi ? `💳 Payment Details / UPI: ${upi}` : "💳 Payment Details: Please contact us for payment details.";
-    const pdfLine = pdfLink ? `📄 View / Download Invoice: ${pdfLink}` : "📄 Your PDF invoice is ready — please request it if not attached.";
-    const message = `Hi ${clientName}! 👋\nHope you are doing well!\n\nThank you for your business. Here is your invoice #${invNumber} for ${totalAmt}.\n📅 Due Date: ${due}\n\n${pdfLine}\n${paymentLine}\n\nIf you have any questions, feel free to reply to this message.\nBest regards,\n${bizName}`;
-    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
-    if (waWindow) { waWindow.location.href = url; } else { window.location.href = url; }
-    deductStockForInvoice(invoice);
-    recordActivity("Shared via WhatsApp", "share");
-    setWhatsappOpen(false);
-    setWhatsappNumber("");
-    setWhatsappSending(false);
-    setToast(null);
   };
   const activeDesign = !invoice.design || (isPremiumDesign(invoice.design) && !canAccess("premium_designs")) ? DEFAULT_DESIGN_ID : invoice.design;
   return (
