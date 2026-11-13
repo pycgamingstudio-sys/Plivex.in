@@ -20,13 +20,14 @@ Deno.serve(async(req:Request)=>{
   if(!profile?.workspace_id||profile.role!=="admin")return json({error:"Only the workspace admin can manage subscription cancellation."},403,origin);
   const body=await req.json().catch(()=>({}));
   const action=body?.action;
-  if(action!=="cancel"&&action!=="resume")return json({error:"Unsupported subscription action."},400,origin);
+  if(action!=="cancel"&&action!=="resume"&&action!=="status")return json({error:"Unsupported subscription action."},400,origin);
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
   const {data:subscription,error:subscriptionError}=await admin.from("subscriptions").select("id,expires_at,cancel_at_period_end")
-   .eq("workspace_id",profile.workspace_id).eq("status","active").gt("expires_at",new Date().toISOString())
+   .eq("workspace_id",profile.workspace_id).eq("status","active").lte("started_at",new Date().toISOString()).gt("expires_at",new Date().toISOString())
    .order("expires_at",{ascending:false}).limit(1).maybeSingle();
   if(subscriptionError)return json({error:"Could not load active subscription."},503,origin);
   if(!subscription)return json({error:"No active paid subscription was found for this workspace."},404,origin);
+  if(action==="status")return json({ok:true,cancelAtPeriodEnd:Boolean(subscription.cancel_at_period_end),expiresAt:subscription.expires_at},200,origin);
   const requestedAt=action==="cancel"?new Date().toISOString():null;
   const {error:updateError}=await admin.from("subscriptions").update({
    cancel_at_period_end:action==="cancel",
@@ -34,6 +35,6 @@ Deno.serve(async(req:Request)=>{
    updated_at:new Date().toISOString()
   }).eq("id",subscription.id).eq("workspace_id",profile.workspace_id).eq("status","active");
   if(updateError)return json({error:"Could not update subscription cancellation."},503,origin);
-  return json({ok:true,action,expiresAt:subscription.expires_at,message:action==="cancel"?"Cancellation is scheduled for the end of the current paid period. Access remains active until expiry.":"Scheduled cancellation was withdrawn."},200,origin);
+  return json({ok:true,action,cancelAtPeriodEnd:action==="cancel",expiresAt:subscription.expires_at,message:action==="cancel"?"Cancellation is scheduled for the end of the current paid period. Access remains active until expiry.":"Scheduled cancellation was withdrawn."},200,origin);
  }catch(error){console.error("manage-cashfree-subscription failed",error);return json({error:"Could not manage subscription."},500,origin);}
 });
