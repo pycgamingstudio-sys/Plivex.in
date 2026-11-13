@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
 
 const ALLOWED_ORIGINS = new Set([
   "https://plivex.in",
@@ -235,59 +236,23 @@ function validateAction(action: any) {
   const type = text(action.type, 40);
   const p = action.payload && typeof action.payload === "object" ? action.payload : {};
   if (type === "create_invoice") {
-    const client_name = text(p.client_name, 120);
-    const currency = text(p.currency, 3).toUpperCase() || "INR";
-    if (!SUPPORTED_CURRENCIES.has(currency)) return null;
-    const items = Array.isArray(p.items) ? p.items.slice(0, 100).map((item: any) => ({
-      description: text(item?.description, 500),
-      quantity: number(item?.quantity, -1),
-      rate: number(item?.rate, -1),
-      gst_rate: number(item?.gst_rate, 0),
-    })) : [];
-    if (!client_name || !items.length || items.some((item: any) => !item.description || !(item.quantity > 0) || !(item.rate >= 0) || item.gst_rate < 0 || item.gst_rate > 100)) return null;
-    const tax_mode = p.tax_mode === "igst" ? "igst" : "split";
-    const discount_type = p.discount_type === "flat" ? "flat" : "percent";
-    const discount = number(p.discount, 0);
-    const tax_rate = number(p.tax_rate, 0);
-    if (tax_rate < 0 || tax_rate > 100 || discount < 0 || (discount_type === "percent" && discount > 100)) return null;
-    const issue_date = /^\d{4}-\d{2}-\d{2}$/.test(text(p.issue_date, 10)) ? text(p.issue_date, 10) : undefined;
-    const due_date = /^\d{4}-\d{2}-\d{2}$/.test(text(p.due_date, 10)) ? text(p.due_date, 10) : undefined;
-    const rawSnapshot = p.invoice_snapshot && typeof p.invoice_snapshot === "object" ? p.invoice_snapshot : {};
-    const rawSnapshotBusiness = rawSnapshot.business && typeof rawSnapshot.business === "object" ? rawSnapshot.business : {};
-    const rawSnapshotClient = rawSnapshot.client && typeof rawSnapshot.client === "object" ? rawSnapshot.client : {};
-    const rawSnapshotItems = Array.isArray(rawSnapshot.items) ? rawSnapshot.items : [];
-    const invoice_snapshot = {
-      business: {
-        name: text(rawSnapshotBusiness.name || p.business_name, 160),
-        email: text(rawSnapshotBusiness.email, 180), phone: text(rawSnapshotBusiness.phone, 40),
-        gstin: text(rawSnapshotBusiness.gstin, 30), address: text(rawSnapshotBusiness.address, 400),
-      },
-      client: {
-        name: client_name, company: text(rawSnapshotClient.company, 120),
-        email: text(p.client_email || rawSnapshotClient.email, 180),
-        phone: text(rawSnapshotClient.phone, 40), gstin: text(rawSnapshotClient.gstin, 30),
-        address: text(rawSnapshotClient.address, 400),
-      },
-      number: text(rawSnapshot.number, 80), issueDate: issue_date || "",
-      dueDate: due_date || "", currency,
-      items: items.map((item: any, index: number) => ({
-        id: text(rawSnapshotItems[index]?.id, 80) || "ai-item-" + (index + 1),
-        description: item.description, quantity: item.quantity, rate: item.rate, gstRate: item.gst_rate,
-      })),
-      taxRate: tax_rate, taxMode: tax_mode, discountType: discount_type, discount,
-      notes: text(p.notes || rawSnapshot.notes, 1000), terms: text(p.terms || rawSnapshot.terms, 1000),
-      upiId: text(rawSnapshot.upiId, 180), logo: text(rawSnapshot.logo, 2000),
-      design: ["classic", "modern", "minimal"].includes(text(rawSnapshot.design, 30)) ? text(rawSnapshot.design, 30) : "classic",
+    const validated = validateInvoiceAction(action);
+    if (!validated) return null;
+    const { payload } = validated;
+    const subtotal = payload.items.reduce((sum: number, item: any) => sum + item.quantity * item.rate, 0);
+    const discountValue = payload.discount_type === "percent"
+      ? subtotal * payload.discount / 100
+      : Math.min(payload.discount, subtotal);
+    const tax = payload.items.reduce((sum: number, item: any) =>
+      sum + (item.quantity * item.rate) * (item.gst_rate || payload.tax_rate) / 100, 0);
+    const amount = Math.max(0, subtotal - discountValue + tax);
+    const locale = payload.currency === "INR" ? "en-IN" : undefined;
+    return {
+      ...validated,
+      summary: "Prepare invoice draft for " + payload.client_name + " — " +
+        payload.items.length + " item(s), approx. " + payload.currency + " " +
+        amount.toLocaleString(locale) + " (GST and totals will be calculated by Plivex)",
     };
-    const payload = {
-      client_name, client_email: text(p.client_email, 180), business_name: text(p.business_name, 160),
-      issue_date, due_date, currency, tax_mode, tax_rate, discount_type, discount,
-      notes: text(p.notes, 1000), terms: text(p.terms, 1000), status: "Pending", is_draft: true, items, invoice_snapshot,
-    };
-    const subtotal = items.reduce((sum: number, item: any) => sum + item.quantity * item.rate, 0);
-    const discountValue = discount_type === "percent" ? subtotal * discount / 100 : Math.min(discount, subtotal);
-    const tax = items.reduce((sum: number, item: any) => sum + (item.quantity * item.rate) * (item.gst_rate || tax_rate) / 100, 0);
-    return { type, payload, summary: "Prepare invoice draft for " + client_name + " — " + items.length + " item(s), approx. " + currency + " " + Math.max(0, subtotal - discountValue + tax).toLocaleString(currency === "INR" ? "en-IN" : undefined) + " (GST and totals will be calculated by Plivex)" };
   }
   if (type === "create_client") {
     const name = text(p.name, 120);
