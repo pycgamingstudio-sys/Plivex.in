@@ -47,9 +47,6 @@ BEGIN
 END
 $function$;
 
--- Diagnostic: capture PostgreSQL's rendered PL/pgSQL body for migration matching.
-SELECT replace(pg_get_functiondef('public.get_access_status(text)'::regprocedure), E'\\t', '<TAB>');
-
 -- Outcome A: the first historical duplicate migration body was applied.
 \ir ../migrations/202611130004_converge_effective_subscription_priority.sql
 DO $$ BEGIN
