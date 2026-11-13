@@ -19,7 +19,8 @@ export default function PaymentResult() {
   const status = params.get("payment") || "pending";
   const nextPath = useMemo(() => safeNextPath(params.get("next")), [params]);
   const [seconds, setSeconds] = useState(15);
-  const currency = (params.get("currency") || "INR").toUpperCase();\n  const amount = money(params.get("amount"), currency);
+  const currency = (params.get("currency") || "INR").toUpperCase();
+  const amount = money(params.get("amount"), currency);
   const txnid = params.get("txnid");
   const plan = params.get("plan");
 
