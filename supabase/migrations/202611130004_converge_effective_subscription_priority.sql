@@ -84,7 +84,7 @@ else (select s.started_at from public.subscriptions s where s.workspace_id=p_wor
     END IF;
     v_def := regexp_replace(
       v_def,
-      'else \\(select min\\(s\\.started_at\\).*?end,',
+      'else \(select min\(s\.started_at\).*?end,',
       v_final,
       'g'
     );
