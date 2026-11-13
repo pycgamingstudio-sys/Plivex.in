@@ -137,7 +137,28 @@ export default function Register() {
         </>
       }
     >
-      <GoogleSignInButton inviteCode={inviteCode} returnTo={safeReturnTo()} onError={setError} disabled={loading} className="mb-6" />
+      {!inviteCode && (
+        <div className="grid gap-3 rounded-xl border border-border bg-muted/20 p-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="signup-country">Business country</Label>
+            <select id="signup-country" value={countryCode} onChange={(event) => {
+            const nextCountry = getCountryByCode(event.target.value);
+            setCountryCode(nextCountry?.code || "IN");
+            setLocaleCode(nextCountry?.locales?.[0] || "en-IN");
+            }} className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm">
+            {COUNTRY_REGISTRY.map((country) => <option key={country.code} value={country.code}>{country.name}</option>)}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="signup-locale">Language and number format</Label>
+            <select id="signup-locale" value={localeCode} onChange={(event) => setLocaleCode(event.target.value)} className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm">
+            {localeOptions.map((locale) => <option key={locale} value={locale}>{locale}</option>)}
+            </select>
+          </div>
+          <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">This saves your business country and display locale. It does not determine tax residency or legal compliance.</p>
+        </div>
+      )}
+      <GoogleSignInButton inviteCode={inviteCode} countryCode={countryCode} localeCode={localeCode} returnTo={safeReturnTo()} onError={setError} disabled={loading} className="mb-6" />
 
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
@@ -163,27 +184,6 @@ export default function Register() {
             />
           </div>
         </div>
-        {!inviteCode && (
-          <div className="grid gap-3 rounded-xl border border-border bg-muted/20 p-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="signup-country">Business country</Label>
-              <select id="signup-country" value={countryCode} onChange={(event) => {
-                const nextCountry = getCountryByCode(event.target.value);
-                setCountryCode(nextCountry?.code || "IN");
-                setLocaleCode(nextCountry?.locales?.[0] || "en-IN");
-              }} className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm">
-                {COUNTRY_REGISTRY.map((country) => <option key={country.code} value={country.code}>{country.name}</option>)}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="signup-locale">Language and number format</Label>
-              <select id="signup-locale" value={localeCode} onChange={(event) => setLocaleCode(event.target.value)} className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm">
-                {localeOptions.map((locale) => <option key={locale} value={locale}>{locale}</option>)}
-              </select>
-            </div>
-            <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">This saves your business country and display locale. It does not determine tax residency or legal compliance.</p>
-          </div>
-        )}
         <div className="space-y-2">
           <Label htmlFor="password">Password</Label>
           <div className="relative">
