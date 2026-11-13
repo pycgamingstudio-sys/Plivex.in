@@ -55,15 +55,39 @@ export const verifyWebhook=async(raw:string,timestamp:string,signature:string)=>
  return verifyWebhookSignature(raw,timestamp,signature,config().secret);
 };
 
+// Convert a provider major-unit amount to minor units without rounding.
+// Cashfree returns JSON numbers; reject strings, non-finite values, negatives,
+// fractional minor units, and values outside JavaScript's safe integer range.
+export function majorToMinorUnits(value: unknown): number | null {
+ if(typeof value!=="number"||!Number.isFinite(value)||value<0)return null;
+ const match=value.toString().match(/^(\\d+)(?:\\.(\\d+))?(?:e([+-]?\\d+))?$/i);
+ if(!match)return null;
+ const fraction=match[2]||"",exponent=Number(match[3]||0);
+ let minor=BigInt(match[1]+fraction);
+ const shift=exponent-fraction.length+2;
+ if(shift>=0)minor*=10n**BigInt(shift);
+ else{
+  const divisor=10n**BigInt(-shift);
+  if(minor%divisor!==0n)return null;
+  minor/=divisor;
+ }
+ if(minor>BigInt(Number.MAX_SAFE_INTEGER))return null;
+ return Number(minor);
+}
+
 export async function activatePaidOrder(admin:any,order:any,providerOrder:any,payment:any,source:string){
- const currency=String(order.currency||"INR").toUpperCase();
- const expected=Number(order.amount_minor_units ?? (currency==="INR"?order.amount_paise:null));
- const actual=Number(providerOrder?.order_amount);
- const actualMinor=Math.round(actual*100);
- const paymentCurrency=String(payment?.payment_currency||payment?.currency||currency).toUpperCase();
- const paymentAmount=payment?.payment_amount===undefined?expected:Math.round(Number(payment.payment_amount)*100);
- if(providerOrder?.order_id!==order.txnid||providerOrder?.order_status!=="PAID"||String(providerOrder?.order_currency||"").toUpperCase()!==currency||
-    paymentCurrency!==currency||!Number.isSafeInteger(expected)||actualMinor!==expected||paymentAmount!==expected||payment?.payment_status!=="SUCCESS")
+ const currency=typeof order?.currency==="string"?order.currency.toUpperCase():"";
+ const expected=order?.amount_minor_units;
+ const actualMinor=majorToMinorUnits(providerOrder?.order_amount);
+ const paymentMinor=majorToMinorUnits(payment?.payment_amount);
+ const providerOrderCurrency=typeof providerOrder?.order_currency==="string"?providerOrder.order_currency.toUpperCase():"";
+ const paymentCurrency=typeof payment?.payment_currency==="string"?payment.payment_currency.toUpperCase():"";
+ if(!/^[A-Z]{3}$/.test(currency)||!Number.isSafeInteger(expected)||expected<=0||
+    providerOrder?.order_id!==order.txnid||providerOrder?.order_status!=="PAID"||
+    !/^[A-Z]{3}$/.test(providerOrderCurrency)||providerOrderCurrency!==currency||
+    !/^[A-Z]{3}$/.test(paymentCurrency)||paymentCurrency!==currency||
+    actualMinor===null||actualMinor!==expected||paymentMinor===null||paymentMinor!==expected||
+    payment?.payment_status!=="SUCCESS")
    return {ok:false,reason:"payment_not_verified"};
  if((order.status!=="created"&&order.status!=="active")||!isPlanId(order.plan_id))return {ok:false,reason:"order_not_eligible"};
  const paymentId=String(payment?.cf_payment_id||"");
