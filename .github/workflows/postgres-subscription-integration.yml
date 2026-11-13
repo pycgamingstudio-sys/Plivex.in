@@ -50,6 +50,8 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/subscription-priority.integration.sql
       - name: Verify workspace country migration and constraints
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/workspace-country.integration.sql
+      - name: Verify global billing, Cashfree idempotency, renewal and refund RLS
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/global-billing.integration.sql
       - name: Verify migration statement rollback after later function drift
         shell: bash
         run: |
