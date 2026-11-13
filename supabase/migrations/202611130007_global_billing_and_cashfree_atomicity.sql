@@ -11,6 +11,7 @@ ALTER TABLE public.subscriptions
   ADD COLUMN IF NOT EXISTS provider_payment_status text,
   ADD COLUMN IF NOT EXISTS idempotency_key text,
   ADD COLUMN IF NOT EXISTS cancel_at_period_end boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS cancellation_requested_at timestamptz,
   ADD COLUMN IF NOT EXISTS cancelled_at timestamptz,
   ADD COLUMN IF NOT EXISTS refunded_at timestamptz,
   ADD COLUMN IF NOT EXISTS refund_status text;
