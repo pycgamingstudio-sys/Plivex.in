@@ -23,6 +23,7 @@ DECLARE
   v_status text := lower(COALESCE(p_refund_status, ''));
   v_next_status text;
   v_full boolean;
+  v_rows integer;
 BEGIN
   IF p_subscription_id IS NULL
      OR p_provider_refund_id IS NULL OR length(trim(p_provider_refund_id)) = 0
@@ -103,7 +104,12 @@ BEGIN
     currency = EXCLUDED.currency,
     status = EXCLUDED.status,
     raw = EXCLUDED.raw,
-    updated_at = EXCLUDED.updated_at;
+    updated_at = EXCLUDED.updated_at
+  WHERE payment_refunds.subscription_id = EXCLUDED.subscription_id;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows = 0 THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'refund_id_already_used');
+  END IF;
 
   v_full := v_total >= v_original;
   v_next_status := CASE
