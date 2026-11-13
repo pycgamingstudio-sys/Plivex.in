@@ -12,13 +12,17 @@ ALTER TABLE public.subscriptions
   ADD COLUMN IF NOT EXISTS idempotency_key text,
   ADD COLUMN IF NOT EXISTS cancel_at_period_end boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS cancelled_at timestamptz,
-  ADD COLUMN IF NOT EXISTS refunded_at timestamptz;
+  ADD COLUMN IF NOT EXISTS refunded_at timestamptz,
+  ADD COLUMN IF NOT EXISTS refund_status text;
 
 ALTER TABLE public.payment_logs
   ADD COLUMN IF NOT EXISTS amount_minor_units bigint,
   ADD COLUMN IF NOT EXISTS amount_major numeric(14,2),
   ADD COLUMN IF NOT EXISTS country_code text,
-  ADD COLUMN IF NOT EXISTS billing_period text;
+  ADD COLUMN IF NOT EXISTS billing_period text,
+  ADD COLUMN IF NOT EXISTS refund_status text,
+  ADD COLUMN IF NOT EXISTS provider_refund_id text,
+  ADD COLUMN IF NOT EXISTS refund_amount_minor_units bigint;
 
 DO $$
 BEGIN
@@ -31,6 +35,12 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.subscriptions'::regclass AND conname='subscriptions_currency_code_check') THEN
     ALTER TABLE public.subscriptions ADD CONSTRAINT subscriptions_currency_code_check CHECK (currency IN ('INR','USD','GBP','AED','CAD','AUD','SGD'));
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.subscriptions'::regclass AND conname='subscriptions_payment_status_check') THEN
+    ALTER TABLE public.subscriptions ADD CONSTRAINT subscriptions_payment_status_check CHECK (payment_status IN ('created','pending','success','failed','refunded','partially_refunded'));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.subscriptions'::regclass AND conname='subscriptions_refund_status_check') THEN
+    ALTER TABLE public.subscriptions ADD CONSTRAINT subscriptions_refund_status_check CHECK (refund_status IS NULL OR refund_status IN ('pending','success','failed','partially_refunded'));
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.subscriptions'::regclass AND conname='subscriptions_amount_minor_nonnegative_check') THEN
     ALTER TABLE public.subscriptions ADD CONSTRAINT subscriptions_amount_minor_nonnegative_check CHECK (amount_minor_units IS NULL OR amount_minor_units >= 0);
   END IF;
@@ -41,6 +51,9 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS subscriptions_workspace_currency_status_idx
   ON public.subscriptions (workspace_id, currency, status, expires_at);
+CREATE UNIQUE INDEX IF NOT EXISTS payment_logs_cashfree_provider_payment_uidx
+  ON public.payment_logs (provider_payment_id)
+  WHERE provider = 'cashfree' AND provider_payment_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS subscriptions_cashfree_idempotency_key_uidx
   ON public.subscriptions (idempotency_key)
   WHERE idempotency_key IS NOT NULL;
