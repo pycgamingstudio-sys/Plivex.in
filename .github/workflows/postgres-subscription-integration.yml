@@ -50,6 +50,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/subscription-priority.integration.sql
       - name: Verify workspace country migration and constraints
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/workspace-country.integration.sql
+      - name: Verify invoice-share ownership, RLS, grants and rate limiting
+        run: |
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/invoice-share.integration.sql
+          node --test supabase/functions/invoice-share/authorization.test.mjs
       - name: Verify global billing, NULL-workspace cross-user isolation, Migration 009 rollback, Cashfree and refund RLS
         run: |
           createdb plivex_billing_test
@@ -228,6 +232,7 @@ jobs:
           deno check supabase/functions/cashfree-webhook/index.ts
           deno check supabase/functions/cashfree-return/index.ts
           deno check supabase/functions/manage-cashfree-subscription/index.ts
+          deno check supabase/functions/invoice-share/index.ts
           deno test supabase/functions/_shared/cashfree.test.ts
       - name: Test Cashfree webhook refund-event handler and order ID validation
         run: deno test supabase/functions/_shared/cashfree.test.ts supabase/functions/cashfree-webhook/refund.test.ts

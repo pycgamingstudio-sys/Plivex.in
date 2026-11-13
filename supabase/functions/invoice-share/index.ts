@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { sanitizePublicInvoice } from "../_shared/public-invoice-sanitizer.mjs";
+import { isShareLinkOwner } from "./authorization.mjs";
 const ORIGINS = new Set(["https://plivex.in", "https://www.plivex.in", "https://plivex.netlify.app"]);
 const allowed = (o: string | null) => !o || ORIGINS.has(o);
 const cors = (o: string | null) => ({ "Access-Control-Allow-Origin": o && allowed(o) ? o : "https://plivex.in", "Vary": "Origin", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" });
@@ -62,7 +63,7 @@ Deno.serve(async (req:Request) => {
   if(action==="revoke") {
    const linkId=String(body.linkId||""); if(!/^[0-9a-f-]{36}$/i.test(linkId)) return json({error:"Invalid share link."},400,origin);
    const {data:link}=await admin.from("invoice_share_links").select("id,created_by").eq("id",linkId).maybeSingle();
-   if(!link||link.created_by!==user.id) return json({error:"Share link not found."},404,origin);
+   if(!isShareLinkOwner(link,user.id)) return json({error:"Share link not found."},404,origin);
    const {error}=await admin.from("invoice_share_links").update({revoked_at:new Date().toISOString()}).eq("id",linkId);
    if(error) return json({error:"Could not revoke link."},500,origin);
    return json({ok:true},200,origin);
