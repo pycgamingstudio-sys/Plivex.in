@@ -43,6 +43,7 @@ const AboutPage = lazy(() => import("./pages/PublicInfoPages").then((module) => 
 const FeaturesPage = lazy(() => import("./pages/PublicInfoPages").then((module) => ({ default: module.FeaturesPage })));
 const PricingPage = lazy(() => import("./pages/PublicInfoPages").then((module) => ({ default: module.PricingPage })));
 const PaymentResult = lazy(() => import("./pages/PaymentResult"));
+const PublicInvoicePage = lazy(() => import("./pages/PublicInvoicePage"));
 
 const AuthenticatedApp = () => {
   // Payment callbacks must remain visible even if the customer session expires during checkout.
@@ -88,6 +89,7 @@ const AuthenticatedApp = () => {
       <Route path="/about" element={<AboutPage />} />
       <Route path="/features" element={<FeaturesPage />} />
       <Route path="/pricing" element={<PricingPage />} />
+      <Route path="/i/:token" element={<PublicInvoicePage />} />
       <Route path="/" element={<HomeGate />} />
       <Route path="/dashboard" element={<HomeGate />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/" replace />} />}>
