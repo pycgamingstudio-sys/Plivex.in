@@ -19,7 +19,8 @@ const number = (value: unknown, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
-const allowedCategories = ["Rent", "Raw Materials", "Utilities", "Salary", "Logistics", "Software", "Marketing", "Other"];\nconst SUPPORTED_CURRENCIES = new Set(["INR", "USD", "EUR", "GBP", "AED", "CAD", "AUD", "SGD"]);
+const allowedCategories = ["Rent", "Raw Materials", "Utilities", "Salary", "Logistics", "Software", "Marketing", "Other"];
+const SUPPORTED_CURRENCIES = new Set(["INR", "USD", "EUR", "GBP", "AED", "CAD", "AUD", "SGD"]);
 
 async function loadLiveContext(supabase: ReturnType<typeof createClient>, workspaceId: string) {
   const results = await Promise.all([
@@ -157,7 +158,7 @@ function parseInvoiceConversation(incoming: any[], businessProfile: any = null) 
     business: invoiceBusiness,
     client: { name: client, company: "", email: "", phone: "", gstin: "", address: "" },
     number: "", issueDate, dueDate, currency,
-    items: [{ id: "ai-item-1", description: item, quantity, rate, gstRate: 0 }],
+    items: [{ id: "ai-item-1", description: item, quantity, rate: price, gstRate: 0 }],
     taxRate: 0, taxMode: "split", discountType: "percent", discount: 0,
     notes: "", terms: "", upiId: text(profile.upi_id, 180),
     logo: text(profile.logo_url, 2000), design: "classic",
@@ -169,7 +170,9 @@ function parseInvoiceConversation(incoming: any[], businessProfile: any = null) 
     is_draft: true, status: "Pending", invoice_snapshot: invoiceSnapshot,
     items: [{ description: item, quantity, rate: price, gst_rate: 0 }]
   }};
-  const amountLabel = currency === "INR" ? "₹" : currency + " ";\n  const amountLocale = currency === "INR" ? "en-IN" : undefined;\n  return { pending: false, action, reply: `Invoice draft ready: ${client} · ${item} × ${quantity} × ${amountLabel}${price.toLocaleString(amountLocale)} = ${amountLabel}${(quantity * price).toLocaleString(amountLocale)}. Review and confirm to save.` };
+  const amountLabel = currency === "INR" ? "₹" : currency + " ";
+  const amountLocale = currency === "INR" ? "en-IN" : undefined;
+  return { pending: false, action, reply: `Invoice draft ready: ${client} · ${item} × ${quantity} × ${amountLabel}${price.toLocaleString(amountLocale)} = ${amountLabel}${(quantity * price).toLocaleString(amountLocale)}. Review and confirm to save.` };
 }
 
 
