@@ -67,7 +67,7 @@ BEGIN
   SELECT qual INTO v_policy FROM pg_policies
   WHERE schemaname='public' AND tablename='assistant_action_batches'
     AND policyname='Users read own assistant action batches';
-  IF v_policy IS NULL OR position('SELECT auth.uid()' IN upper(v_policy))=0 THEN
+  IF v_policy IS NULL OR position('SELECT AUTH.UID()' IN upper(v_policy))=0 THEN
     RAISE EXCEPTION 'assistant batch RLS policy does not use a scalar SELECT for auth.uid()';
   END IF;
 END
