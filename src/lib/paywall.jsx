@@ -412,7 +412,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
             <label className="mt-5 block text-sm font-semibold text-slate-700">Mobile number
               <span className="mt-1.5 flex overflow-hidden rounded-xl border border-slate-200 bg-white focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-100">
                 {billingCountryCode === "IN" && <span className="flex items-center border-r border-slate-200 bg-slate-50 px-4 text-sm text-slate-500">+91</span>}
-                <input type="tel" inputMode="numeric" autoComplete="tel-national" maxLength={billingCountryCode === "IN" ? 10 : 15} value={phone.replace(/[^0-9]/g, "").slice(0, billingCountryCode === "IN" ? 10 : 15)} onChange={(event) => setPhone(event.target.value.replace(/[^0-9]/g, "").slice(0, billingCountryCode === "IN" ? 10 : 15))} placeholder="98765 43210" className="min-w-0 flex-1 px-3 py-3 text-base text-slate-900 outline-none" />
+                <input type="tel" inputMode="numeric" autoComplete="tel-national" maxLength={billingCountryCode === "IN" ? 10 : 15} value={normalizePhone(phone).slice(0, billingCountryCode === "IN" ? 10 : 15)} onChange={(event) => setPhone(event.target.value.replace(/[^0-9]/g, "").slice(0, billingCountryCode === "IN" ? 10 : 15))} placeholder="98765 43210" className="min-w-0 flex-1 px-3 py-3 text-base text-slate-900 outline-none" />
               </span>
             </label>
             {notice && <p className="mt-2 text-sm text-rose-600" role="alert">{notice}</p>}
