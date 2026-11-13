@@ -80,6 +80,9 @@ BEGIN
     726934821
   );
   PERFORM pg_catalog.pg_advisory_xact_lock(v_lock_key);
+  -- Refresh the clock after any lock wait so an expiring period is not
+  -- extended from a stale pre-wait timestamp.
+  v_now := clock_timestamp();
 
   v_period := CASE
     WHEN v_order.billing_period IN ('month','year') THEN v_order.billing_period
