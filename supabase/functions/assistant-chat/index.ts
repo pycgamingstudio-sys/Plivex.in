@@ -120,6 +120,8 @@ function parseInvoiceConversation(incoming: any[], businessProfile: any = null) 
   const combined = userTurns.join("\n");
   if (!/(?:invoice|inv[o]?ice|bill|billing|इ invoice|इनवॉइस|बिल)/i.test(combined) ||
       !/(?:bnao|banao|banana|banado|create|make|generate|prepare|बनाओ|बना दो)/i.test(combined)) return null;
+  const currencyMatch = combined.match(/\b(INR|USD|EUR|GBP|AED|CAD|AUD|SGD)\b/i);
+  const currency = currencyMatch ? currencyMatch[1].toUpperCase() : "INR";
   const client = captureField(combined, /client(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:mera|my|issue|due|date|item|product|price|rate|quantity|qty)\b|[,;\n]|$)/i);
   const business = captureField(combined, /(?:mera|my)\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:issue|due|date|item|product|price|rate|quantity|qty)\b|[,;\n]|$)/i);
   const item = captureField(combined, /(?:item|product)\s+(?:hai|is)\s+(.+?)(?=\s+(?:quantity|qty|price|rate|ki|ka|ke|and|aur)\b|[,;\n]|$)/i);
@@ -231,6 +233,8 @@ function validateAction(action: any) {
   const p = action.payload && typeof action.payload === "object" ? action.payload : {};
   if (type === "create_invoice") {
     const client_name = text(p.client_name, 120);
+    const currency = text(p.currency, 3).toUpperCase() || "INR";
+    if (!SUPPORTED_CURRENCIES.has(currency)) return null;
     const items = Array.isArray(p.items) ? p.items.slice(0, 100).map((item: any) => ({
       description: text(item?.description, 500),
       quantity: number(item?.quantity, -1),
@@ -622,7 +626,7 @@ async function handleRequest(req: Request) {
           gstin: text(clientRecord.gstin, 30), address: text(clientRecord.address, 400),
         },
         number: "", issueDate: text(payload.issue_date, 10), dueDate: text(payload.due_date, 10),
-        currency: "INR",
+        currency: text(payload.currency, 3).toUpperCase() || "INR",
         items: items.map((item: any, index: number) => ({
           id: "ai-item-" + (index + 1), description: text(item?.description, 500),
           quantity: number(item?.quantity, 0), rate: number(item?.rate, 0),
@@ -633,6 +637,7 @@ async function handleRequest(req: Request) {
         discount: number(payload.discount, 0), notes: text(payload.notes, 1000), terms: text(payload.terms, 1000),
         upiId: text(profile.upi_id, 180), logo: text(profile.logo_url, 2000), design: "classic",
       };
+      invoiceSnapshot.currency = text(payload.currency, 3).toUpperCase() || "INR";
       return { ...candidate, payload: {
         ...payload, business_name: text(payload.business_name || profile.name, 160),
         invoice_snapshot: invoiceSnapshot,
