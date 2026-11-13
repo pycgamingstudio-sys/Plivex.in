@@ -158,6 +158,63 @@ BEGIN
 END
 $replay$;
 
+-- Refund reconciliation is atomic, idempotent and bounded by the paid amount.
+SET ROLE service_role;
+SELECT public.apply_cashfree_refund_event(
+ (SELECT id FROM public.subscriptions WHERE txnid='PLXCF-ORDER000000000000000001'),
+ 'CFREFUND-001',200,'USD','success','{"test":"partial-1"}'::jsonb
+);
+SELECT public.apply_cashfree_refund_event(
+ (SELECT id FROM public.subscriptions WHERE txnid='PLXCF-ORDER000000000000000001'),
+ 'CFREFUND-002',300,'USD','success','{"test":"partial-2"}'::jsonb
+);
+SELECT public.apply_cashfree_refund_event(
+ (SELECT id FROM public.subscriptions WHERE txnid='PLXCF-ORDER000000000000000001'),
+ 'CFREFUND-002',300,'USD','success','{"test":"partial-2-replay"}'::jsonb
+);
+SELECT public.apply_cashfree_refund_event(
+ (SELECT id FROM public.subscriptions WHERE txnid='PLXCF-ORDER000000000000000001'),
+ 'CFREFUND-OVER',100,'USD','success','{"test":"over-refund"}'::jsonb
+);
+RESET ROLE;
+DO $partial_refunds$
+DECLARE v_total bigint; v_status text; v_payment text; v_count integer;
+BEGIN
+ SELECT COALESCE(sum(amount_minor_units),0) INTO v_total FROM public.payment_refunds
+ WHERE subscription_id=(SELECT id FROM public.subscriptions WHERE txnid='PLXCF-ORDER000000000000000001') AND status='success';
+ IF v_total<>500 THEN RAISE EXCEPTION 'Expected 500 minor units after two partial refunds and replay; got %',v_total; END IF;
+ SELECT count(*) INTO v_count FROM public.payment_refunds WHERE provider_refund_id='CFREFUND-002';
+ IF v_count<>1 THEN RAISE EXCEPTION 'Refund replay duplicated ledger row'; END IF;
+ SELECT status::text,payment_status INTO v_status,v_payment FROM public.subscriptions
+ WHERE txnid='PLXCF-ORDER000000000000000001';
+ IF v_status<>'active' OR v_payment<>'partially_refunded' THEN
+  RAISE EXCEPTION 'Partial refund must preserve active paid access';
+ END IF;
+ IF EXISTS (SELECT 1 FROM public.payment_refunds WHERE provider_refund_id='CFREFUND-OVER') THEN
+  RAISE EXCEPTION 'Over-refund event was incorrectly recorded';
+ END IF;
+END
+$partial_refunds$;
+
+SET ROLE service_role;
+SELECT public.apply_cashfree_refund_event(
+ (SELECT id FROM public.subscriptions WHERE txnid='PLXCF-ORDER000000000000000001'),
+ 'CFREFUND-003',99,'USD','success','{"test":"final-refund"}'::jsonb
+);
+RESET ROLE;
+DO $full_refund$
+DECLARE v_status text; v_payment text; v_total bigint;
+BEGIN
+ SELECT status::text,payment_status INTO v_status,v_payment FROM public.subscriptions
+ WHERE txnid='PLXCF-ORDER000000000000000001';
+ SELECT sum(amount_minor_units) INTO v_total FROM public.payment_refunds
+ WHERE subscription_id=(SELECT id FROM public.subscriptions WHERE txnid='PLXCF-ORDER000000000000000001') AND status='success';
+ IF v_status<>'failed' OR v_payment<>'refunded' OR v_total<>599 THEN
+  RAISE EXCEPTION 'Full refund did not revoke access and reconcile exact amount';
+ END IF;
+END
+$full_refund$;
+
 -- Wrong amount/currency never activates the order.
 INSERT INTO public.subscriptions (
  user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,locale_code,
@@ -277,7 +334,7 @@ DO $refund_rls$
 DECLARE v_count integer;
 BEGIN
  SELECT count(*) INTO v_count FROM public.payment_refunds;
- IF v_count<>1 THEN RAISE EXCEPTION 'Refund RLS exposed % rows instead of one',v_count; END IF;
+ IF v_count<>4 THEN RAISE EXCEPTION 'Refund RLS exposed % rows instead of four owned refunds',v_count; END IF;
 END
 $refund_rls$;
 RESET ROLE;
