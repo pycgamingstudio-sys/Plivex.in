@@ -5,6 +5,7 @@ const ALLOWED_ORIGINS = new Set([
   "https://www.plivex.in",
   "https://plivex.netlify.app",
 ]);
+const SUPPORTED_CURRENCIES = new Set(["INR", "USD", "EUR", "GBP", "AED", "CAD", "AUD", "SGD"]);
 
 function corsHeaders(origin: string | null) {
   const allowedOrigin = origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://plivex.in";
@@ -43,6 +44,8 @@ function validateAction(action: unknown) {
       rate: number(entry?.rate,-1),
       gst_rate: number(entry?.gst_rate,0),
     })) : [];
+    const currency = text(raw.currency,3).toUpperCase() || "INR";
+    if (!SUPPORTED_CURRENCIES.has(currency)) return null;
     if (!client_name || !items.length || items.some((item: any) => !item.description || !(item.quantity > 0) || !(item.rate >= 0) || item.gst_rate < 0 || item.gst_rate > 100)) return null;
     const tax_mode = raw.tax_mode === "igst" ? "igst" : "split";
     const discount_type = raw.discount_type === "flat" ? "flat" : "percent";
@@ -51,7 +54,7 @@ function validateAction(action: unknown) {
     return { type, payload: {
       client_name, client_email: text(raw.client_email,180), business_name: text(raw.business_name,160),
       issue_date: text(raw.issue_date,10), due_date: text(raw.due_date,10),
-      currency: "INR", tax_mode, tax_rate, discount_type, discount,
+      currency, tax_mode, tax_rate, discount_type, discount,
       notes: text(raw.notes,1000), terms: text(raw.terms,1000), status: "Pending", is_draft: true, items,
     } };
   }

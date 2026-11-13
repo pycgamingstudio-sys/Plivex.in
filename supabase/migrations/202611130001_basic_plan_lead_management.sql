@@ -1,14 +1,6 @@
--- Move the standard lead pipeline from Pro to Basic.
--- Basic workspaces receive up to 200 leads; Free remains locked and Pro keeps its larger quota.
-insert into public.plan_features (plan, feature, allowed)
-values ('basic', 'lead_pipeline', true)
-on conflict (plan, feature) do update set allowed = excluded.allowed;
-
-update public.plan_limits
-set max_count = 200, period = 'total'
-where plan = 'basic' and resource = 'leads';
-
-insert into public.plan_limits (plan, resource, max_count, period)
-values ('basic', 'leads', 200, 'total')
-on conflict (plan, resource) do update
-set max_count = excluded.max_count, period = excluded.period;
+-- This migration intentionally makes no shared plan-catalogue changes.
+-- plan_features and plan_limits are currently shared by India and Global workspaces
+-- and have no edition discriminator. Enabling Basic lead access here would silently
+-- change India entitlements. Defer this entitlement until an edition-aware plan
+-- catalogue and server-authoritative workspace edition exist.
+-- No-op by design: preserve all existing India and Global plan behavior.

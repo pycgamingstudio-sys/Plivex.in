@@ -2,73 +2,72 @@
 
 **Working branch:** `global-dev`  
 **India production branch:** `main` (not modified)  
-**Current status:** Foundation and first localization utility increment; not a complete international SaaS and not release-ready.
+**Current status:** Part 1 remediation committed for independent testing; not approved or release-ready.
 
-## Repository audit baseline
+## Repository and architecture guardrails
 
-- Repository: `pycgamingstudio-sys/Plivex.in`; default branch is `main`.
-- Audited branch head before this increment: `b44f730b38fc0317469eada7bc610690ae06a719`.
-- Stack: React 18 + Vite + Tailwind; Supabase Auth, Postgres/RLS and Edge Functions; Cloudflare deployment workflow exists.
-- Frontend backend adapter still contains a Lovable API fallback for unmigrated operations. Auth is Supabase Auth. Several entity adapters remain inert (StaffActivity, WorkspaceMember, Subscription).
-- Billing/payment source includes provider-specific India-oriented paths and additional Cashfree/PhonePe Edge Function sources. Their existence does not prove complete Global payment support or successful runtime configuration.
-- Database migrations include invoice, plan-limit, subscription and reminder work. No Global country/tax schema or RLS migration is present in this increment.
-- The India GST application remains the existing implementation. The Global foundation is isolated under `src/global` and is not imported by the India app.
-- The repository includes country-selection identity foundations and CI tests, but no Global onboarding UI, workspace-country persistence, generalized tax engine, international invoice workflow, global subscription catalogue, or country-specific payment adapters.
+- Repository: `pycgamingstudio-sys/Plivex.in`; production branch remains `main`.
+- React 18 + Vite + Tailwind frontend; Supabase Auth, Postgres/RLS and Edge Functions backend; Cloudflare deployment workflow exists.
+- India remains the default edition. Global country identity registry is separate and explicitly identity-only; country selection requires confirmation.
+- Shared `plan_features` and `plan_limits` currently have no edition discriminator. Do not apply edition-specific entitlement changes to these shared tables.
+- No production deployment, DNS change, live Supabase migration, payment transaction or production data change is authorized by this work.
 
-## Roadmap
+## Part 1 remediation
 
-1. **Foundation and isolation:** edition contracts, country registry/selection, explicit locale/currency formatting, isolated tests and CI.
-2. **Workspace onboarding:** country and locale confirmation, server-authoritative workspace jurisdiction, safe migration and RLS design.
-3. **Money and documents:** currency-safe ledger representation, invoice/quotation data contracts, country-specific document requirements.
-4. **Tax adapters:** jurisdiction-specific, versioned tax rules with effective dates, calculation evidence and independent local compliance review.
-5. **International billing:** plan catalogue, pricing currency, payment-provider adapters, webhook verification and idempotency.
-6. **Operational integration:** shared UI integration, localization, data export, auditability, support and observability.
-7. **Release readiness:** India regression suite, security/RLS review, sandbox and staging verification, independent audit and explicit release approval.
+### 1. Shared Basic-plan migration
+- Replaced the unsafe shared Basic lead-entitlement mutation with an intentional no-op and documented why.
+- This preserves existing India and Global entitlement behavior until the database has an edition-aware plan catalogue.
+- Important limitation: this is safe for an unapplied migration in the development branch. If that migration was already applied to a live database, a separately reviewed compensating migration would be required; this work did not inspect or mutate live database state.
 
-Phases 2–7 are not claimed complete. They require staged implementation and verification; no production schema, secrets, payment settings, DNS, or deployment are changed by this increment.
+### 2. Public invoice data minimization and workspace integrity
+- Public invoice query now selects only invoice item fields rendered by the public page: `id`, `description`, `quantity`, and `rate`.
+- Invoice fetch additionally requires the invoice workspace to match the workspace stored on the share-link record.
+- Public response continues to use no-store cache headers.
 
-## Completed in this increment
+### 3. Public share-link rate limiting
+- Added a service-role-only Postgres RPC and private RLS-enabled counter table.
+- Public invoice views are limited to 60 requests per share link per minute; tracking actions to 30 per share link per minute.
+- The Edge Function fails closed with 503 if the rate-limit RPC is unavailable and returns 429 when a limit is exceeded.
+- Rate limits are per share link, not per source IP. This bounds counter inflation for a link but is not a full distributed IP/WAF abuse-control system.
 
-### Locale-aware display formatting
-- Added `src/global/localization/number-format.js`.
-- Added explicit-locale currency and quantity formatting using the platform Intl APIs.
-- Requires explicit ISO-style currency code and BCP 47 locale; rejects malformed inputs and non-finite amounts.
-- Accepts BigInt for integer currency amounts.
-- Performs display formatting only: no arithmetic, exchange conversion, tax calculation, or ledger storage.
+### 4. Currency and locale handling
+- Added CAD, AUD and SGD to the existing invoice currency catalogue, aligning it with the seven country registry currencies.
+- Currency formatting and amount-in-words now reject unsupported currency codes rather than silently displaying INR.
+- Added explicit currency locale lookup and locale-aware formatting for public invoice and share-management dates.
+- Assistant invoice confirmation now accepts only the supported currency allowlist and still defaults omitted currency to INR. Existing server-side plan enforcement remains responsible for restricting non-INR invoice creation where applicable.
 
-### Automated coverage
-- Added `src/global/tests/number-format.test.mjs` for USD/EUR/INR/JPY display, explicit locale behavior, BigInt, invalid inputs and precision bounds.
-- Existing Global country-selection and edition-contract tests remain in place.
-- The Global CI workflow runs `npm ci`, India membership regression tests, Global tests and the production build on `global-dev`.
+### Automated coverage added
+- Added Global tests asserting all country registry currencies are supported, new currency formatting works, unknown currencies fail explicitly, and amount-in-words uses the expected minor-unit names.
+- Chat 2 must run the full test, lint, typecheck and build suite. No test pass is claimed by this implementation report.
 
-## Commits
+## Changed files
 
-- `e576c4dc59e7551290a67a164d25690b8ee48a06` — `feat(global): add explicit locale-aware number formatting`
-- `87e68cc6c5831ca803cf24ea3bf1c6401630006b` — `test(global): cover locale-aware currency and number formatting`
+- `supabase/migrations/202611130001_basic_plan_lead_management.sql`
+- `supabase/migrations/202611130003_invoice_share_rate_limit.sql` (new)
+- `supabase/functions/invoice-share/index.ts`
+- `supabase/functions/assistant-confirm/index.ts`
+- `src/lib/currency.js`
+- `src/pages/PublicInvoicePage.jsx`
+- `src/pages/InvoiceShareManagement.jsx`
+- `src/global/tests/currency.test.mjs` (new)
+- `docs/PLIVEX-GLOBAL-DEVELOPMENT-LOG.md`
 
-## Verification
+## Verification and limitations
 
-- Repository and branch metadata inspected through GitHub.
-- Source files and architecture docs fetched from `global-dev`.
-- Automated tests were added but have not been executed in a local runtime in this session.
-- Global Foundation CI is expected to run on each branch push; its result must be checked before this increment can be marked verified.
-- No live Supabase migration, RLS change, Edge Function deployment, payment transaction, Cloudflare deployment, or production traffic change was performed.
+- Changes are limited to `global-dev`.
+- No live database migration was run; no RLS policy was applied to a live Supabase project.
+- No Edge Function was deployed or runtime-tested against Supabase.
+- No test, lint, typecheck or build command was executed by Chat 1 after these edits. Chat 2 must execute them and fix any failures before Chat 3 re-audits.
+- The invoice item column names are consistent with the existing public UI data contract; Chat 2 should verify the actual deployed schema/migration history without changing live data.
+- The rate limit is per share link; add platform-level IP/WAF controls separately before public high-volume launch.
+- Currency support is display/catalogue compatibility only. It does not implement FX conversion, country tax rules, localized legal invoice requirements, or currency-safe ledger arithmetic.
+- If the Basic-plan migration has already been applied in any environment, do not assume editing the migration file reverses it; inspect migration history and prepare a separately approved compensating migration.
 
-## Remaining issues / release blockers
+## Handoff to Chat 2
 
-- No country-specific tax rules or tax-compliance certification.
-- No server-authoritative workspace jurisdiction selection or onboarding integration.
-- No Global invoice/document compliance implementation.
-- No general ledger-safe decimal/minor-unit storage layer or currency conversion service.
-- No verified international pricing/subscription/payment architecture; existing India/provider flows must not be assumed globally usable.
-- Lovable fallback and inert entity adapters remain known backend gaps.
-- Supabase migrations/RLS and Edge Function runtime behavior require review and environment-backed tests before integration.
-- Tax, invoicing, and payments need per-country requirements research and qualified local review.
-
-## Handoff to Chat 2 — Testing & Fixing Engineer
-
-1. Check the latest `Global Foundation CI` run for `global-dev`. It must show success for `npm ci`, `npm run test:membership`, `npm run test:global`, and `npm run build`.
-2. If CI fails, reproduce and fix only failures introduced by this increment; rerun the full workflow.
-3. Add edge cases for locale validation, unusual currency fraction digits, negative/large values and browser runtime support.
-4. Review that the module is not imported by the India edition and that India membership tests remain green.
-5. Report exact run URL, commit SHA, failing/passing commands and any defects. Do not merge, deploy, change database state, or mark Global tax/payment functionality complete.
+1. Verify branch head and changed-file list.
+2. Run `npm ci`, `npm run test:membership`, `npm run test:global`, `npm run lint`, `npm run typecheck`, and `npm run build`.
+3. Review SQL syntax and Edge Function type/runtime behavior; do not apply migrations or deploy functions.
+4. Verify India default behavior, INR formatting, invoice sharing and plan-entitlement regression risks.
+5. Fix failures only on `global-dev`, rerun all checks, and report exact evidence and final commit SHA.
+6. Do not start Part 2; Chat 4 approval remains mandatory.

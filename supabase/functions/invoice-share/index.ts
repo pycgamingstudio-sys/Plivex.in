@@ -17,17 +17,26 @@ Deno.serve(async (req:Request) => {
   if(action==="public_view"||action==="track") {
    const raw=String(body.token||""); if(!/^[a-f0-9]{64}$/.test(raw)) return json({error:"This invoice link is invalid or unavailable."},404,origin);
    const hash=await sha256(raw);
-   const {data:link,error}=await admin.from("invoice_share_links").select("id,invoice_id,expires_at,revoked_at").eq("token_hash",hash).maybeSingle();
-   if(error||!link||link.revoked_at||new Date(link.expires_at)<=new Date()) return json({error:"This invoice link has expired or was revoked."},404,origin);
+   const {data:link,error:linkError}=await admin.from("invoice_share_links").select("id,invoice_id,workspace_id,expires_at,revoked_at").eq("token_hash",hash).maybeSingle();
+   if(linkError||!link||link.revoked_at||new Date(link.expires_at)<=new Date()) return json({error:"This invoice link has expired or was revoked."},404,origin);
+   const {data:allowedRequest,error:limitError}=await admin.rpc("consume_invoice_share_rate_limit",{
+    p_share_link_id:link.id,
+    p_action:action,
+    p_max_requests:action==="track"?30:60,
+   });
+   if(limitError){console.error("invoice share rate limit unavailable",limitError);return json({error:"Invoice link is temporarily unavailable. Please try again shortly."},503,origin);}
+   if(!allowedRequest)return json({error:"Too many requests for this invoice link. Please try again in a minute."},429,origin);
    if(action==="track") {
     const event=body.event==="download"?"download":"view";
-    if(event==="download") await admin.rpc("increment_invoice_share_download", {share_link_id:link.id});
-    else await admin.rpc("record_invoice_share_view", {share_link_id:link.id});
+    const rpc=event==="download"?"increment_invoice_share_download":"record_invoice_share_view";
+    const {error}=await admin.rpc(rpc,{share_link_id:link.id});
+    if(error){console.error("invoice share tracking failed",error);return json({error:"Could not record invoice activity."},503,origin);}
     return json({ok:true},200,origin);
    }
-   const {data:invoice,error:invoiceError}=await admin.from("invoices").select("id,number,client_name,business_name,issue_date,due_date,currency,status,subtotal,tax_value,cgst,sgst,igst,total,notes,terms,invoice_snapshot,invoice_items(*)").eq("id",link.invoice_id).maybeSingle();
+   const {data:invoice,error:invoiceError}=await admin.from("invoices").select("id,workspace_id,number,client_name,business_name,issue_date,due_date,currency,status,subtotal,tax_value,cgst,sgst,igst,total,notes,terms,invoice_snapshot,invoice_items(id,description,quantity,rate)").eq("id",link.invoice_id).eq("workspace_id",link.workspace_id).maybeSingle();
    if(invoiceError||!invoice) return json({error:"Invoice is no longer available."},404,origin);
-   await admin.rpc("record_invoice_share_view",{share_link_id:link.id});
+   const {error:viewError}=await admin.rpc("record_invoice_share_view",{share_link_id:link.id});
+   if(viewError){console.error("invoice share view tracking failed",viewError);return json({error:"Could not load invoice activity."},503,origin);}
    return json({invoice},200,origin);
   }
   const authorization=req.headers.get("Authorization");
