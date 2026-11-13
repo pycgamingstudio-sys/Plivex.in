@@ -51,7 +51,6 @@ function harness({ role = "admin", workspaceId = WORKSPACE_A, subscriptionWorksp
               state.cancel = values.cancel_at_period_end;
               state.requestedAt = values.cancellation_requested_at;
               state.updatedAt = values.updated_at;
-              state.updatedAt = values.updated_at;
               return { data: { id: "sub-1" }, error: null };
             },
           };
