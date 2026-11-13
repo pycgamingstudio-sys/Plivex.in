@@ -131,7 +131,7 @@ test("existing India membership regression test remains present and unchanged in
 test("Supabase migration versions are unique and subscription priority has a forward convergence migration", async () => {
   const migrations = await readdir(new URL("../../../supabase/migrations/", import.meta.url));
   const versioned = migrations
-    .filter((name) => /^\\d{12}_.+\\.sql$/.test(name))
+    .filter((name) => /^\d{12}_.+\.sql$/.test(name))
     .map((name) => ({ name, version: name.slice(0, 12) }));
   const versions = versioned.map(({ version }) => version);
   assert.equal(new Set(versions).size, versions.length, "migration version timestamps must be unique");
