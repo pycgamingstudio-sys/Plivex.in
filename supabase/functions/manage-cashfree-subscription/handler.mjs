@@ -30,7 +30,7 @@ export function createManageCashfreeSubscriptionHandler({ createClient, getEnv, 
       const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
       const timestamp = now().toISOString();
       const { data: subscription, error: subscriptionError } = await admin.from("subscriptions")
-        .select("id,expires_at,cancel_at_period_end,gateway,provider")
+        .select("id,expires_at,cancel_at_period_end,updated_at,gateway,provider")
         .eq("workspace_id", profile.workspace_id).eq("gateway", "cashfree").eq("provider", "cashfree")
         .eq("status", "active").lte("started_at", timestamp).gt("expires_at", timestamp)
         .order("expires_at", { ascending: false }).limit(1).maybeSingle();
@@ -53,6 +53,9 @@ export function createManageCashfreeSubscriptionHandler({ createClient, getEnv, 
       update = subscription.cancel_at_period_end === null
         ? update.is("cancel_at_period_end", null)
         : update.eq("cancel_at_period_end", subscription.cancel_at_period_end);
+      update = subscription.updated_at === null
+        ? update.is("updated_at", null)
+        : update.eq("updated_at", subscription.updated_at);
       const { data: updated, error: updateError } = await update.select("id").maybeSingle();
       if (updateError) return json({ error: "Could not update subscription cancellation." }, 503, origin);
       if (!updated) return json({ error: "Subscription changed. Refresh and try again." }, 409, origin);
