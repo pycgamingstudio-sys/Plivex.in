@@ -42,6 +42,7 @@ Deno.serve(async(req:Request)=>{
   if(sumError)return json({error:"Refund reconciliation failed"},503);
   const totalRefunded=(refundRows||[]).reduce((sum:any,item:any)=>sum+Number(item.amount_minor_units||0),0);
   const originalAmount=Number(order.amount_minor_units??order.amount_paise??0);
+  if(totalRefunded>originalAmount)return json({error:"Cumulative refunds exceed original payment amount"},409);
   const fullyRefunded=totalRefunded>=originalAmount;
   const nextRefundStatus=fullyRefunded?"success":totalRefunded>0?"partially_refunded":refundStatus.toLowerCase();
   const {error:subscriptionRefundError}=await admin.from("subscriptions").update({
