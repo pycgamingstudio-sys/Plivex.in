@@ -44,6 +44,11 @@ Deno.serve(async (req:Request) => {
    if(insertError) { console.error("share link insert failed",insertError); return json({error:"Could not create invoice link."},500,origin); }
    return json({url:"https://plivex.in/i/"+raw,expiresInDays:30},200,origin);
   }
+  if(action==="list") {
+   const {data:links,error}=await admin.from("invoice_share_links").select("id,invoice_id,created_at,expires_at,revoked_at,last_viewed_at,view_count,download_count,invoices(number,client_name,total,currency)").eq("created_by",user.id).order("created_at",{ascending:false}).limit(100);
+   if(error) { console.error("share link list failed",error); return json({error:"Could not load shared invoices."},500,origin); }
+   return json({links:links||[]},200,origin);
+  }
   if(action==="revoke") {
    const linkId=String(body.linkId||""); if(!/^[0-9a-f-]{36}$/i.test(linkId)) return json({error:"Invalid share link."},400,origin);
    const {data:link}=await admin.from("invoice_share_links").select("id,created_by").eq("id",linkId).maybeSingle();
