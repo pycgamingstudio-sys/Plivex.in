@@ -34,8 +34,8 @@ jobs:
       - name: Run existing India team regression tests
         run: npm run test:membership
 
-      - name: Run Global foundation contract tests
-        run: node --test src/global/tests/*.test.mjs
+      - name: Run Global foundation and country selection tests
+        run: npm run test:global
 
       - name: Build application
         run: npm run build
