@@ -242,10 +242,10 @@ jobs:
           deno check supabase/functions/cashfree-return/index.ts
           deno check supabase/functions/manage-cashfree-subscription/index.ts
           deno test supabase/functions/manage-cashfree-subscription/authorization.test.mjs
-      - name: Execute Cashfree subscription endpoint handler tests
-        run: deno test supabase/functions/manage-cashfree-subscription/handler.test.mjs
           deno check supabase/functions/invoice-share/index.ts
           deno test supabase/functions/_shared/cashfree.test.ts
+      - name: Execute Cashfree subscription endpoint handler tests
+        run: deno test supabase/functions/manage-cashfree-subscription/handler.test.mjs
       - name: Test Cashfree webhook refund-event handler and order ID validation
         run: deno test supabase/functions/_shared/cashfree.test.ts supabase/functions/cashfree-webhook/refund.test.ts
       - name: Production build
