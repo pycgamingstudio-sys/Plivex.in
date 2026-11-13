@@ -6,7 +6,6 @@ const ALLOWED_ORIGINS = new Set([
   "https://www.plivex.in",
   "https://plivex.netlify.app",
 ]);
-const SUPPORTED_CURRENCIES = new Set(["INR", "USD", "EUR", "GBP", "AED", "CAD", "AUD", "SGD"]);
 
 function corsHeaders(origin: string | null) {
   const allowedOrigin = origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://plivex.in";
