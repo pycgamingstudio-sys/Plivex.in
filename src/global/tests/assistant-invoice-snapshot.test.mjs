@@ -173,6 +173,8 @@ test("public invoice sanitizer excludes private snapshot fields and internal ide
   assert.equal(safe.invoice_snapshot.notes, "Public note");
   assert.equal("id" in safe, false);
   assert.equal("workspace_id" in safe, false);
+  assert.equal("id" in safe.invoice_snapshot.items[0], false);
+  assert.equal("id" in safe.invoice_items[0], false);
   assert.equal("email" in safe.invoice_snapshot.business, false);
   assert.equal("phone" in safe.invoice_snapshot.business, false);
   assert.equal("email" in safe.invoice_snapshot.client, false);
