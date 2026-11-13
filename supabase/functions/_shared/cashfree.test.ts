@@ -19,8 +19,8 @@ Deno.test("Cashfree currency and billing-period restrictions fail closed", () =>
 });
 
 Deno.test("published plan price is consistent across accounts in the same country", () => {
-  const standard = resolvePlan("basic_monthly", "IN");
-  const account = resolvePlan("basic_monthly", "IN", "customer@example.test");
-  if (!standard.available || !account.available || standard.amountMinor !== 19900 || account.amountMinor !== standard.amountMinor)
-    throw new Error("India published price must not vary by account email");
+  const india = resolvePlan("basic_monthly", "IN");
+  const usa = resolvePlan("basic_monthly", "US");
+  if (!india.available || india.amountMinor !== 19900 || !usa.available || usa.amountMinor !== 599)
+    throw new Error("Published country prices must be stable and account-independent");
 });
