@@ -29,6 +29,7 @@ Deno.serve(async(req:Request)=>{
   // Legacy workspaces without an explicit country retain India billing. New
   // international workspaces must explicitly save their country in settings.
   const countryCode=String(business?.country_code||"IN").toUpperCase();
+  const localeCode=String(business?.locale_code||(countryCode==="IN"?"en-IN":"en"));
   const plan=resolvePlan(body.planId,countryCode,email);
   if(!plan.available){
     if(plan.reason==="cashfree_currency_unavailable")return json({error:"Cashfree checkout is not yet enabled for "+plan.currency+". Your plan price is saved, but payment will open only after the merchant account confirms this currency.",code:"CURRENCY_NOT_ENABLED"},409,origin);
@@ -47,7 +48,7 @@ Deno.serve(async(req:Request)=>{
     plan:plan.plan.id,plan_id:plan.plan.id,plan_name:plan.plan.name,tier:plan.plan.tier,
     status:"created",payment_status:"created",
     amount:Math.round(amountMinor/100),amount_minor_units:amountMinor,amount_major:amountMinor/100,
-    amount_paise:currency==="INR"?amountMinor:null,currency,country_code:countryCode,
+    amount_paise:currency==="INR"?amountMinor:null,currency,country_code:countryCode,locale_code:localeCode,
     billing_period:plan.period,idempotency_key:orderId,
     gateway:"cashfree",provider:"cashfree",txnid:orderId,
     return_origin:returnOrigin,return_path:returnPath
