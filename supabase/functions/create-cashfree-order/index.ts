@@ -18,11 +18,12 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user)return json({error:"Session expired. Sign in again."},401,origin);
   const body=await req.json().catch(()=>({}));
   if(!isPlanId(body?.planId))return json({error:"Invalid plan."},400,origin);
-  const {data:profile,error:profileError}=await authClient.from("profiles").select("email,full_name,workspace_id").eq("id",user.id).maybeSingle();
+  const {data:profile,error:profileError}=await authClient.from("profiles").select("email,full_name,workspace_id,role").eq("id",user.id).maybeSingle();
   if(profileError)return json({error:"Could not load profile."},500,origin);
   const email=String(profile?.email||user.email||"").trim();
   if(!email)return json({error:"Account email is missing."},400,origin);
   if(!profile?.workspace_id)return json({error:"Your account is not linked to a workspace yet."},409,origin);
+  if(profile.role!=="admin")return json({error:"Only the workspace admin can purchase or change a subscription."},403,origin);
   const {data:business,error:businessError}=await authClient.from("business_profile").select("country_code,locale_code").eq("workspace_id",profile.workspace_id).maybeSingle();
   if(businessError)return json({error:"Could not verify workspace billing country."},500,origin);
   // Legacy workspaces without an explicit country retain India billing. New
