@@ -1,50 +1,34 @@
-# Plivex Global — Country Selection System (Part 2)
+# Plivex Global — Part 2: Workspace Country Selection
 
-**Status:** Isolated country identity and selection foundation. Not production-connected.  
-**Branch:** `global-dev`  
-**India production:** `main` remains unchanged.
+**Implementation branch:** `global-dev`  
+**India production:** `main` is unchanged.  
+**Capability status:** country identity and regional display formatting only.
 
-## Scope
+## Delivered scope
 
-Part 2 adds a country registry and an explicit, validated selection/persistence contract. It does not add a visible onboarding screen or connect the feature to authentication, workspaces, Supabase, invoices, tax calculations, payments, or production UI.
+- Seven selectable business-country identities: India (INR), United States (USD), United Kingdom (GBP), UAE (AED), Canada (CAD), Australia (AUD), and Singapore (SGD).
+- A country and matching locale selector is available on the authenticated Business Profile page.
+- Selection is saved only after the user presses **Confirm and save country**.
+- The authoritative choice is stored in the workspace's existing `business_profile` record, not browser local storage.
+- The existing `workspace-records` Edge Function derives the workspace from the authenticated user's `profiles.workspace_id`; clients cannot submit a workspace ID to choose the target.
+- The Edge Function validates the country/locale pair, and the database constraint independently rejects unsupported pairs.
+- The selector loads the saved choice from the server and displays a locale-aware currency/number preview. Formatting does not convert amounts.
+- Existing India invoice, GST, inventory, quotation and payment behavior is not switched by country selection.
 
-## Initial selectable country identities
+## Persistence
 
-| ISO 3166-1 alpha-2 | Country | ISO 4217 currency | Locale choices |
-| --- | --- | --- | --- |
-| IN | India | INR | en-IN, hi-IN |
-| US | United States | USD | en-US, es-US |
-| GB | United Kingdom | GBP | en-GB |
-| AE | United Arab Emirates | AED | en-AE, ar-AE |
-| CA | Canada | CAD | en-CA, fr-CA |
-| AU | Australia | AUD | en-AU |
-| SG | Singapore | SGD | en-SG, zh-SG, ms-SG, ta-SG |
+Migration: `202611130006_workspace_country_identity.sql`
 
-These are selectable business-country identities only. Every entry is marked `identity-only`; none of these entries asserts that Plivex tax, invoice, payment, or legal requirements are implemented for that country.
+Adds nullable `country_code` and `locale_code` columns to `public.business_profile`. Existing rows remain unset until explicit confirmation. A check constraint permits only the supported country/locale combinations. No RLS policy or table grant is broadened; the existing authenticated workspace-records path and table policies remain the access boundary.
 
-## Contracts and safeguards
+## Safety boundaries
 
-- Country identifiers are ISO 3166-1 alpha-2 codes; currency identifiers are ISO 4217 codes.
-- Currency and locale are separate attributes. Selecting a country does not choose a language.
-- Unknown, malformed, or unsupported country codes are rejected. Country selection does not silently default to India or infer a country from IP, device locale, or currency.
-- No selection is persisted until the caller supplies explicit confirmation.
-- Persisted data is versioned and revalidated on every read. Corrupt, unsupported, or outdated records are ignored.
-- Storage is injected for tests and SSR safety. Browser storage access is guarded against unavailable or blocked storage.
-- The registry is isolated under `src/global` and is not imported into the existing India application.
-- The selection record is a user-interface preference only; it is not authorization, legal residence, tax jurisdiction proof, or a substitute for server-side workspace validation.
+- No IP/device-locale country detection and no silent India fallback.
+- No automatic save, country conversion, exchange-rate lookup, tax calculation, VAT/GST engine, legal invoice claims, or payment-rail enablement.
+- Country identity is not proof of legal residence or tax jurisdiction.
+- Existing India workflows remain the default behavior; this feature is an opt-in workspace setting.
+- No live Supabase migration, production deployment, or `main` change was performed.
 
-## Public module API
+## Verification still required
 
-- `COUNTRY_REGISTRY`, `getCountryByCode(code)`, `listSelectableCountries()`
-- `validateCountrySelection(countryCode)`
-- `createCountrySelectionStore(storage)` with `read()`, `save({ countryCode, confirmed: true })`, and `clear()`
-- `createBrowserCountrySelectionStore()` for guarded browser/SSR usage
-
-## Deliberate non-goals
-
-- No tax rates, tax engine, VAT/GST treatment, invoice legal fields, payment rails, or country compliance claims.
-- No UI integration or database migration.
-- No automatic country detection.
-- No change to India production or deployment.
-
-A later UI/onboarding part must show the country name and currency clearly, require a deliberate confirmation, allow changing the choice, and save the choice against the authenticated workspace server-side after authorization. Browser local storage alone must never be treated as the authoritative workspace country.
+Chat 2 must run the full build, lint, typecheck, `npm run test:global`, PostgreSQL migration integration and India regression checks. It must verify the migration against the CI PostgreSQL schema, exercise authenticated workspace isolation and RLS, test invalid country/locale writes, and report actual workflow run IDs and logs. A live Supabase rollout remains a separately authorized operation.
