@@ -12,6 +12,7 @@ import {
   Activity,
   Package,
   FilePenLine,
+  Link2,
 } from "lucide-react";
 
 const ALL = ["admin", "employee", "accountant"];
@@ -19,6 +20,7 @@ const ALL = ["admin", "employee", "accountant"];
 export const navItems = [
   { to: "/", label: "Invoice desk", icon: FilePenLine, roles: ALL },
   { to: "/invoice-history", label: "Invoice history", icon: History, roles: ALL },
+  { to: "/invoice-shares", label: "Shared invoice links", icon: Link2, roles: ["admin"] },
   { to: "/business-profile", label: "Business profile", icon: Store, roles: ["admin"] },
   { to: "/client-database", label: "Client database", icon: Users, roles: ["admin", "employee"] },
   { to: "/usage-reports", label: "Usage reports", icon: BarChart3, roles: ["admin", "accountant"] },
