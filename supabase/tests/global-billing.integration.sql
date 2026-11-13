@@ -138,7 +138,7 @@ $replay$;
 
 -- Wrong amount/currency never activates the order.
 INSERT INTO public.subscriptions (
- user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,
+ user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,locale_code,
  billing_period,gateway,provider,txnid,idempotency_key
 ) VALUES (
  '10000000-0000-0000-0000-000000000001','ws-us','pro_monthly','pro','created',10,999,9.99,
@@ -160,7 +160,7 @@ $mismatch$;
 
 -- A lower-tier purchase is queued after the existing higher-tier paid period.
 INSERT INTO public.subscriptions (
- user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,
+ user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,locale_code,
  billing_period,gateway,provider,txnid,started_at,expires_at
 ) VALUES (
  '10000000-0000-0000-0000-000000000001','ws-downgrade','pro_monthly','pro','active',9,999,9.99,
@@ -168,7 +168,7 @@ INSERT INTO public.subscriptions (
  now(),now()+interval '10 days'
 );
 INSERT INTO public.subscriptions (
- user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,
+ user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,locale_code,
  billing_period,gateway,provider,txnid
 ) VALUES (
  '10000000-0000-0000-0000-000000000001','ws-downgrade','basic_monthly','basic','created',6,599,5.99,
@@ -192,7 +192,7 @@ $downgrade$;
 
 -- Reusing one provider payment ID for a different order must be rejected.
 INSERT INTO public.subscriptions (
- user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,
+ user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,locale_code,
  billing_period,gateway,provider,txnid
 ) VALUES (
  '10000000-0000-0000-0000-000000000001','ws-other-order','basic_monthly','basic','created',6,599,5.99,
@@ -214,7 +214,7 @@ $reuse$;
 
 -- A same-tier renewal extends from the existing paid expiry rather than resetting time.
 INSERT INTO public.subscriptions (
- user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,
+ user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,locale_code,
  billing_period,gateway,provider,txnid,started_at,expires_at
 ) VALUES (
  '10000000-0000-0000-0000-000000000001','ws-renew','basic_monthly','basic','active',6,599,5.99,
@@ -222,7 +222,7 @@ INSERT INTO public.subscriptions (
  now(),now()+interval '5 days'
 );
 INSERT INTO public.subscriptions (
- user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,
+ user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,locale_code,
  billing_period,gateway,provider,txnid
 ) VALUES (
  '10000000-0000-0000-0000-000000000001','ws-renew','basic_monthly','basic','created',6,599,5.99,
