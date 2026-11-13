@@ -3,6 +3,7 @@ import PageShell from "@/components/PageShell";
 import { KEYS, useLocalState } from "@/lib/stores";
 import { backend as db } from "@/api/backendClient";
 import { inputCls } from "@/lib/ui";
+import WorkspaceCountrySettings from "@/components/global/WorkspaceCountrySettings";
 
 const defaults = { name: "", address: "", gstin: "", email: "", phone: "", logo: "", upiId: "" };
 
@@ -18,6 +19,7 @@ export default function BusinessProfile() {
 
   return (
     <PageShell icon={Store} title="Business profile" subtitle="Saved defaults pulled in when you start a new invoice.">
+      <div className="mb-5"><WorkspaceCountrySettings /></div>
       <div className="grid gap-5 lg:grid-cols-[1fr_240px]">
         <div className="space-y-4 rounded-xl border bg-card p-5">
           <Field label="Business name"><input className={inputCls} value={profile.name} onChange={(e) => set("name", e.target.value)} placeholder="Your Business Name" /></Field>
