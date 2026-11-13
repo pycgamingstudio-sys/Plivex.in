@@ -8,6 +8,8 @@ import { X, Check, Sparkles, Lock, Crown, Star, XCircle } from "lucide-react";
 import CurrentPlanCard from "@/components/CurrentPlanCard";
 import { toast } from "@/components/ui/use-toast";
 import { PLANS as DISPLAY_PLANS } from "@/lib/plans";
+import { GLOBAL_BILLING, formatPlanPrice } from "@/global/billing/pricing.js";
+import { getCountryByCode } from "@/global/countries/country-registry.js";
 
 // Read subscription limits directly from the authoritative Supabase RPC.
 // The old Lovable getAccessStatus endpoint can return stale Free-plan limits
@@ -264,6 +266,23 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   const { user, checkUserAuth } = useAuth();
   const [notice, setNotice] = useState("");
   const [billing, setBilling] = useState("monthly");
+  const [billingCountryCode, setBillingCountryCode] = useState("IN");
+  useEffect(() => {
+    let active = true;
+    const loadCountry = async () => {
+      if (!user?.workspace_id) return;
+      const { data, error } = await supabase.from("business_profile").select("country_code").eq("workspace_id", user.workspace_id).maybeSingle();
+      if (!error && active) {
+        const nextCountry = typeof data?.country_code === "string" && GLOBAL_BILLING[data.country_code] ? data.country_code : "IN";
+        setBillingCountryCode(nextCountry);
+        if (!GLOBAL_BILLING[nextCountry]?.yearly) setBilling("monthly");
+      }
+    };
+    void loadCountry();
+    return () => { active = false; };
+  }, [user?.workspace_id]);
+  const billingConfig = GLOBAL_BILLING[billingCountryCode] || GLOBAL_BILLING.IN;
+  const billingLocale = getCountryByCode(billingCountryCode)?.locales?.[0] || "en";
   const [phone, setPhone] = useState(() => { const digits = String(user?.phone || "").replace(/\D/g, ""); return digits.length > 10 && digits.startsWith("91") ? digits.slice(-10) : digits; });
   const [phonePrompt, setPhonePrompt] = useState(false);
   const [pendingPlan, setPendingPlan] = useState(null);
@@ -271,10 +290,11 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   // Callers may accidentally pass an Error/object as the reason; never call string methods on it.
   const safeBlockReason = typeof blockReason === "string" ? blockReason : String(blockReason?.message || blockReason?.error || "");
   const activePlan = currentPlan?.planId ? PLANS.find((plan) => plan.id === currentPlan.planId) : null;
+  const billingPeriod = billing === "yearly" && billingConfig.yearly ? "yearly" : "monthly";
   const visiblePlans = [
-    { id: "free", name: "Free", price: 0, period: billing === "monthly" ? "month" : "year", included: DISPLAY_PLANS.free.bullets, locked: [], accent: false, badge: null, checkoutPlan: null },
-    { id: "basic", name: "Basic", price: billing === "monthly" ? DISPLAY_PLANS.basic.monthly : DISPLAY_PLANS.basic.yearly, period: billing === "monthly" ? "month" : "year", included: DISPLAY_PLANS.basic.bullets, locked: [], accent: false, badge: null, checkoutPlan: PLANS.find((p) => p.id === (billing === "monthly" ? "basic_monthly" : "basic_yearly")) },
-    { id: "pro", name: "Pro", price: billing === "monthly" ? DISPLAY_PLANS.pro.monthly : DISPLAY_PLANS.pro.yearly, period: billing === "monthly" ? "month" : "year", included: DISPLAY_PLANS.pro.bullets, locked: [], accent: true, badge: "MOST POPULAR", checkoutPlan: PLANS.find((p) => p.id === (billing === "monthly" ? "pro_monthly" : "enterprise_yearly")) },
+    { id: "free", name: "Free", price: formatPlanPrice(0, billingConfig.currency, billingLocale), period: billingPeriod === "monthly" ? "month" : "year", included: DISPLAY_PLANS.free.bullets, locked: [], accent: false, badge: null, checkoutPlan: null },
+    { id: "basic", name: "Basic", price: formatPlanPrice(billingConfig[billingPeriod].basic, billingConfig.currency, billingLocale), period: billingPeriod === "monthly" ? "month" : "year", included: DISPLAY_PLANS.basic.bullets, locked: [], accent: false, badge: null, checkoutPlan: billingConfig.paymentEnabled ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "basic_monthly" : "basic_yearly")) : null, paymentUnavailable: !billingConfig.paymentEnabled },
+    { id: "pro", name: "Pro", price: formatPlanPrice(billingConfig[billingPeriod].pro, billingConfig.currency, billingLocale), period: billingPeriod === "monthly" ? "month" : "year", included: DISPLAY_PLANS.pro.bullets, locked: [], accent: true, badge: "MOST POPULAR", checkoutPlan: billingConfig.paymentEnabled ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "pro_monthly" : "enterprise_yearly")) : null, paymentUnavailable: !billingConfig.paymentEnabled },
   ];
 
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -288,10 +308,14 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
       setCheckoutLoading(false);
     }
   };
+  const validPhone = (value) => billingCountryCode === "IN" ? /^[0-9]{10}$/.test(value) : /^[0-9]{8,15}$/.test(value);
+  const normalizePhone = (value) => {
+    const digits = String(value || "").replace(/[^0-9]/g, "");
+    return billingCountryCode === "IN" && digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+  };
   const checkout = async (plan) => {
-    const digits = String(user?.phone || "").replace(/\D/g, "");
-    const normalized = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
-    if (!/^\d{10}$/.test(normalized)) {
+    const normalized = normalizePhone(user?.phone || "");
+    if (!validPhone(normalized)) {
       setPhone(user?.phone || "");
       setPendingPlan(plan);
       setPhonePrompt(true);
@@ -301,10 +325,9 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
     await startCheckout(plan);
   };
   const savePhoneAndContinue = async () => {
-    const digits = String(phone || "").replace(/\D/g, "");
-    const normalized = digits.length > 10 && digits.startsWith("91") ? digits.slice(-10) : digits;
-    if (!/^\d{10}$/.test(normalized)) {
-      setNotice("Please enter exactly 10 digits (without +91).");
+    const normalized = normalizePhone(phone);
+    if (!validPhone(normalized)) {
+      setNotice(billingCountryCode === "IN" ? "Please enter exactly 10 digits (without +91)." : "Please enter a valid phone number with 8 to 15 digits.");
       return;
     }
     setSavingPhone(true);
@@ -347,9 +370,10 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
           {currentPlan?.active && (
             <CurrentPlanCard planName={currentPlan.planName} benefits={activePlan?.included || []} startedAt={currentPlan.startedAt} expiresAt={currentPlan.expiresAt} />
           )}
+          <p className="mb-3 text-center text-xs text-slate-500">Billing country: {getCountryByCode(billingCountryCode)?.name || "India"} · {billingConfig.currency}</p>
           <div className="mb-4 flex items-center justify-center gap-2 rounded-xl bg-slate-100 p-1">
             <button onClick={() => setBilling("monthly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "monthly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Monthly</button>
-            <button onClick={() => setBilling("yearly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "yearly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Yearly</button>
+            {billingConfig.yearly && <button onClick={() => setBilling("yearly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "yearly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Yearly</button>}
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             {visiblePlans.map((plan) => (
@@ -358,7 +382,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
                 <div className="flex items-center gap-2"><p className="text-[13px] font-bold text-slate-900">{plan.name}</p></div>
                 <p className="mt-2 text-[26px] font-bold leading-none text-slate-900">₹{plan.price}<span className="text-[12px] font-medium text-slate-400">/{plan.period}</span></p>
                 <div className="mt-3 flex-1 space-y-1.5">{plan.included.map((item) => <div key={item} className="flex items-start gap-2 text-[11px] font-medium text-slate-700"><span className="mt-0.5 text-emerald-600">✓</span>{item}</div>)}</div>
-                {plan.checkoutPlan ? <button onClick={() => checkout(plan.checkoutPlan)} disabled={checkoutLoading} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9]"}`}>{checkoutLoading ? "Connecting to Cashfree…" : `Pay with Cashfree · ₹${plan.price}/${plan.period}`}</button> : <button onClick={onClose} className="mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-[12px] font-bold text-slate-600">{currentPlan?.plan === "free" ? "Current plan" : "Use Free plan"}</button>}
+                {plan.checkoutPlan ? <button onClick={() => checkout(plan.checkoutPlan)} disabled={checkoutLoading} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9]"}`}>{checkoutLoading ? "Connecting to Cashfree…" : `Pay with Cashfree · ${plan.price}/${plan.period}`}</button> : plan.paymentUnavailable ? <button type="button" disabled className="mt-4 w-full rounded-xl border border-amber-200 bg-amber-50 py-2.5 text-[11px] font-bold text-amber-700">Cashfree currency not enabled</button> : <button onClick={onClose} className="mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-[12px] font-bold text-slate-600">{currentPlan?.plan === "free" ? "Current plan" : "Use Free plan"}</button>}
               </div>
             ))}
           </div>
@@ -384,11 +408,11 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
             <button type="button" onClick={() => { setPhonePrompt(false); setPendingPlan(null); setNotice(""); }} aria-label="Close mobile number form" className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button>
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-violet-100 text-[#6D28D9]"><Sparkles className="h-7 w-7" /></div>
             <h4 id="cashfree-phone-title" className="mt-4 text-center text-lg font-bold text-slate-900">Add your mobile number</h4>
-            <p className="mt-2 text-center text-sm leading-6 text-slate-600">Enter your 10-digit Indian mobile number. It will be saved to your Plivex account before Cashfree checkout. No OTP or SMS will be sent.</p>
+            <p className="mt-2 text-center text-sm leading-6 text-slate-600">{billingCountryCode === "IN" ? "Enter your 10-digit Indian mobile number." : "Enter your mobile number using 8 to 15 digits, including your country code if needed."} It will be saved to your Plivex account before Cashfree checkout. No OTP or SMS will be sent.</p>
             <label className="mt-5 block text-sm font-semibold text-slate-700">Mobile number
               <span className="mt-1.5 flex overflow-hidden rounded-xl border border-slate-200 bg-white focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-100">
-                <span className="flex items-center border-r border-slate-200 bg-slate-50 px-4 text-sm text-slate-500">+91</span>
-                <input type="tel" inputMode="numeric" autoComplete="tel-national" maxLength={10} value={phone.replace(/\D/g, "").slice(0, 10)} onChange={(event) => setPhone(event.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="98765 43210" className="min-w-0 flex-1 px-3 py-3 text-base text-slate-900 outline-none" />
+                {billingCountryCode === "IN" && <span className="flex items-center border-r border-slate-200 bg-slate-50 px-4 text-sm text-slate-500">+91</span>}
+                <input type="tel" inputMode="numeric" autoComplete="tel-national" maxLength={billingCountryCode === "IN" ? 10 : 15} value={phone.replace(/[^0-9]/g, "").slice(0, billingCountryCode === "IN" ? 10 : 15)} onChange={(event) => setPhone(event.target.value.replace(/[^0-9]/g, "").slice(0, billingCountryCode === "IN" ? 10 : 15))} placeholder="98765 43210" className="min-w-0 flex-1 px-3 py-3 text-base text-slate-900 outline-none" />
               </span>
             </label>
             {notice && <p className="mt-2 text-sm text-rose-600" role="alert">{notice}</p>}
