@@ -9,10 +9,10 @@ export const PLANS = {
 export type PlanId=keyof typeof PLANS;
 export const isPlanId=(v:unknown):v is PlanId=>typeof v==="string"&&Object.prototype.hasOwnProperty.call(PLANS,v);
 
-import { GLOBAL_BILLING, CASHFREE_CURRENCIES } from "../../../src/global/billing/pricing.js";
+import { getBillingForCountry, CASHFREE_CURRENCIES } from "../../../src/global/billing/pricing.js";
 const CASHFREE_CURRENCY_SET=new Set(CASHFREE_CURRENCIES);
 export function resolvePlan(planId:PlanId,countryCode:string,email=""){
-  const plan=PLANS[planId],country=GLOBAL_BILLING[countryCode];
+  const plan=PLANS[planId],country=getBillingForCountry(countryCode);
   if(!country)return {available:false,reason:"unsupported_country"} as const;
   if(!country.paymentEnabled||!CASHFREE_CURRENCY_SET.has(country.currency))return {available:false,reason:"cashfree_currency_unavailable",currency:country.currency} as const;
   if(countryCode!=="IN"&&plan.period!=="month")return {available:false,reason:"billing_period_unavailable",currency:country.currency} as const;
