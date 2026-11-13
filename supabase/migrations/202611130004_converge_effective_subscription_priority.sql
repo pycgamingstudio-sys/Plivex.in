@@ -59,9 +59,9 @@ BEGIN
   -- PostgreSQL adds formatter indentation to pg_get_functiondef output.
   -- Strip line-leading whitespace from the rendered definition and both
   -- known query fragments before exact matching; SQL indentation is cosmetic.
-  v_def := regexp_replace(v_def, E'\\n[[:blank:]]+', E'\\n', 'g');
-  v_old := regexp_replace(v_old, E'\\n[[:blank:]]+', E'\\n', 'g');
-  v_final := regexp_replace(v_final, E'\\n[[:blank:]]+', E'\\n', 'g');
+  v_def := regexp_replace(v_def, E'\n[[:blank:]]+', E'\n', 'g');
+  v_old := regexp_replace(v_old, E'\n[[:blank:]]+', E'\n', 'g');
+  v_final := regexp_replace(v_final, E'\n[[:blank:]]+', E'\n', 'g');
 
   IF position(v_final IN v_def) = 0 THEN
     IF position(v_old IN v_def) = 0 THEN
