@@ -22,48 +22,24 @@ Deno.serve(async(req:Request)=>{
   const refundId=String(refund?.cf_refund_id||refund?.refund_id||"");
   const refundStatus=String(refund?.refund_status||"").toUpperCase();
   const refundAmount=Number(refund?.refund_amount??refund?.amount);
-  const {data:priorRefund,error:priorRefundError}=await admin.from("payment_refunds").select("status")
-   .eq("provider","cashfree").eq("provider_refund_id",refundId).maybeSingle();
-  if(priorRefundError)return json({error:"Refund replay check failed"},503);
-  if(priorRefund?.status==="success"&&refundStatus!=="SUCCESS")
-   return json({received:true,ignored:true,reason:"refund_already_finalized"});
   const refundMinor=Math.round(refundAmount*100);
   if(!refundId||!["SUCCESS","PENDING","FAILED","CANCELLED"].includes(refundStatus)||!Number.isSafeInteger(refundMinor)||refundMinor<=0)
    return json({error:"Invalid refund event"},400);
-  const originalAmount=Number(order.amount_minor_units??order.amount_paise??0);
-  if(refundMinor>originalAmount)return json({error:"Refund exceeds original payment amount"},400);
-  const {data:priorRefundRows,error:priorSumError}=await admin.from("payment_refunds").select("amount_minor_units")
-   .eq("subscription_id",order.id).eq("status","success");
-  if(priorSumError)return json({error:"Refund reconciliation failed"},503);
-  const priorTotal=(priorRefundRows||[]).reduce((sum:any,item:any)=>sum+Number(item.amount_minor_units||0),0);
-  const addsSuccessfulRefund=refundStatus==="SUCCESS"&&priorRefund?.status!=="success";
-  if(priorTotal+(addsSuccessfulRefund?refundMinor:0)>originalAmount)
-   return json({error:"Cumulative refunds exceed original payment amount"},409);
-  const {error:refundWriteError}=await admin.from("payment_refunds").upsert({
-   subscription_id:order.id,user_id:order.user_id,workspace_id:order.workspace_id,
-   provider:"cashfree",provider_refund_id:refundId,amount_minor_units:refundMinor,
-   currency:String(order.currency||"INR").toUpperCase(),
-   status:refundStatus==="CANCELLED"?"failed":refundStatus.toLowerCase(),raw:event,updated_at:new Date().toISOString()
-  },{onConflict:"provider,provider_refund_id"});
-  if(refundWriteError)return json({error:"Refund ledger update failed"},503);
-  const {data:refundRows,error:sumError}=await admin.from("payment_refunds").select("amount_minor_units").eq("subscription_id",order.id).eq("status","success");
-  if(sumError)return json({error:"Refund reconciliation failed"},503);
-  const totalRefunded=(refundRows||[]).reduce((sum:any,item:any)=>sum+Number(item.amount_minor_units||0),0);
-  if(totalRefunded>originalAmount)return json({error:"Cumulative refunds exceed original payment amount"},409);
-  const fullyRefunded=totalRefunded>=originalAmount;
-  const nextRefundStatus=fullyRefunded?"success":totalRefunded>0?"partially_refunded":refundStatus.toLowerCase();
-  const {error:subscriptionRefundError}=await admin.from("subscriptions").update({
-   refund_status:nextRefundStatus,
-   payment_status:fullyRefunded?"refunded":totalRefunded>0?"partially_refunded":(order.payment_status||"success"),
-   refunded_at:fullyRefunded?new Date().toISOString():null,
-   status:fullyRefunded?"failed":order.status,
-   updated_at:new Date().toISOString()
-  }).eq("id",order.id);
-  if(subscriptionRefundError)return json({error:"Subscription refund reconciliation failed"},503);
-  const {error:logRefundError}=await admin.from("payment_logs").update({refund_status:nextRefundStatus,refund_amount_minor_units:totalRefunded})
-   .eq("subscription_id",order.id).eq("provider","cashfree");
-  if(logRefundError)return json({error:"Payment log refund update failed"},503);
-  return json({received:true,refundStatus:nextRefundStatus,refundedMinorUnits:totalRefunded});
+  const normalizedStatus=refundStatus==="CANCELLED"?"failed":refundStatus.toLowerCase();
+  const {data:result,error:refundError}=await admin.rpc("apply_cashfree_refund_event",{
+   p_subscription_id:order.id,
+   p_provider_refund_id:refundId,
+   p_amount_minor:refundMinor,
+   p_currency:String(order.currency||"INR").toUpperCase(),
+   p_refund_status:normalizedStatus,
+   p_raw:event
+  });
+  if(refundError)return json({error:"Atomic refund reconciliation failed"},503);
+  if(!result?.ok){
+   const conflict=result?.reason==="cumulative_refund_exceeds_payment"||result?.reason==="refund_amount_conflict"||result?.reason==="refund_id_already_used";
+   return json({error:"Refund could not be reconciled",reason:result?.reason||"refund_not_applied"},conflict?409:503);
+  }
+  return json({received:true,refundStatus:result.refund_status||result.reason||normalizedStatus,refundedMinorUnits:result.refunded_minor_units??null,alreadyApplied:Boolean(result.already_applied)});
  }
 
  const paymentStatus=String(payment?.payment_status||"").toUpperCase();
