@@ -9,7 +9,7 @@ Deno.serve(async(req:Request)=>{
  try{
   if(!/^PLXCF-[A-Z0-9]{20,30}$/.test(id))return redirect(appBase(),{payment:"failed",next:"/pricing"});
   const db=admin(),{data:row,error}=await db.from("subscriptions").select("*").eq("txnid",id).maybeSingle();
-  if(error||!row)return redirect(config().appBase,{payment:"failed",next:"/pricing"});
+  if(error||!row)return redirect(appBase(),{payment:"failed",next:"/pricing"});
   const origin=typeof row.return_origin==="string"&&origins.has(row.return_origin)?row.return_origin:appBase();
   const next=safePath(row.return_path);
   let status="pending";
