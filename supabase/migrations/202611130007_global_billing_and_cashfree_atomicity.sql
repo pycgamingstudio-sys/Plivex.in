@@ -77,6 +77,7 @@ DECLARE
   v_now timestamptz := clock_timestamp();
   v_expected bigint;
   v_period text;
+  v_start timestamptz;
 BEGIN
   IF p_provider_payment_id IS NULL OR length(trim(p_provider_payment_id)) = 0
      OR p_currency IS NULL OR p_amount_minor IS NULL OR p_amount_minor < 0 THEN
@@ -93,7 +94,10 @@ BEGIN
   END IF;
 
   IF v_order.status::text = 'active' THEN
-    RETURN jsonb_build_object('ok', true, 'already_applied', true);
+    IF v_order.provider_payment_id = p_provider_payment_id THEN
+      RETURN jsonb_build_object('ok', true, 'already_applied', true);
+    END IF;
+    RETURN jsonb_build_object('ok', false, 'reason', 'subscription_already_paid');
   END IF;
 
   v_expected := COALESCE(
@@ -127,14 +131,34 @@ BEGIN
     ELSE 'month'
   END;
 
+  -- A Basic purchase made while Pro is active is queued after the existing
+  -- higher tier, so a downgrade does not take effect prematurely. Same-tier
+  -- renewals extend from the latest active expiry instead of losing paid time.
+  IF v_order.tier::text = 'basic' THEN
+    SELECT max(expires_at) INTO v_start
+    FROM public.subscriptions
+    WHERE workspace_id = v_order.workspace_id
+      AND status::text = 'active'
+      AND expires_at > v_now
+      AND tier::text IN ('basic','pro');
+  ELSE
+    SELECT max(expires_at) INTO v_start
+    FROM public.subscriptions
+    WHERE workspace_id = v_order.workspace_id
+      AND status::text = 'active'
+      AND expires_at > v_now
+      AND tier::text = 'pro';
+  END IF;
+  v_start := greatest(v_now, COALESCE(v_start, v_now));
+
   UPDATE public.subscriptions
   SET status = 'active',
       payment_status = 'success',
       provider_payment_id = p_provider_payment_id,
       provider_order_status = upper(p_provider_order_status),
       provider_payment_status = upper(p_provider_payment_status),
-      started_at = v_now,
-      expires_at = CASE WHEN v_period = 'year' THEN v_now + interval '1 year' ELSE v_now + interval '1 month' END,
+      started_at = v_start,
+      expires_at = CASE WHEN v_period = 'year' THEN v_start + interval '1 year' ELSE v_start + interval '1 month' END,
       updated_at = v_now
   WHERE id = p_subscription_id
     AND status::text = 'created';
