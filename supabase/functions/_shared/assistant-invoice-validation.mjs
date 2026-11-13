@@ -32,8 +32,16 @@ export function validateInvoiceAction(action) {
   if (tax_rate < 0 || tax_rate > 100 || discount < 0 ||
       (discount_type === "percent" && discount > 100)) return null;
 
-  const issue_date = /^\d{4}-\d{2}-\d{2}$/.test(text(raw.issue_date, 10)) ? text(raw.issue_date, 10) : undefined;
-  const due_date = /^\d{4}-\d{2}-\d{2}$/.test(text(raw.due_date, 10)) ? text(raw.due_date, 10) : undefined;
+  const validIsoDate = (value) => {
+    const candidate = text(value, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(candidate)) return undefined;
+    const parsed = new Date(candidate + "T00:00:00.000Z");
+    return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === candidate
+      ? candidate
+      : undefined;
+  };
+  const issue_date = validIsoDate(raw.issue_date);
+  const due_date = validIsoDate(raw.due_date);
   const rawSnapshot = raw.invoice_snapshot && typeof raw.invoice_snapshot === "object" ? raw.invoice_snapshot : {};
   const rawSnapshotBusiness = rawSnapshot.business && typeof rawSnapshot.business === "object" ? rawSnapshot.business : {};
   const rawSnapshotClient = rawSnapshot.client && typeof rawSnapshot.client === "object" ? rawSnapshot.client : {};
