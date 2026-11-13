@@ -164,4 +164,20 @@ Deno.test("Cashfree payment activation requires exact provider order and payment
     const result = await run(po, pay);
     if (result.ok) throw new Error(label + " was not rejected before the payment RPC");
   }
+
+  const missingOrderCurrency = await activatePaidOrder(
+    admin, { ...order, currency: undefined }, providerOrder, payment,
+    "cashfree-missing-order-currency-test",
+  );
+  if (missingOrderCurrency.ok || rpcCalls !== 1) {
+    throw new Error("International order with missing currency must be rejected before the payment RPC");
+  }
+
+  const mismatchedSavedCurrency = await activatePaidOrder(
+    admin, { ...order, currency: "EUR" }, providerOrder, payment,
+    "cashfree-mismatched-saved-currency-test",
+  );
+  if (mismatchedSavedCurrency.ok || rpcCalls !== 1) {
+    throw new Error("International order with mismatched saved currency must be rejected before the payment RPC");
+  }
 });
