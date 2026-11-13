@@ -38,6 +38,22 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.subscriptions'::regclass AND conname='subscriptions_currency_code_check') THEN
     ALTER TABLE public.subscriptions ADD CONSTRAINT subscriptions_currency_code_check CHECK (currency IN ('INR','USD','GBP','AED','CAD','AUD','SGD'));
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.subscriptions'::regclass AND conname='subscriptions_country_locale_check') THEN
+    ALTER TABLE public.subscriptions ADD CONSTRAINT subscriptions_country_locale_check CHECK (
+      (country_code IS NULL AND locale_code IS NULL)
+      OR (
+        country_code IS NOT NULL AND locale_code IS NOT NULL AND (
+          (country_code='IN' AND locale_code IN ('en-IN','hi-IN'))
+          OR (country_code='US' AND locale_code IN ('en-US','es-US'))
+          OR (country_code='GB' AND locale_code='en-GB')
+          OR (country_code='AE' AND locale_code IN ('en-AE','ar-AE'))
+          OR (country_code='CA' AND locale_code IN ('en-CA','fr-CA'))
+          OR (country_code='AU' AND locale_code='en-AU')
+          OR (country_code='SG' AND locale_code IN ('en-SG','zh-SG','ms-SG','ta-SG'))
+        )
+      )
+    );
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.subscriptions'::regclass AND conname='subscriptions_payment_status_check') THEN
     ALTER TABLE public.subscriptions ADD CONSTRAINT subscriptions_payment_status_check CHECK (payment_status IN ('created','pending','success','failed','refunded','partially_refunded'));
   END IF;
