@@ -1,8 +1,9 @@
 /**
  * Country identity registry for the isolated Global edition.
  *
- * "identity-only" means the country can be selected as a business location.
- * It does NOT mean tax, invoicing, payments, or legal compliance are implemented.
+ * "identity-only" describes country selection and locale metadata, not tax jurisdiction.
+ * Billing prices and provider currency availability are configured separately.
+ * It does NOT imply tax calculation, legal invoice compliance, or FX conversion.
  * Currency and locale are separate fields and must never be inferred from one another.
  */
 
