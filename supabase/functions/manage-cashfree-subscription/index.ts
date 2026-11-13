@@ -3,5 +3,5 @@ import { createManageCashfreeSubscriptionHandler } from "./handler.mjs";
 
 Deno.serve(createManageCashfreeSubscriptionHandler({
   createClient,
-  getEnv: (name) => Deno.env.get(name),
+  getEnv: (name: string) => Deno.env.get(name),
 }));
