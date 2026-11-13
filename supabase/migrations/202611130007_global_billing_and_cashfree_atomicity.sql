@@ -27,6 +27,27 @@ ALTER TABLE public.payment_logs
   ADD COLUMN IF NOT EXISTS provider_refund_id text,
   ADD COLUMN IF NOT EXISTS refund_amount_minor_units bigint;
 
+-- Backfill additive metadata for existing India records without changing
+-- their plan, access dates, provider IDs, or legacy amount columns.
+UPDATE public.subscriptions
+SET amount_minor_units = COALESCE(amount_minor_units, amount_paise::bigint),
+    amount_major = COALESCE(amount_major, amount_paise::numeric / 100, amount::numeric),
+    payment_status = CASE
+      WHEN status::text = 'active' AND payment_status = 'created' THEN 'success'
+      WHEN status::text = 'failed' AND payment_status = 'created' THEN 'failed'
+      ELSE payment_status
+    END,
+    billing_period = CASE
+      WHEN plan_id IN ('basic_yearly','enterprise_yearly') THEN 'year'
+      ELSE billing_period
+    END
+WHERE currency = 'INR';
+
+UPDATE public.payment_logs
+SET amount_minor_units = COALESCE(amount_minor_units, amount::bigint),
+    amount_major = COALESCE(amount_major, amount::numeric / 100)
+WHERE currency = 'INR' AND amount IS NOT NULL;
+
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.subscriptions'::regclass AND conname='subscriptions_billing_period_check') THEN
