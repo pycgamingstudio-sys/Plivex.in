@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Sparkles, X } from "lucide-react";
-
-const SEEN_KEY_PREFIX = "plivex:welcomeSeen:";
+import { canScheduleWelcomePopup, isWelcomePopupVisible, markWelcomePopupDismissed } from "./welcome-popup-state.js";
 
 export default function WelcomePopup({ userId, planName = "Free", plan = "free", planLoading = true }) {
 
@@ -10,27 +9,17 @@ export default function WelcomePopup({ userId, planName = "Free", plan = "free",
   useEffect(() => {
     // Reset on account changes/logout and wait for the authoritative plan before showing.
     setOpenForUser(null);
-    if (!userId || planLoading) return undefined;
-    const seenKey = SEEN_KEY_PREFIX + userId;
-    let seen = false;
-    try {
-      seen = localStorage.getItem(seenKey) === "1";
-    } catch {
-      // Fail closed when persistence is unavailable to avoid repeated popups.
-      return undefined;
-    }
-    if (seen) return undefined;
+    if (!canScheduleWelcomePopup({ userId, planLoading, storage: window.localStorage })) return undefined;
     const timer = window.setTimeout(() => setOpenForUser(userId), 12000);
     return () => window.clearTimeout(timer);
   }, [userId, planLoading, planName, plan]);
 
   const dismiss = () => {
     setOpenForUser(null);
-    if (!userId) return;
-    try { localStorage.setItem(SEEN_KEY_PREFIX + userId, "1"); } catch { /* best effort */ }
+    markWelcomePopupDismissed({ userId, storage: window.localStorage });
   };
 
-  if (!userId || openForUser !== userId || planLoading) return null;
+  if (!isWelcomePopupVisible({ activeUserId: userId, openForUser, planLoading })) return null;
 
   const normalizedPlan = String(plan || "free").toLowerCase();
   const isPaid = ["basic", "pro", "enterprise"].includes(normalizedPlan);
