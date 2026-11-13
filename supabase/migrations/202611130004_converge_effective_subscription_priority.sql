@@ -56,6 +56,13 @@ BEGIN
    order by CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at desc, s.created_at desc
    limit 1;$final$;
 
+  -- PostgreSQL adds formatter indentation to pg_get_functiondef output.
+  -- Strip line-leading whitespace from the rendered definition and both
+  -- known query fragments before exact matching; SQL indentation is cosmetic.
+  v_def := regexp_replace(v_def, E'\\n[[:blank:]]+', E'\\n', 'g');
+  v_old := regexp_replace(v_old, E'\\n[[:blank:]]+', E'\\n', 'g');
+  v_final := regexp_replace(v_final, E'\\n[[:blank:]]+', E'\\n', 'g');
+
   IF position(v_final IN v_def) = 0 THEN
     IF position(v_old IN v_def) = 0 THEN
       RAISE EXCEPTION 'Unexpected get_access_status expiry query after 202610280004; refusing to modify';
