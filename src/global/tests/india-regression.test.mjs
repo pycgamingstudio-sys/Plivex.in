@@ -69,7 +69,8 @@ test("INR formatter and amount-in-words preserve Indian currency defaults", () =
 test("invoice RPC source contract covers create, edit, totals, GST, status, and atomic stock writes", async () => {
   const sql = await read("../../../supabase/migrations/202610270001_h1_invoice_rpcs.sql");
   assert.match(sql, /CREATE OR REPLACE FUNCTION public\.save_invoice/);
-  assert.match(sql, /INSERT INTO public\.invoices[\s\S]*invoice_counters/);
+  assert.match(sql, /INSERT INTO public\.invoice_counters/);
+  assert.match(sql, /INSERT INTO public\.invoices/);
   assert.match(sql, /FOR UPDATE/);
   assert.match(sql, /DELETE FROM public\.invoice_items WHERE invoice_id = _inv\.id/);
   assert.match(sql, /_subtotal := _subtotal \+/);
