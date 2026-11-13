@@ -103,3 +103,54 @@ Deno.test("Cashfree India payment activation preserves INR minor units and RPC i
     throw new Error("India payment RPC arguments changed");
   }
 });
+
+
+Deno.test("Cashfree major-to-minor conversion is exact and rejects malformed values", async () => {
+  const { majorToMinorUnits } = await import("./cashfree.ts");
+  const valid: Array<[number, number]> = [[199, 19900], [5.99, 599], [0.29, 29], [12.3, 1230]];
+  for (const [major, minor] of valid) {
+    if (majorToMinorUnits(major) !== minor) throw new Error(`Expected ${major} to convert to ${minor}`);
+  }
+  for (const invalid of [5.991, -1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 1e20, "5.99", null, undefined]) {
+    if (majorToMinorUnits(invalid) !== null) throw new Error("Invalid provider amount was accepted: " + String(invalid));
+  }
+});
+
+Deno.test("Cashfree payment activation requires exact provider order and payment amounts and currencies", async () => {
+  const { activatePaidOrder } = await import("./cashfree.ts");
+  const order = {
+    id: "00000000-0000-0000-0000-000000000002",
+    txnid: "PLXCF-12345678123412341234123456",
+    status: "created",
+    plan_id: "basic_monthly",
+    currency: "USD",
+    amount_minor_units: 599,
+  };
+  const providerOrder = { order_id: order.txnid, order_status: "PAID", order_currency: "USD", order_amount: 5.99 };
+  const payment = { payment_status: "SUCCESS", payment_currency: "USD", payment_amount: 5.99, cf_payment_id: "CI-PAYMENT-USD" };
+  let rpcCalls = 0;
+  const admin = { rpc: async () => { rpcCalls++; return { data: { ok: true, already_applied: false }, error: null }; } };
+  const run = async (po: Record<string, unknown>, pay: Record<string, unknown>) =>
+    activatePaidOrder(admin, order, po, pay, "cashfree-amount-validation-test");
+
+  const valid = await run(providerOrder, payment);
+  if (!valid.ok || rpcCalls !== 1) throw new Error("Valid two-decimal USD payment was rejected");
+
+  const invalidCases: Array<[string, Record<string, unknown>, Record<string, unknown>]> = [
+    ["fractional minor-unit payment", providerOrder, { ...payment, payment_amount: 5.991 }],
+    ["missing payment amount", providerOrder, { payment_status: "SUCCESS", payment_currency: "USD", cf_payment_id: "MISSING-AMOUNT" }],
+    ["missing payment currency", providerOrder, { ...payment, payment_currency: undefined }],
+    ["wrong payment currency", providerOrder, { ...payment, payment_currency: "EUR" }],
+    ["wrong order currency", { ...providerOrder, order_currency: "EUR" }, payment],
+    ["missing order amount", { ...providerOrder, order_amount: undefined }, payment],
+    ["fractional order amount", { ...providerOrder, order_amount: 5.991 }, payment],
+    ["amount mismatch", providerOrder, { ...payment, payment_amount: 6.00 }],
+    ["invalid numeric amount", providerOrder, { ...payment, payment_amount: Number.NaN }],
+    ["negative payment amount", providerOrder, { ...payment, payment_amount: -5.99 }],
+  ];
+  for (const [label, po, pay] of invalidCases) {
+    const before = rpcCalls;
+    const result = await run(po, pay);
+    if (result.ok || rpcCalls !== before) throw new Error(label + " was not rejected before the payment RPC");
+  }
+});
