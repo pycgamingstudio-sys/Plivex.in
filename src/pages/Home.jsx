@@ -578,7 +578,7 @@ export default function Home() {
         const box = section.getBoundingClientRect();
         return { top: Math.max(0, box.top - base.top), bottom: Math.max(0, box.bottom - base.top) };
       });
-      canvas = await html2canvas(copy, { scale: 3, useCORS: true, backgroundColor: "#ffffff", logging: false, windowWidth: INVOICE_WIDTH, imageTimeout: 5000 });
+      canvas = await html2canvas(copy, { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false, windowWidth: INVOICE_WIDTH, imageTimeout: 5000 });
       const scaleRatio = canvas.width / INVOICE_WIDTH;
       qrBounds = keepTogether.map((bounds) => ({ top: Math.floor(bounds.top * scaleRatio), bottom: Math.ceil(bounds.bottom * scaleRatio) }));
     } finally {
@@ -620,9 +620,10 @@ export default function Home() {
     if (!preview) { notify("Preview is still loading. Try again in a moment.", "info"); return; }
     try {
       notify("Download pending — preparing your invoice PDF…", "info", 0);
-      await recordInvoice();
       notify("Preparing invoice PDF… please wait.", "info", 0);
-      const pdf = await renderPdfDocument();
+      // PDF rendering is CPU-bound while invoice persistence is network-bound.
+      // Run both together to avoid adding their wait times sequentially.
+      const [, pdf] = await Promise.all([recordInvoice(), renderPdfDocument()]);
       if (!pdf) return;
       notify("PDF ready — starting download…", "info", 0);
       pdf.save(filename);
