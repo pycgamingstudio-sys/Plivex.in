@@ -4,12 +4,12 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/api/backendClient";
 import { rememberPendingInviteCode } from "@/components/auth/workspaceInvite";
 
-export default function GoogleSignInButton({ inviteCode = "", onError, disabled = false, className = "" }) {
+export default function GoogleSignInButton({ inviteCode = "", countryCode = "IN", localeCode = "en-IN", onError, disabled = false, className = "" }) {
   const [loading, setLoading] = useState(false);
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
-    if (inviteCode) rememberPendingInviteCode(inviteCode);
+    if (inviteCode) rememberPendingInviteCode(inviteCode);\n    else { try { window.localStorage.setItem("plivex.signup.region", JSON.stringify({ countryCode, localeCode })); } catch {} }
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
