@@ -9,7 +9,8 @@ export default function WelcomePopup({ userId, planName = "Free", plan = "free",
   useEffect(() => {
     // Reset on account changes/logout and wait for the authoritative plan before showing.
     setOpenForUser(null);
-    const storage = getStorageSafely(() => window.localStorage);\n    if (!canScheduleWelcomePopup({ userId, planLoading, storage })) return undefined;
+    const storage = getStorageSafely(() => window.localStorage);
+    if (!canScheduleWelcomePopup({ userId, planLoading, storage })) return undefined;
     const timer = window.setTimeout(() => setOpenForUser(userId), 12000);
     return () => window.clearTimeout(timer);
   }, [userId, planLoading, planName, plan]);
