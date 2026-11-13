@@ -32,7 +32,7 @@ export const PLANS = {
     bullets: [
       "Up to 3,000 invoices per month",
       "Up to 50,000 clients and stock items",
-      "WhatsApp sharing and payment reminders",
+      "WhatsApp, Gmail & SMS invoice sharing with payment reminders",
       "Team access and lead pipeline",
       "GSTR-1 export, custom logo and multi-currency",
       "Premium invoice designs",
