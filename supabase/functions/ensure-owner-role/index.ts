@@ -38,8 +38,28 @@ Deno.serve(async (req: Request) => {
     }, { onConflict: "membership_key" });
     if (memberError) return jsonResponse({ error: "Could not create owner membership" }, 500, origin);
 
+    // Persist the explicit signup country/locale on the new workspace.
+    // Invited members never reach this owner-bootstrap path.
+    const metadata = auth.user.user_metadata || {};
+    const countryLocales: Record<string, string[]> = {
+      IN: ["en-IN", "hi-IN"], US: ["en-US", "es-US"], GB: ["en-GB"],
+      AE: ["en-AE", "ar-AE"], CA: ["en-CA", "fr-CA"], AU: ["en-AU"],
+      SG: ["en-SG", "zh-SG", "ms-SG", "ta-SG"],
+    };
+    const requestedCountry = typeof metadata.signup_country_code === "string" ? metadata.signup_country_code.toUpperCase() : "IN";
+    const requestedLocale = typeof metadata.signup_locale_code === "string" ? metadata.signup_locale_code : "en-IN";
+    const countryCode = countryLocales[requestedCountry]?.includes(requestedLocale) ? requestedCountry : "IN";
+    const localeCode = countryLocales[countryCode]?.includes(requestedLocale) ? requestedLocale : "en-IN";
+    const { error: countryError } = await auth.admin.from("business_profile").upsert({
+      workspace_id: workspaceId, country_code: countryCode, locale_code: localeCode,
+    }, { onConflict: "workspace_id", ignoreDuplicates: true });
+    if (countryError) {
+      console.error("Owner workspace country setup failed", { code: countryError.code });
+      return jsonResponse({ error: "Workspace created, but regional settings could not be initialized. Please save them in Workspace Settings." }, 500, origin);
+    }
+
     // Current Plivex uses a Free plan; intentionally do not create the archived 14-day trial fields.
-    return jsonResponse({ ok: true, role: "admin", workspaceId }, 200, origin);
+    return jsonResponse({ ok: true, role: "admin", workspaceId, countryCode, localeCode }, 200, origin);
   } catch (error) {
     console.error("ensure-owner-role failed", error);
     return jsonResponse({ error: "Could not initialize workspace owner." }, 500, origin);
