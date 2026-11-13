@@ -46,8 +46,10 @@ Deno.serve(async (req: Request) => {
       AE: ["en-AE", "ar-AE"], CA: ["en-CA", "fr-CA"], AU: ["en-AU"],
       SG: ["en-SG", "zh-SG", "ms-SG", "ta-SG"],
     };
-    const requestedCountry = typeof metadata.signup_country_code === "string" ? metadata.signup_country_code.toUpperCase() : "IN";
-    const requestedLocale = typeof metadata.signup_locale_code === "string" ? metadata.signup_locale_code : "en-IN";
+    const requestedCountryValue = typeof body?.countryCode === "string" ? body.countryCode : metadata.signup_country_code;
+    const requestedLocaleValue = typeof body?.localeCode === "string" ? body.localeCode : metadata.signup_locale_code;
+    const requestedCountry = typeof requestedCountryValue === "string" ? requestedCountryValue.toUpperCase() : "IN";
+    const requestedLocale = typeof requestedLocaleValue === "string" ? requestedLocaleValue : "en-IN";
     const countryCode = countryLocales[requestedCountry]?.includes(requestedLocale) ? requestedCountry : "IN";
     const localeCode = countryLocales[countryCode]?.includes(requestedLocale) ? requestedLocale : "en-IN";
     const { error: countryError } = await auth.admin.from("business_profile").upsert({
