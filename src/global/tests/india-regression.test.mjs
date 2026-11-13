@@ -126,3 +126,22 @@ test("existing India membership regression test remains present and unchanged in
   assert.match(membership, /workspace/);
   assert.match(membership, /permission/i);
 });
+
+
+test("Supabase migration versions are unique and subscription priority has a forward convergence migration", async () => {
+  const migrations = await readdir(new URL("../../../supabase/migrations/", import.meta.url));
+  const versioned = migrations
+    .filter((name) => /^\\d{12}_.+\\.sql$/.test(name))
+    .map((name) => ({ name, version: name.slice(0, 12) }));
+  const versions = versioned.map(({ version }) => version);
+  assert.equal(new Set(versions).size, versions.length, "migration version timestamps must be unique");
+  assert.ok(migrations.includes("202610280004_fix_overlapping_subscription_tier_priority.sql"));
+  assert.ok(!migrations.includes("202610280004_prioritize_effective_subscription.sql"));
+  assert.ok(migrations.includes("202611130004_converge_effective_subscription_priority.sql"));
+
+  const convergence = await read("../../../supabase/migrations/202611130004_converge_effective_subscription_priority.sql");
+  assert.match(convergence, /Unexpected current_plan ordering after 202610280004/);
+  assert.match(convergence, /Unexpected get_access_status expiry query after 202610280004/);
+  assert.match(convergence, /Unexpected get_access_status startedAt query after 202610280004/);
+  assert.match(convergence, /WHEN 'pro' THEN 2 WHEN 'basic' THEN 1/);
+});
