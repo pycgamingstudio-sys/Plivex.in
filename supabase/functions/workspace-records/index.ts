@@ -12,6 +12,11 @@ const FIELDS: Record<string, string[]> = {
   quotations: ["number","client_name","date","total","status","tax_rate","items"],
   business_profile: ["name","email","phone","gstin","address","logo_url","upi_id","country_code","locale_code"],
 };
+const COUNTRY_LOCALES: Record<string, string[]> = {
+  IN: ["en-IN", "hi-IN"], US: ["en-US", "es-US"], GB: ["en-GB"],
+  AE: ["en-AE", "ar-AE"], CA: ["en-CA", "fr-CA"], AU: ["en-AU"],
+  SG: ["en-SG", "zh-SG", "ms-SG", "ta-SG"],
+};
 const isId = (v: unknown) => typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v);
 const pick = (value: unknown, fields: string[]) => {
   const input = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -45,6 +50,15 @@ Deno.serve(async (req: Request) => {
         return json({ record: data || null }, 200, origin);
       }
       if (action === "upsert") {
+        const incoming = body.values && typeof body.values === "object" && !Array.isArray(body.values) ? body.values : {};
+        if (Object.hasOwn(incoming, "country_code") || Object.hasOwn(incoming, "locale_code")) {
+          const countryCode = incoming.country_code;
+          const localeCode = incoming.locale_code;
+          if (typeof countryCode !== "string" || !Object.hasOwn(COUNTRY_LOCALES, countryCode)
+            || typeof localeCode !== "string" || !COUNTRY_LOCALES[countryCode].includes(localeCode)) {
+            return json({ error: "Choose a supported country and matching locale." }, 400, origin);
+          }
+        }
         const values = { ...pick(body.values, fields), workspace_id: profile.workspace_id };
         const { data: existing, error: readError } = await db.from(table).select("id").eq("workspace_id", profile.workspace_id).maybeSingle();
         if (readError) return json({ error: "Could not load business profile." }, readError.code === "42501" ? 403 : 400, origin);
