@@ -27,6 +27,74 @@ INSERT INTO public.invoices (id, workspace_id) VALUES
 
 \ir ../migrations/202611130002_invoice_share_links.sql
 \ir ../migrations/202611130003_invoice_share_rate_limit.sql
+\ir ../migrations/20261114000000_invoice_share_created_by_index.sql
+\ir ../migrations/20261114000000_invoice_share_created_by_index.sql
+
+CREATE OR REPLACE FUNCTION auth.uid()
+RETURNS uuid LANGUAGE sql STABLE
+AS $fn$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $fn$;
+GRANT USAGE ON SCHEMA auth TO authenticated;
+GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated;
+
+CREATE TABLE public.assistant_action_batches (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL
+);
+ALTER TABLE public.assistant_action_batches ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users read own assistant action batches"
+  ON public.assistant_action_batches
+  FOR SELECT TO authenticated
+  USING (user_id = auth.uid());
+GRANT SELECT ON public.assistant_action_batches TO authenticated;
+INSERT INTO public.assistant_action_batches (id,user_id) VALUES
+  ('50000000-0000-0000-0000-000000000005','10000000-0000-0000-0000-000000000001'),
+  ('60000000-0000-0000-0000-000000000006','20000000-0000-0000-0000-000000000002');
+
+\ir ../migrations/20261114000001_optimize_assistant_batch_rls_policy.sql
+
+DO $index_and_policy$
+DECLARE v_policy text;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_index i
+    JOIN pg_class idx ON idx.oid=i.indexrelid
+    WHERE i.indrelid='public.invoice_share_links'::regclass
+      AND idx.relname='invoice_share_links_created_by_idx'
+      AND i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'invoice_share_links.created_by index is missing or invalid';
+  END IF;
+  SELECT qual INTO v_policy FROM pg_policies
+  WHERE schemaname='public' AND tablename='assistant_action_batches'
+    AND policyname='Users read own assistant action batches';
+  IF v_policy IS NULL OR position('SELECT auth.uid()' IN upper(v_policy))=0 THEN
+    RAISE EXCEPTION 'assistant batch RLS policy does not use a scalar SELECT for auth.uid()';
+  END IF;
+END
+$index_and_policy$;
+
+SELECT set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000001',true);
+SET LOCAL ROLE authenticated;
+DO $workspace_a_rls$
+DECLARE v_count integer;
+BEGIN
+  SELECT count(*) INTO v_count FROM public.assistant_action_batches;
+  IF v_count <> 1 THEN RAISE EXCEPTION 'Workspace A user must see only their own assistant batch rows'; END IF;
+END
+$workspace_a_rls$;
+RESET ROLE;
+
+SELECT set_config('request.jwt.claim.sub','20000000-0000-0000-0000-000000000002',true);
+SET LOCAL ROLE authenticated;
+DO $workspace_b_rls$
+DECLARE v_count integer;
+BEGIN
+  SELECT count(*) INTO v_count FROM public.assistant_action_batches;
+  IF v_count <> 1 THEN RAISE EXCEPTION 'Workspace B user must see only their own assistant batch rows'; END IF;
+END
+$workspace_b_rls$;
+RESET ROLE;
+
 
 -- Supabase's service_role receives table access through platform default grants.
 GRANT ALL ON public.invoice_share_links, public.invoice_share_rate_limits TO service_role;
