@@ -18,9 +18,9 @@ Deno.test("Cashfree currency and billing-period restrictions fail closed", () =>
   if (unknown.available) throw new Error("Unknown country must not fall back to India");
 });
 
-Deno.test("India-only legacy support price does not leak into global editions", () => {
-  const india = resolvePlan("basic_monthly", "IN", "virendra.sharma99978@gmail.com");
-  const usa = resolvePlan("basic_monthly", "US", "virendra.sharma99978@gmail.com");
-  if (!india.available || india.amountMinor !== 2500) throw new Error("India legacy support price was not preserved");
-  if (!usa.available || usa.amountMinor !== 599) throw new Error("India support price leaked into global pricing");
+Deno.test("published plan price is consistent across accounts in the same country", () => {
+  const standard = resolvePlan("basic_monthly", "IN");
+  const account = resolvePlan("basic_monthly", "IN", "customer@example.test");
+  if (!standard.available || !account.available || standard.amountMinor !== 19900 || account.amountMinor !== standard.amountMinor)
+    throw new Error("India published price must not vary by account email");
 });
