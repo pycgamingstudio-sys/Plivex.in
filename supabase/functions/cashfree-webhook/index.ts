@@ -7,7 +7,7 @@ Deno.serve(async(req:Request)=>{
  try{if(!await verifyWebhook(raw,timestamp,signature))return json({error:"Invalid webhook signature"},401);}
  catch{return json({error:"Webhook verification unavailable"},503);}
  let event:any;try{event=JSON.parse(raw);}catch{return json({error:"Invalid JSON"},400);}
- const data=event?.data||{},orderId=String(data?.order?.order_id||""),payment=data?.payment||{};
+ const data=event?.data||{},orderId=String(data?.order?.order_id||data?.refund?.order_id||""),payment=data?.payment||{};
  if(!/^PLXCF-[A-Z0-9]{20,30}$/.test(orderId))return json({received:true,ignored:true});
  const url=Deno.env.get("SUPABASE_URL"),key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
  if(!url||!key)return json({error:"Webhook backend unavailable"},503);
@@ -21,7 +21,7 @@ Deno.serve(async(req:Request)=>{
  if(eventType.includes("REFUND")||refund?.refund_id||refund?.cf_refund_id){
   const refundId=String(refund?.cf_refund_id||refund?.refund_id||"");
   const refundStatus=String(refund?.refund_status||"").toUpperCase();
-  const refundAmount=Number(refund?.refund_amount);
+  const refundAmount=Number(refund?.refund_amount??refund?.amount);
   const refundMinor=Math.round(refundAmount*100);
   if(!refundId||!["SUCCESS","PENDING","FAILED"].includes(refundStatus)||!Number.isSafeInteger(refundMinor)||refundMinor<=0)
    return json({error:"Invalid refund event"},400);
