@@ -91,11 +91,11 @@ $privileges$;
 
 INSERT INTO public.subscriptions (
  user_id,user_email,workspace_id,plan_id,plan_name,tier,status,amount,amount_minor_units,amount_major,
- currency,country_code,billing_period,gateway,provider,txnid,idempotency_key,payment_status
+ currency,country_code,locale_code,billing_period,gateway,provider,txnid,idempotency_key,payment_status
 ) VALUES (
  '10000000-0000-0000-0000-000000000001','owner@example.test','ws-us',
  'basic_monthly','Basic Monthly','basic','created',6,599,5.99,
- 'USD','US','month','cashfree','cashfree','PLXCF-ORDER000000000000000001',
+ 'USD','US','en-US','month','cashfree','cashfree','PLXCF-ORDER000000000000000001',
  'PLXCF-ORDER000000000000000001','created'
 );
 
@@ -141,7 +141,7 @@ INSERT INTO public.subscriptions (
  billing_period,gateway,provider,txnid,idempotency_key
 ) VALUES (
  '10000000-0000-0000-0000-000000000001','ws-us','pro_monthly','pro','created',10,999,9.99,
- 'USD','US','month','cashfree','cashfree','PLXCF-ORDER000000000000000002','PLXCF-ORDER000000000000000002'
+ 'USD','US','en-US','month','cashfree','cashfree','PLXCF-ORDER000000000000000002','PLXCF-ORDER000000000000000002'
 );
 SET ROLE service_role;
 SELECT public.apply_cashfree_subscription_payment(
@@ -163,7 +163,7 @@ INSERT INTO public.subscriptions (
  billing_period,gateway,provider,txnid,started_at,expires_at
 ) VALUES (
  '10000000-0000-0000-0000-000000000001','ws-downgrade','pro_monthly','pro','active',9,999,9.99,
- 'USD','US','month','cashfree','cashfree','PRIOR-PRO',
+ 'USD','US','en-US','month','cashfree','cashfree','PRIOR-PRO',
  now(),now()+interval '10 days'
 );
 INSERT INTO public.subscriptions (
@@ -171,7 +171,7 @@ INSERT INTO public.subscriptions (
  billing_period,gateway,provider,txnid
 ) VALUES (
  '10000000-0000-0000-0000-000000000001','ws-downgrade','basic_monthly','basic','created',6,599,5.99,
- 'USD','US','month','cashfree','cashfree','PLXCF-DOWNGRADE0000000000000001'
+ 'USD','US','en-US','month','cashfree','cashfree','PLXCF-DOWNGRADE0000000000000001'
 );
 SET ROLE service_role;
 SELECT public.apply_cashfree_subscription_payment(
@@ -195,7 +195,7 @@ INSERT INTO public.subscriptions (
  billing_period,gateway,provider,txnid
 ) VALUES (
  '10000000-0000-0000-0000-000000000001','ws-other-order','basic_monthly','basic','created',6,599,5.99,
- 'USD','US','month','cashfree','cashfree','PLXCF-REUSED-PAYMENT000000000001'
+ 'USD','US','en-US','month','cashfree','cashfree','PLXCF-REUSED-PAYMENT000000000001'
 );
 SET ROLE service_role;
 SELECT public.apply_cashfree_subscription_payment(
@@ -217,7 +217,7 @@ INSERT INTO public.subscriptions (
  billing_period,gateway,provider,txnid,started_at,expires_at
 ) VALUES (
  '10000000-0000-0000-0000-000000000001','ws-renew','basic_monthly','basic','active',6,599,5.99,
- 'USD','US','month','cashfree','cashfree','PRIOR-BASIC-RENEW',
+ 'USD','US','en-US','month','cashfree','cashfree','PRIOR-BASIC-RENEW',
  now(),now()+interval '5 days'
 );
 INSERT INTO public.subscriptions (
@@ -225,7 +225,7 @@ INSERT INTO public.subscriptions (
  billing_period,gateway,provider,txnid
 ) VALUES (
  '10000000-0000-0000-0000-000000000001','ws-renew','basic_monthly','basic','created',6,599,5.99,
- 'USD','US','month','cashfree','cashfree','PLXCF-BASIC-RENEW0000000000001'
+ 'USD','US','en-US','month','cashfree','cashfree','PLXCF-BASIC-RENEW0000000000001'
 );
 SET ROLE service_role;
 SELECT public.apply_cashfree_subscription_payment(
