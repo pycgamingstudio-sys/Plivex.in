@@ -170,7 +170,9 @@ jobs:
             echo "PASS: clean schema without prerequisites fails closed"
           fi
       - name: Apply and verify assistant batch RLS optimization migration in disposable PostgreSQL
-        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/assistant-batch-rls.integration.sql
+        run: |
+          createdb plivex_assistant_rls_test
+          psql -d plivex_assistant_rls_test -v ON_ERROR_STOP=1 -f supabase/tests/assistant-batch-rls.integration.sql
       - name: Verify assistant batch RPC anon privilege is removed without breaking signed-in callers
         shell: bash
         run: |
