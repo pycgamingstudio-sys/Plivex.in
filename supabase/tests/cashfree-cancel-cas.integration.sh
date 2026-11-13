@@ -46,7 +46,7 @@ if [[ "$resume_status" == "200" && "$final" != "false|false" ]]; then
   echo "FAIL: resume API success did not match final PostgreSQL state: $final"
   exit 1
 fi
-echo "PASS: real PostgreSQL concurrent endpoint-CAS outcome; cancel=$cancel_status resume=$resume_status final=$final"
+echo "PASS: disposable PostgreSQL CAS predicate model; cancel=$cancel_status resume=$resume_status final=$final (not HTTP handler integration)"
 # Expired-window protection: an expired subscription cannot be changed by a stale request.
 psql -v ON_ERROR_STOP=1 <<'SQL'
 UPDATE public.cashfree_cancel_cas_test SET expires_at=clock_timestamp()-interval '1 second'
