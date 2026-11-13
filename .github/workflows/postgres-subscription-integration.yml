@@ -48,6 +48,8 @@ jobs:
         run: npm run test:global
       - name: Execute migration convergence and PostgreSQL RLS integration fixture
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/subscription-priority.integration.sql
+      - name: Verify workspace country migration and constraints
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/workspace-country.integration.sql
       - name: Verify migration statement rollback after later function drift
         shell: bash
         run: |
