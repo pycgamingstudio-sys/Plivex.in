@@ -196,10 +196,23 @@ function parseExpenseConversation(incoming: any[]) {
   const vendor = text(namedVendor?.[1] || leadingVendor?.[1], 120).replace(/[.,;:]+$/, "").trim();
   const descriptionMatch = combined.match(/(?:description|purpose|reason|note)\s*(?:hai|is|[:=])?\s*([A-Za-z][A-Za-z0-9 /&().'-]{0,120}?)(?=\s+(?:amount|price|total|cost|value|vendor|payee|supplier|name|naam|category|date|payment|method)\b|[,;\n]|$)/i);
   const notes = text(descriptionMatch?.[1], 500).replace(/[.,;:]+$/, "").trim();
+  // Newest-turn corrections override older draft values.
+  const correctionText = latest;
+  const correctionMoney = correctionText.match(/(?:amount|total|rakam|रकम)\s*(?:is|hai|[:=])?\s*(?:₹|rs\.?\s*)?([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(k|thousand|lakh|lac)?|(?:nahi|nahin|not|instead|actually|correction|galat|सही|नहीं)[^\d₹]{0,35}(?:₹|rs\.?\s*)?([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(k|thousand|lakh|lac)?/i);
+  if (correctionMoney) {
+    const correctedValue = correctionMoney[1] || correctionMoney[3];
+    const correctedScale = correctionMoney[2] || correctionMoney[4] || "";
+    const parsedCorrection = parseMoney(correctedValue, correctedScale);
+    if (parsedCorrection > 0) amount = parsedCorrection;
+  }
+  const correctionVendor = correctionText.match(/(?:vendor|payee|supplier|name|naam)\s*(?:is|hai|[:=])?\s*([A-Za-z][A-Za-z .'-]{0,70})/i);
+  const correctionNotes = correctionText.match(/(?:description|purpose|reason|note)\s*(?:is|hai|[:=])?\s*([A-Za-z][A-Za-z0-9 /&().'-]{0,100})/i);
   const explicitCategory = combined.match(/category\s*(?:hai|is|[:=])?\s*([A-Za-z ]{2,40}?)(?=\s+(?:amount|price|description|date)\b|[,;\n]|$)/i);
   const lowerNotes = notes.toLowerCase();
   const categoryText = text(explicitCategory?.[1], 50).toLowerCase();
-  const categorySource = lowerNotes + " " + categoryText;
+  const effectiveVendor = text(correctionVendor?.[1] || vendor, 120).replace(/[.,;:]+$/, "").trim();
+  const effectiveNotes = text(correctionNotes?.[1] || notes, 500).replace(/[.,;:]+$/, "").trim();
+  const categorySource = (effectiveNotes + " " + categoryText).toLowerCase();
   const category = /salary|wage|payroll/i.test(categorySource) ? "Salary"
     : /rent|kiraya/i.test(categorySource) ? "Rent"
     : /material|raw material|maal/i.test(categorySource) ? "Raw Materials"
@@ -209,8 +222,8 @@ function parseExpenseConversation(incoming: any[]) {
     : /ad|advertis|marketing/i.test(categorySource) ? "Marketing"
     : allowedCategories.find((value) => value.toLowerCase() === categoryText) || "Other";
   if (!(amount > 0)) return { pending: true, reply: "Expense ke liye ab sirf total amount batao. Naam aur description maine yaad rakhe hain." };
-  const action = { type: "create_expense", payload: { vendor, amount, category, notes } };
-  return { pending: false, action, reply: "Expense draft ready: " + (vendor ? vendor + " · " : "") + "₹" + amount.toLocaleString("en-IN") + " · " + category + (notes ? " · " + notes : "") + ". Review and confirm to save." };
+  const action = { type: "create_expense", payload: { vendor: effectiveVendor, amount, category, notes: effectiveNotes } };
+  return { pending: false, action, reply: "Expense draft ready: " + (effectiveVendor ? effectiveVendor + " · " : "") + "₹" + amount.toLocaleString("en-IN") + " · " + category + (effectiveNotes ? " · " + effectiveNotes : "") + ". Review and confirm to save." };
 }
 function validateAction(action: any) {
   if (!action || typeof action !== "object") return null;
@@ -438,6 +451,7 @@ async function handleRequest(req: Request) {
     const priorAssistantText = [...incoming.slice(0, lastUserIndex)].reverse()
       .find((item: any) => item?.role === "assistant")?.content || "";
     const explicitWriteIntent = /(?:\b(?:add|create|save|record|jod(?:o|na)?|bana(?:o|na)?|darj)\b|जोड़(?:ो|ना)?|बना(?:ओ|ना)?|दर्ज करो)/i.test(currentUserText);
+    const explicitCorrectionIntent = /(?:\b(?:correct|correction|actually|instead|change|update|replace|not|wrong)\b|\b(?:nahi|nahin|galat|badal)\b|नहीं|गलत|बदल|सुधार)/i.test(currentUserText);
     // Only the immediately preceding assistant turn can keep a task open, and
     // only when it is genuinely requesting a missing field rather than showing a draft.
     const assistantAwaitingField = (fieldPattern: RegExp) => {
@@ -448,6 +462,7 @@ async function handleRequest(req: Request) {
     };
     const plausibleFieldAnswer = (() => {
       const value = currentUserText.trim();
+      if (explicitCorrectionIntent) return true;
       if (!value || value.length > 180 || value.includes("?")) return false;
       if (/^(?:what|how|why|when|where|who|can you|tell me|show|report|status|mera|meri|mere|my|please explain|kaisa|kaisi|kaise|kyun|kya|kab|kahan|मेरा|मेरी|मेरे|क्या|कैसे|कैसा|क्यों|कब|कहाँ)\b/i.test(value)) return false;
       if (/(?:\b(?:report|dashboard|sales|business performance|work status|how is my work|chal raha|kaisa chal)\b|कैसा चल|कैसी चल)/i.test(value)) return false;
@@ -584,7 +599,7 @@ async function handleRequest(req: Request) {
     // Enrich every AI-generated invoice draft with the signed-in workspace's saved business defaults.
     // Final write-intent gate: a normal question or unrelated sentence cannot
     // resurrect a create_* action merely because an old command remains in chat history.
-    const hasCurrentWriteIntent = explicitWriteIntent || invoiceClarificationActive || expenseClarificationActive || stockClarificationActive || clientClarificationActive;
+    const hasCurrentWriteIntent = explicitWriteIntent || invoiceClarificationActive || expenseClarificationActive || stockClarificationActive || clientClarificationActive || explicitCorrectionIntent;
     if (!hasCurrentWriteIntent) {
       parsed.actions = (Array.isArray(parsed.actions) ? parsed.actions : []).filter((item: any) => !/^create_/.test(String(item?.type || "")));
       if (parsed.action && /^create_/.test(String(parsed.action.type || ""))) parsed.action = { type: "none", payload: {} };
