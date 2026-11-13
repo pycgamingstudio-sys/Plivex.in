@@ -76,7 +76,14 @@ export function majorToMinorUnits(value: unknown): number | null {
 }
 
 export async function activatePaidOrder(admin:any,order:any,providerOrder:any,payment:any,source:string){
- const currency=String(order?.currency||"INR").toUpperCase();
+ // Only the old INR schema (amount_paise with no currency/minor-unit field)
+ // may use the legacy INR fallback. A modern international order missing its
+ // currency must fail closed instead of being silently interpreted as INR.
+ const isLegacyInrOrder=order?.currency==null&&order?.amount_minor_units==null&&
+   Number.isSafeInteger(order?.amount_paise)&&order.amount_paise>0;
+ const currency=typeof order?.currency==="string"&&order.currency.trim()
+   ?order.currency.trim().toUpperCase()
+   :(isLegacyInrOrder?"INR":"");
  const expected=order?.amount_minor_units??(currency==="INR"?order?.amount_paise:null);
  const actualMinor=majorToMinorUnits(providerOrder?.order_amount);
  const paymentMinor=majorToMinorUnits(payment?.payment_amount);
