@@ -7,9 +7,9 @@ const vars = config.vars || {};
 const required = ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "VITE_API_BASE_URL"];
 const assetsDir = "dist/assets";
 const assets = readdirSync(assetsDir)
-  .filter((name) => /\\.(?:js|css)$/.test(name))
+  .filter((name) => /\.(?:js|css)$/.test(name))
   .map((name) => readFileSync(join(assetsDir, name), "utf8"));
-const bundle = assets.join("\\n");
+const bundle = assets.join("\n");
 
 for (const key of required) {
   const value = vars[key];
