@@ -19,7 +19,8 @@ export function sanitizePublicInvoice(invoice) {
     invoice_snapshot: {
       business: pick(business, ["name", "address", "gstin", "locale", "countryLocale"]),
       client: pick(client, ["name", "company", "address", "gstin"]),
-      items: items.map((item) => pick(item, ["id", "description", "quantity", "rate", "gstRate"])),
+      items: (items.length ? items : (Array.isArray(invoice?.invoice_items) ? invoice.invoice_items : []))
+        .map((item) => pick(item, ["id", "description", "quantity", "rate", "gstRate"])),
       ...pick(snapshot, ["notes", "terms"]),
     },
     invoice_items: Array.isArray(invoice?.invoice_items)
