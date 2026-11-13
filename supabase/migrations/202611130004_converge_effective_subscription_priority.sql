@@ -34,7 +34,7 @@ BEGIN
 
   -- pg_get_functiondef indents PL/pgSQL body lines with tabs; remove those
   -- formatting-only tabs so known SQL fragments match independent of indentation.
-  v_def := replace(v_def, E'\\t', '');
+  v_def := replace(v_def, E'\t', '');
 
   v_old := $old$
 select max(s.expires_at) into v_expires
