@@ -1,15 +1,16 @@
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import {api,config,activatePaidOrder,origins,safePath} from "../_shared/cashfree.ts";
+import {api,activatePaidOrder,origins,safePath} from "../_shared/cashfree.ts";
+const appBase=()=> (Deno.env.get("APP_BASE_URL")||"https://plivex.in").replace(/\/$/,"");
 const admin=()=>createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{auth:{persistSession:false,autoRefreshToken:false}});
 const redirect=(origin:string,params:Record<string,string>)=>new Response(null,{status:302,headers:{Location:origin+"/payment-result?"+new URLSearchParams(params),"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
 Deno.serve(async(req:Request)=>{
  if(req.method!=="GET")return new Response("Method not allowed",{status:405});
  const id=new URL(req.url).searchParams.get("order_id")||"";
  try{
-  if(!/^PLXCF-[A-Z0-9]{20,30}$/.test(id))return redirect(config().appBase,{payment:"failed",next:"/pricing"});
+  if(!/^PLXCF-[A-Z0-9]{20,30}$/.test(id))return redirect(appBase(),{payment:"failed",next:"/pricing"});
   const db=admin(),{data:row,error}=await db.from("subscriptions").select("*").eq("txnid",id).maybeSingle();
   if(error||!row)return redirect(config().appBase,{payment:"failed",next:"/pricing"});
-  const origin=typeof row.return_origin==="string"&&origins.has(row.return_origin)?row.return_origin:config().appBase;
+  const origin=typeof row.return_origin==="string"&&origins.has(row.return_origin)?row.return_origin:appBase();
   const next=safePath(row.return_path);
   let status="pending";
   try{
@@ -28,5 +29,5 @@ Deno.serve(async(req:Request)=>{
   }catch(e){console.error("Cashfree return verification",e);}
   const amount=String(row.amount_minor_units??row.amount_paise??"");
   return redirect(origin,{payment:status,txnid:id,amount,currency:String(row.currency||"INR"),plan:String(row.plan_name||row.plan_id||""),next});
- }catch(e){console.error("cashfree-return failed",e);return redirect(config().appBase,{payment:"pending",next:"/dashboard"});}
+ }catch(e){console.error("cashfree-return failed",e);return redirect(appBase(),{payment:"pending",next:"/dashboard"});}
 });
