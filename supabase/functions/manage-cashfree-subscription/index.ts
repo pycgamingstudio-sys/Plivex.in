@@ -40,6 +40,6 @@ Deno.serve(async(req:Request)=>{
   }).eq("id",subscription.id).eq("workspace_id",profile.workspace_id).eq("gateway","cashfree").eq("provider","cashfree").eq("status","active").select("id").maybeSingle();
   if(updateError)return json({error:"Could not update subscription cancellation."},503,origin);
   if(!updated)return json({error:"Subscription changed. Refresh and try again."},409,origin);
-  return json({ok:true,action,cancelAtPeriodEnd:action==="cancel",expiresAt:subscription.expires_at,message:action==="cancel"?"Cancellation is scheduled for the end of the current paid period. Access remains active until expiry.":"Scheduled cancellation was withdrawn."},200,origin);
+  return json({ok:true,available:true,action,cancelAtPeriodEnd:action==="cancel",expiresAt:subscription.expires_at,message:action==="cancel"?"Cancellation is scheduled for the end of the current paid period. Access remains active until expiry.":"Scheduled cancellation was withdrawn."},200,origin);
  }catch(error){console.error("manage-cashfree-subscription failed",error);return json({error:"Could not manage subscription."},500,origin);}
 });
