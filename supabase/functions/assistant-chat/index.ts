@@ -19,7 +19,7 @@ const number = (value: unknown, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
-const allowedCategories = ["Rent", "Raw Materials", "Utilities", "Salary", "Logistics", "Software", "Marketing", "Other"];
+const allowedCategories = ["Rent", "Raw Materials", "Utilities", "Salary", "Logistics", "Software", "Marketing", "Other"];\nconst SUPPORTED_CURRENCIES = new Set(["INR", "USD", "EUR", "GBP", "AED", "CAD", "AUD", "SGD"]);
 
 async function loadLiveContext(supabase: ReturnType<typeof createClient>, workspaceId: string) {
   const results = await Promise.all([
@@ -154,7 +154,7 @@ function parseInvoiceConversation(incoming: any[], businessProfile: any = null) 
   const invoiceSnapshot = {
     business: invoiceBusiness,
     client: { name: client, company: "", email: "", phone: "", gstin: "", address: "" },
-    number: "", issueDate, dueDate, currency: "INR",
+    number: "", issueDate, dueDate, currency,
     items: [{ id: "ai-item-1", description: item, quantity, rate, gstRate: 0 }],
     taxRate: 0, taxMode: "split", discountType: "percent", discount: 0,
     notes: "", terms: "", upiId: text(profile.upi_id, 180),
@@ -163,11 +163,11 @@ function parseInvoiceConversation(incoming: any[], businessProfile: any = null) 
   const action = { type: "create_invoice", payload: {
     client_name: client, business_name: invoiceBusiness.name,
     issue_date: issueDate, due_date: dueDate,
-    currency: "INR", tax_mode: "split", tax_rate: 0, discount_type: "percent", discount: 0,
+    currency, tax_mode: "split", tax_rate: 0, discount_type: "percent", discount: 0,
     is_draft: true, status: "Pending", invoice_snapshot: invoiceSnapshot,
     items: [{ description: item, quantity, rate: price, gst_rate: 0 }]
   }};
-  return { pending: false, action, reply: `Invoice draft ready: ${client} · ${item} × ${quantity} × ₹${price.toLocaleString("en-IN")} = ₹${(quantity * price).toLocaleString("en-IN")}. Review and confirm to save.` };
+  const amountLabel = currency === "INR" ? "₹" : currency + " ";\n  const amountLocale = currency === "INR" ? "en-IN" : undefined;\n  return { pending: false, action, reply: `Invoice draft ready: ${client} · ${item} × ${quantity} × ${amountLabel}${price.toLocaleString(amountLocale)} = ${amountLabel}${(quantity * price).toLocaleString(amountLocale)}. Review and confirm to save.` };
 }
 
 
@@ -247,7 +247,7 @@ function validateAction(action: any) {
       client_name, client_email: text(p.client_email, 180), business_name: text(p.business_name, 160),
       issue_date: /^\d{4}-\d{2}-\d{2}$/.test(text(p.issue_date, 10)) ? text(p.issue_date, 10) : undefined,
       due_date: /^\d{4}-\d{2}-\d{2}$/.test(text(p.due_date, 10)) ? text(p.due_date, 10) : undefined,
-      currency: "INR", tax_mode, tax_rate, discount_type, discount,
+      currency, tax_mode, tax_rate, discount_type, discount,
       notes: text(p.notes, 1000), terms: text(p.terms, 1000), status: "Pending", is_draft: true, items,
     };
     const subtotal = items.reduce((sum: number, item: any) => sum + item.quantity * item.rate, 0);
