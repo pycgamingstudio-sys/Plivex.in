@@ -82,6 +82,59 @@ CREATE TABLE public.payment_logs (
 
 \ir ../migrations/202611130007_global_billing_and_cashfree_atomicity.sql
 \ir ../migrations/202611130008_cashfree_refund_atomicity.sql
+
+-- Prove Migration 009 DDL/ACL changes are fully transactional. This fixture
+-- runs only in the disposable CI database. Capture both RPCs after 007/008,
+-- apply 009 inside a savepoint, roll it back, and compare definitions/config/ACL.
+CREATE TEMP TABLE migration009_before AS
+SELECT p.oid::regprocedure::text AS signature,
+       pg_get_functiondef(p.oid) AS definition,
+       p.proconfig,
+       p.proacl,
+       p.proowner,
+       p.prosecdef
+FROM pg_catalog.pg_proc p
+WHERE p.oid IN (
+ 'public.apply_cashfree_subscription_payment(uuid,text,text,bigint,text,text,jsonb,text)'::regprocedure,
+ 'public.apply_cashfree_refund_event(uuid,text,bigint,text,text,jsonb)'::regprocedure
+);
+DO $before_count$
+BEGIN
+ IF (SELECT count(*) FROM migration009_before) <> 2 THEN
+  RAISE EXCEPTION 'Expected pre-migration snapshots for both billing RPCs';
+ END IF;
+END
+$before_count$;
+
+SAVEPOINT migration009_rollback_probe;
+\ir ../migrations/202611130009_global_billing_concurrency_and_definer_hardening.sql
+ROLLBACK TO SAVEPOINT migration009_rollback_probe;
+
+DO $rollback_assert$
+DECLARE v_mismatches integer;
+BEGIN
+ SELECT count(*) INTO v_mismatches
+ FROM migration009_before b
+ JOIN pg_catalog.pg_proc p ON p.oid = to_regprocedure(b.signature)
+ WHERE pg_get_functiondef(p.oid) IS DISTINCT FROM b.definition
+    OR p.proconfig IS DISTINCT FROM b.proconfig
+    OR p.proacl IS DISTINCT FROM b.proacl
+    OR p.proowner IS DISTINCT FROM b.proowner
+    OR p.prosecdef IS DISTINCT FROM b.prosecdef;
+ IF v_mismatches <> 0 THEN
+  RAISE EXCEPTION 'Migration 009 rollback did not restore % RPC definition/config/ACL snapshots',v_mismatches;
+ END IF;
+ IF (SELECT count(*) FROM migration009_before b
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p WHERE p.oid=to_regprocedure(b.signature))) <> 0 THEN
+  RAISE EXCEPTION 'Migration 009 rollback lost a pre-existing billing RPC';
+ END IF;
+END
+$rollback_assert$;
+RELEASE SAVEPOINT migration009_rollback_probe;
+\echo 'PASS: Migration 009 rollback restored both RPC definitions, proconfig/search_path, ACL, owner and SECURITY DEFINER state'
+
+-- Apply Migration 009 normally after the rollback probe for the remaining
+-- integration scenarios below.
 \ir ../migrations/202611130009_global_billing_concurrency_and_definer_hardening.sql
 -- Reapply the hardening migration to verify CREATE OR REPLACE/ACL convergence.
 \ir ../migrations/202611130009_global_billing_concurrency_and_definer_hardening.sql
@@ -380,5 +433,76 @@ BEGIN
  END IF;
 END
 $null_workspace_renewal$;
+
+
+-- Cross-user isolation for NULL workspace IDs. A and B each have their own
+-- paid expiry; renewing one user must not consume or mutate the other's term.
+INSERT INTO public.subscriptions (
+ user_id,user_email,workspace_id,plan_id,plan_name,tier,status,amount,amount_minor_units,amount_major,
+ currency,country_code,locale_code,billing_period,gateway,provider,txnid,started_at,expires_at
+) VALUES
+ ('50000000-0000-0000-0000-000000000005','user-a@example.test',NULL,'basic_monthly','Basic Monthly','basic','active',6,599,5.99,
+  'USD','US','en-US','month','cashfree','cashfree','PRIOR-NULL-A',now(),now()+interval '10 days'),
+ ('60000000-0000-0000-0000-000000000006','user-b@example.test',NULL,'basic_monthly','Basic Monthly','basic','active',6,599,5.99,
+  'USD','US','en-US','month','cashfree','cashfree','PRIOR-NULL-B',now(),now()+interval '20 days');
+INSERT INTO public.subscriptions (
+ user_id,user_email,workspace_id,plan_id,plan_name,tier,status,amount,amount_minor_units,amount_major,
+ currency,country_code,locale_code,billing_period,gateway,provider,txnid
+) VALUES
+ ('50000000-0000-0000-0000-000000000005','user-a@example.test',NULL,'basic_monthly','Basic Monthly','basic','created',6,599,5.99,
+  'USD','US','en-US','month','cashfree','cashfree','ORDER-NULL-A'),
+ ('60000000-0000-0000-0000-000000000006','user-b@example.test',NULL,'basic_monthly','Basic Monthly','basic','created',6,599,5.99,
+  'USD','US','en-US','month','cashfree','cashfree','ORDER-NULL-B');
+
+SET ROLE service_role;
+SELECT public.apply_cashfree_subscription_payment(
+ (SELECT id FROM public.subscriptions WHERE txnid='ORDER-NULL-A'),
+ 'CFPAY-NULL-A','USD',599,'PAID','SUCCESS','{}'::jsonb,'ci-null-user-a'
+);
+RESET ROLE;
+
+DO $null_workspace_cross_user_a$
+DECLARE
+ v_a_prior timestamptz; v_a_start timestamptz; v_a_expiry timestamptz;
+ v_b_start timestamptz; v_b_expiry timestamptz;
+BEGIN
+ SELECT expires_at INTO v_a_prior FROM public.subscriptions WHERE txnid='PRIOR-NULL-A';
+ SELECT started_at,expires_at INTO v_a_start,v_a_expiry FROM public.subscriptions WHERE txnid='ORDER-NULL-A';
+ SELECT started_at,expires_at INTO v_b_start,v_b_expiry FROM public.subscriptions WHERE txnid='PRIOR-NULL-B';
+ IF v_a_start IS DISTINCT FROM v_a_prior OR v_a_expiry IS DISTINCT FROM v_a_prior + interval '1 month' THEN
+  RAISE EXCEPTION 'User A renewal did not extend exactly from User A expiry';
+ END IF;
+ IF v_b_start IS NULL OR v_b_expiry IS NULL
+    OR v_b_start IS DISTINCT FROM (SELECT started_at FROM public.subscriptions WHERE txnid='PRIOR-NULL-B')
+    OR v_b_expiry IS DISTINCT FROM (SELECT expires_at FROM public.subscriptions WHERE txnid='PRIOR-NULL-B') THEN
+  RAISE EXCEPTION 'User A renewal changed User B subscription or expiry';
+ END IF;
+END
+$null_workspace_cross_user_a$;
+
+SET ROLE service_role;
+SELECT public.apply_cashfree_subscription_payment(
+ (SELECT id FROM public.subscriptions WHERE txnid='ORDER-NULL-B'),
+ 'CFPAY-NULL-B','USD',599,'PAID','SUCCESS','{}'::jsonb,'ci-null-user-b'
+);
+RESET ROLE;
+
+DO $null_workspace_cross_user_b$
+DECLARE
+ v_a_start timestamptz; v_a_expiry timestamptz;
+ v_b_prior timestamptz; v_b_start timestamptz; v_b_expiry timestamptz;
+BEGIN
+ SELECT started_at,expires_at INTO v_a_start,v_a_expiry FROM public.subscriptions WHERE txnid='ORDER-NULL-A';
+ SELECT expires_at INTO v_b_prior FROM public.subscriptions WHERE txnid='PRIOR-NULL-B';
+ SELECT started_at,expires_at INTO v_b_start,v_b_expiry FROM public.subscriptions WHERE txnid='ORDER-NULL-B';
+ IF v_b_start IS DISTINCT FROM v_b_prior OR v_b_expiry IS DISTINCT FROM v_b_prior + interval '1 month' THEN
+  RAISE EXCEPTION 'User B renewal did not extend exactly from User B expiry';
+ END IF;
+ IF v_a_start IS DISTINCT FROM (SELECT started_at FROM public.subscriptions WHERE txnid='ORDER-NULL-A')
+    OR v_a_expiry IS DISTINCT FROM (SELECT expires_at FROM public.subscriptions WHERE txnid='ORDER-NULL-A') THEN
+  RAISE EXCEPTION 'User B renewal changed User A subscription or expiry';
+ END IF;
+END
+$null_workspace_cross_user_b$;
 
 ROLLBACK;
