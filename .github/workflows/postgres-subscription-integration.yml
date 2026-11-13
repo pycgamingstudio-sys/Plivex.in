@@ -166,16 +166,30 @@ jobs:
           $roles$;
           CREATE OR REPLACE FUNCTION public.execute_assistant_action_batch(text, text, jsonb)
           RETURNS jsonb LANGUAGE sql SECURITY DEFINER
-          SET search_path = public, auth, pg_temp AS $ SELECT '{}'::jsonb $;
-          REVOKE ALL ON FUNCTION public.execute_assistant_action_batch(text, text, jsonb) FROM PUBLIC;
+          SET search_path = public, auth, pg_temp AS $body$ SELECT '{}'::jsonb $body$;
+          -- Live Supabase proacl is {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres};
+          -- PUBLIC has no EXECUTE entry and has_function_privilege('public', ...) is false.
+          -- Mirror that observed ACL baseline rather than PostgreSQL's default PUBLIC EXECUTE.
+          REVOKE EXECUTE ON FUNCTION public.execute_assistant_action_batch(text, text, jsonb) FROM PUBLIC;
           GRANT EXECUTE ON FUNCTION public.execute_assistant_action_batch(text, text, jsonb) TO anon, authenticated, service_role;
           SQL
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/202611130005_revoke_anon_assistant_batch_execute.sql
           psql -v ON_ERROR_STOP=1 <<'SQL'
           DO $assert$
+          DECLARE v_acl aclitem[];
           BEGIN
+            SELECT p.proacl INTO v_acl
+            FROM pg_proc p
+            WHERE p.oid = 'public.execute_assistant_action_batch(text,text,jsonb)'::regprocedure;
+
+            IF EXISTS (
+              SELECT 1 FROM aclexplode(v_acl) a
+              WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE'
+            ) THEN
+              RAISE EXCEPTION 'PUBLIC must not have an explicit EXECUTE ACL entry';
+            END IF;
             IF has_function_privilege('anon', 'public.execute_assistant_action_batch(text,text,jsonb)', 'EXECUTE') THEN
-              RAISE EXCEPTION 'anon must not retain EXECUTE on assistant batch RPC';
+              RAISE EXCEPTION 'anon must not retain effective EXECUTE, including PUBLIC inheritance';
             END IF;
             IF NOT has_function_privilege('authenticated', 'public.execute_assistant_action_batch(text,text,jsonb)', 'EXECUTE') THEN
               RAISE EXCEPTION 'authenticated EXECUTE was unexpectedly removed';
