@@ -14,6 +14,7 @@ import { safeReturnTo } from "@/lib/authReturnTo";
 import { parseAndValidateInviteCode } from "@/lib/workspace";
 import { clearSessionCache } from "@/lib/sessionCache";
 import { getPendingInviteCode, rememberPendingInviteCode, authPageLink } from "@/components/auth/workspaceInvite";
+import { COUNTRY_REGISTRY, getCountryByCode } from "@/global/countries/country-registry.js";
 
 function passwordRequirementError(password) {
   if (password.length < 6) return "Password must be at least 6 characters.";
@@ -28,6 +29,9 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [inviteCode, setInviteCode] = useState(getPendingInviteCode);
+  const [countryCode, setCountryCode] = useState("IN");
+  const [localeCode, setLocaleCode] = useState("en-IN");
+  const localeOptions = getCountryByCode(countryCode)?.locales || [];
 
   // Smart role invite links: /register?invite_token=XXXXXX (or ?invite_code=) auto-maps
   // the new user into the parent workspace with their predefined staff role.
@@ -63,7 +67,7 @@ export default function Register() {
       // Remember the invite so it is applied automatically after the user confirms
       // their email and signs in (an invited member must never become a separate owner).
       rememberPendingInviteCode(code);
-      await db.auth.register({ email, password });
+      await db.auth.register({ email, password, countryCode, localeCode });
       setEmailSent(true);
     } catch (err) {
       setError(err.message || "Registration failed");
@@ -159,6 +163,27 @@ export default function Register() {
             />
           </div>
         </div>
+        {!inviteCode && (
+          <div className="grid gap-3 rounded-xl border border-border bg-muted/20 p-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="signup-country">Business country</Label>
+              <select id="signup-country" value={countryCode} onChange={(event) => {
+                const nextCountry = getCountryByCode(event.target.value);
+                setCountryCode(nextCountry?.code || "IN");
+                setLocaleCode(nextCountry?.locales?.[0] || "en-IN");
+              }} className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm">
+                {COUNTRY_REGISTRY.map((country) => <option key={country.code} value={country.code}>{country.name}</option>)}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="signup-locale">Language and number format</Label>
+              <select id="signup-locale" value={localeCode} onChange={(event) => setLocaleCode(event.target.value)} className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm">
+                {localeOptions.map((locale) => <option key={locale} value={locale}>{locale}</option>)}
+              </select>
+            </div>
+            <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">This saves your business country and display locale. It does not determine tax residency or legal compliance.</p>
+          </div>
+        )}
         <div className="space-y-2">
           <Label htmlFor="password">Password</Label>
           <div className="relative">
