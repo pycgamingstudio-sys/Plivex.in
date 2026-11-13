@@ -11,7 +11,7 @@ export const isPlanId=(v:unknown):v is PlanId=>typeof v==="string"&&Object.proto
 
 import { getBillingForCountry, CASHFREE_CURRENCIES } from "../../../src/global/billing/pricing.js";
 const CASHFREE_CURRENCY_SET=new Set(CASHFREE_CURRENCIES);
-export function resolvePlan(planId:PlanId,countryCode:string,email=""){
+export function resolvePlan(planId:PlanId,countryCode:string){
   const plan=PLANS[planId],country=getBillingForCountry(countryCode);
   if(!country)return {available:false,reason:"unsupported_country"} as const;
   if(!country.paymentEnabled||!CASHFREE_CURRENCY_SET.has(country.currency))return {available:false,reason:"cashfree_currency_unavailable",currency:country.currency} as const;
