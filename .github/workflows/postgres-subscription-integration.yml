@@ -79,6 +79,54 @@ jobs:
           END $block$;
           SQL
           echo "PASS: failed migration rolled back its earlier function replacement"
+      - name: Verify unknown startedAt expressions fail closed
+        shell: bash
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE OR REPLACE FUNCTION public.current_plan(p_workspace_id text)
+          RETURNS text LANGUAGE plpgsql STABLE AS $function$
+          DECLARE v_plan text;
+          BEGIN
+            SELECT s.tier INTO v_plan FROM public.subscriptions s
+            WHERE s.workspace_id = p_workspace_id AND s.status::text = 'active'
+              AND s.expires_at > clock_timestamp() AND s.started_at <= clock_timestamp()
+            ORDER BY CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at DESC, s.created_at DESC
+            LIMIT 1;
+            RETURN coalesce(v_plan, 'free');
+          END
+          $function$;
+          CREATE OR REPLACE FUNCTION public.get_access_status(p_workspace_id text)
+          RETURNS jsonb LANGUAGE plpgsql STABLE AS $function$
+          DECLARE v_plan text; v_expires timestamptz;
+          BEGIN
+            v_plan := public.current_plan(p_workspace_id);
+            SELECT s.expires_at INTO v_expires FROM public.subscriptions s
+            WHERE s.workspace_id = p_workspace_id AND s.status::text = 'active'
+              AND s.expires_at > clock_timestamp() AND s.started_at <= clock_timestamp()
+              AND s.tier::text IN ('basic','pro')
+            ORDER BY CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at DESC, s.created_at DESC
+            LIMIT 1;
+            RETURN jsonb_build_object(
+              'plan', v_plan,
+              'expiresAt', v_expires,
+              'startedAt', CASE WHEN v_plan='free' THEN NULL ELSE
+                (SELECT s.started_at FROM public.subscriptions s
+                 WHERE s.workspace_id=p_workspace_id AND s.status::text='active'
+                   AND s.expires_at > clock_timestamp() AND s.tier::text='unexpected') END
+            );
+          END
+          $function$;
+          SQL
+          if psql -v ON_ERROR_STOP=1 -f supabase/migrations/202611130004_converge_effective_subscription_priority.sql > /tmp/started-at-migration.log 2>&1; then
+            echo "ERROR: migration unexpectedly accepted an unknown startedAt expression"
+            exit 1
+          fi
+          if ! grep -q "Unexpected get_access_status startedAt expression" /tmp/started-at-migration.log; then
+            cat /tmp/started-at-migration.log
+            echo "ERROR: migration failed for an unexpected reason"
+            exit 1
+          fi
+          echo "PASS: migration rejected an unknown startedAt expression"
       - name: Verify unknown function definitions fail closed
         shell: bash
         run: |
