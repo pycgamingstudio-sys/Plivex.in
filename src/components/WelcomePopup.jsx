@@ -5,11 +5,11 @@ const SEEN_KEY_PREFIX = "plivex:welcomeSeen:";
 
 export default function WelcomePopup({ userId, planName = "Free", plan = "free", planLoading = true }) {
 
-  const [open, setOpen] = useState(false);
+  const [openForUser, setOpenForUser] = useState(null);
 
   useEffect(() => {
     // Reset on account changes/logout and wait for the authoritative plan before showing.
-    setOpen(false);
+    setOpenForUser(null);
     if (!userId || planLoading) return undefined;
     const seenKey = SEEN_KEY_PREFIX + userId;
     let seen = false;
@@ -20,7 +20,7 @@ export default function WelcomePopup({ userId, planName = "Free", plan = "free",
       return undefined;
     }
     if (seen) return undefined;
-    const timer = window.setTimeout(() => setOpen(true), 12000);
+    const timer = window.setTimeout(() => setOpenForUser(userId), 12000);
     return () => window.clearTimeout(timer);
   }, [userId, planLoading, planName, plan]);
 
@@ -30,7 +30,7 @@ export default function WelcomePopup({ userId, planName = "Free", plan = "free",
     try { localStorage.setItem(SEEN_KEY_PREFIX + userId, "1"); } catch { /* best effort */ }
   };
 
-  if (!open || !userId || planLoading) return null;
+  if (!userId || openForUser !== userId || planLoading) return null;
 
   const normalizedPlan = String(plan || "free").toLowerCase();
   const isPaid = ["basic", "pro", "enterprise"].includes(normalizedPlan);
