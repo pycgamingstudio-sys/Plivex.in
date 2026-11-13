@@ -509,4 +509,78 @@ BEGIN
 END
 $null_workspace_cross_user_b$;
 
+-- Refund ID amount/currency are immutable in every lifecycle state.
+INSERT INTO public.subscriptions (
+ user_id,user_email,workspace_id,plan_id,plan_name,tier,status,amount,amount_minor_units,amount_major,
+ currency,country_code,locale_code,billing_period,gateway,provider,txnid
+) VALUES (
+ '70000000-0000-0000-0000-000000000007','refund-immutable@example.test','ws-refund-immutable',
+ 'basic_monthly','Basic Monthly','basic','active',5,500,5.00,
+ 'USD','US','en-US','month','cashfree','cashfree','REFUND-IMMUTABLE-ORDER'
+);
+
+-- First pending event establishes the immutable provider refund amount/currency.
+SET ROLE service_role;
+SELECT public.apply_cashfree_refund_event(
+ (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+ 'CFREFUND-IMMUTABLE',100,'USD','pending','{"test":"pending"}'::jsonb
+);
+RESET ROLE;
+
+DO $refund_pending_immutability$
+DECLARE v_result jsonb;
+BEGIN
+ v_result := public.apply_cashfree_refund_event(
+   (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+   'CFREFUND-IMMUTABLE',101,'USD','pending','{"test":"pending-amount-mismatch"}'::jsonb
+ );
+ IF v_result->>'reason' <> 'refund_amount_conflict' THEN
+   RAISE EXCEPTION 'Pending refund amount mismatch was not rejected: %',v_result;
+ END IF;
+ v_result := public.apply_cashfree_refund_event(
+   (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+   'CFREFUND-IMMUTABLE',100,'CAD','pending','{"test":"pending-currency-mismatch"}'::jsonb
+ );
+ IF v_result->>'reason' <> 'refund_amount_conflict' THEN
+   RAISE EXCEPTION 'Pending refund currency mismatch was not rejected as conflict: %',v_result;
+ END IF;
+END
+$refund_pending_immutability$;
+
+-- The same amount/currency may progress pending -> failed -> success.
+SET ROLE service_role;
+SELECT public.apply_cashfree_refund_event(
+ (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+ 'CFREFUND-IMMUTABLE',100,'USD','failed','{"test":"failed"}'::jsonb
+);
+SELECT public.apply_cashfree_refund_event(
+ (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+ 'CFREFUND-IMMUTABLE',100,'USD','success','{"test":"success"}'::jsonb
+);
+RESET ROLE;
+
+DO $refund_final_immutability$
+DECLARE v_result jsonb;
+BEGIN
+ v_result := public.apply_cashfree_refund_event(
+   (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+   'CFREFUND-IMMUTABLE',99,'USD','success','{"test":"success-amount-mismatch"}'::jsonb
+ );
+ IF v_result->>'reason' <> 'refund_amount_conflict' THEN
+   RAISE EXCEPTION 'Successful refund amount mismatch was not rejected: %',v_result;
+ END IF;
+ v_result := public.apply_cashfree_refund_event(
+   (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+   'CFREFUND-IMMUTABLE',100,'GBP','success','{"test":"success-currency-mismatch"}'::jsonb
+ );
+ IF v_result->>'reason' <> 'refund_amount_conflict' THEN
+   RAISE EXCEPTION 'Successful refund currency mismatch was not rejected as conflict: %',v_result;
+ END IF;
+ IF (SELECT amount_minor_units FROM public.payment_refunds WHERE provider_refund_id='CFREFUND-IMMUTABLE') <> 100
+    OR (SELECT currency FROM public.payment_refunds WHERE provider_refund_id='CFREFUND-IMMUTABLE') <> 'USD' THEN
+   RAISE EXCEPTION 'Refund ledger monetary identity changed after mismatch attempts';
+ END IF;
+END
+$refund_final_immutability$;
+
 ROLLBACK;

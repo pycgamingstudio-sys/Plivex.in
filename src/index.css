@@ -221,3 +221,46 @@ html {
 @supports (scrollbar-gutter: stable) {
   html { scrollbar-gutter: stable; }
 }
+
+
+/* Part 4 mobile interaction and viewport hardening. */
+html {
+  min-height: 100%;
+  overflow-x: clip;
+  scroll-padding-top: calc(4.5rem + env(safe-area-inset-top, 0px));
+}
+body {
+  min-height: 100%;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#root { min-height: 100dvh; }
+button, a, [role="button"], input[type="checkbox"], input[type="radio"] {
+  touch-action: manipulation;
+}
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+@media (max-width: 640px) {
+  .app-shell, .min-h-screen { min-height: 100svh; }
+  .fixed.inset-0 { overscroll-behavior: contain; }
+  [role="dialog"], [aria-modal="true"] {
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Keep controls usable on touch screens without forcing desktop-sized layouts. */
+  button, [role="button"] { min-height: 40px; }
+  input, select, textarea { scroll-margin-block: 5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
