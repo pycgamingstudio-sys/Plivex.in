@@ -63,3 +63,77 @@ END
 $assert$;
 SQL
 echo "PASS: concurrent workspace renewals were serialized without losing paid duration"
+
+# Two independent sessions race refunds against one paid order. The first
+# refund (600/1000 minor units) holds the subscription row lock while the
+# second (500/1000) waits. After the first commits, the second must be rejected
+# because cumulative successful refunds would exceed the original payment.
+psql -v ON_ERROR_STOP=1 -d "$db" > /tmp/plivex-refund-first.log 2>&1 <<'SQL' &
+SET ROLE service_role;
+BEGIN;
+SELECT public.apply_cashfree_refund_event(
+ (SELECT id FROM public.subscriptions WHERE txnid='ORDER-REFUND-PARALLEL'),
+ 'CFREFUND-PARALLEL-1',600,'USD','success','{"test":"concurrent-first"}'::jsonb
+);
+SELECT pg_sleep(2);
+COMMIT;
+RESET ROLE;
+SQL
+refund_first_pid=$!
+
+sleep 0.25
+psql -v ON_ERROR_STOP=1 -d "$db" > /tmp/plivex-refund-second.log 2>&1 <<'SQL'
+SET ROLE service_role;
+SELECT public.apply_cashfree_refund_event(
+ (SELECT id FROM public.subscriptions WHERE txnid='ORDER-REFUND-PARALLEL'),
+ 'CFREFUND-PARALLEL-2',500,'USD','success','{"test":"concurrent-second"}'::jsonb
+);
+RESET ROLE;
+SQL
+
+wait "$refund_first_pid"
+
+if ! grep -q 'refunded_minor_units.*600' /tmp/plivex-refund-first.log; then
+  cat /tmp/plivex-refund-first.log
+  echo "ERROR: first concurrent refund was not applied as expected"
+  exit 1
+fi
+if ! grep -q 'cumulative_refund_exceeds_payment' /tmp/plivex-refund-second.log; then
+  cat /tmp/plivex-refund-second.log
+  echo "ERROR: second concurrent refund was not rejected by cumulative amount guard"
+  exit 1
+fi
+
+psql -v ON_ERROR_STOP=1 -d "$db" <<'SQL'
+DO $assert_refund_race$
+DECLARE
+  v_count integer;
+  v_total bigint;
+  v_payment_refund bigint;
+  v_payment_status text;
+  v_refund_status text;
+BEGIN
+  SELECT count(*),COALESCE(sum(amount_minor_units),0)
+  INTO v_count,v_total
+  FROM public.payment_refunds
+  WHERE subscription_id=(SELECT id FROM public.subscriptions WHERE txnid='ORDER-REFUND-PARALLEL')
+    AND status='success';
+  SELECT payment_status,refund_status INTO v_payment_status,v_refund_status
+  FROM public.subscriptions WHERE txnid='ORDER-REFUND-PARALLEL';
+  SELECT refund_amount_minor_units INTO v_payment_refund
+  FROM public.payment_logs WHERE txnid='ORDER-REFUND-PARALLEL' AND provider='cashfree';
+
+  IF v_count <> 1 OR v_total <> 600 THEN
+    RAISE EXCEPTION 'Concurrent refunds must apply exactly one 600-unit refund; rows %, total %',v_count,v_total;
+  END IF;
+  IF v_payment_status <> 'partially_refunded' OR v_refund_status <> 'partially_refunded' THEN
+    RAISE EXCEPTION 'Subscription refund state was not reconciled: payment %, refund %',v_payment_status,v_refund_status;
+  END IF;
+  IF v_payment_refund <> 600 THEN
+    RAISE EXCEPTION 'Payment log refund total does not match refund ledger: %',v_payment_refund;
+  END IF;
+END
+$assert_refund_race$;
+SQL
+
+echo "PASS: concurrent Cashfree refunds were serialized; over-refund rejected and payment log reconciled"
