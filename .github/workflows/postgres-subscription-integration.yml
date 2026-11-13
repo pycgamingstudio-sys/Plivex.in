@@ -87,33 +87,36 @@ jobs:
           RETURNS text LANGUAGE plpgsql STABLE AS $function$
           DECLARE v_plan text;
           BEGIN
-            SELECT s.tier INTO v_plan FROM public.subscriptions s
-            WHERE s.workspace_id = p_workspace_id AND s.status::text = 'active'
-              AND s.expires_at > clock_timestamp() AND s.started_at <= clock_timestamp()
-            ORDER BY CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at DESC, s.created_at DESC
-            LIMIT 1;
-            RETURN coalesce(v_plan, 'free');
+           SELECT s.tier INTO v_plan FROM public.subscriptions s
+           WHERE s.workspace_id = p_workspace_id AND s.status::text = 'active'
+             AND s.expires_at > clock_timestamp() AND s.started_at <= clock_timestamp()
+           order by CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at desc, s.created_at desc
+           LIMIT 1;
+           RETURN coalesce(v_plan, 'free');
           END
           $function$;
           CREATE OR REPLACE FUNCTION public.get_access_status(p_workspace_id text)
           RETURNS jsonb LANGUAGE plpgsql STABLE AS $function$
           DECLARE v_plan text; v_expires timestamptz;
           BEGIN
-            v_plan := public.current_plan(p_workspace_id);
-            SELECT s.expires_at INTO v_expires FROM public.subscriptions s
-            WHERE s.workspace_id = p_workspace_id AND s.status::text = 'active'
-              AND s.expires_at > clock_timestamp() AND s.started_at <= clock_timestamp()
-              AND s.tier::text IN ('basic','pro')
-            ORDER BY CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at DESC, s.created_at DESC
-            LIMIT 1;
-            RETURN jsonb_build_object(
-              'plan', v_plan,
-              'expiresAt', v_expires,
-              'startedAt', CASE WHEN v_plan='free' THEN NULL ELSE
-                (SELECT s.started_at FROM public.subscriptions s
-                 WHERE s.workspace_id=p_workspace_id AND s.status::text='active'
-                   AND s.expires_at > clock_timestamp() AND s.tier::text='unexpected') END
-            );
+           v_plan := public.current_plan(p_workspace_id);
+           select s.expires_at into v_expires
+            from public.subscriptions s
+            where s.workspace_id = p_workspace_id
+              and s.status::text = 'active'
+              and s.expires_at > clock_timestamp()
+              and s.started_at <= clock_timestamp()
+              and s.tier::text in ('basic','pro')
+            order by CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at desc, s.created_at desc
+            limit 1;
+           RETURN jsonb_build_object(
+             'plan', v_plan,
+             'expiresAt', v_expires,
+             'startedAt', case when v_plan='free' then null else
+               (select s.started_at from public.subscriptions s
+                where s.workspace_id=p_workspace_id and s.status::text='active'
+                  and s.expires_at > clock_timestamp() and s.tier::text='unexpected') end
+           );
           END
           $function$;
           SQL
