@@ -177,10 +177,10 @@ const auth = {
     if (error) throw authError(error, 'Invalid email or password');
     return data;
   },
-  async register({ email, password }) {
+  async register({ email, password, countryCode = "IN", localeCode = "en-IN" }) {
     const { data, error } = await supabase.auth.signUp({
       email, password,
-      options: { emailRedirectTo: `${window.location.origin}/` },
+      options: { emailRedirectTo: `${window.location.origin}/`, data: { signup_country_code: countryCode, signup_locale_code: localeCode } },
     });
     if (error) throw authError(error, 'Registration failed');
     // Supabase hides "already registered" by returning a user with no identities.
