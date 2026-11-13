@@ -83,6 +83,8 @@ CREATE TABLE public.payment_logs (
 \ir ../migrations/202611130007_global_billing_and_cashfree_atomicity.sql
 \ir ../migrations/202611130008_cashfree_refund_atomicity.sql
 \ir ../migrations/202611130009_global_billing_concurrency_and_definer_hardening.sql
+-- Reapply the hardening migration to verify CREATE OR REPLACE/ACL convergence.
+\ir ../migrations/202611130009_global_billing_concurrency_and_definer_hardening.sql
 GRANT SELECT ON public.subscriptions TO service_role;
 
 DO $legacy$
