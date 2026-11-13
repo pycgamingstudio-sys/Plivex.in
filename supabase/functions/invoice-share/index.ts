@@ -21,9 +21,6 @@ Deno.serve(async (req:Request) => {
    if(error||!link||link.revoked_at||new Date(link.expires_at)<=new Date()) return json({error:"This invoice link has expired or was revoked."},404,origin);
    if(action==="track") {
     const event=body.event==="download"?"download":"view";
-    const update=event==="download"
-      ? await admin.from("invoice_share_links").update({download_count:admin.rpc?undefined:undefined}).eq("id",link.id)
-      : null;
     if(event==="download") await admin.rpc("increment_invoice_share_download", {share_link_id:link.id});
     else await admin.rpc("record_invoice_share_view", {share_link_id:link.id});
     return json({ok:true},200,origin);
