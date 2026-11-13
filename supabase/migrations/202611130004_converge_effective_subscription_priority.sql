@@ -10,6 +10,8 @@ DECLARE
   v_def text;
   v_old text;
   v_final text;
+  v_old_count integer;
+  v_final_count integer;
 BEGIN
   -- current_plan: both historical 004 files intend Pro > Basic > other tiers,
   -- then latest expiry/creation time. Normalize the first file's lowercase
@@ -71,22 +73,21 @@ BEGIN
   END IF;
 
   -- startedAt must describe the same effective subscription as expiresAt.
-  v_old := $old$
-else (select min(s.started_at) from public.subscriptions s where s.workspace_id=p_workspace_id and s.status::text='active' and s.expires_at > clock_timestamp() and s.tier::text = v_plan) end,$old$;
+  -- Match the complete JSON key/CASE expression observed in both historical
+  -- function bodies. Exact occurrence counts prevent partial or broad rewrites.
+  v_old := $old$'startedAt', case when v_plan='free' then null else (select min(s.started_at) from public.subscriptions s where s.workspace_id=p_workspace_id and s.status::text='active' and s.expires_at > clock_timestamp() and s.tier::text = v_plan) end,$old$;
 
-  v_final := $final$
-else (select s.started_at from public.subscriptions s where s.workspace_id=p_workspace_id and s.status::text='active' and s.expires_at > clock_timestamp() and s.started_at <= clock_timestamp() and s.tier::text in ('basic','pro') order by CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at desc, s.created_at desc limit 1) end,$final$;
+  v_final := $final$'startedAt', case when v_plan='free' then null else (select s.started_at from public.subscriptions s where s.workspace_id=p_workspace_id and s.status::text='active' and s.expires_at > clock_timestamp() and s.started_at <= clock_timestamp() and s.tier::text in ('basic','pro') order by CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at desc, s.created_at desc limit 1) end,$final$;
 
-  IF position(v_final IN v_def) = 0 THEN
-    v_def := regexp_replace(
-      v_def,
-      'else \(select min\(s\.started_at\).*?end,',
-      v_final,
-      'g'
-    );
-    IF position('else (select s.started_at' IN v_def) = 0 THEN
-      RAISE EXCEPTION 'Unexpected get_access_status startedAt query after 202610280004; refusing to modify';
-    END IF;
+  v_old_count := (length(v_def) - length(replace(v_def, v_old, ''))) / length(v_old);
+  v_final_count := (length(v_def) - length(replace(v_def, v_final, ''))) / length(v_final);
+
+  IF v_old_count = 1 AND v_final_count = 0 THEN
+    v_def := replace(v_def, v_old, v_final);
+  ELSIF v_old_count = 0 AND v_final_count = 1 THEN
+    NULL; -- Already matches the known effective-subscription definition.
+  ELSE
+    RAISE EXCEPTION 'Unexpected get_access_status startedAt expression after 202610280004; refusing to modify';
   END IF;
 
   EXECUTE v_def;
