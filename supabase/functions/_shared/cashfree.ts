@@ -18,8 +18,8 @@ export function resolvePlan(planId:PlanId,countryCode:string,email=""){
   if(countryCode!=="IN"&&plan.period!=="month")return {available:false,reason:"billing_period_unavailable",currency:country.currency} as const;
   const price=plan.period==="year"?country.yearly?.[plan.tier]:country.monthly[plan.tier];
   if(!Number.isSafeInteger(price)||price<=0)return {available:false,reason:"plan_unavailable",currency:country.currency} as const;
-  // Preserve the existing India-only support/test price exception without exposing it to other editions.
-  const amountMinor=countryCode==="IN"&&email.toLowerCase()==="virendra.sharma99978@gmail.com"&&planId==="basic_monthly"?2500:price;
+  // All customers in the same country and plan receive the same published price.
+  const amountMinor=price;
   return {available:true,plan,currency:country.currency,countryCode,amountMinor,period:plan.period} as const;
 }
 
