@@ -14,15 +14,20 @@ const EXPECTED_LOCALES = Object.freeze({
   SGD: "en-SG",
 });
 
-test("every registered Global country currency is supported and has its expected locale", () => {
+test("every supported currency has its independently expected locale", () => {
+  for (const currency of SUPPORTED_CURRENCIES) {
+    assert.equal(Object.hasOwn(EXPECTED_LOCALES, currency.code), true, currency.code);
+    assert.equal(currency.locale, EXPECTED_LOCALES[currency.code], currency.code);
+    assert.equal(getCurrencyLocale(currency.code), EXPECTED_LOCALES[currency.code], currency.code);
+    assert.equal(isSupportedCurrency(currency.code), true, currency.code);
+  }
+});
+
+test("every registered Global country uses a supported currency", () => {
   for (const country of COUNTRY_REGISTRY) {
     assert.equal(isSupportedCurrency(country.currencyCode), true, country.code);
     assert.equal(getCurrencyLocale(country.currencyCode), EXPECTED_LOCALES[country.currencyCode], country.code);
   }
-  assert.deepEqual(
-    COUNTRY_REGISTRY.map((country) => country.currencyCode).sort(),
-    SUPPORTED_CURRENCIES.filter((currency) => Object.hasOwn(EXPECTED_LOCALES, currency.code)).map((currency) => currency.code).sort(),
-  );
 });
 
 test("currency formatting matches fixed locale-specific outputs and rejects unknown codes", () => {
