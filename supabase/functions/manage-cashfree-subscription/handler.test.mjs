@@ -5,7 +5,7 @@ const WORKSPACE_A = "workspace-a";
 const WORKSPACE_B = "workspace-b";
 const NOW = "2026-11-14T00:00:00.000Z";
 
-function harness({ role = "admin", workspaceId = WORKSPACE_A, subscriptionWorkspace = WORKSPACE_A, initialCancel = false, barrier = null } = {}) {
+function harness({ role = "admin", workspaceId = WORKSPACE_A, subscriptionWorkspace = WORKSPACE_A, initialCancel = false, barrier = null, gateway = "cashfree", provider = "cashfree" } = {}) {
   const state = { cancel: initialCancel, requestedAt: initialCancel ? "2026-11-13T00:00:00.000Z" : null, workspace: subscriptionWorkspace };
   const queryLog = [];
   const createClient = (_url, key) => {
@@ -27,8 +27,8 @@ function harness({ role = "admin", workspaceId = WORKSPACE_A, subscriptionWorksp
             lte() { return this; }, gt() { return this; }, order() { return this; }, limit() { return this; },
             maybeSingle: async () => {
               queryLog.push({ table, filters: { ...filters } });
-              if (filters.workspace_id !== state.workspace || filters.gateway !== "cashfree" || filters.provider !== "cashfree") return { data: null, error: null };
-              return { data: { id: "sub-1", expires_at: "2026-12-14T00:00:00Z", cancel_at_period_end: state.cancel, gateway: "cashfree", provider: "cashfree" }, error: null };
+              if (filters.workspace_id !== state.workspace || filters.gateway !== gateway || filters.provider !== provider) return { data: null, error: null };
+              return { data: { id: "sub-1", expires_at: "2026-12-14T00:00:00Z", cancel_at_period_end: state.cancel, gateway, provider }, error: null };
             },
           };
           return q;
@@ -105,4 +105,12 @@ Deno.test("simultaneous cancel and resume use compare-and-set; exactly one wins"
   if (statuses[0] !== 200 || statuses[1] !== 409) throw new Error("Expected exactly one successful CAS and one conflict, got " + statuses.join(","));
   const success = cancel.status === 200 ? await cancel.json() : await resume.json();
   if (success.cancelAtPeriodEnd !== h.state.cancel) throw new Error("Successful API response does not match final database state");
+});
+
+Deno.test("Cashfree cancellation endpoint never changes an India PayU subscription", async () => {
+  const h = harness({ gateway: "payu", provider: "payu" });
+  const response = await h.request("cancel");
+  if (response.status !== 404 || h.state.cancel !== false || h.state.requestedAt !== null) {
+    throw new Error("Cashfree cancellation modified or accepted a PayU subscription");
+  }
 });
