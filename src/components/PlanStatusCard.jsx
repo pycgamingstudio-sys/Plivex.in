@@ -1,4 +1,6 @@
-import { CalendarDays, Sparkles, Zap } from "lucide-react";
+import { useState } from "react";
+import { CalendarDays, Sparkles, Zap, Ban } from "lucide-react";
+import { backend as db } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
 import { usePaywall } from "@/lib/paywall";
 
@@ -12,6 +14,19 @@ const TONES = { active: "bg-emerald-100 text-emerald-700", free: "bg-slate-100 t
 export default function PlanStatusCard() {
   const { isPremium, planName, planStartedAt, planExpiresAt, planResetsAt, limits, usage, openPaywall, planLoading } = usePaywall();
   const { user } = useAuth();
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelMessage, setCancelMessage] = useState("");
+  const scheduleCancellation = async () => {
+    if (!window.confirm("Schedule cancellation at the end of the current paid period? Your access will remain active until expiry.")) return;
+    setCancelLoading(true);
+    setCancelMessage("");
+    try {
+      const result = await db.functions.invoke("manageCashfreeSubscription", { action: "cancel" });
+      setCancelMessage(result?.data?.message || "Cancellation scheduled at the end of the paid period.");
+    } catch (error) {
+      setCancelMessage(error?.message || "Could not schedule cancellation. Please try again.");
+    } finally { setCancelLoading(false); }
+  };
   if (planLoading) return null;
   const freeStarted = planStartedAt || user?.created_at || user?.createdAt || user?.created_date || "";
   const startedAt = isPremium ? planStartedAt : freeStarted;
@@ -36,12 +51,13 @@ export default function PlanStatusCard() {
           <div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Your plan</p><p className="text-[15px] font-bold text-slate-900">{isPremium ? (planName || "Basic") : "Free"}</p></div>
           <span className={`ml-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${tone}`}>{label}</span>
         </div>
-        <button onClick={openPaywall} className="inline-flex items-center gap-1.5 rounded-xl bg-[#6D28D9] px-3.5 py-2 text-[12px] font-bold text-white hover:bg-[#7C3AED]">{isPremium ? <Zap className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}{isPremium ? "Manage plan" : "View plans"}</button>
+        <div className="flex flex-wrap items-center gap-2"><button onClick={openPaywall} className="inline-flex items-center gap-1.5 rounded-xl bg-[#6D28D9] px-3.5 py-2 text-[12px] font-bold text-white hover:bg-[#7C3AED]">{isPremium ? <Zap className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}{isPremium ? "Manage plan" : "View plans"}</button>{isPremium && <button onClick={scheduleCancellation} disabled={cancelLoading} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-[12px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"><Ban className="h-3.5 w-3.5" />{cancelLoading ? "Saving…" : "Cancel at expiry"}</button>}</div>
       </div>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <div className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] px-3 py-2"><CalendarDays className="h-3.5 w-3.5 shrink-0 text-[#6D28D9]" /><span className="text-[11px] font-semibold text-slate-400">{isPremium ? "Activated on" : "Free plan started"}</span><span className="ml-auto text-[12px] font-bold text-slate-700">{formatDate(startedAt)}</span></div>
         <div className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] px-3 py-2"><CalendarDays className="h-3.5 w-3.5 shrink-0 text-[#6D28D9]" /><span className="text-[11px] font-semibold text-slate-400">{isPremium ? "Renews on" : "Free credits renew"}</span><span className="ml-auto text-[12px] font-bold text-slate-700">{formatDate(endsAt)}</span></div>
       </div>
+      {cancelMessage && <p role="status" className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">{cancelMessage}</p>}
       {!isPremium && overLimitItems.length > 0 && (
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
           <p className="text-sm font-bold text-amber-900">Your workspace is over the Free plan limits</p>
