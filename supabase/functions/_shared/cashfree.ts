@@ -61,8 +61,10 @@ export async function activatePaidOrder(admin:any,order:any,providerOrder:any,pa
  const expected=Number(order.amount_minor_units ?? (currency==="INR"?order.amount_paise:null));
  const actual=Number(providerOrder?.order_amount);
  const actualMinor=Math.round(actual*100);
- if(providerOrder?.order_status!=="PAID"||String(providerOrder?.order_currency||"").toUpperCase()!==currency||
-    !Number.isSafeInteger(expected)||actualMinor!==expected||payment?.payment_status!=="SUCCESS")
+ const paymentCurrency=String(payment?.payment_currency||payment?.currency||currency).toUpperCase();
+ const paymentAmount=payment?.payment_amount===undefined?expected:Math.round(Number(payment.payment_amount)*100);
+ if(providerOrder?.order_id!==order.txnid||providerOrder?.order_status!=="PAID"||String(providerOrder?.order_currency||"").toUpperCase()!==currency||
+    paymentCurrency!==currency||!Number.isSafeInteger(expected)||actualMinor!==expected||paymentAmount!==expected||payment?.payment_status!=="SUCCESS")
    return {ok:false,reason:"payment_not_verified"};
  if(order.status==="active")return {ok:true,alreadyApplied:true};
  if(order.status!=="created"||!isPlanId(order.plan_id))return {ok:false,reason:"order_not_eligible"};
