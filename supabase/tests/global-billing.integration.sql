@@ -178,13 +178,13 @@ RELEASE SAVEPOINT migration010_rollback_probe;
 GRANT SELECT ON public.subscriptions TO service_role;
 
 DO $legacy$
-DECLARE v_period text; v_payment text; v_minor bigint; v_major numeric; v_start timestamptz; v_expiry timestamptz;
+DECLARE v_period text; v_payment text; v_minor bigint; v_major numeric; v_start timestamptz; v_expiry timestamptz; v_gateway text;
 BEGIN
- SELECT billing_period,payment_status,amount_minor_units,amount_major,started_at,expires_at
- INTO v_period,v_payment,v_minor,v_major,v_start,v_expiry
+ SELECT billing_period,payment_status,amount_minor_units,amount_major,started_at,expires_at,gateway
+ INTO v_period,v_payment,v_minor,v_major,v_start,v_expiry,v_gateway
  FROM public.subscriptions WHERE txnid='LEGACY-INR-ANNUAL';
- IF v_period<>'year' OR v_payment<>'success' OR v_minor<>99900 OR v_major<>999 THEN
-  RAISE EXCEPTION 'Legacy India subscription metadata was not safely backfilled';
+ IF v_gateway<>'payu' OR v_period<>'year' OR v_payment<>'success' OR v_minor<>99900 OR v_major<>999 THEN
+  RAISE EXCEPTION 'Legacy India PayU payment metadata was not safely preserved/backfilled';
  END IF;
  IF v_start IS NULL OR v_expiry IS NULL OR v_expiry<=v_start THEN
   RAISE EXCEPTION 'Legacy India subscription access dates were changed';
