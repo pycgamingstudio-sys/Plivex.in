@@ -10,7 +10,7 @@ const FIELDS: Record<string, string[]> = {
   services: ["name","rate","gst_rate","description"],
   leads: ["name","phone","requirement","value","stage"],
   quotations: ["number","client_name","date","total","status","tax_rate","items"],
-  business_profile: ["name","email","phone","gstin","address","logo_url","upi_id"],
+  business_profile: ["name","email","phone","gstin","address","logo_url","upi_id","country_code","locale_code"],
 };
 const isId = (v: unknown) => typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v);
 const pick = (value: unknown, fields: string[]) => {
