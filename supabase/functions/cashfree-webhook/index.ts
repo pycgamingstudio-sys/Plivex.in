@@ -22,15 +22,20 @@ Deno.serve(async(req:Request)=>{
   const refundId=String(refund?.cf_refund_id||refund?.refund_id||"");
   const refundStatus=String(refund?.refund_status||"").toUpperCase();
   const refundAmount=Number(refund?.refund_amount??refund?.amount);
+  const {data:priorRefund,error:priorRefundError}=await admin.from("payment_refunds").select("status")
+   .eq("provider","cashfree").eq("provider_refund_id",refundId).maybeSingle();
+  if(priorRefundError)return json({error:"Refund replay check failed"},503);
+  if(priorRefund?.status==="success"&&refundStatus!=="SUCCESS")
+   return json({received:true,ignored:true,reason:"refund_already_finalized"});
   const refundMinor=Math.round(refundAmount*100);
-  if(!refundId||!["SUCCESS","PENDING","FAILED"].includes(refundStatus)||!Number.isSafeInteger(refundMinor)||refundMinor<=0)
+  if(!refundId||!["SUCCESS","PENDING","FAILED","CANCELLED"].includes(refundStatus)||!Number.isSafeInteger(refundMinor)||refundMinor<=0)
    return json({error:"Invalid refund event"},400);
   if(refundMinor>Number(order.amount_minor_units??order.amount_paise??0))return json({error:"Refund exceeds original payment amount"},400);
   const {error:refundWriteError}=await admin.from("payment_refunds").upsert({
    subscription_id:order.id,user_id:order.user_id,workspace_id:order.workspace_id,
    provider:"cashfree",provider_refund_id:refundId,amount_minor_units:refundMinor,
    currency:String(order.currency||"INR").toUpperCase(),
-   status:refundStatus.toLowerCase(),raw:event,updated_at:new Date().toISOString()
+   status:refundStatus==="CANCELLED"?"failed":refundStatus.toLowerCase(),raw:event,updated_at:new Date().toISOString()
   },{onConflict:"provider,provider_refund_id"});
   if(refundWriteError)return json({error:"Refund ledger update failed"},503);
   const {data:refundRows,error:sumError}=await admin.from("payment_refunds").select("amount_minor_units").eq("subscription_id",order.id).eq("status","success");
