@@ -24,7 +24,7 @@ function harness({ role = "admin", workspaceId = WORKSPACE_A, subscriptionWorksp
           const filters = {};
           const q = {
             eq(column, value) { filters[column] = value; return this; },
-            lte() { return this; }, gt() { return this; }, order() { return this; }, limit() { return this; },
+            lte(column, value) { filters[column] = value; return this; }, gt(column, value) { filters[column] = value; return this; }, order() { return this; }, limit() { return this; },
             maybeSingle: async () => {
               queryLog.push({ table, filters: { ...filters } });
               if (filters.workspace_id !== state.workspace || filters.gateway !== gateway || filters.provider !== provider) return { data: null, error: null };
@@ -37,16 +37,20 @@ function harness({ role = "admin", workspaceId = WORKSPACE_A, subscriptionWorksp
           const filters = {};
           const q = {
             eq(column, value) { filters[column] = value; return this; },
+            lte(column, value) { filters[column] = value; return this; },
+            gt(column, value) { filters[column] = value; return this; },
             is(column, value) { filters[column] = value; return this; },
             select() { return this; },
             maybeSingle: async () => {
               if (barrier) await barrier();
               const matches = filters.id === "sub-1" && filters.workspace_id === state.workspace
                 && filters.gateway === "cashfree" && filters.provider === "cashfree"
-                && filters.status === "active" && filters.cancel_at_period_end === state.cancel;
+                && filters.status === "active" && filters.started_at === NOW && filters.expires_at === NOW
+                && filters.cancel_at_period_end === state.cancel && filters.updated_at === state.updatedAt;
               if (!matches) return { data: null, error: null };
               state.cancel = values.cancel_at_period_end;
               state.requestedAt = values.cancellation_requested_at;
+              state.updatedAt = values.updated_at;
               return { data: { id: "sub-1" }, error: null };
             },
           };
