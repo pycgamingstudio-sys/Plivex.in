@@ -102,6 +102,18 @@ Deno.test("Cashfree India payment activation preserves INR minor units and RPC i
       rpcArgs?.p_subscription_id !== order.id) {
     throw new Error("India payment RPC arguments changed");
   }
+
+  const legacyIndiaOrder = { ...order, currency: undefined, amount_minor_units: undefined, amount_paise: 19900 };
+  const legacyResult = await activatePaidOrder(
+    admin,
+    legacyIndiaOrder,
+    { order_id: order.txnid, order_status: "PAID", order_currency: "INR", order_amount: 199 },
+    { payment_status: "SUCCESS", payment_currency: "INR", payment_amount: 199, cf_payment_id: "CI-PAYMENT-LEGACY-INR" },
+    "cashfree-legacy-india-test",
+  );
+  if (!legacyResult.ok || received[1]?.p_currency !== "INR" || received[1]?.p_amount_minor !== 19900) {
+    throw new Error("Legacy India amount_paise compatibility was not preserved");
+  }
 });
 
 
