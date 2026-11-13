@@ -25,7 +25,7 @@ export default function WelcomePopup({ userId, planName = "Free", plan = "free",
   }, [userId, planLoading, planName, plan]);
 
   const dismiss = () => {
-    setOpen(false);
+    setOpenForUser(null);
     if (!userId) return;
     try { localStorage.setItem(SEEN_KEY_PREFIX + userId, "1"); } catch { /* best effort */ }
   };
