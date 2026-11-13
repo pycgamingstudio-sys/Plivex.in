@@ -725,7 +725,7 @@ export default function Home() {
       const upi = (invoice.upiId || "").trim();
       const bizName = invoice.business.name || "Plivex";
       const paymentLine = upi ? `💳 Payment Details / UPI: ${upi}` : "💳 Payment Details: Please contact us for payment details.";
-      const message = `Hi ${clientName}! 👋\\nHope you are doing well!\\n\\nThank you for your business. Here is your invoice #${safeNumber} for ${totalAmt}.\\n📅 Due Date: ${due}\\n${paymentLine}\\n\\nIf you have any questions, feel free to reply to this message.\\nBest regards,\\n${bizName}`;
+      const message = `Hi ${clientName}! 👋\nHope you are doing well!\n\nThank you for your business. Here is your invoice #${safeNumber} for ${totalAmt}.\n📅 Due Date: ${due}\n${paymentLine}\n\nIf you have any questions, feel free to reply to this message.\nBest regards,\n${bizName}`;
 
       // On supported phones, share the actual PDF file through the native share sheet.
       let canShareFile = false;
@@ -753,7 +753,7 @@ export default function Home() {
       // Fallback: download the PDF and open WhatsApp with text. Never put a data: URL
       // in the message because it is not a public download link.
       pdf.save(safeFilename);
-      const fallbackMessage = `${message}\\n\\n📎 The invoice PDF has been downloaded. Please attach it from your Downloads before sending.`;
+      const fallbackMessage = `${message}\n\n📎 The invoice PDF has been downloaded. Please attach it from your Downloads before sending.`;
       const url = `https://wa.me/${digits}?text=${encodeURIComponent(fallbackMessage)}`;
       if (waWindow) waWindow.location.href = url;
       else window.location.href = url;
@@ -782,7 +782,7 @@ export default function Home() {
 
     const email = String(invoice.client.email || "").trim();
     const phone = normalizePhone(invoice.client.phone);
-    if (channel === "email" && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(email)) {
+    if (channel === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
       notify("Add a valid customer email in the invoice details first.", "error");
       return;
     }
@@ -812,7 +812,7 @@ export default function Home() {
       const bizName = invoice.business.name || "Plivex";
       const paymentLine = upi ? `Payment Details / UPI: ${upi}` : "Please contact us for payment details.";
       const body = channel === "email"
-        ? `Hi ${clientName},\\n\\nPlease find the details for invoice #${safeNumber}.\\nInvoice amount: ${totalAmt}\\nDue date: ${due}\\n${paymentLine}\\n\\nThe invoice PDF has been downloaded. Please attach the PDF before sending this email.\\n\\nRegards,\\n${bizName}`
+        ? `Hi ${clientName},\n\nPlease find the details for invoice #${safeNumber}.\nInvoice amount: ${totalAmt}\nDue date: ${due}\n${paymentLine}\n\nThe invoice PDF has been downloaded. Please attach the PDF before sending this email.\n\nRegards,\n${bizName}`
         : `Hi ${clientName}, invoice #${safeNumber} from ${bizName}. Amount: ${totalAmt}. Due: ${due}. ${paymentLine} Invoice PDF downloaded separately; attach it if your SMS app supports attachments.`;
       if (channel === "email") {
         const subject = `Invoice ${safeNumber} from ${bizName}`;
