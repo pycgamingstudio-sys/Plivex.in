@@ -331,6 +331,32 @@ BEGIN
 END
 $mismatch$;
 
+-- A correct amount in the wrong currency must also be rejected.
+INSERT INTO public.subscriptions (
+ user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,
+ currency,country_code,locale_code,billing_period,gateway,provider,txnid
+) VALUES (
+ '10000000-0000-0000-0000-000000000001','ws-us','basic_monthly','basic','created',6,599,5.99,
+ 'USD','US','en-US','month','cashfree','cashfree','PLXCF-ORDER000000000000000003'
+);
+SET ROLE service_role;
+SELECT public.apply_cashfree_subscription_payment(
+ (SELECT id FROM public.subscriptions WHERE txnid='PLXCF-ORDER000000000000000003'),
+ 'CFPAY-003','CAD',599,'PAID','SUCCESS','{}'::jsonb,'ci-currency-mismatch'
+);
+RESET ROLE;
+DO $currency_mismatch$
+BEGIN
+ IF (SELECT status::text FROM public.subscriptions WHERE txnid='PLXCF-ORDER000000000000000003')<>'created' THEN
+  RAISE EXCEPTION 'Mismatched currency unexpectedly activated subscription';
+ END IF;
+ IF EXISTS (SELECT 1 FROM public.payment_logs WHERE provider_payment_id='CFPAY-003') THEN
+  RAISE EXCEPTION 'Mismatched currency created a payment ledger row';
+ END IF;
+END
+$currency_mismatch$;
+
+
 -- A lower-tier purchase is queued after the existing higher-tier paid period.
 INSERT INTO public.subscriptions (
  user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,locale_code,
