@@ -12,6 +12,7 @@ import HSNAutocomplete from "@/components/HSNAutocomplete";
 import CurrentPlanCard from "@/components/CurrentPlanCard";
 import DesignPicker from "@/components/invoice/DesignPicker";
 import { DEFAULT_DESIGN_ID, InvoiceDesign, isPremiumDesign } from "@/components/invoice/designs";
+import { SUPPORTED_CURRENCIES, formatMoney, amountInWords } from "@/lib/currency";
 import {
   AlertCircle,
   BadgeCheck,
@@ -233,7 +234,7 @@ function InvoiceEditor({ invoice, setInvoice, errors, onClearError, onToast, onS
         <datalist id="stock-suggestions">{stockItems.map((p) => <option key={p.id} value={p.name} />)}</datalist>
       </SectionCard>
       <SectionCard icon={Scissors} eyebrow="Tune the total" title="Tax & discount">
-        <div className="grid gap-3 sm:grid-cols-2"><Field label="Default GST rate"><div className="relative"><select data-testid="input-tax-rate" className={inputClass} value={invoice.taxRate} onChange={(e) => { const rate = Number(e.target.value); setInvoice((old) => ({ ...old, taxRate: rate, items: old.items.map((item) => ({ ...item, gstRate: rate })) })); }}><option value="0">0%</option><option value="5">5%</option><option value="12">12%</option><option value="18">18%</option><option value="28">28%</option></select></div></Field><Field label="Discount"><div className="grid grid-cols-[minmax(0,1fr)_76px] items-start gap-2"><input data-testid="input-discount" aria-label="Discount amount" type="number" inputMode="decimal" min="0" className={`${inputClass} mt-1.5 w-full min-w-0 px-3 text-[16px] font-semibold tabular-nums`} value={invoice.discount} placeholder="0" onChange={(e) => setInvoice((old) => ({ ...old, discount: e.target.value === "" ? "" : Number(e.target.value) }))} /><select data-testid="select-discount-type" aria-label="Discount type" className={`${inputClass} mt-1.5 w-full min-w-0 px-2 text-[15px] font-semibold`} value={invoice.discountType} onChange={(e) => setInvoice((old) => ({ ...old, discountType: e.target.value }))}><option value="percent">%</option><option value="flat">₹</option></select></div></Field><div className="sm:col-span-2"><Field label="GST breakdown"><div className="flex gap-1 rounded-lg border bg-background p-1"><button type="button" data-testid="button-tax-split" onClick={() => setInvoice((old) => ({ ...old, taxMode: "split" }))} className={`flex-1 rounded-md px-2 py-2 text-[10px] font-bold transition-colors ${invoice.taxMode === "split" ? "bg-secondary text-primary" : "text-muted-foreground"}`}>CGST + SGST</button><button type="button" data-testid="button-tax-igst" onClick={() => setInvoice((old) => ({ ...old, taxMode: "igst" }))} className={`flex-1 rounded-md px-2 py-2 text-[10px] font-bold transition-colors ${invoice.taxMode === "igst" ? "bg-secondary text-primary" : "text-muted-foreground"}`}>IGST</button></div></Field></div></div>
+        <div className="grid gap-3 sm:grid-cols-2"><Field label="Invoice currency"><select data-testid="select-invoice-currency" className={inputClass} value={invoice.currency || "INR"} onChange={(e) => setInvoice((old) => ({ ...old, currency: e.target.value }))}>{SUPPORTED_CURRENCIES.map((currency) => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select></Field><Field label="Default GST rate"><div className="relative"><select data-testid="input-tax-rate" className={inputClass} value={invoice.taxRate} onChange={(e) => { const rate = Number(e.target.value); setInvoice((old) => ({ ...old, taxRate: rate, items: old.items.map((item) => ({ ...item, gstRate: rate })) })); }}><option value="0">0%</option><option value="5">5%</option><option value="12">12%</option><option value="18">18%</option><option value="28">28%</option></select></div></Field><Field label="Discount"><div className="grid grid-cols-[minmax(0,1fr)_76px] items-start gap-2"><input data-testid="input-discount" aria-label="Discount amount" type="number" inputMode="decimal" min="0" className={`${inputClass} mt-1.5 w-full min-w-0 px-3 text-[16px] font-semibold tabular-nums`} value={invoice.discount} placeholder="0" onChange={(e) => setInvoice((old) => ({ ...old, discount: e.target.value === "" ? "" : Number(e.target.value) }))} /><select data-testid="select-discount-type" aria-label="Discount type" className={`${inputClass} mt-1.5 w-full min-w-0 px-2 text-[15px] font-semibold`} value={invoice.discountType} onChange={(e) => setInvoice((old) => ({ ...old, discountType: e.target.value }))}><option value="percent">%</option><option value="flat">₹</option></select></div></Field>{invoice.currency !== "INR" && <p className="sm:col-span-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-900">International currency display is enabled. Tax controls are still India GST-based; VAT and Sales Tax calculations are not available yet. Currency changes do not convert entered prices.</p>}<div className="sm:col-span-2"><Field label="GST breakdown"><div className="flex gap-1 rounded-lg border bg-background p-1"><button type="button" data-testid="button-tax-split" onClick={() => setInvoice((old) => ({ ...old, taxMode: "split" }))} className={`flex-1 rounded-md px-2 py-2 text-[10px] font-bold transition-colors ${invoice.taxMode === "split" ? "bg-secondary text-primary" : "text-muted-foreground"}`}>CGST + SGST</button><button type="button" data-testid="button-tax-igst" onClick={() => setInvoice((old) => ({ ...old, taxMode: "igst" }))} className={`flex-1 rounded-md px-2 py-2 text-[10px] font-bold transition-colors ${invoice.taxMode === "igst" ? "bg-secondary text-primary" : "text-muted-foreground"}`}>IGST</button></div></Field></div></div>
       </SectionCard>
       <SectionCard icon={Send} eyebrow="A little context" title="Notes & terms">
         <div className="grid gap-3 sm:grid-cols-2"><Field label="Note to client" hint="Warm and human"><textarea data-testid="input-notes" className={`${inputClass} min-h-[96px] resize-y`} value={invoice.notes} onChange={(e) => setInvoice((old) => ({ ...old, notes: e.target.value }))} /></Field><Field label="Payment terms"><textarea data-testid="input-terms" className={`${inputClass} min-h-[96px] resize-y`} value={invoice.terms} onChange={(e) => setInvoice((old) => ({ ...old, terms: e.target.value }))} /></Field></div>
@@ -242,26 +243,8 @@ function InvoiceEditor({ invoice, setInvoice, errors, onClearError, onToast, onS
   );
 }
 
-function money(value, currency) {
-  const symbols = { INR: "₹", USD: "$", EUR: "€" };
-  return `${symbols[currency] || currency} ${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+function money(value, currency) { return formatMoney(value, currency); }
 function dateLabel(value) { if (!value) return "—"; return new Date(`${value}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); }
-function amountInWords(value, currency) {
-  const ones = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
-  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
-  const chunk = (number) => {
-    if (number < 20) return ones[number];
-    if (number < 100) return `${tens[Math.floor(number / 10)]}${number % 10 ? ` ${ones[number % 10]}` : ""}`;
-    if (number < 1000) return `${ones[Math.floor(number / 100)]} Hundred${number % 100 ? ` ${chunk(number % 100)}` : ""}`;
-    if (number < 1000000) return `${chunk(Math.floor(number / 1000))} Thousand${number % 1000 ? ` ${chunk(number % 1000)}` : ""}`;
-    if (number < 1000000000) return `${chunk(Math.floor(number / 1000000))} Million${number % 1000000 ? ` ${chunk(number % 1000000)}` : ""}`;
-    return `${chunk(Math.floor(number / 1000000000))} Billion${number % 1000000000 ? ` ${chunk(number % 1000000000)}` : ""}`;
-  };
-  const rounded = Math.max(0, Math.round(value));
-  const currencyName = currency === "INR" ? "Rupees" : currency === "USD" ? "Dollars" : "Euros";
-  return `${chunk(rounded)} ${currencyName} Only`;
-}
 
 function computeTotal(invoice) {
   const subtotal = invoice.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.rate) || 0), 0);
@@ -661,7 +644,7 @@ export default function Home() {
     try { sessionStorage.removeItem("plivex:pendingDownload"); } catch { /* ignore */ }
     generatePdf();
   }, [isPremium]);
-  const newInvoice = () => { setInvoice(applyBusinessProfile({ ...initialInvoice, items: [{ ...initialInvoice.items[0], id: `item-${Date.now()}` }] })); setErrors({}); setMobileMenuOpen(false); setMobileTab("edit"); notify("Fresh invoice started with your saved business details"); };
+  const newInvoice = () => { const defaultCurrency = loadState(KEYS.settings, { currency: "INR" })?.currency || "INR"; setInvoice(applyBusinessProfile({ ...initialInvoice, currency: defaultCurrency, items: [{ ...initialInvoice.items[0], id: `item-${Date.now()}` }] })); setErrors({}); setMobileMenuOpen(false); setMobileTab("edit"); notify("Fresh invoice started with your saved business details"); };
   useEffect(() => {
     if (!location.state?.newInvoice) return;
     newInvoice();
