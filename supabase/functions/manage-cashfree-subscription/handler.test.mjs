@@ -6,7 +6,7 @@ const WORKSPACE_B = "workspace-b";
 const NOW = "2026-11-14T00:00:00.000Z";
 
 function harness({ role = "admin", workspaceId = WORKSPACE_A, subscriptionWorkspace = WORKSPACE_A, initialCancel = false, barrier = null, gateway = "cashfree", provider = "cashfree" } = {}) {
-  const state = { cancel: initialCancel, requestedAt: initialCancel ? "2026-11-13T00:00:00.000Z" : null, workspace: subscriptionWorkspace };
+  const state = { cancel: initialCancel, requestedAt: initialCancel ? "2026-11-13T00:00:00.000Z" : null, updatedAt: null, workspace: subscriptionWorkspace };
   const queryLog = [];
   const createClient = (_url, key) => {
     if (key === "anon-key") return {
@@ -28,7 +28,7 @@ function harness({ role = "admin", workspaceId = WORKSPACE_A, subscriptionWorksp
             maybeSingle: async () => {
               queryLog.push({ table, filters: { ...filters } });
               if (filters.workspace_id !== state.workspace || filters.gateway !== gateway || filters.provider !== provider) return { data: null, error: null };
-              return { data: { id: "sub-1", expires_at: "2026-12-14T00:00:00Z", cancel_at_period_end: state.cancel, gateway, provider }, error: null };
+              return { data: { id: "sub-1", expires_at: "2026-12-14T00:00:00Z", cancel_at_period_end: state.cancel, updated_at: state.updatedAt, gateway, provider }, error: null };
             },
           };
           return q;
