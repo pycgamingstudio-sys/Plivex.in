@@ -3,6 +3,7 @@
 
 ALTER TABLE public.subscriptions
   ADD COLUMN IF NOT EXISTS amount_minor_units bigint,
+  ADD COLUMN IF NOT EXISTS amount_major numeric(14,2),
   ADD COLUMN IF NOT EXISTS country_code text,
   ADD COLUMN IF NOT EXISTS billing_period text NOT NULL DEFAULT 'month',
   ADD COLUMN IF NOT EXISTS payment_status text NOT NULL DEFAULT 'created',
@@ -15,6 +16,7 @@ ALTER TABLE public.subscriptions
 
 ALTER TABLE public.payment_logs
   ADD COLUMN IF NOT EXISTS amount_minor_units bigint,
+  ADD COLUMN IF NOT EXISTS amount_major numeric(14,2),
   ADD COLUMN IF NOT EXISTS country_code text,
   ADD COLUMN IF NOT EXISTS billing_period text;
 
@@ -144,15 +146,15 @@ BEGIN
   INSERT INTO public.payment_logs (
     user_id, user_email, workspace_id, txnid, subscription_id,
     provider, gateway, currency, country_code, billing_period,
-    plan_id, plan_name, tier, amount, amount_minor_units,
+    plan_id, plan_name, tier, amount, amount_minor_units, amount_major,
     status, outcome, hash_verified, provider_status, gateway_status,
     provider_payment_id, raw, verified_at, reason, message, source
   ) VALUES (
     v_order.user_id, v_order.user_email, v_order.workspace_id, v_order.txnid, v_order.id,
     'cashfree', 'cashfree', upper(p_currency), v_order.country_code, v_period,
     v_order.plan_id, v_order.plan_name, v_order.tier,
-    CASE WHEN p_amount_minor <= 2147483647 THEN (p_amount_minor / 100)::integer ELSE NULL END,
-    p_amount_minor,
+    CASE WHEN p_amount_minor <= 2147483647 THEN p_amount_minor::integer ELSE NULL END,
+    p_amount_minor, (p_amount_minor::numeric / 100),
     'success', 'applied', true, upper(p_provider_payment_status), upper(p_provider_order_status),
     p_provider_payment_id, COALESCE(p_raw, '{}'::jsonb), v_now, NULL,
     'Cashfree payment verified and subscription activated', COALESCE(p_source, 'cashfree-webhook')
