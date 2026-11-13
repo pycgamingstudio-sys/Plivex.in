@@ -28,6 +28,11 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
 
@@ -36,6 +41,9 @@ jobs:
 
       - name: Run Global foundation and country selection tests
         run: npm run test:global
+
+      - name: Type-check assistant Edge Functions with Deno
+        run: deno check supabase/functions/assistant-chat/index.ts supabase/functions/assistant-confirm/index.ts
 
       - name: Run ESLint
         run: npm run lint
