@@ -10,6 +10,7 @@ Deno.serve(async(req:Request)=>{
  if(!auth?.startsWith("Bearer "))return json({error:"Please sign in before paying."},401,origin);
  const url=Deno.env.get("SUPABASE_URL"),anon=Deno.env.get("SUPABASE_ANON_KEY"),service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
  if(!url||!anon||!service)return json({error:"Payment service is not configured."},503,origin);
+ const supabaseBase=url.endsWith("/")?url.slice(0,-1):url;
  try{config();}catch(e){return json({error:(e as Error).message,code:"CASHFREE_NOT_CONFIGURED"},503,origin);}
  try{
   const authClient=createClient(url,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
@@ -34,7 +35,7 @@ Deno.serve(async(req:Request)=>{
   }
   const rawPhone=String(user.phone||user.user_metadata?.phone||user.user_metadata?.phone_number||"");
   const phone=rawPhone.replace(/[^0-9]/g,"");
-  if(countryCode==="IN"?!/^\\d{10}$/.test(phone):!/^\\d{8,15}$/.test(phone))
+  if(countryCode==="IN"?!/^[0-9]{10}$/.test(phone):! /^[0-9]{8,15}$/.test(phone))
     return json({error:"Add a valid mobile number to your Plivex account before checkout."},400,origin);
   const amountMinor=plan.amountMinor,currency=plan.currency;
   const orderId="PLXCF-"+crypto.randomUUID().replaceAll("-","").slice(0,26).toUpperCase();
@@ -55,7 +56,7 @@ Deno.serve(async(req:Request)=>{
    const result=await api("/orders",{method:"POST",body:JSON.stringify({
      order_id:orderId,order_amount:amountMinor/100,order_currency:currency,
      customer_details:{customer_id:user.id.replaceAll("-","").slice(0,32),customer_name:String(profile?.full_name||user.user_metadata?.full_name||"Plivex Customer").slice(0,100),customer_email:email,customer_phone:phone},
-     order_meta:{return_url:url.replace(/\\/$/,"")+"/functions/v1/cashfree-return?order_id={order_id}",notify_url:url.replace(/\\/$/,"")+"/functions/v1/cashfree-webhook"}
+     order_meta:{return_url:supabaseBase+"/functions/v1/cashfree-return?order_id={order_id}",notify_url:supabaseBase+"/functions/v1/cashfree-webhook"}
    })});
    if(typeof result?.payment_session_id!=="string")throw new Error("Cashfree did not return a payment session.");
    return json({orderId,paymentSessionId:result.payment_session_id,environment:config().environment,currency,amountMinor,countryCode},200,origin);
