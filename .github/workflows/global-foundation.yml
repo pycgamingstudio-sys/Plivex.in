@@ -37,5 +37,11 @@ jobs:
       - name: Run Global foundation and country selection tests
         run: npm run test:global
 
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run TypeScript checks
+        run: npm run typecheck
+
       - name: Build application
         run: npm run build
