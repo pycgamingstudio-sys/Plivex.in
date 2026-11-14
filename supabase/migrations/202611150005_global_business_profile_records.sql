@@ -5,6 +5,9 @@
 -- rechecks active workspace membership and applies a strict table/action allowlist.
 begin;
 
+alter table global.business_profiles
+  add column if not exists tax_registration_effective_from date;
+
 create or replace function public.global_business_records(
   p_user_id uuid,
   p_workspace_id uuid,
@@ -161,6 +164,7 @@ begin
           tax_registration_number=case when p_values ? 'tax_registration_number' then p_values->>'tax_registration_number' else tax_registration_number end,
           tax_registration_type=case when p_values ? 'tax_registration_type' then p_values->>'tax_registration_type' else tax_registration_type end,
           tax_registration_status=case when p_values ? 'tax_registration_status' then p_values->>'tax_registration_status' else tax_registration_status end,
+          tax_registration_effective_from=case when p_values ? 'tax_registration_effective_from' then nullif(p_values->>'tax_registration_effective_from','')::date else tax_registration_effective_from end,
           tax_jurisdiction_code=case when p_values ? 'tax_jurisdiction_code' then p_values->>'tax_jurisdiction_code' else tax_jurisdiction_code end
         where workspace_id=p_workspace_id
         returning to_jsonb(global.business_profiles.*) into v_record;
