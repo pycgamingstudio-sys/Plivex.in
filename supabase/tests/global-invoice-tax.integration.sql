@@ -170,6 +170,74 @@ UPDATE public.business_profile SET tax_registration_number='GB123456789',tax_reg
   tax_registration_status='registered',tax_registration_effective_from='2026-01-01',tax_jurisdiction_code=NULL
 WHERE workspace_id='workspace-global';
 
+-- Authenticated direct-RPC regression: mode/status pairs must be consistent server-side.
+SET ROLE authenticated;
+DO $mode_status_integrity$
+DECLARE
+  v_data jsonb;
+  v_manual jsonb;
+  rejected boolean;
+  v_items jsonb := '[{"description":"Mode/status integrity service","quantity":1,"rate":100}]'::jsonb;
+BEGIN
+  v_data := jsonb_build_object(
+    'client_name','Mode status customer','business_name','Seller Ltd','issue_date','2026-11-14','currency','GBP',
+    'tax_mode','split','tax_rate',0,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
+    'invoice_snapshot',jsonb_build_object(
+      'business',jsonb_build_object('name','Seller Ltd','address','1 Business Street'),
+      'globalTax',jsonb_build_object('countryCode','GB','mode','automatic','priceMode','exclusive',
+        'registrationConfirmed',true,'placeOfSupply','United Kingdom','placeOfSupplyConfirmed',true,
+        'taxCategory','standard-rated','taxCategoryConfirmed',true),
+      'globalTaxCalculation',jsonb_build_object('ok',true,'status','calculated','countryCode','GB',
+        'currencyCode','GBP','taxableMinor',10000,'taxMinor',2000,'totalMinor',12000,
+        'components',jsonb_build_array(jsonb_build_object('id','GB-VAT-STANDARD-2026-11',
+          'name','VAT','rateBps',2000,'amountMinor',2000)),
+        'ruleSnapshot',jsonb_build_object('id','GB-VAT-STANDARD-2026-11','version','2026.11',
+          'source','https://www.gov.uk/vat-rates','effectiveFrom','2011-01-04','reviewedOn','2026-11-14'))
+    )
+  );
+
+  -- 1. automatic + calculated is accepted by the authenticated RPC caller.
+  PERFORM public.save_invoice(v_data,v_items,NULL);
+
+  -- 2. manual + manual_unverified is accepted by the authenticated RPC caller.
+  v_manual := jsonb_set(v_data,'{invoice_snapshot,globalTax,mode}',to_jsonb('manual'::text),true);
+  v_manual := jsonb_set(v_manual,'{invoice_snapshot,globalTaxCalculation,status}',to_jsonb('manual_unverified'::text),true);
+  PERFORM public.save_invoice(v_manual,v_items,NULL);
+
+  -- 3. automatic + manual_unverified must be rejected by the RPC itself.
+  rejected := false;
+  BEGIN
+    PERFORM public.save_invoice(
+      jsonb_set(v_data,'{invoice_snapshot,globalTaxCalculation,status}',to_jsonb('manual_unverified'::text),true),
+      v_items,NULL
+    );
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    rejected := true;
+  END;
+  IF NOT rejected THEN
+    RAISE EXCEPTION 'Authenticated RPC accepted automatic + manual_unverified';
+  END IF;
+
+  -- 4. manual + calculated must be rejected by the RPC itself.
+  rejected := false;
+  BEGIN
+    PERFORM public.save_invoice(
+      jsonb_set(
+        jsonb_set(v_data,'{invoice_snapshot,globalTax,mode}',to_jsonb('manual'::text),true),
+        '{invoice_snapshot,globalTaxCalculation,status}',to_jsonb('calculated'::text),true
+      ),
+      v_items,NULL
+    );
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    rejected := true;
+  END;
+  IF NOT rejected THEN
+    RAISE EXCEPTION 'Authenticated RPC accepted manual + calculated';
+  END IF;
+END
+$mode_status_integrity$;
+RESET ROLE;
+
 DO $test$
 DECLARE v public.invoices;
 BEGIN
