@@ -101,7 +101,7 @@ create table if not exists global.invoice_items (
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   foreign key (workspace_id, invoice_id) references global.invoices(workspace_id, id) on delete cascade,
-  foreign key (workspace_id, product_id) references global.products(workspace_id, id) on delete set null
+  foreign key (workspace_id, product_id) references global.products(workspace_id, id) on delete restrict
 );
 create index if not exists global_invoice_items_workspace_invoice_idx
   on global.invoice_items(workspace_id, invoice_id, sort_order);
@@ -177,6 +177,9 @@ create trigger global_clients_set_updated_at before update on global.clients
   for each row execute function global.set_updated_at();
 drop trigger if exists global_products_set_updated_at on global.products;
 create trigger global_products_set_updated_at before update on global.products
+  for each row execute function global.set_updated_at();
+drop trigger if exists global_stock_levels_set_updated_at on global.stock_levels;
+create trigger global_stock_levels_set_updated_at before update on global.stock_levels
   for each row execute function global.set_updated_at();
 drop trigger if exists global_invoices_set_updated_at on global.invoices;
 create trigger global_invoices_set_updated_at before update on global.invoices
