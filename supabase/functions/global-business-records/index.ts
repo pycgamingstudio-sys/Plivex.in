@@ -131,7 +131,7 @@ Deno.serve(async (req: Request) => {
       const values = body.values;
       const validationError = validateValues(table, values, workspace.currency_code, true);
       if (validationError) return globalJson({ error: validationError }, 400, origin);
-      const { data, error } = await query.insert({ ...values, workspace_id: workspaceId, created_by: auth.user.id }).select("*").single();
+      const { data, error } = await query.insert({ ...values, currency_code: values.currency_code ?? workspace.currency_code, workspace_id: workspaceId, created_by: auth.user.id }).select("*").single();
       if (error) {
         console.error("Global record create failed", { table, code: error.code });
         return globalJson({ error: "Could not create Global record." }, 400, origin);
