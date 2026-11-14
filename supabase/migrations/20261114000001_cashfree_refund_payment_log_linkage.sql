@@ -4,7 +4,7 @@
 WITH exact_matches AS (
   SELECT
     r.id AS refund_id,
-    min(l.id) AS payment_log_id,
+    (array_agg(l.id ORDER BY l.id))[1] AS payment_log_id,
     count(l.id) AS match_count
   FROM public.payment_refunds r
   JOIN public.subscriptions s ON s.id = r.subscription_id
