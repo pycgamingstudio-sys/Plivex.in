@@ -393,22 +393,27 @@ $h03_resolution_and_replay$;
 
 DO $incomplete_reconcile_assert$
 BEGIN
-  IF (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000026') <> 5000
-     OR (SELECT refund_status FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000026') <> 'reconciliation_required'
+  IF (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000026') <> 6000
+     OR (SELECT refund_status FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000026') <> 'partially_refunded'
      OR (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000027') <> 5000
      OR (SELECT refund_status FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000027') <> 'reconciliation_required' THEN
-    RAISE EXCEPTION 'Reconciliation replaced incomplete 5,000 snapshots with partial 3,000 ledger sums'; END IF;
-  IF EXISTS (SELECT 1 FROM public.cashfree_refund_cleanup_exceptions
-    WHERE payment_log_id IN ('20000000-0000-0000-0000-000000000026','20000000-0000-0000-0000-000000000027')
-      AND (resolved_at IS NOT NULL OR prior_refund_amount_minor_units <> 5000)) THEN
-    RAISE EXCEPTION 'Exception snapshot was overwritten or prematurely resolved'; END IF;
+    RAISE EXCEPTION 'Resolved ledger/new refund totals or unresolved historical hold are incorrect'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.cashfree_refund_cleanup_exceptions
+    WHERE payment_log_id='20000000-0000-0000-0000-000000000026'
+      AND resolved_at IS NOT NULL AND prior_refund_amount_minor_units=5000
+      AND prior_refund_status='partially_refunded')
+     OR NOT EXISTS (SELECT 1 FROM public.cashfree_refund_cleanup_exceptions
+    WHERE payment_log_id='20000000-0000-0000-0000-000000000027'
+      AND resolved_at IS NULL AND prior_refund_amount_minor_units=5000
+      AND prior_refund_status='reconciliation_required') THEN
+    RAISE EXCEPTION 'Original exception snapshots or expected resolution states were not preserved'; END IF;
   IF (SELECT status::text FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000016') <> 'active'
-     OR (SELECT payment_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000016') IS DISTINCT FROM 'success'
-     OR (SELECT refund_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000016') IS NOT NULL
+     OR (SELECT payment_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000016') IS DISTINCT FROM 'partially_refunded'
+     OR (SELECT refund_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000016') IS DISTINCT FROM 'partially_refunded'
      OR (SELECT status::text FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000017') <> 'active'
      OR (SELECT payment_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000017') IS DISTINCT FROM 'success'
      OR (SELECT refund_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000017') IS NOT NULL THEN
-    RAISE EXCEPTION 'Incomplete reconciliation changed subscription accounting fields'; END IF;
+    RAISE EXCEPTION 'Resolved/unresolved reconciliation subscription aggregates are incorrect'; END IF;
 END
 $incomplete_reconcile_assert$;
 
