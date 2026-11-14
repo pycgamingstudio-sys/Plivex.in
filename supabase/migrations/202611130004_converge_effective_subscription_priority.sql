@@ -73,21 +73,41 @@ BEGIN
   END IF;
 
   -- startedAt must describe the same effective subscription as expiresAt.
-  -- Match the complete JSON key/CASE expression observed in both historical
-  -- function bodies. Exact occurrence counts prevent partial or broad rewrites.
-  v_old := $old$'startedAt', case when v_plan='free' then null else (select min(s.started_at) from public.subscriptions s where s.workspace_id=p_workspace_id and s.status::text='active' and s.expires_at > clock_timestamp() and s.tier::text = v_plan) end$old$;
+  -- Preserve either known Free-plan branch: some recorded function bodies
+  -- report the workspace/profile creation time, while another reports NULL.
+  -- Only converge the paid-plan ELSE query; never rewrite the Free-plan value.
+  v_def := replace(v_def, '''startedAt'',case', '''startedAt'', case');
 
-  v_final := $final$'startedAt', case when v_plan='free' then null else (select s.started_at from public.subscriptions s where s.workspace_id=p_workspace_id and s.status::text='active' and s.expires_at > clock_timestamp() and s.started_at <= clock_timestamp() and s.tier::text in ('basic','pro') order by CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at desc, s.created_at desc limit 1) end$final$;
-
+  v_old := $old$else (select min(s.started_at) from public.subscriptions s where s.workspace_id=p_workspace_id and s.status::text='active' and s.expires_at > clock_timestamp() and s.tier::text = v_plan) end$old$;
+  v_final := $final$else (select s.started_at from public.subscriptions s where s.workspace_id=p_workspace_id and s.status::text='active' and s.expires_at > clock_timestamp() and s.started_at <= clock_timestamp() and s.tier::text in ('basic','pro') order by CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at desc, s.created_at desc limit 1) end$final$;
   v_old_count := (length(v_def) - length(replace(v_def, v_old, ''))) / length(v_old);
   v_final_count := (length(v_def) - length(replace(v_def, v_final, ''))) / length(v_final);
 
   IF v_old_count = 1 AND v_final_count = 0 THEN
     v_def := replace(v_def, v_old, v_final);
   ELSIF v_old_count = 0 AND v_final_count = 1 THEN
-    NULL; -- Already matches the known effective-subscription definition.
+    NULL; -- Already matches the effective paid subscription query.
   ELSE
-    RAISE EXCEPTION 'Unexpected get_access_status startedAt expression after 202610280004; refusing to modify';
+    -- The other known pre-convergence form filters both Basic and Pro, then
+    -- takes the earliest start. It is safe to replace with the same effective row.
+    v_old := $old$else (select min(s.started_at) from public.subscriptions s where s.workspace_id=p_workspace_id and s.status::text='active' and s.expires_at > clock_timestamp() and s.tier::text in ('basic','pro')) end$old$;
+    v_old_count := (length(v_def) - length(replace(v_def, v_old, ''))) / length(v_old);
+    v_final_count := (length(v_def) - length(replace(v_def, v_final, ''))) / length(v_final);
+    IF v_old_count = 1 AND v_final_count = 0 THEN
+      v_def := replace(v_def, v_old, v_final);
+    ELSIF v_old_count = 0 AND v_final_count = 1 THEN
+      NULL;
+    ELSE
+      RAISE EXCEPTION 'Unexpected get_access_status startedAt expression after 202610280004; refusing to modify';
+    END IF;
+  END IF;
+
+  v_old := $prefix$'startedAt', case when v_plan='free' then (select min(p.created_at) from public.profiles p where p.workspace_id=p_workspace_id) else $prefix$;
+  v_final := $prefix$'startedAt', case when v_plan='free' then null else $prefix$;
+  v_old_count := (length(v_def) - length(replace(v_def, v_old, ''))) / length(v_old);
+  v_final_count := (length(v_def) - length(replace(v_def, v_final, ''))) / length(v_final);
+  IF NOT ((v_old_count = 1 AND v_final_count = 0) OR (v_old_count = 0 AND v_final_count = 1)) THEN
+    RAISE EXCEPTION 'Unexpected get_access_status Free-plan startedAt branch; refusing to modify';
   END IF;
 
   EXECUTE v_def;
