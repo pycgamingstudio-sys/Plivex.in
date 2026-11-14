@@ -269,8 +269,11 @@ BEGIN
 END
 $historical_partial_ledger$;
 
--- Add one more exactly mappable historical entry to each fixture. Linking it
--- raises ledger totals to 3,000, still below the immutable 5,000 snapshot.
+-- Add one more exactly mappable historical entry to each fixture. The
+-- NOT VALID constraint is temporarily removed only to seed legacy NULL links;
+-- it is restored before the reconciliation RPC is exercised.
+ALTER TABLE public.payment_refunds
+  DROP CONSTRAINT payment_refunds_payment_log_required;
 INSERT INTO public.payment_refunds
   (id,subscription_id,payment_log_id,user_id,workspace_id,provider,provider_refund_id,
    amount_minor_units,currency,status,raw)
@@ -281,6 +284,9 @@ VALUES
   ('30000000-0000-0000-0000-000000000019','10000000-0000-0000-0000-000000000017',NULL,
    'ffffffff-ffff-ffff-ffff-ffffffffffff','ws-f','cashfree','RF-HIST-HELD-1K',1000,'INR','success',
    '{"data":{"refund":{"order_id":"PLXCF-HIST-HELD-000000000017","cf_payment_id":717001}}}');
+ALTER TABLE public.payment_refunds
+  ADD CONSTRAINT payment_refunds_payment_log_required
+  CHECK (payment_log_id IS NOT NULL) NOT VALID;
 SET ROLE service_role;
 SELECT set_config('request.jwt.claim.role','service_role',false);
 DO $incomplete_reconcile_hold$
