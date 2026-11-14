@@ -35,7 +35,7 @@ jobs:
             done
             if [ "$ready" != "1" ]; then docker logs "$name"; exit 1; fi
             for ext in pgcrypto pg_cron pg_net; do
-              docker exec "$name" psql -U postgres -d postgres -Atc "SELECT name FROM pg_available_extensions WHERE name='$ext'" | grep -qx "$ext"
+              docker exec -e PGPASSWORD=postgres "$name" psql -h 127.0.0.1 -U postgres -d postgres -Atc "SELECT name FROM pg_available_extensions WHERE name='$ext'" | grep -qx "$ext"
             done
           done
       - name: Replay all 47 recorded remote versions and all 58 global candidate inputs
@@ -53,6 +53,11 @@ jobs:
     name: Real GoTrue Auth plus Cashfree handler and PostgREST
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
     services:
       postgres:
         image: postgres:17
