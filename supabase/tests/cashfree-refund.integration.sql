@@ -182,9 +182,7 @@ BEGIN
     RAISE EXCEPTION 'anon unexpectedly has payment_refunds SELECT';
   END IF;
 
-  -- Authenticated RLS: user B sees only its own refund rows.
-  PERFORM set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',false);
-  EXECUTE 'SET ROLE authenticated';
+  -- RLS is checked below under an actual authenticated role.
 END
 $$;
 
