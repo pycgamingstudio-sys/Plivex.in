@@ -123,7 +123,7 @@ CREATE OR REPLACE FUNCTION public.prevent_cashfree_payment_log_identity_change()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = pg_catalog, pg_temp
-AS $
+AS $cashfree_payment_log_identity$
 BEGIN
   IF OLD.provider = 'cashfree'
      AND OLD.gateway = 'cashfree'
@@ -139,7 +139,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$cashfree_payment_log_identity$;
 
 DROP TRIGGER IF EXISTS cashfree_payment_logs_identity_immutable
   ON public.payment_logs;
