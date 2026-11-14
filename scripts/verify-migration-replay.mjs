@@ -13,9 +13,9 @@ const normalized = pairs.filter((x) => x.normalized_sql_match === true);
 const localOnly = manifest.local_only_files || [];
 
 if (manifest.remote_ledger_entries !== 47 || history.length !== 39 || missing.length !== 35
-  || manifest.local_migration_files !== 27 || pairs.length !== 12
-  || normalized.length !== 8 || pairs.length - normalized.length !== 4 || localOnly.length !== 15) {
-  fail("Migration reconciliation counts differ from the reviewed 47/39/35/23/12/8/4/11 manifest");
+  || manifest.local_migration_files !== 28 || pairs.length !== 12
+  || normalized.length !== 8 || pairs.length - normalized.length !== 4 || localOnly.length !== 16) {
+  fail("Migration reconciliation counts differ from the reviewed 47/39/35/24/12/8/4/12 manifest");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
 
@@ -44,8 +44,8 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 62 || new Set(candidatePlan.map((x) => x.path)).size !== 62) {
-  fail("Candidate replay plan must contain 35 recovered historical and all 27 current local migrations");
+if (candidatePlan.length !== 63 || new Set(candidatePlan.map((x) => x.path)).size !== 63) {
+  fail("Candidate replay plan must contain 35 recovered historical and all 28 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -112,6 +112,33 @@ function assertRls(port, includeGlobal) {
   `);
   if (unsafe) fail("Required public tables missing or without RLS: " + unsafe);
 }
+function assertGlobalFoundation(port) {
+  const missing = query(port, "plivex_migration_replay", "SELECT string_agg(t.name, ',') FROM (VALUES ('workspaces'),('user_profiles'),('workspace_members'),('business_profiles')) AS t(name) WHERE to_regclass('global.' || t.name) IS NULL OR NOT COALESCE((SELECT c.relrowsecurity FROM pg_class c WHERE c.oid = to_regclass('global.' || t.name)), false);");
+  if (missing) fail("Global foundation tables missing or RLS disabled: " + missing);
+  const usage = query(port, "plivex_migration_replay", "SELECT has_schema_privilege('authenticated','global','USAGE')::text || '|' || has_schema_privilege('anon','global','USAGE')::text;");
+  if (usage !== "true|false") fail("Global schema grants are not least-privilege: " + usage);
+  console.log("PASS Global foundation table/RLS/grant catalog assertions");
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-isolation-foundation.integration.sql")]);
+}
+function assertGlobalMigrationRollback(port) {
+  const db = "plivex_global_rollback";
+  const create = spawnSync("createdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], { cwd: root, env: envFor(port, "postgres"), encoding: "utf8" });
+  if (create.status !== 0) fail("Could not create isolated Global migration rollback database: " + (create.stderr || ""));
+  try {
+    psql(port, db, ["-f", resolve(root, "supabase/tests/migration-replay-bootstrap.sql")]);
+    const migrationPath = resolve(root, "supabase/migrations/202611150001_global_isolation_foundation.sql");
+    const migration = readFileSync(migrationPath, "utf8").replace(/^\\s*begin;\\s*/i, "").replace(/\\s*commit;\\s*$/i, "");
+    const forcedRollback = "BEGIN;\\n" + migration + "\\nDO $ BEGIN RAISE EXCEPTION 'intentional Global migration rollback verification'; END $;\\n";
+    const applied = spawnSync("psql", ["-X","-v","ON_ERROR_STOP=1","-d",db], { cwd: root, env: envFor(port, db), input: forcedRollback, encoding: "utf8" });
+    if (applied.status === 0) fail("Global migration rollback probe unexpectedly committed");
+    const residue = query(port, db, "SELECT to_regnamespace('global') IS NOT NULL");
+    if (residue !== "f") fail("Global migration rollback left the global schema behind");
+    console.log("PASS actual Global foundation DDL rollback in isolated database");
+  } finally {
+    const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], { cwd: root, env: envFor(port, "postgres"), encoding: "utf8" });
+    if (drop.status !== 0) console.error("WARN: disposable rollback database cleanup failed:", drop.stderr || "");
+  }
+}
 function assertRemoteIndia(port) {
   const sub = query(port, "plivex_migration_replay", `
     SELECT concat_ws('|',gateway,provider,txnid,payu_txnid,status::text,tier::text,amount::text,currency)
@@ -168,7 +195,7 @@ function summary(port, remote) {
 
 const remotePort = Number(process.env.REMOTE_PGPORT || 5433);
 const candidatePort = Number(process.env.CANDIDATE_PGPORT || 5434);
-console.log("Migration reconciliation: 47 remote, 39 archived, 8 normalized local matches, 4 divergent, 62 candidate replay entries.");
+console.log("Migration reconciliation: 47 remote, 39 archived, 8 normalized local matches, 4 divergent, 63 candidate replay entries.");
 resetDb(remotePort);
 replay(remotePort, remotePlan, true);
 assertRls(remotePort, false);
@@ -179,6 +206,8 @@ resetDb(candidatePort);
 replay(candidatePort, candidatePlan);
 assertRls(candidatePort, true);
 assertCandidateIndia(candidatePort);
+assertGlobalFoundation(candidatePort);
 assertRollback(candidatePort);
-console.log("PASS global-dev candidate replay 35 recovered + 27 local; India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
-console.log("PASS archive hashes, version ordering, replay, rollback, RLS and India data-integrity checks.");
+assertGlobalMigrationRollback(candidatePort);
+console.log("PASS global-dev candidate replay 35 recovered + 28 local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
+console.log("PASS archive hashes, version ordering, replay, Global workspace isolation, migration rollback, RLS and India data-integrity checks.");
