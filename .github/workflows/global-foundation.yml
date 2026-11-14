@@ -43,7 +43,7 @@ jobs:
         run: npm run test:global
 
       - name: Type-check assistant Edge Functions with Deno
-        run: deno check supabase/functions/assistant-chat/index.ts supabase/functions/assistant-confirm/index.ts
+        run: deno check supabase/functions/assistant-chat/index.ts supabase/functions/assistant-confirm/index.ts supabase/functions/_shared/global.ts supabase/functions/global-auth-context/index.ts supabase/functions/global-ensure-owner/index.ts supabase/functions/global-update-profile/index.ts
 
       - name: Run ESLint
         run: npm run lint
