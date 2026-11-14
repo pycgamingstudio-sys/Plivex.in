@@ -129,9 +129,32 @@ CREATE TABLE IF NOT EXISTS vault.secrets (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- Use the Supabase Postgres image's Vault function and schema. Do not add a
--- three-argument overload here: the managed four-argument function has defaults,
--- and a second overload makes historical three-argument calls ambiguous.
+-- Replace the managed Vault function only inside this disposable database.
+-- The real extension requires a server encryption key, which CI intentionally
+-- does not configure. Preserve the production four-argument signature/defaults
+-- so historical three-argument calls resolve exactly as they do in Supabase.
+CREATE TABLE IF NOT EXISTS public.stage4_vault_secrets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  description text,
+  secret text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE OR REPLACE FUNCTION vault.create_secret(
+  new_secret text,
+  new_name text DEFAULT NULL,
+  new_description text DEFAULT '',
+  new_key_id uuid DEFAULT NULL
+)
+RETURNS uuid LANGUAGE plpgsql AS $function$
+DECLARE v_id uuid;
+BEGIN
+  INSERT INTO public.stage4_vault_secrets(name, description, secret)
+  VALUES (new_name, new_description, new_secret)
+  RETURNING id INTO v_id;
+  RETURN v_id;
+END
+$function$;
 
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS trigger LANGUAGE plpgsql AS $function$
