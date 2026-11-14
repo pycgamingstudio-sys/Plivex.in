@@ -153,7 +153,7 @@ function assertGlobalMigrationRollback(port) {
     const provisioningRollback = applyForcedMigrationRollback(port, db, provisioningPath);
     if (provisioningRollback.status === 0) fail("Global owner-provisioning migration rollback probe unexpectedly committed");
     const residue = query(port, db, "SELECT (to_regprocedure('public.global_get_auth_context(uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_provision_owner_workspace(uuid,text,text,text,text,text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_update_user_profile(uuid,text,text,text)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='user_profiles' AND column_name='phone')::text");
-    if (residue !== "f|f|f|f") fail("Global owner-provisioning rollback left functions or columns behind: " + residue);
+    if (residue !== "false|false|false|false") fail("Global owner-provisioning rollback left functions or columns behind: " + residue);
     console.log("PASS actual DDL rollback for Global isolation foundation and owner provisioning migrations");
   } finally {
     const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], {
