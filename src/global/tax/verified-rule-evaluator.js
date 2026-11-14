@@ -49,14 +49,14 @@ export function calculateVerifiedTaxRule(input) {
   if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor < 0) return fail("INVALID_AMOUNT", "Amount must be a non-negative safe integer in minor units.");
 
   const registration = input.sellerRegistration;
-  if (!record(registration) || registration.verified !== true || registration.status !== "registered"
+  if (!record(registration) || (registration.verified !== true && registration.attestedByUser !== true) || registration.status !== "registered"
     || typeof registration.registrationNumber !== "string" || !registration.registrationNumber.trim()
     || !validDate(registration.effectiveFrom)) {
-    return fail("REGISTRATION_UNVERIFIED", "Verified seller registration and effective date are required.");
+    return fail("REGISTRATION_UNVERIFIED", "Registered seller details and an explicit business confirmation are required; Plivex does not independently verify registration.");
   }
   if (!validDate(input.invoiceDate) || input.invoiceDate < registration.effectiveFrom) return fail("REGISTRATION_NOT_EFFECTIVE", "Invoice date is invalid or before registration effective date.");
-  if (input.placeOfSupplyVerified !== true || !input.placeOfSupply) return fail("PLACE_OF_SUPPLY_REQUIRED", "Verified place of supply is required.");
-  if (input.taxCategoryVerified !== true || !input.taxCategory) return fail("TAX_CATEGORY_REQUIRED", "Verified goods/services tax category is required.");
+  if (input.placeOfSupplyVerified !== true || !input.placeOfSupply) return fail("PLACE_OF_SUPPLY_REQUIRED", "A confirmed place of supply is required.");
+  if (input.taxCategoryVerified !== true || !input.taxCategory) return fail("TAX_CATEGORY_REQUIRED", "A confirmed goods/services tax category is required.");
   if (input.treatment !== "standard") return fail("TREATMENT_RULE_REQUIRED", "Non-standard treatments need a separately verified rule.");
   if (!["exclusive", "inclusive"].includes(input.priceMode)) return fail("PRICE_MODE_REQUIRED", "Price mode must be inclusive or exclusive.");
 
@@ -110,6 +110,7 @@ export function calculateVerifiedTaxRule(input) {
     ok: true, status: "calculated", engineVersion: "0.1.0", countryCode, currencyCode,
     currencyMinorUnits: CURRENCY_MINOR_UNITS[currencyCode], jurisdictionId: rule.jurisdictionId || null,
     treatment: rule.treatment, priceMode: input.priceMode, taxableMinor, taxMinor, totalMinor, components,
+    registrationEvidence: registration.verified === true ? "externally-verified" : "user-attested",
     ruleSnapshot: {
       id: rule.id, version: rule.version, source: rule.source,
       effectiveFrom: rule.effectiveFrom, effectiveTo: rule.effectiveTo || null, reviewedOn: rule.reviewedOn || null,

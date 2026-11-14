@@ -13,6 +13,9 @@ import CurrentPlanCard from "@/components/CurrentPlanCard";
 import DesignPicker from "@/components/invoice/DesignPicker";
 import { DEFAULT_DESIGN_ID, InvoiceDesign, isPremiumDesign } from "@/components/invoice/designs";
 import { SUPPORTED_CURRENCIES, formatMoney, amountInWords } from "@/lib/currency";
+import { backend } from "@/api/backendClient";
+import GlobalTaxEditor from "@/components/invoice/GlobalTaxEditor";
+import { calculateInvoiceGlobalTax, GLOBAL_COUNTRY_CURRENCIES } from "@/global/tax/invoice-tax-integration.js";
 import {
   AlertCircle,
   BadgeCheck,
@@ -167,7 +170,7 @@ function MobileMenu({ open, onClose, onNew, onPricing }) {
   );
 }
 
-function InvoiceEditor({ invoice, setInvoice, errors, onClearError, onToast, onSignature, canAccess = () => true, onLocked = () => {}, design }) {
+function InvoiceEditor({ invoice, setInvoice, workspaceTaxProfile, globalTaxCalculation, errors, onClearError, onToast, onSignature, canAccess = () => true, onLocked = () => {}, design }) {
   const stockItems = loadList(KEYS.stock);
   const setBusiness = (key, value) => { setInvoice((old) => ({ ...old, business: { ...old.business, [key]: value } })); if (key === "name") onClearError("businessName"); };
   const setClient = (key, value) => { setInvoice((old) => ({ ...old, client: { ...old.client, [key]: value } })); if (key === "name") onClearError("clientName"); };
@@ -234,7 +237,17 @@ function InvoiceEditor({ invoice, setInvoice, errors, onClearError, onToast, onS
         <datalist id="stock-suggestions">{stockItems.map((p) => <option key={p.id} value={p.name} />)}</datalist>
       </SectionCard>
       <SectionCard icon={Scissors} eyebrow="Tune the total" title="Tax & discount">
-        <div className="grid gap-3 sm:grid-cols-2"><Field label="Default GST rate"><div className="relative"><select data-testid="input-tax-rate" className={inputClass} value={invoice.taxRate} onChange={(e) => { const rate = Number(e.target.value); setInvoice((old) => ({ ...old, taxRate: rate, items: old.items.map((item) => ({ ...item, gstRate: rate })) })); }}><option value="0">0%</option><option value="5">5%</option><option value="12">12%</option><option value="18">18%</option><option value="28">28%</option></select></div></Field><Field label="Discount"><div className="grid grid-cols-[minmax(0,1fr)_76px] items-start gap-2"><input data-testid="input-discount" aria-label="Discount amount" type="number" inputMode="decimal" min="0" className={`${inputClass} mt-1.5 w-full min-w-0 px-3 text-[16px] font-semibold tabular-nums`} value={invoice.discount} placeholder="0" onChange={(e) => setInvoice((old) => ({ ...old, discount: e.target.value === "" ? "" : Number(e.target.value) }))} /><select data-testid="select-discount-type" aria-label="Discount type" className={`${inputClass} mt-1.5 w-full min-w-0 px-2 text-[15px] font-semibold`} value={invoice.discountType} onChange={(e) => setInvoice((old) => ({ ...old, discountType: e.target.value }))}><option value="percent">%</option><option value="flat">{invoice.currency || "INR"}</option></select></div></Field>{invoice.currency !== "INR" && <p className="sm:col-span-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-900">International currency display is enabled. Tax controls are still India GST-based; VAT and Sales Tax calculations are not available yet. Currency changes do not convert entered prices.</p>}<div className="sm:col-span-2"><Field label="GST breakdown"><div className="flex gap-1 rounded-lg border bg-background p-1"><button type="button" data-testid="button-tax-split" onClick={() => setInvoice((old) => ({ ...old, taxMode: "split" }))} className={`flex-1 rounded-md px-2 py-2 text-[10px] font-bold transition-colors ${invoice.taxMode === "split" ? "bg-secondary text-primary" : "text-muted-foreground"}`}>CGST + SGST</button><button type="button" data-testid="button-tax-igst" onClick={() => setInvoice((old) => ({ ...old, taxMode: "igst" }))} className={`flex-1 rounded-md px-2 py-2 text-[10px] font-bold transition-colors ${invoice.taxMode === "igst" ? "bg-secondary text-primary" : "text-muted-foreground"}`}>IGST</button></div></Field></div></div>
+        {workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN" ? (
+          <GlobalTaxEditor invoice={invoice} setInvoice={setInvoice} workspaceProfile={workspaceTaxProfile} calculation={globalTaxCalculation} />
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Default GST rate"><div className="relative"><select data-testid="input-tax-rate" className={inputClass} value={invoice.taxRate} onChange={(e) => { const rate = Number(e.target.value); setInvoice((old) => ({ ...old, taxRate: rate, items: old.items.map((item) => ({ ...item, gstRate: rate })) })); }}><option value="0">0%</option><option value="5">5%</option><option value="12">12%</option><option value="18">18%</option><option value="28">28%</option></select></div></Field>
+            <div className="sm:col-span-2"><Field label="GST breakdown"><div className="flex gap-1 rounded-lg border bg-background p-1"><button type="button" data-testid="button-tax-split" onClick={() => setInvoice((old) => ({ ...old, taxMode: "split" }))} className={`flex-1 rounded-md px-2 py-2 text-[10px] font-bold transition-colors ${invoice.taxMode === "split" ? "bg-secondary text-primary" : "text-muted-foreground"}`}>CGST + SGST</button><button type="button" data-testid="button-tax-igst" onClick={() => setInvoice((old) => ({ ...old, taxMode: "igst" }))} className={`flex-1 rounded-md px-2 py-2 text-[10px] font-bold transition-colors ${invoice.taxMode === "igst" ? "bg-secondary text-primary" : "text-muted-foreground"}`}>IGST</button></div></Field></div>
+          </div>
+        )}
+        <div className="mt-3">
+          <Field label="Discount"><div className="grid grid-cols-[minmax(0,1fr)_76px] items-start gap-2"><input data-testid="input-discount" aria-label="Discount amount" type="number" inputMode="decimal" min="0" className={`${inputClass} mt-1.5 w-full min-w-0 px-3 text-[16px] font-semibold tabular-nums`} value={invoice.discount} placeholder="0" onChange={(e) => setInvoice((old) => ({ ...old, discount: e.target.value === "" ? "" : Number(e.target.value) }))} /><select data-testid="select-discount-type" aria-label="Discount type" className={`${inputClass} mt-1.5 w-full min-w-0 px-2 text-[15px] font-semibold`} value={invoice.discountType} onChange={(e) => setInvoice((old) => ({ ...old, discountType: e.target.value }))}><option value="percent">%</option><option value="flat">{invoice.currency || "INR"}</option></select></div></Field>
+        </div>
       </SectionCard>
       <SectionCard icon={Send} eyebrow="A little context" title="Notes & terms">
         <div className="grid gap-3 sm:grid-cols-2"><Field label="Note to client" hint="Warm and human"><textarea data-testid="input-notes" className={`${inputClass} min-h-[96px] resize-y`} value={invoice.notes} onChange={(e) => setInvoice((old) => ({ ...old, notes: e.target.value }))} /></Field><Field label="Payment terms"><textarea data-testid="input-terms" className={`${inputClass} min-h-[96px] resize-y`} value={invoice.terms} onChange={(e) => setInvoice((old) => ({ ...old, terms: e.target.value }))} /></Field></div>
@@ -246,7 +259,7 @@ function InvoiceEditor({ invoice, setInvoice, errors, onClearError, onToast, onS
 function money(value, currency) { return formatMoney(value, currency); }
 function dateLabel(value) { if (!value) return "—"; return new Date(`${value}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); }
 
-function computeTotal(invoice) {
+function computeTotal(invoiceForPreview) {
   const subtotal = invoice.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.rate) || 0), 0);
   const discount = Number(invoice.discount) || 0;
   const discountValue = invoice.discountType === "percent" ? subtotal * Math.max(0, discount) / 100 : Math.max(0, discount);
@@ -256,6 +269,7 @@ function computeTotal(invoice) {
     const itemDiscount = subtotal > 0 ? discountValue * (itemSubtotal / subtotal) : 0;
     return sum + Math.max(0, itemSubtotal - itemDiscount) * Math.max(0, item.gstRate ?? invoice.taxRate) / 100;
   }, 0);
+  if (invoice.globalTaxCalculation && invoice.globalTaxCalculation.status !== "india_legacy") return invoice.globalTaxCalculation.ok ? invoice.globalTaxCalculation.totalMinor / 100 : Math.max(0, taxable);
   return Math.max(0, taxable + taxValue);
 }
 
@@ -321,10 +335,13 @@ export function InvoicePreview({ invoice, design }) {
     const itemDiscount = subtotal > 0 ? discountValue * (itemSubtotal / subtotal) : 0;
     return sum + Math.max(0, itemSubtotal - itemDiscount) * Math.max(0, item.gstRate ?? invoice.taxRate) / 100;
   }, 0), [discountValue, invoice.items, invoice.taxRate, subtotal]);
-  const total = taxable + taxValue;
+  const globalCalculation = invoice.globalTaxCalculation?.ok && invoice.globalTaxCalculation.status !== "india_legacy" ? invoice.globalTaxCalculation : null;
+  const isGlobalInvoice = invoice.globalTaxCalculation && invoice.globalTaxCalculation.status !== "india_legacy";
+  const renderedTaxValue = globalCalculation ? globalCalculation.taxMinor / 100 : isGlobalInvoice ? 0 : taxValue;
+  const renderedTotal = globalCalculation ? globalCalculation.totalMinor / 100 : isGlobalInvoice ? taxable : taxable + taxValue;
   const upiId = (invoice.upiId || "").trim();
-  const upiValid = Boolean(upiId) && /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z][a-zA-Z0-9.\-_]{1,64}$/.test(upiId);
-  const upiUri = upiValid ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(invoice.business.name || "Business")}&am=${total.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Invoice ${invoice.number || ""}`)}` : "";
+  const upiValid = (invoice.globalTaxProfileSnapshot?.countryCode || "IN") === "IN" && Boolean(upiId) && /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z][a-zA-Z0-9.\-_]{1,64}$/.test(upiId);
+  const upiUri = upiValid ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(invoice.business.name || "Business")}&am=${renderedTotal.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Invoice ${invoice.number || ""}`)}` : "";
   const qrUrl = upiValid ? `https://quickchart.io/qr?size=600&margin=2&ecLevel=Q&text=${encodeURIComponent(upiUri)}` : "";
   return (
     <div className="p-2 sm:p-4">
@@ -336,8 +353,8 @@ export function InvoicePreview({ invoice, design }) {
           subtotal={subtotal}
           discount={discount}
           discountValue={discountValue}
-          taxValue={taxValue}
-          total={total}
+          taxValue={renderedTaxValue}
+          total={renderedTotal}
           upiValid={upiValid}
           qrUrl={qrUrl}
           money={money}
@@ -454,6 +471,7 @@ export default function Home() {
   const navigate = useNavigate();
   const { canAccess, isPremium, planName, planId, planStartedAt, planExpiresAt, limits, usage, remaining, openPaywall, refreshAccessStatus } = usePaywall();
   const [invoice, setInvoice] = useStored("invoicepulse-draft", initialInvoice, "invoicepulse-empty-draft-v1");
+  const [workspaceTaxProfile, setWorkspaceTaxProfile] = useState(null);
   const [isDark, setIsDark] = useStored("invoicepulse-dark", false);
   const [mobileTab, setMobileTab] = useState("edit");
   const [pricingOpen, setPricingOpen] = useState(false);
@@ -481,6 +499,48 @@ export default function Home() {
       if (timerId !== undefined) window.clearTimeout(timerId);
     };
   }, []);
+  useEffect(() => {
+    let active = true;
+    async function loadWorkspaceTaxProfile() {
+      if (!user?.workspace_id) { if (active) setWorkspaceTaxProfile(null); return; }
+      try {
+        const response = await backend.functions.invoke("workspaceRecords", { table: "business_profile", action: "get" });
+        if (response?.error) throw response.error;
+        const record = response?.data?.record || {};
+        if (!active) return;
+        const countryCode = String(record.country_code || "IN").toUpperCase();
+        setWorkspaceTaxProfile({
+          countryCode,
+          currencyCode: GLOBAL_COUNTRY_CURRENCIES[countryCode] || "INR",
+          registrationNumber: record.tax_registration_number || "",
+          registrationType: record.tax_registration_type || "",
+          registrationStatus: record.tax_registration_status || "unregistered",
+          registrationEffectiveFrom: record.tax_registration_effective_from || "",
+          registeredJurisdiction: record.tax_jurisdiction_code || "",
+        });
+        if (countryCode !== "IN" && GLOBAL_COUNTRY_CURRENCIES[countryCode]) {
+          setInvoice((old) => old.currency === "INR" ? { ...old, currency: GLOBAL_COUNTRY_CURRENCIES[countryCode] } : old);
+        }
+      } catch {
+        if (active) setWorkspaceTaxProfile({ countryCode: "UNKNOWN", currencyCode: "", loadError: true });
+      }
+    }
+    loadWorkspaceTaxProfile();
+    return () => { active = false; };
+  }, [user?.workspace_id]);
+  const globalTaxCalculation = useMemo(() => {
+    if (!workspaceTaxProfile || workspaceTaxProfile.countryCode === "IN") return null;
+    return calculateInvoiceGlobalTax(invoice, workspaceTaxProfile);
+  }, [invoice, workspaceTaxProfile]);
+  const invoiceForPreview = useMemo(() => {
+    if (!workspaceTaxProfile || workspaceTaxProfile.countryCode === "IN") return invoice;
+    return {
+      ...invoice,
+      globalTax: { ...(invoice.globalTax || {}), countryCode: workspaceTaxProfile.countryCode, mode: globalTaxCalculation?.mode || (["US", "CA"].includes(workspaceTaxProfile.countryCode) ? "manual" : (invoice.globalTax?.mode || "automatic")) },
+      globalTaxCalculation,
+      globalTaxProfileSnapshot: workspaceTaxProfile,
+    };
+  }, [invoice, workspaceTaxProfile, globalTaxCalculation]);
   useEffect(() => { document.documentElement.classList.toggle("dark", isDark); }, [isDark]);
   useEffect(() => () => { if (toastTimer.current) window.clearTimeout(toastTimer.current); }, []);
   // Business profile is the single source of defaults for every invoice.
@@ -521,6 +581,7 @@ export default function Home() {
       if (item.rate === "" || item.rate === null || item.rate === undefined) next[`item.${item.id}.rate`] = "Please enter rate";
     });
     if (!invoice.issueDate) next.issueDate = "Please select an invoice date";
+    if (workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN" && !globalTaxCalculation?.ok) next.globalTax = globalTaxCalculation?.message || "Complete the tax details before generating this invoice.";
     if (!invoice.items.length) next.items = "Add at least one item";
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -534,9 +595,11 @@ export default function Home() {
     return valid;
   };
   const recordInvoice = async () => {
-    const total = computeTotal(invoice);
-    const taxValue = Math.max(0, total - invoice.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.rate) || 0), 0));
-    const savedInvoice = await saveInvoiceToServer({ ...invoice, total, taxValue });
+    const total = computeTotal(invoiceForPreview);
+    const taxValue = globalTaxCalculation?.ok && globalTaxCalculation.status !== "india_legacy"
+      ? globalTaxCalculation.taxMinor / 100
+      : Math.max(0, total - invoice.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.rate) || 0), 0));
+    const savedInvoice = await saveInvoiceToServer({ ...invoiceForPreview, total, taxValue });
     await refreshAccessStatus();
     trackStaffAction({ label: `Invoice ${savedInvoice.number || invoice.number || "INV"} generated for ${invoice.client.name || "client"}`, type: "invoice", revenue: total });
     return savedInvoice;
@@ -706,7 +769,7 @@ export default function Home() {
       const blob = pdf.output("blob");
       const file = new File([blob], safeFilename, { type: "application/pdf" });
       const clientName = invoice.client.name || "there";
-      const totalAmt = money(computeTotal(invoice), invoice.currency);
+      const totalAmt = money(computeTotal(invoiceForPreview), invoice.currency);
       const due = invoice.dueDate ? dateLabel(invoice.dueDate) : "—";
       const upi = (invoice.upiId || "").trim();
       const bizName = invoice.business.name || "Plivex";
@@ -794,7 +857,7 @@ export default function Home() {
       pdf.save(safeFilename);
 
       const clientName = invoice.client.name || "there";
-      const totalAmt = money(computeTotal(invoice), invoice.currency);
+      const totalAmt = money(computeTotal(invoiceForPreview), invoice.currency);
       const due = invoice.dueDate ? dateLabel(invoice.dueDate) : "—";
       const upi = (invoice.upiId || "").trim();
       const bizName = invoice.business.name || "Plivex";
@@ -833,8 +896,8 @@ export default function Home() {
           <div className="mb-6 hidden items-end justify-between gap-4 md:flex fade-up"><div><p className="font-mono-ui text-[10px] uppercase tracking-[0.18em] text-primary">The fast billing desk</p><h2 className="mt-1 text-[29px] font-bold tracking-[-0.06em]">Make it official<span className="font-display ml-1 font-normal italic text-primary">.</span></h2><p className="mt-1 text-[12px] text-muted-foreground">Your next professional invoice is already taking shape.</p></div><div className="flex items-center gap-2 text-[11px] text-muted-foreground"><Zap className="h-3.5 w-3.5 text-accent-foreground" />Built for the two-minute window</div></div>
           <div className="mb-4 rounded-xl border bg-card p-3"><div className="flex items-center justify-between text-xs"><span className="font-semibold">Invoices this month</span><span className="font-bold">{Number(usage.invoices_monthly ?? usage.invoices ?? 0)}/{Number(limits.invoices_monthly ?? limits.invoices ?? 30)}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${Number(usage.invoices_monthly ?? usage.invoices ?? 0) >= Number(limits.invoices_monthly ?? limits.invoices ?? 30) ? "bg-rose-500" : Number(usage.invoices_monthly ?? usage.invoices ?? 0) / Number(limits.invoices_monthly ?? limits.invoices ?? 30) >= 0.8 ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${Math.min(100, Number(usage.invoices_monthly ?? usage.invoices ?? 0) / Number(limits.invoices_monthly ?? limits.invoices ?? 30) * 100)}%` }} /></div>{Number(usage.invoices_monthly ?? usage.invoices ?? 0) / Number(limits.invoices_monthly ?? limits.invoices ?? 30) >= 0.8 && <p className="mt-1.5 text-[11px] text-amber-600">{Number(usage.invoices_monthly ?? usage.invoices ?? 0) >= Number(limits.invoices_monthly ?? limits.invoices ?? 30) ? "Plan limit reached" : "Usage limit warning"}</p>}{Number(usage.invoices_monthly ?? usage.invoices ?? 0) >= Number(limits.invoices_monthly ?? limits.invoices ?? 30) && <button onClick={() => openPaywall("Invoice limit reached for your current plan.")} className="mt-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground">Upgrade</button>}</div><div className="mb-4 flex rounded-lg border bg-card p-1 xl:hidden"><button data-testid="tab-edit-mobile" onClick={() => setMobileTab("edit")} className={`flex-1 rounded-md py-2 text-xs font-bold transition-colors ${mobileTab === "edit" ? "bg-secondary text-primary" : "text-muted-foreground"}`}><FilePenLine className="mr-1.5 inline h-3.5 w-3.5" />Edit invoice</button><button data-testid="tab-preview-mobile" onClick={() => setMobileTab("preview")} className={`flex-1 rounded-md py-2 text-xs font-bold transition-colors ${mobileTab === "preview" ? "bg-secondary text-primary" : "text-muted-foreground"}`}><FileText className="mr-1.5 inline h-3.5 w-3.5" />Preview</button></div>
           <div className="grid items-start gap-6 xl:grid-cols-[minmax(360px,440px)_minmax(0,1fr)] xl:gap-8">
-            <div className={`${mobileTab === "preview" ? "hidden xl:block" : "block"} min-w-0 fade-up fade-up-delay-1`}><InvoiceEditor invoice={invoice} setInvoice={setInvoice} errors={errors} onClearError={(key) => setErrors((current) => { if (!current[key]) return current; const next = { ...current }; delete next[key]; return next; })} onToast={notify} onSignature={() => setSignatureOpen(true)} canAccess={canAccess} onLocked={() => setPricingOpen(true)} design={activeDesign} /></div>
-            <div className={`${mobileTab === "edit" ? "hidden xl:block" : "block"} min-w-0 xl:sticky xl:top-[86px] fade-up fade-up-delay-2`}><div className="mb-3 flex items-center justify-between px-1"><div><p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Live preview</p><p className="mt-0.5 text-[12px] text-muted-foreground">A4 · print-ready · {invoice.currency}</p></div></div><div className="paper-grid min-w-0 rounded-xl border bg-[#e9e8f0] dark:bg-[#1e1d2a] xl:max-h-[calc(100dvh-170px)] xl:overflow-y-auto"><InvoicePreview invoice={invoice} design={activeDesign} /></div></div>
+            <div className={`${mobileTab === "preview" ? "hidden xl:block" : "block"} min-w-0 fade-up fade-up-delay-1`}><InvoiceEditor invoice={invoice} setInvoice={setInvoice} workspaceTaxProfile={workspaceTaxProfile} globalTaxCalculation={globalTaxCalculation} errors={errors} onClearError={(key) => setErrors((current) => { if (!current[key]) return current; const next = { ...current }; delete next[key]; return next; })} onToast={notify} onSignature={() => setSignatureOpen(true)} canAccess={canAccess} onLocked={() => setPricingOpen(true)} design={activeDesign} /></div>
+            <div className={`${mobileTab === "edit" ? "hidden xl:block" : "block"} min-w-0 xl:sticky xl:top-[86px] fade-up fade-up-delay-2`}><div className="mb-3 flex items-center justify-between px-1"><div><p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Live preview</p><p className="mt-0.5 text-[12px] text-muted-foreground">A4 · print-ready · {invoice.currency}</p></div></div><div className="paper-grid min-w-0 rounded-xl border bg-[#e9e8f0] dark:bg-[#1e1d2a] xl:max-h-[calc(100dvh-170px)] xl:overflow-y-auto"><InvoicePreview invoice={invoiceForPreview} design={activeDesign} /></div></div>
           </div>
         </main>
       </div>

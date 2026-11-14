@@ -384,6 +384,7 @@ export async function saveInvoiceToServer(inv) {
   const already = _savedSignatures.get(sig);
   if (already) return already; // same invoice downloaded or shared again: do not create a duplicate
   const payload = {
+    ...(typeof inv.id === "string" && /^[0-9a-f-]{36}$/i.test(inv.id) ? { invoiceId: inv.id } : {}),
     items: (inv.items || []).map((i) => ({
       description: str(i.description), quantity: num(i.quantity), rate: num(i.rate),
       ...(i.gstRate === "" || i.gstRate === undefined || i.gstRate === null ? {} : { gst_rate: num(i.gstRate) }),

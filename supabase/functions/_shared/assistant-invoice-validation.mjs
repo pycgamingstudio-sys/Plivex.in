@@ -47,6 +47,37 @@ export function validateInvoiceAction(action) {
   const rawSnapshotBusiness = rawSnapshot.business && typeof rawSnapshot.business === "object" ? rawSnapshot.business : {};
   const rawSnapshotClient = rawSnapshot.client && typeof rawSnapshot.client === "object" ? rawSnapshot.client : {};
   const rawSnapshotItems = Array.isArray(rawSnapshot.items) ? rawSnapshot.items : [];
+  const rawGlobalTax = rawSnapshot.globalTax && typeof rawSnapshot.globalTax === "object" ? rawSnapshot.globalTax : {};
+  const globalCountryCode = text(rawGlobalTax.countryCode || rawSnapshot.globalTaxProfileSnapshot?.countryCode, 2).toUpperCase();
+  const supportedGlobalCountries = new Set(["US", "GB", "AE", "CA", "AU", "SG"]);
+  if (globalCountryCode && globalCountryCode !== "IN" && !supportedGlobalCountries.has(globalCountryCode)) return null;
+  const globalTaxDraft = supportedGlobalCountries.has(globalCountryCode) ? {
+    countryCode: globalCountryCode,
+    mode: ["US", "CA"].includes(globalCountryCode) ? "manual" : "automatic",
+    priceMode: rawGlobalTax.priceMode === "inclusive" ? "inclusive" : "exclusive",
+    placeOfSupply: text(rawGlobalTax.placeOfSupply, 180),
+    placeOfSupplyConfirmed: false,
+    taxCategory: text(rawGlobalTax.taxCategory, 120),
+    taxCategoryConfirmed: false,
+    registrationConfirmed: false,
+    collectionObligationConfirmed: false,
+    destinationJurisdiction: {
+      state: text(rawGlobalTax.destinationJurisdiction?.state, 80),
+      county: text(rawGlobalTax.destinationJurisdiction?.county, 100),
+      city: text(rawGlobalTax.destinationJurisdiction?.city, 100),
+      province: text(rawGlobalTax.destinationJurisdiction?.province, 100),
+    },
+    components: [],
+  } : null;
+  const rawProfileSnapshot = rawSnapshot.globalTaxProfileSnapshot && typeof rawSnapshot.globalTaxProfileSnapshot === "object" ? rawSnapshot.globalTaxProfileSnapshot : {};
+  const globalTaxProfileSnapshot = globalTaxDraft ? {
+    countryCode: globalCountryCode,
+    registrationNumber: text(rawProfileSnapshot.registrationNumber, 80),
+    registrationType: text(rawProfileSnapshot.registrationType, 32),
+    registrationStatus: text(rawProfileSnapshot.registrationStatus, 24),
+    registrationEffectiveFrom: text(rawProfileSnapshot.registrationEffectiveFrom, 10),
+    registeredJurisdiction: text(rawProfileSnapshot.registeredJurisdiction, 32),
+  } : null;
 
   const invoice_snapshot = {
     business: {
@@ -73,9 +104,9 @@ export function validateInvoiceAction(action) {
       description: item.description,
       quantity: item.quantity,
       rate: item.rate,
-      gstRate: item.gst_rate,
+      gstRate: globalTaxDraft ? 0 : item.gst_rate,
     })),
-    taxRate: tax_rate,
+    taxRate: globalTaxDraft ? 0 : tax_rate,
     taxMode: tax_mode,
     discountType: discount_type,
     discount,
@@ -86,6 +117,7 @@ export function validateInvoiceAction(action) {
     design: ["classic", "modern", "minimal"].includes(text(rawSnapshot.design, 30))
       ? text(rawSnapshot.design, 30)
       : "classic",
+    ...(globalTaxDraft ? { globalTax: globalTaxDraft, globalTaxProfileSnapshot } : {}),
   };
 
   return {
@@ -98,14 +130,14 @@ export function validateInvoiceAction(action) {
       due_date,
       currency,
       tax_mode,
-      tax_rate,
+      tax_rate: globalTaxDraft ? 0 : tax_rate,
       discount_type,
       discount,
       notes: text(raw.notes, 1000),
       terms: text(raw.terms, 1000),
       status: "Pending",
       is_draft: true,
-      items,
+      items: globalTaxDraft ? items.map((item) => ({ ...item, gst_rate: 0 })) : items,
       invoice_snapshot,
     },
   };

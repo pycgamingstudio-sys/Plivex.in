@@ -183,3 +183,43 @@ test("public invoice sanitizer excludes private snapshot fields and internal ide
   assert.equal("privateMetadata" in safe.invoice_snapshot.items[0], false);
   assert.equal("secret" in safe.invoice_items[0], false);
 });
+
+test("global assistant invoice is retained as a tax-review draft with no India GST", () => {
+  const action = {
+    type: "create_invoice",
+    payload: {
+      client_name: "US customer",
+      currency: "USD",
+      tax_rate: 18,
+      tax_mode: "igst",
+      items: [{ description: "Consulting", quantity: 1, rate: 100, gst_rate: 18 }],
+      invoice_snapshot: {
+        currency: "USD",
+        globalTax: { countryCode: "US", mode: "automatic", priceMode: "exclusive", placeOfSupply: "Los Angeles", taxCategory: "service" },
+        globalTaxProfileSnapshot: { countryCode: "US", registrationNumber: "US-123", registrationStatus: "registered", registrationEffectiveFrom: "2026-01-01", registeredJurisdiction: "US-CA" },
+      },
+    },
+  };
+  const result = validateInvoiceAction(action);
+  assert.ok(result);
+  assert.equal(result.payload.is_draft, true);
+  assert.equal(result.payload.tax_rate, 0);
+  assert.equal(result.payload.items[0].gst_rate, 0);
+  assert.equal(result.payload.invoice_snapshot.taxRate, 0);
+  assert.equal(result.payload.invoice_snapshot.items[0].gstRate, 0);
+  assert.equal(result.payload.invoice_snapshot.globalTax.countryCode, "US");
+  assert.equal(result.payload.invoice_snapshot.globalTax.registrationConfirmed, false);
+  assert.deepEqual(result.payload.invoice_snapshot.globalTax.components, []);
+  assert.equal(result.payload.invoice_snapshot.globalTaxProfileSnapshot.registeredJurisdiction, "US-CA");
+});
+
+test("assistant validator rejects unsupported global invoice country", () => {
+  const result = validateInvoiceAction({
+    type: "create_invoice",
+    payload: {
+      ...deterministicAction.payload,
+      invoice_snapshot: { globalTax: { countryCode: "ZZ" } },
+    },
+  });
+  assert.equal(result, null);
+});

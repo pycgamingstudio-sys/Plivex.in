@@ -1,3 +1,5 @@
+import { getTaxInvoiceFormat } from "@/global/tax/tax-invoice-formats.js";
+
 // Invoice design registry. `premium: true` layouts unlock on the Pro plan only;
 // the two free layouts ship with every account (including the 14-day trial).
 
@@ -20,6 +22,13 @@ function initials(name) {
   return (parts.map((word) => word[0]).slice(0, 2).join("") || "P").toUpperCase();
 }
 
+function itemTaxLabel(invoice, item) {
+  const calculation = invoice.globalTaxCalculation;
+  if (calculation?.ok && calculation.status !== "india_legacy") return (calculation.components || []).map((component) => `${component.name} ${Number(component.rateBps) / 100}%`).join(" + ") || calculation.taxName || "Tax";
+  if (invoice.globalTax?.countryCode && invoice.globalTax.countryCode !== "IN") return "Tax pending review";
+  return `GST ${item.gstRate ?? invoice.taxRate}%`;
+}
+
 function ItemsTable({ invoice, money, headerClass = "", rowClass = "border-[#eeeef2]" }) {
   return (
     <div>
@@ -31,7 +40,7 @@ function ItemsTable({ invoice, money, headerClass = "", rowClass = "border-[#eee
         const rate = Number(item.rate) || 0;
         return (
           <div key={item.id} className={`grid grid-cols-[1fr_45px_94px_100px] gap-3 border-b py-4 text-[13px] ${rowClass}`}>
-            <span className="font-medium">{item.description || "Untitled service"}<small className="mt-1 block text-[13px] font-normal text-[#8b889b]">GST {item.gstRate ?? invoice.taxRate}%</small></span>
+            <span className="font-medium">{item.description || "Untitled service"}<small className="mt-1 block text-[13px] font-normal text-[#8b889b]">{itemTaxLabel(invoice, item)}</small></span>
             <span className="text-center text-[#77758a]">{item.quantity}</span>
             <span className="text-right text-[#77758a]">{money(rate, invoice.currency)}</span>
             <span className="text-right font-semibold">{money(quantity * rate, invoice.currency)}</span>
@@ -43,12 +52,25 @@ function ItemsTable({ invoice, money, headerClass = "", rowClass = "border-[#eee
 }
 
 function Totals({ invoice, subtotal, discount, discountValue, taxValue, total, money, amountInWords, accent = "#2e2857" }) {
+  const calculation = invoice.globalTaxCalculation?.ok && invoice.globalTaxCalculation.status !== "india_legacy" ? invoice.globalTaxCalculation : null;
   return (
     <div className="w-[260px] space-y-2 text-[13px]">
       <div className="flex justify-between text-[#77758a]"><span>Subtotal</span><span>{money(subtotal, invoice.currency)}</span></div>
       {discountValue > 0 && <div className="flex justify-between text-[#77758a]"><span>Discount {invoice.discountType === "percent" ? `(${discount}%)` : ""}</span><span>-{money(discountValue, invoice.currency)}</span></div>}
-      <div className="flex justify-between text-[#77758a]"><span>{invoice.taxMode === "split" ? "CGST + SGST" : "IGST"} ({invoice.taxRate}%)</span><span>{money(taxValue, invoice.currency)}</span></div>
-      {invoice.taxMode === "split" && <div className="flex justify-between text-[#8b889b]"><span>CGST / SGST</span><span>{money(taxValue / 2, invoice.currency)} each</span></div>}
+      {calculation ? (
+        <>
+          <div className="flex justify-between text-[#77758a]"><span>Taxable amount</span><span>{money(calculation.taxableMinor / 100, invoice.currency)}</span></div>
+          {(calculation.components || []).map((component) => <div key={component.id} className="flex justify-between text-[#77758a]"><span>{component.name} ({component.rateBps / 100}%)</span><span>{money(component.amountMinor / 100, invoice.currency)}</span></div>)}
+          {calculation.status === "manual_unverified" && <p className="text-[10px] text-amber-700">Manual rates · not independently verified</p>}
+        </>
+      ) : (invoice.globalTax?.countryCode && invoice.globalTax.countryCode !== "IN") || (invoice.globalTaxCalculation && invoice.globalTaxCalculation.status !== "india_legacy") ? (
+        <p className="text-[11px] text-amber-800">Tax calculation needs review: {invoice.globalTaxCalculation?.message || "Complete the tax details before finalizing."}</p>
+      ) : (
+        <>
+          <div className="flex justify-between text-[#77758a]"><span>{invoice.taxMode === "split" ? "CGST + SGST" : "IGST"} ({invoice.taxRate}%)</span><span>{money(taxValue, invoice.currency)}</span></div>
+          {invoice.taxMode === "split" && <div className="flex justify-between text-[#8b889b]"><span>CGST / SGST</span><span>{money(taxValue / 2, invoice.currency)} each</span></div>}
+        </>
+      )}
       <div className="mt-3 flex items-end justify-between border-t-2 pt-3" style={{ borderColor: accent }}>
         <span className="font-bold">Total due</span>
         <span className="text-[20px] font-bold tracking-[-0.04em]" style={{ color: accent }}>{money(total, invoice.currency)}</span>
@@ -57,7 +79,6 @@ function Totals({ invoice, subtotal, discount, discountValue, taxValue, total, m
     </div>
   );
 }
-
 function NotesBlock({ invoice }) {
   return (
     <div>
@@ -185,7 +206,7 @@ function ModernDesign({ invoice, subtotal, discount, discountValue, taxValue, to
               const rate = Number(item.rate) || 0;
               return (
                 <div key={item.id} className="grid grid-cols-[1fr_45px_94px_100px] gap-3 border-b border-[#eeeef2] py-4 text-[13px]">
-                  <span className="font-medium">{item.description || "Untitled service"}<small className="mt-1 block text-[13px] font-normal text-[#8b889b]">GST {item.gstRate ?? invoice.taxRate}%</small></span>
+                  <span className="font-medium">{item.description || "Untitled service"}<small className="mt-1 block text-[13px] font-normal text-[#8b889b]">{itemTaxLabel(invoice, item)}</small></span>
                   <span className="text-center text-[#77758a]">{item.quantity}</span>
                   <span className="text-right text-[#77758a]">{money(rate, invoice.currency)}</span>
                   <span className="text-right font-semibold">{money(quantity * rate, invoice.currency)}</span>
@@ -359,7 +380,7 @@ function ElegantDesign({ invoice, subtotal, discount, discountValue, taxValue, t
           const rate = Number(item.rate) || 0;
           return (
             <div key={item.id} className="grid grid-cols-[1fr_45px_94px_100px] gap-3 border-b border-[#f1f0f4] py-4 text-[13px]">
-              <span className="font-medium">{item.description || "Untitled service"}<small className="mt-1 block text-[13px] font-normal text-[#8b889b]">GST {item.gstRate ?? invoice.taxRate}%</small></span>
+              <span className="font-medium">{item.description || "Untitled service"}<small className="mt-1 block text-[13px] font-normal text-[#8b889b]">{itemTaxLabel(invoice, item)}</small></span>
               <span className="text-center text-[#77758a]">{item.quantity}</span>
               <span className="text-right text-[#77758a]">{money(rate, invoice.currency)}</span>
               <span className="text-right font-semibold">{money(quantity * rate, invoice.currency)}</span>
@@ -386,7 +407,33 @@ const DESIGN_COMPONENTS = {
   elegant: ElegantDesign,
 };
 
+function GlobalTaxInvoiceHeader({ invoice }) {
+  const calculation = invoice.globalTaxCalculation;
+  const countryCode = calculation?.countryCode || invoice.globalTax?.countryCode;
+  if (!countryCode || countryCode === "IN") return null;
+  const format = getTaxInvoiceFormat(countryCode);
+  const profile = invoice.globalTaxProfileSnapshot || {};
+  return (
+    <div className="border-b border-[#e4e1eb] bg-white px-8 py-5 text-[#28263a]" data-testid="global-tax-invoice-metadata">
+      <p className="text-[18px] font-bold">{format?.title || "Tax Invoice"}</p>
+      <div className="mt-2 grid gap-1 text-[11px] text-[#555267] sm:grid-cols-2">
+        <p>{format?.registrationLabel || "Tax registration"}: {profile.registrationNumber || "Not provided"}</p>
+        <p>Registration status: {profile.registrationStatus || "Not provided"} (business supplied)</p>
+        <p>Registration effective from: {profile.registrationEffectiveFrom || "—"}</p>
+        <p>Registered jurisdiction: {profile.registeredJurisdiction || "—"}</p>
+        <p>{format?.jurisdictionLabel || "Place of supply"}: {invoice.globalTax?.placeOfSupply || "—"}</p>
+        <p>{format?.classificationLabel || "Tax category"}: {invoice.globalTax?.taxCategory || "—"}</p>
+        <p>Price mode: {invoice.globalTax?.priceMode === "inclusive" ? "Tax inclusive" : "Tax exclusive"}</p>
+        {(invoice.globalTax?.destinationJurisdiction?.state || invoice.globalTax?.destinationJurisdiction?.province) && <p>Destination: {[invoice.globalTax.destinationJurisdiction.state, invoice.globalTax.destinationJurisdiction.county, invoice.globalTax.destinationJurisdiction.city, invoice.globalTax.destinationJurisdiction.province].filter(Boolean).join(", ")}</p>}
+      </div>
+      {calculation?.warning && <p className="mt-2 text-[10px] text-amber-800">{calculation.warning}</p>}
+      {!calculation?.ok && <p className="mt-2 text-[10px] font-semibold text-amber-800">Draft only — tax calculation is incomplete and this invoice must not be finalized.</p>}
+      {calculation?.ruleSnapshot?.source && <p className="mt-1 text-[10px]">Rule source: {calculation.ruleSnapshot.source}</p>}
+    </div>
+  );
+}
+
 export function InvoiceDesign({ design, ...model }) {
   const Component = DESIGN_COMPONENTS[design] || ClassicDesign;
-  return <Component {...model} />;
+  return <><GlobalTaxInvoiceHeader invoice={model.invoice} /><Component {...model} /></>;
 }

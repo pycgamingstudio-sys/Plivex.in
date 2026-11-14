@@ -114,7 +114,7 @@ export default function WorkspaceCountrySettings() {
         <Globe2 className="h-4 w-4 text-primary" />
         <h2 id="workspace-country-title" className="text-sm font-bold">Workspace country & regional format</h2>
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">Choose where this business is based. This setting controls display formatting only; it does not configure tax or legal compliance.</p>
+      <p className="mt-1 text-xs text-muted-foreground">Choose where this business is based. This controls workspace currency defaults and country-specific invoice formats. Tax registration and transaction details remain business-supplied; Plivex does not independently verify tax obligations or registration.</p>
       {loading ? <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading workspace setting…</div> : (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="text-xs font-semibold">Business country

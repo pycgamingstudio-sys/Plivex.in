@@ -48,6 +48,10 @@ jobs:
         run: npm run test:global
       - name: Execute migration convergence and PostgreSQL RLS integration fixture
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/subscription-priority.integration.sql
+      - name: Verify global invoice tax RPC integration and India GST compatibility
+        run: |
+          createdb plivex_global_invoice_tax_test
+          PGDATABASE=plivex_global_invoice_tax_test psql -v ON_ERROR_STOP=1 -f supabase/tests/global-invoice-tax.integration.sql
       - name: Verify workspace country migration and constraints
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/workspace-country.integration.sql
       - name: Verify invoice-share ownership, RLS, grants and rate limiting
@@ -243,6 +247,8 @@ jobs:
           deno check supabase/functions/manage-cashfree-subscription/index.ts
           deno test supabase/functions/manage-cashfree-subscription/authorization.test.mjs
           deno check supabase/functions/invoice-share/index.ts
+          deno check supabase/functions/save-invoice/index.ts
+          deno check supabase/functions/assistant-chat/index.ts
           deno test supabase/functions/_shared/cashfree.test.ts
       - name: Execute Cashfree subscription endpoint handler tests
         run: deno test supabase/functions/manage-cashfree-subscription/handler.test.mjs
