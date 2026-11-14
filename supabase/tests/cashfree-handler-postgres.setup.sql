@@ -50,6 +50,7 @@ CREATE POLICY "integration profile owner read"
   USING (id = auth.uid());
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT SELECT ON public.profiles TO authenticated;
+GRANT ALL ON public.profiles TO service_role;
 
 CREATE TABLE public.subscriptions (
   id uuid PRIMARY KEY,
@@ -64,7 +65,7 @@ CREATE TABLE public.subscriptions (
   updated_at timestamptz
 );
 ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
-GRANT SELECT, UPDATE ON public.subscriptions TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.subscriptions TO service_role;
 
 INSERT INTO public.profiles (id, workspace_id, role)
 VALUES ('11111111-1111-4111-8111-111111111111', 'workspace-postgrest', 'admin');
