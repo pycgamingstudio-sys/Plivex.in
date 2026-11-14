@@ -69,6 +69,7 @@ export async function handleCashfreeRefundEvent(
       "payment_mapping_not_found",
       "payment_mapping_ambiguous",
       "refund_amount_invalid",
+      "historical_refund_reconciliation_required",
     ];
     return json(
       { error: "Refund could not be reconciled", reason: result?.reason || "refund_not_applied" },
