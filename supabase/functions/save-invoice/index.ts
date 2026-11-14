@@ -51,7 +51,7 @@ Deno.serve(async (req: Request) => {
         registrationEffectiveFrom: businessProfile.tax_registration_effective_from || "",
         registeredJurisdiction: businessProfile.tax_jurisdiction_code || "",
       });
-      if (!taxResult.ok) return json({ error: taxResult.message, code: taxResult.code, taxStatus: taxResult.status }, 422, origin);
+      if (taxResult.ok !== true) return json({ error: "message" in taxResult ? taxResult.message : "Global tax calculation could not be completed.", code: "code" in taxResult ? taxResult.code : "TAX_CALCULATION_FAILED", taxStatus: taxResult.status }, 422, origin);
       body.invoice_snapshot = {
         ...taxInput,
         globalTaxCalculation: taxResult,
