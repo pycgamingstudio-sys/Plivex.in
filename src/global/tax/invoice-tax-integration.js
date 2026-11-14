@@ -1,6 +1,7 @@
 import { calculateGlobalTax } from "./global-tax-engine.js";
 import { calculateManualTax } from "./manual-tax-calculator.js";
 import { getTaxInvoiceFormat, validateTaxInvoiceSellerFields } from "./tax-invoice-formats.js";
+import { isSupportedManualTaxTreatment, normalizeManualTaxTreatment } from "./tax-treatment-policy.js";
 
 export const GLOBAL_COUNTRY_CURRENCIES = Object.freeze({
   IN: "INR", US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD",

@@ -85,8 +85,7 @@ export function calculateVerifiedTaxRule(input) {
   const jurisdictional = countryCode === "US" || countryCode === "CA";
   if (jurisdictional && (typeof rule.jurisdictionId !== "string" || !rule.jurisdictionId.trim()
     || input.jurisdictionVerified !== true || input.jurisdictionId !== rule.jurisdictionId
-    || input.collectionObligationVerified !== true || !Array.isArray(registration.jurisdictions)
-    || !registration.jurisdictions.includes(rule.jurisdictionId))) {
+    || input.collectionObligationVerified !== true)) {
     return fail("JURISDICTION_OR_NEXUS_REQUIRED", "US/Canada require independently verified destination jurisdiction and collection-obligation evidence; matching seller registration region is not proof of nexus.");
   }
 
