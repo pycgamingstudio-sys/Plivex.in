@@ -143,6 +143,7 @@ function assertGlobalMigrationRollback(port) {
     const foundationPath = resolve(root, "supabase/migrations/202611150001_global_isolation_foundation.sql");
     const provisioningPath = resolve(root, "supabase/migrations/202611150002_global_owner_provisioning.sql");
     const businessDataPath = resolve(root, "supabase/migrations/202611150003_global_business_data_foundation.sql");
+    const businessRpcPath = resolve(root, "supabase/migrations/202611150004_global_business_records_rpc.sql");
 
     const foundationRollback = applyForcedMigrationRollback(port, db, foundationPath);
     if (foundationRollback.status === 0) fail("Global foundation migration rollback probe unexpectedly committed");
@@ -165,7 +166,16 @@ function assertGlobalMigrationRollback(port) {
     if (businessRollback.status === 0) fail("Global business-data migration rollback probe unexpectedly committed");
     const businessResidue = query(port, db, "SELECT string_agg(t.name, ',') FROM (VALUES ('clients'),('products'),('stock_levels'),('stock_movements'),('invoices'),('invoice_items'),('invoice_payments'),('expenses')) AS t(name) WHERE to_regclass('global.' || t.name) IS NOT NULL");
     if (businessResidue) fail("Global business-data rollback left tables behind: " + businessResidue);
-    console.log("PASS actual DDL rollback for all three Global foundation migrations");
+
+    // Reapply the three prerequisites, then force a failure after the private RPC is created.
+    psql(port, db, ["-f", foundationPath]);
+    psql(port, db, ["-f", provisioningPath]);
+    psql(port, db, ["-f", businessDataPath]);
+    const rpcRollback = applyForcedMigrationRollback(port, db, businessRpcPath);
+    if (rpcRollback.status === 0) fail("Global business-records RPC migration rollback probe unexpectedly committed");
+    const rpcResidue = query(port, db, "SELECT (to_regprocedure('public.global_business_records(uuid,uuid,text,text,uuid,jsonb,integer)') IS NOT NULL)::text");
+    if (rpcResidue !== "false") fail("Global business-records RPC rollback left its function behind: " + rpcResidue);
+    console.log("PASS actual DDL rollback for all four Global foundation migrations");
   } finally {
     const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], {
       cwd: root, env: envFor(port, "postgres"), encoding: "utf8",
