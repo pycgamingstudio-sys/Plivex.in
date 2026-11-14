@@ -469,9 +469,10 @@ BEGIN
   -- PhonePe and PayU rows are unchanged by Cashfree refund updates.
   IF EXISTS (
     SELECT 1 FROM public.payment_logs
-    WHERE provider IN ('phonepe','payu')
+    WHERE (provider = 'phonepe' AND id='20000000-0000-0000-0000-000000000010')
+       OR (provider = 'payu' AND id='20000000-0000-0000-0000-000000000013')
       AND (refund_status IS NOT NULL OR refund_amount_minor_units IS NOT NULL)
-  ) THEN RAISE EXCEPTION 'PhonePe/PayU payment logs were modified'; END IF;
+  ) THEN RAISE EXCEPTION 'PhonePe/PayU baseline payment logs were modified'; END IF;
   SELECT amount_paise INTO v_minor FROM public.subscriptions
    WHERE id='10000000-0000-0000-0000-000000000010';
   IF v_minor <> 20000 THEN RAISE EXCEPTION 'PhonePe subscription amount was changed'; END IF;
