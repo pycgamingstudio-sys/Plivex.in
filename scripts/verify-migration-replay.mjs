@@ -86,6 +86,12 @@ function replay(port, plan, applyRemoteCompatibilityBridge = false) {
       // the local-only compatibility migration in this disposable replay to
       // reconstruct the observed function state without altering the archive.
       console.log("APPLY COMPATIBILITY BRIDGE 202610280004 (disposable database only)");
+      const accessQuery = query(port, "plivex_migration_replay", `
+        SELECT substring(pg_get_functiondef('public.get_access_status(text)'::regprocedure)
+          FROM position('select max' IN lower(pg_get_functiondef('public.get_access_status(text)'::regprocedure)))
+          FOR 700);
+      `);
+      console.log("PRE-BRIDGE get_access_status query excerpt:", accessQuery);
       psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/migrations/202610280004_fix_overlapping_subscription_tier_priority.sql")]);
       compatibilityBridgeApplied = true;
     }
