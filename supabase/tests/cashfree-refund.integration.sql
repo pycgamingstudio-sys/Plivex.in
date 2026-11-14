@@ -27,6 +27,7 @@ CREATE TABLE public.subscriptions (
   workspace_id text,
   txnid text NOT NULL,
   status text NOT NULL,
+  updated_at timestamptz,
   amount integer,
   amount_paise bigint,
   currency text,
