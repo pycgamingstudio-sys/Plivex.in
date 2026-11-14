@@ -292,7 +292,8 @@ BEGIN
   v_blocked := false;
   BEGIN
     UPDATE public.payment_logs
-    SET provider_payment_id='799001', amount=9999, currency='USD'
+    SET provider_payment_id='799001', amount=9999, currency='USD',
+        subscription_id='10000000-0000-0000-0000-000000000012'
     WHERE id='20000000-0000-0000-0000-000000000011';
   EXCEPTION WHEN raise_exception THEN
     v_blocked := true;
