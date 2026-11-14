@@ -52,7 +52,7 @@ $function$;
 -- This exercises the no-space ORDER BY variant found in the recovered ledger source.
 \ir ../migrations/202610280004_fix_overlapping_subscription_tier_priority.sql
 \ir ../recovered_remote_migrations/20261028030245_prioritize_effective_subscription.sql
-DO $ BEGIN
+DO $assert$ BEGIN
  IF position('order by CASE s.tier::text WHEN ''pro'' THEN 2' IN pg_get_functiondef('public.current_plan(text)'::regprocedure)) = 0 THEN
    RAISE EXCEPTION '202610280004 did not produce the canonical current_plan ordering';
  END IF;
@@ -60,7 +60,7 @@ DO $ BEGIN
    OR position('select s.started_at from public.subscriptions s' IN lower(pg_get_functiondef('public.get_access_status(text)'::regprocedure))) = 0 THEN
    RAISE EXCEPTION '202610280004/20261028030245 did not converge get_access_status';
  END IF;
-END $;
+END $assert$;
 \echo 'PASS local 202610280004 + remote 20261028030245 compatibility sequence'
 \echo 'PG17 CURRENT_PLAN — CONVERGED OUTCOME A'
 SELECT pg_get_functiondef('public.current_plan(text)'::regprocedure);
