@@ -43,7 +43,7 @@ jobs:
               docker exec -u postgres "$name" psql -U supabase_admin -d plivex_migration_replay -Atc "SELECT name FROM pg_available_extensions WHERE name='$ext'" | grep -qx "$ext"
             done
           done
-      - name: Replay all 47 recorded remote versions and all 58 global candidate inputs
+      - name: Replay all 47 recorded remote versions and all 59 global candidate inputs
         env:
           REMOTE_PGPORT: "5433"
           CANDIDATE_PGPORT: "5434"
