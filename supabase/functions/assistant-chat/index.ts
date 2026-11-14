@@ -123,7 +123,9 @@ function parseInvoiceConversation(incoming: any[], businessProfile: any = null) 
   if (!/(?:invoice|inv[o]?ice|bill|billing|इ invoice|इनवॉइस|बिल)/i.test(combined) ||
       !/(?:bnao|banao|banana|banado|create|make|generate|prepare|बनाओ|बना दो)/i.test(combined)) return null;
   const currencyMatch = combined.match(/\b(INR|USD|EUR|GBP|AED|CAD|AUD|SGD)\b/i);
-  const currency = currencyMatch ? currencyMatch[1].toUpperCase() : "INR";
+  const workspaceCountryCode = text(businessProfile?.country_code || "IN", 2).toUpperCase();
+  const countryCurrency: Record<string, string> = { IN: "INR", US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD" };
+  const currency = currencyMatch ? currencyMatch[1].toUpperCase() : (countryCurrency[workspaceCountryCode] || "INR");
   const client = captureField(combined, /client(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:mera|my|issue|due|date|item|product|price|rate|quantity|qty)\b|[,;\n]|$)/i);
   const business = captureField(combined, /(?:mera|my)\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:issue|due|date|item|product|price|rate|quantity|qty)\b|[,;\n]|$)/i);
   const item = captureField(combined, /(?:item|product)\s+(?:hai|is)\s+(.+?)(?=\s+(?:quantity|qty|price|rate|ki|ka|ke|and|aur)\b|[,;\n]|$)/i);
@@ -163,9 +165,9 @@ function parseInvoiceConversation(incoming: any[], businessProfile: any = null) 
     taxRate: 0, taxMode: "split", discountType: "percent", discount: 0,
     notes: "", terms: "", upiId: text(profile.upi_id, 180),
     logo: text(profile.logo_url, 2000), design: "classic",
-    ...(countryCode !== "IN" ? {
+    ...(workspaceCountryCode !== "IN" ? {
       globalTax: {
-        countryCode, mode: ["US", "CA"].includes(countryCode) ? "manual" : "automatic",
+        countryCode: workspaceCountryCode, mode: ["US", "CA"].includes(workspaceCountryCode) ? "manual" : "automatic",
         priceMode: "exclusive", placeOfSupply: "", placeOfSupplyConfirmed: false,
         taxCategory: "", taxCategoryConfirmed: false, registrationConfirmed: false,
         collectionObligationConfirmed: false,
@@ -173,7 +175,7 @@ function parseInvoiceConversation(incoming: any[], businessProfile: any = null) 
         components: [],
       },
       globalTaxProfileSnapshot: {
-        countryCode, registrationNumber: text(profile.tax_registration_number, 80),
+        countryCode: workspaceCountryCode, registrationNumber: text(profile.tax_registration_number, 80),
         registrationType: text(profile.tax_registration_type, 32),
         registrationStatus: text(profile.tax_registration_status || "unregistered", 24),
         registrationEffectiveFrom: text(profile.tax_registration_effective_from, 10),
