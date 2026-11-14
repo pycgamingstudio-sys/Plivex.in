@@ -99,6 +99,7 @@ CREATE TABLE storage.objects (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   bucket_id text NOT NULL REFERENCES storage.buckets(id),
   name text NOT NULL,
+  owner text,
   owner_id uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
