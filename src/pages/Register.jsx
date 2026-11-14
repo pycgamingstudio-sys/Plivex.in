@@ -79,7 +79,7 @@ export default function Register() {
       // Remember the invite so it is applied automatically after the user confirms
       // their email and signs in (an invited member must never become a separate owner).
       rememberPendingInviteCode(code);
-      await db.auth.register({ email, password, countryCode, localeCode });
+      await db.auth.register(APP_EDITION === "global" ? { email, password } : { email, password, countryCode, localeCode });
       setEmailSent(true);
     } catch (err) {
       setError(err.message || "Registration failed");
@@ -149,7 +149,7 @@ export default function Register() {
         </>
       }
     >
-      {!inviteCode && (
+      {APP_EDITION !== "global" && !inviteCode && (
         <div className="grid gap-3 rounded-xl border border-border bg-muted/20 p-3 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="signup-country">Business country</Label>

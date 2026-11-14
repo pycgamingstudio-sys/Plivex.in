@@ -96,24 +96,15 @@ export const AuthProvider = ({ children }) => {
         if (pendingGlobalInvite) {
           throw new Error("Global workspace invitations are not available yet. Remove the invite link and sign in with your own Global account.");
         }
+        // Require an explicit business-country choice before provisioning a new Global workspace.
         if (!currentUser?.workspace_id || !currentUser?.role) {
-          let signupRegion = {};
-          try {
-            const rawRegion = window.localStorage.getItem("plivex.signup.region");
-            const parsedRegion = rawRegion ? JSON.parse(rawRegion) : null;
-            if (parsedRegion && typeof parsedRegion.countryCode === "string" && typeof parsedRegion.localeCode === "string") {
-              signupRegion = { countryCode: parsedRegion.countryCode, localeCode: parsedRegion.localeCode };
-            }
-          } catch { /* the Edge Function validates Auth metadata and safe defaults */ }
-          const provisioned = await db.functions.invoke("globalEnsureOwner", signupRegion);
-          if (!provisioned?.data?.ok) {
-            throw new Error(provisioned?.data?.error || "Your Global workspace could not be initialized.");
-          }
-          try { window.localStorage.removeItem("plivex.signup.region"); } catch {}
-          currentUser = await db.auth.me();
-        }
-        if (!currentUser?.workspace_id || !currentUser?.role) {
-          throw new Error("Your Global workspace membership could not be verified.");
+          setUser(currentUser);
+          signedInRef.current = true;
+          setIsAuthenticated(true);
+          setAuthError(null);
+          setIsLoadingAuth(false);
+          setAuthChecked(true);
+          return;
         }
         setTenantId(`global:${currentUser.id}`, { migrateLegacy: false });
         resetWorkspaceCache();

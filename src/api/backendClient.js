@@ -124,7 +124,7 @@ const functions = {
       "add-client", "ensure-owner-role", "send-team-invite", "verify-invite-code",
       "get-workspace-team", "manage-workspace-member", "ping-presence",
       "track-staff-action", "get-team-presence", "get-access-status", "create-payu-order",
-      "global-business-records", "workspace-records", "manage-cashfree-subscription", "list-invoices", "save-invoice", "set-invoice-status", "send-payment-reminder", "set-invoice-reminder", "confirm-payment-reminder", "update-invoice-client-email",
+      "global-ensure-owner", "global-business-records", "workspace-records", "manage-cashfree-subscription", "list-invoices", "save-invoice", "set-invoice-status", "send-payment-reminder", "set-invoice-reminder", "confirm-payment-reminder", "update-invoice-client-email",
     ]);
     const adapter = adapters[name] || {};
     const requestPayload = adapter.request ? adapter.request(payload) : payload;
@@ -199,7 +199,7 @@ const auth = {
   async register({ email, password, countryCode = "IN", localeCode = "en-IN" }) {
     const { data, error } = await supabase.auth.signUp({
       email, password,
-      options: { emailRedirectTo: `${window.location.origin}/`, data: { signup_country_code: countryCode, signup_locale_code: localeCode } },
+      options: { emailRedirectTo: `${window.location.origin}/`, data: APP_EDITION === "global" ? {} : { signup_country_code: countryCode, signup_locale_code: localeCode } },
     });
     if (error) throw authError(error, 'Registration failed');
     // Supabase hides "already registered" by returning a user with no identities.

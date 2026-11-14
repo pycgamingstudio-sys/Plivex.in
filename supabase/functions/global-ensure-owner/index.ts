@@ -23,7 +23,8 @@ Deno.serve(async (req: Request) => {
     const metadata = auth.user.user_metadata || {};
     const countryValue = typeof body?.countryCode === "string" ? body.countryCode : metadata.signup_country_code;
     const localeValue = typeof body?.localeCode === "string" ? body.localeCode : metadata.signup_locale_code;
-    const countryCode = typeof countryValue === "string" && countryValue.trim() ? countryValue.trim().toUpperCase() : "IN";
+    const countryCode = typeof countryValue === "string" && countryValue.trim() ? countryValue.trim().toUpperCase() : "";
+    if (!countryCode) return globalJson({ error: "Choose your business country before creating your workspace." }, 400, origin);
     const settings = COUNTRY_SETTINGS[countryCode];
     if (!settings) return globalJson({ error: "Choose a supported Global business country." }, 400, origin);
     const localeCode = typeof localeValue === "string" && localeValue.trim()
