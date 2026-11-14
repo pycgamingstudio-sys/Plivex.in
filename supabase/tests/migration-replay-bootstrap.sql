@@ -129,18 +129,9 @@ CREATE TABLE IF NOT EXISTS vault.secrets (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- Vault is managed by Supabase. This local stub records calls only in this
--- disposable database and never contacts a hosted Vault service.
-CREATE OR REPLACE FUNCTION vault.create_secret(p_secret text, p_name text, p_description text)
-RETURNS uuid LANGUAGE plpgsql AS $function$
-DECLARE v_id uuid;
-BEGIN
-  INSERT INTO vault.secrets(name, description, secret)
-  VALUES (p_name, p_description, p_secret)
-  RETURNING id INTO v_id;
-  RETURN v_id;
-END
-$function$;
+-- Use the Supabase Postgres image's Vault function and schema. Do not add a
+-- three-argument overload here: the managed four-argument function has defaults,
+-- and a second overload makes historical three-argument calls ambiguous.
 
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS trigger LANGUAGE plpgsql AS $function$
