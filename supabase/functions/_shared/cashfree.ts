@@ -33,7 +33,7 @@ export const verifyWebhook=async(raw:string,timestamp:string,signature:string)=>
 // Reject malformed values and fractions smaller than the currency's minor unit.
 export function majorToMinorUnits(value: unknown): number | null {
  if(typeof value!=="number"||!Number.isFinite(value)||value<0)return null;
- const match=value.toString().match(/^(\\d+)(?:\\.(\\d+))?(?:e([+-]?\\d+))?$/i);
+ const match=value.toString().match(/^(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i);
  if(!match)return null;
  const fraction=match[2]||"",exponent=Number(match[3]||0);
  let minor=BigInt(match[1]+fraction);
