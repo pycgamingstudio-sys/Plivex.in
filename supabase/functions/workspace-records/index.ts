@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { isIsoCalendarDate } from "./validation.mjs";
 const ORIGINS = new Set(["https://plivex.in", "https://www.plivex.in", "https://plivex.netlify.app"]);
 const allowed = (o: string | null) => !o || ORIGINS.has(o) || /^https:\/\/(?:[a-z0-9-]+\.)?[a-z0-9-]+\.(?:pages|workers)\.dev$/.test(o);
 const cors = (o: string | null) => ({ "Access-Control-Allow-Origin": o && allowed(o) ? o : "https://plivex.in", "Vary": "Origin", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" });
@@ -67,7 +68,7 @@ Deno.serve(async (req: Request) => {
           if (incoming.tax_registration_status === "registered"
             && (typeof incoming.tax_registration_number !== "string" || !incoming.tax_registration_number.trim()
               || typeof incoming.tax_registration_effective_from !== "string"
-              || !/^\\d{4}-\\d{2}-\\d{2}$/.test(incoming.tax_registration_effective_from))) {
+              || !isIsoCalendarDate(incoming.tax_registration_effective_from))) {
             return json({ error: "Registered businesses must provide a registration number and effective date." }, 400, origin);
           }
         }
