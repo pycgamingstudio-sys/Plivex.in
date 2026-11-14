@@ -152,8 +152,9 @@ SELECT l.id, l.provider, l.gateway, l.refund_status, l.refund_amount_minor_units
        'cashfree_ledger_incomplete'
 FROM public.payment_logs l
 WHERE l.provider = 'cashfree' AND l.gateway = 'cashfree'
-  -- Detect amount/ledger mismatches regardless of the existing status marker.
-  AND (l.refund_status IS NOT NULL OR l.refund_amount_minor_units IS NOT NULL)
+  -- Detect every recorded historical amount mismatch regardless of status.
+  -- A NULL amount is not a historical total and must not be treated as zero.
+  AND l.refund_amount_minor_units IS NOT NULL
   AND l.refund_amount_minor_units IS DISTINCT FROM (
     SELECT COALESCE(sum(r.amount_minor_units) FILTER (WHERE r.status = 'success'), 0)::bigint
     FROM public.payment_refunds r
