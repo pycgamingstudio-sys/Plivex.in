@@ -127,7 +127,7 @@ function assertGlobalMigrationRollback(port) {
   try {
     psql(port, db, ["-f", resolve(root, "supabase/tests/migration-replay-bootstrap.sql")]);
     const migrationPath = resolve(root, "supabase/migrations/202611150001_global_isolation_foundation.sql");
-    const migration = readFileSync(migrationPath, "utf8").replace(/^\\s*begin;\\s*/i, "").replace(/\\s*commit;\\s*$/i, "");
+    const migration = readFileSync(migrationPath, "utf8").replace(/(^|\\n)begin;\\s*/i, "$1").replace(/\\ncommit;\\s*$/i, "");
     const forcedRollback = "BEGIN;\\n" + migration + "\\nDO $ BEGIN RAISE EXCEPTION 'intentional Global migration rollback verification'; END $;\\n";
     const applied = spawnSync("psql", ["-X","-v","ON_ERROR_STOP=1","-d",db], { cwd: root, env: envFor(port, db), input: forcedRollback, encoding: "utf8" });
     if (applied.status === 0) fail("Global migration rollback probe unexpectedly committed");
