@@ -1,4 +1,4 @@
-import { backend as db, supabase } from '@/api/backendClient';
+import { backend as db, supabase, APP_EDITION } from '@/api/backendClient';
 import { useAuth } from '@/lib/AuthContext';
 import { startCashfreeCheckout } from "@/lib/cashfree";
 
@@ -15,6 +15,16 @@ import { getCountryByCode } from "@/global/countries/country-registry.js";
 // The old Lovable getAccessStatus endpoint can return stale Free-plan limits
 // even after a payment provider has activated a subscription in Supabase.
 async function loadAccessStatus() {
+  if (APP_EDITION === "global") {
+    // Global billing is intentionally disabled until its own subscription tables and provider are approved.
+    return {
+      plan: "free", tier: "free",
+      limits: { invoices_monthly: 0, clients: 0, stock: 0 },
+      usage: { invoices_monthly: 0, clients: 0, stock: 0 },
+      features: { download_pdf: true, save: true },
+      startedAt: "", expiresAt: null,
+    };
+  }
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) throw sessionError;
   const userId = sessionData?.session?.user?.id;
@@ -271,6 +281,12 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
     let active = true;
     const loadCountry = async () => {
       if (!user?.workspace_id) return;
+      if (APP_EDITION === "global") {
+        const nextCountry = typeof user.country_code === "string" && GLOBAL_BILLING[user.country_code] ? user.country_code : "IN";
+        setBillingCountryCode(nextCountry);
+        if (!GLOBAL_BILLING[nextCountry]?.yearly) setBilling("monthly");
+        return;
+      }
       const { data, error } = await supabase.from("business_profile").select("country_code").eq("workspace_id", user.workspace_id).maybeSingle();
       if (!error && active) {
         const nextCountry = typeof data?.country_code === "string" && GLOBAL_BILLING[data.country_code] ? data.country_code : "IN";
@@ -299,6 +315,10 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
 
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const startCheckout = async (plan) => {
+    if (APP_EDITION === "global") {
+      setNotice("Payments are not enabled in Plivex Global yet.");
+      return;
+    }
     setCheckoutLoading(true);
     setNotice("");
     try {
@@ -382,7 +402,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
                 <div className="flex items-center gap-2"><p className="text-[13px] font-bold text-slate-900">{plan.name}</p></div>
                 <p className="mt-2 text-[26px] font-bold leading-none text-slate-900">{plan.price}<span className="text-[12px] font-medium text-slate-400">/{plan.period}</span></p>
                 <div className="mt-3 flex-1 space-y-1.5">{plan.included.map((item) => <div key={item} className="flex items-start gap-2 text-[11px] font-medium text-slate-700"><span className="mt-0.5 text-emerald-600">✓</span>{item}</div>)}</div>
-                {plan.checkoutPlan ? <button onClick={() => checkout(plan.checkoutPlan)} disabled={checkoutLoading} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9]"}`}>{checkoutLoading ? "Connecting to Cashfree…" : `Pay with Cashfree · ${plan.price}/${plan.period}`}</button> : plan.paymentUnavailable ? <button type="button" disabled className="mt-4 w-full rounded-xl border border-amber-200 bg-amber-50 py-2.5 text-[11px] font-bold text-amber-700">Cashfree currency not enabled</button> : <button onClick={onClose} className="mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-[12px] font-bold text-slate-600">{currentPlan?.plan === "free" ? "Current plan" : "Use Free plan"}</button>}
+                {plan.checkoutPlan ? <button onClick={() => checkout(plan.checkoutPlan)} disabled={checkoutLoading} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9]"}`}>{checkoutLoading ? "Connecting to Cashfree…" : `Pay with Cashfree · ${plan.price}/${plan.period}`}</button> : plan.paymentUnavailable ? <button type="button" disabled className="mt-4 w-full rounded-xl border border-amber-200 bg-amber-50 py-2.5 text-[11px] font-bold text-amber-700">{APP_EDITION === "global" ? "Payments coming soon" : "Cashfree currency not enabled"}</button> : <button onClick={onClose} className="mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-[12px] font-bold text-slate-600">{currentPlan?.plan === "free" ? "Current plan" : "Use Free plan"}</button>}
               </div>
             ))}
           </div>
