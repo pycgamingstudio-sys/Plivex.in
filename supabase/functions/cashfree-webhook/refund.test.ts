@@ -78,10 +78,18 @@ Deno.test("Cashfree refund handler maps cancellation to failed and surfaces paym
     if (args.p_refund_status !== "failed") throw new Error("Cancelled refund status was not normalized");
     return { data: { ok: true, refund_status: "failed" }, error: null };
   });
+  const onHold = await handleCashfreeRefundEvent({
+    type: "REFUND_STATUS_WEBHOOK",
+    data: { refund: { refund_id: "R-ONHOLD", cf_payment_id: 777123, order_id: orderId,
+      refund_status: "ONHOLD", refund_amount: 1 } },
+  }, order, async (args) => {
+    if (args.p_refund_status !== "pending") throw new Error("On-hold refund was not normalized to pending");
+    return { data: { ok: true, refund_status: "pending" }, error: null };
+  });
   const ambiguous = await handleCashfreeRefundEvent(successEvent, order, async () => ({
     data: { ok: false, reason: "payment_mapping_ambiguous" }, error: null,
   }));
-  if (cancelled?.status !== 200 || ambiguous?.status !== 409) {
+  if (cancelled?.status !== 200 || onHold?.status !== 200 || ambiguous?.status !== 409) {
     throw new Error("Refund mapping conflict/cancellation handling failed");
   }
 });
