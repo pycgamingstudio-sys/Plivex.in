@@ -12,10 +12,10 @@ const pairs = manifest.basename_matches || [];
 const normalized = pairs.filter((x) => x.normalized_sql_match === true);
 const localOnly = manifest.local_only_files || [];
 
-if (manifest.remote_ledger_entries !== 51 || history.length !== 39 || missing.length !== 35
-  || manifest.local_migration_files !== 31 || pairs.length !== 16
-  || normalized.length !== 12 || pairs.length - normalized.length !== 4 || localOnly.length !== 15) {
-  fail("Migration reconciliation counts differ from the reviewed 51/39/35/25/16/12/4/15 manifest");
+if (manifest.remote_ledger_entries !== 52 || history.length !== 39 || missing.length !== 35
+  || manifest.local_migration_files !== 32 || pairs.length !== 17
+  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 15) {
+  fail("Migration reconciliation counts differ from the reviewed 52/39/35/32/17/13/4/15 manifest");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
 
@@ -33,7 +33,7 @@ const remotePlan = [
   ...history.map((x) => ({ version: x.version, path: x.path, kind: "remote-archive" })),
   ...normalized.map((x) => ({ version: x.remote_version, path: x.local_path, kind: "normalized-local-match" })),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (remotePlan.length !== 51 || new Set(remotePlan.map((x) => x.version)).size !== 51) fail("Remote replay plan is not 51 unique versions");
+if (remotePlan.length !== 52 || new Set(remotePlan.map((x) => x.version)).size !== 52) fail("Remote replay plan is not 51 unique versions");
 
 const localPaths = [...pairs.map((x) => x.local_path), ...localOnly.map((x) => "supabase/migrations/" + x)];
 const candidatePlan = [
@@ -44,8 +44,8 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 66 || new Set(candidatePlan.map((x) => x.path)).size !== 66) {
-  fail("Candidate replay plan must contain 35 recovered historical and all 31 current local migrations");
+if (candidatePlan.length !== 67 || new Set(candidatePlan.map((x) => x.path)).size !== 67) {
+  fail("Candidate replay plan must contain 35 recovered historical and all 32 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -144,6 +144,7 @@ function assertGlobalMigrationRollback(port) {
     const provisioningPath = resolve(root, "supabase/migrations/202611150002_global_owner_provisioning.sql");
     const businessDataPath = resolve(root, "supabase/migrations/202611150003_global_business_data_foundation.sql");
     const businessRpcPath = resolve(root, "supabase/migrations/202611150004_global_business_records_rpc.sql");
+    const businessProfilePath = resolve(root, "supabase/migrations/202611150005_global_business_profile_records.sql");
 
     const foundationRollback = applyForcedMigrationRollback(port, db, foundationPath);
     if (foundationRollback.status === 0) fail("Global foundation migration rollback probe unexpectedly committed");
@@ -175,7 +176,14 @@ function assertGlobalMigrationRollback(port) {
     if (rpcRollback.status === 0) fail("Global business-records RPC migration rollback probe unexpectedly committed");
     const rpcResidue = query(port, db, "SELECT (to_regprocedure('public.global_business_records(uuid,uuid,text,text,uuid,jsonb,integer)') IS NOT NULL)::text");
     if (rpcResidue !== "false") fail("Global business-records RPC rollback left its function behind: " + rpcResidue);
-    console.log("PASS actual DDL rollback for all four Global foundation migrations");
+
+    // Apply the original RPC, then force a failure in the forward-only profile extension.
+    psql(port, db, ["-f", businessRpcPath]);
+    const profileRollback = applyForcedMigrationRollback(port, db, businessProfilePath);
+    if (profileRollback.status === 0) fail("Global business-profile migration rollback probe unexpectedly committed");
+    const profileResidue = query(port, db, "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='business_profiles' AND column_name='tax_registration_effective_from')::text || '|' || (pg_get_functiondef('public.global_business_records(uuid,uuid,text,text,uuid,jsonb,integer)'::regprocedure) LIKE '%when ''business_profiles''%')::text");
+    if (profileResidue !== "false|false") fail("Global business-profile rollback left its column or RPC changes behind: " + profileResidue);
+    console.log("PASS actual DDL rollback for all five Global foundation migrations");
   } finally {
     const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], {
       cwd: root, env: envFor(port, "postgres"), encoding: "utf8",
@@ -239,7 +247,7 @@ function summary(port, remote) {
 
 const remotePort = Number(process.env.REMOTE_PGPORT || 5433);
 const candidatePort = Number(process.env.CANDIDATE_PGPORT || 5434);
-console.log("Migration reconciliation: 51 remote, 39 archived, 12 normalized local matches, 4 divergent, 66 candidate replay entries.");
+console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 67 candidate replay entries.");
 resetDb(remotePort);
 replay(remotePort, remotePlan, true);
 assertRls(remotePort, false);
@@ -253,5 +261,5 @@ assertCandidateIndia(candidatePort);
 assertGlobalFoundation(candidatePort);
 assertRollback(candidatePort);
 assertGlobalMigrationRollback(candidatePort);
-console.log("PASS global-dev candidate replay 35 recovered + 31 local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
+console.log("PASS global-dev candidate replay 35 recovered + 32 local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
 console.log("PASS archive hashes, version ordering, replay, Global workspace isolation, migration rollback, RLS and India data-integrity checks.");

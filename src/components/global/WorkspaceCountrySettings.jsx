@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { COUNTRY_REGISTRY, getCountryByCode } from "@/global/countries/country-registry.js";
 import { formatCurrency, formatNumber } from "@/global/localization/number-format.js";
 
-export default function WorkspaceCountrySettings() {
+export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
   const { user } = useAuth();
   const [savedCountry, setSavedCountry] = useState(null);
   const [savedLocale, setSavedLocale] = useState(null);
@@ -84,8 +84,7 @@ export default function WorkspaceCountrySettings() {
         table: "business_profile",
         action: "upsert",
         values: {
-          country_code: selectedCountry.code,
-          locale_code: locale,
+          ...(lockCountry ? {} : { country_code: selectedCountry.code, locale_code: locale }),
           tax_registration_number: taxProfile.number.trim() || null,
           tax_registration_type: taxProfile.type.trim() || null,
           tax_registration_status: taxProfile.status,
@@ -105,7 +104,7 @@ export default function WorkspaceCountrySettings() {
     }
   };
 
-  const hasChanges = countryCode !== (savedCountry || "") || locale !== (savedLocale || "")
+  const hasChanges = (!lockCountry && (countryCode !== (savedCountry || "") || locale !== (savedLocale || "")))
     || JSON.stringify(taxProfile) !== JSON.stringify(savedTaxProfile);
 
   return (
@@ -114,17 +113,17 @@ export default function WorkspaceCountrySettings() {
         <Globe2 className="h-4 w-4 text-primary" />
         <h2 id="workspace-country-title" className="text-sm font-bold">Workspace country & regional format</h2>
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">Choose where this business is based. This controls workspace currency defaults and country-specific invoice formats. Tax registration and transaction details remain business-supplied; Plivex does not independently verify tax obligations or registration.</p>
+      <p className="mt-1 text-xs text-muted-foreground">{lockCountry ? "Your Global business country and currency were set during onboarding. You can manage the business tax registration details below." : "Choose where this business is based. This controls workspace currency defaults and country-specific invoice formats. Tax registration and transaction details remain business-supplied; Plivex does not independently verify tax obligations or registration."}</p>
       {loading ? <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading workspace setting…</div> : (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="text-xs font-semibold">Business country
-            <select className="mt-1 w-full rounded-lg border bg-background px-3 py-2.5 text-sm" value={countryCode} onChange={(event) => onCountryChange(event.target.value)}>
+            <select className="mt-1 w-full rounded-lg border bg-background px-3 py-2.5 text-sm" value={countryCode} onChange={(event) => onCountryChange(event.target.value)} disabled={lockCountry}>
               <option value="">Select a country</option>
               {COUNTRY_REGISTRY.map((country) => <option key={country.code} value={country.code}>{country.name} ({country.currencyCode})</option>)}
             </select>
           </label>
           <label className="text-xs font-semibold">Number and currency locale
-            <select className="mt-1 w-full rounded-lg border bg-background px-3 py-2.5 text-sm" value={locale} onChange={(event) => { setLocale(event.target.value); setMessage(""); }} disabled={!selectedCountry}>
+            <select className="mt-1 w-full rounded-lg border bg-background px-3 py-2.5 text-sm" value={locale} onChange={(event) => { setLocale(event.target.value); setMessage(""); }} disabled={!selectedCountry || lockCountry}>
               <option value="">Select locale</option>
               {localeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
@@ -165,7 +164,7 @@ export default function WorkspaceCountrySettings() {
       </div>}
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button type="button" onClick={save} disabled={loading || saving || !hasChanges || !selectedCountry || !locale} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50">
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}Confirm and save country
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}{lockCountry ? "Save tax registration" : "Confirm and save country"}
         </button>
         {savedCountry && <span className="text-xs text-muted-foreground">Saved: {getCountryByCode(savedCountry)?.name} · {savedLocale}</span>}
       </div>

@@ -4,6 +4,7 @@ const TABLE_FIELDS: Record<string, readonly string[]> = {
   clients: ["name", "email", "phone", "tax_registration_number", "billing_address", "shipping_address", "notes", "status"],
   products: ["name", "sku", "description", "unit", "sale_price_minor", "purchase_cost_minor", "currency_code", "tax_code", "is_active"],
   expenses: ["category", "vendor", "amount_minor", "currency_code", "expense_date", "payment_method", "reference", "notes", "attachment_url"],
+  business_profiles: ["legal_name", "display_name", "email", "phone", "address", "tax_registration_number", "tax_registration_type", "tax_registration_status", "tax_registration_effective_from", "tax_jurisdiction_code"],
 };
 const READ_ONLY_TABLES = new Set(["stock_levels", "stock_movements", "invoices", "invoice_items", "invoice_payments"]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -24,6 +25,7 @@ function validateValues(table: string, values: Record<string, unknown>, creating
     name: 200, email: 254, phone: 40, tax_registration_number: 80,
     notes: 4000, sku: 80, description: 4000, unit: 32, tax_code: 64,
     category: 100, vendor: 200, payment_method: 80, reference: 160, attachment_url: 2000,
+    legal_name: 200, display_name: 200, tax_registration_type: 32, tax_jurisdiction_code: 32, address: 2000,
   };
   for (const [key, value] of Object.entries(values)) {
     if (key in textLimits && value !== null && (typeof value !== "string" || value.length > textLimits[key])) {
@@ -50,6 +52,8 @@ function validateValues(table: string, values: Record<string, unknown>, creating
     if (values.currency_code !== undefined && (typeof values.currency_code !== "string" || !CURRENCY.test(values.currency_code))) return "Choose a valid ISO currency code.";
     if (values.is_active !== undefined && typeof values.is_active !== "boolean") return "is_active must be true or false.";
   }
+  if (table === "business_profiles" && values.tax_registration_status !== undefined && !["unregistered", "pending", "registered", "deregistered"].includes(String(values.tax_registration_status))) return "Invalid tax registration status.";
+  if (table === "business_profiles" && values.tax_registration_effective_from !== undefined && values.tax_registration_effective_from !== null && (typeof values.tax_registration_effective_from !== "string" || !DATE.test(values.tax_registration_effective_from) || Number.isNaN(Date.parse(values.tax_registration_effective_from)))) return "Invalid tax registration effective date.";
   if (table === "expenses") {
     if (creating && (typeof values.category !== "string" || !values.category.trim())) return "Expense category is required.";
     if (values.category !== undefined && (typeof values.category !== "string" || !values.category.trim())) return "Expense category is required.";
@@ -94,6 +98,7 @@ Deno.serve(async (req: Request) => {
     }
     if (!["list", "create", "update", "delete"].includes(String(action))) return globalJson({ error: "Unsupported action." }, 400, origin);
     if (action !== "list" && READ_ONLY_TABLES.has(table)) return globalJson({ error: "This Global record type is read-only." }, 403, origin);
+    if (table === "business_profiles" && !["list", "update"].includes(String(action))) return globalJson({ error: "Global business profile supports read and update only." }, 403, origin);
 
     const recordId = body.id;
     if ((action === "update" || action === "delete") && (typeof recordId !== "string" || !UUID.test(recordId))) {

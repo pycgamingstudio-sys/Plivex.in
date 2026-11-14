@@ -21,7 +21,7 @@ test("Global backend defaults fail closed and blocks India endpoint fallback", (
   assert.match(backend, /global-update-profile/);
 });
 
-test("Global auth uses Global RPCs and never hydrates India workspace records", () => {
+test("Global auth hydrates workspace data only through the isolated Global adapter", () => {
   assert.match(authContext, /APP_EDITION === "global"/);
   assert.doesNotMatch(authContext, /globalEnsureOwner/);
   assert.match(app, /GlobalCountryOnboarding/);
@@ -31,7 +31,7 @@ test("Global auth uses Global RPCs and never hydrates India workspace records", 
   const globalStart = authContext.indexOf('if (APP_EDITION === "global")');
   const indiaStart = authContext.indexOf("setTenantId(currentUser?.id)", globalStart);
   const globalBranch = authContext.slice(globalStart, indiaStart);
-  assert.doesNotMatch(globalBranch, /hydrateWorkspaceData\(\)/);
+  assert.match(globalBranch, /if \(currentUser\?\.workspace_id\) await hydrateWorkspaceData\(\)/);
 });
 
 test("Global tenant storage never imports legacy India localStorage keys", () => {

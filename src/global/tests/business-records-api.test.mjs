@@ -3,11 +3,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [backend, handler, shared, rpc] = await Promise.all([
+const [backend, handler, shared, rpc, settings, businessProfile] = await Promise.all([
   read("../../api/backendClient.js"),
   read("../../../supabase/functions/global-business-records/index.ts"),
   read("../../../supabase/functions/_shared/global.ts"),
-  read("../../../supabase/migrations/202611150004_global_business_records_rpc.sql"),
+  read("../../../supabase/migrations/202611150005_global_business_profile_records.sql"),
+  read("../../components/global/WorkspaceCountrySettings.jsx"),
+  read("../../pages/BusinessProfile.jsx"),
 ]);
 
 test("Global app can invoke only the dedicated Global business records function", () => {
@@ -45,4 +47,31 @@ test("Global records never expose the private Global schema or fall back to Indi
   assert.match(rpc, /revoke all on function public\.global_business_records.*from public, anon, authenticated/s);
   assert.match(rpc, /grant execute on function public\.global_business_records.*to service_role/s);
   assert.doesNotMatch(handler, /\.from\("profiles"\)/);
+});
+
+
+test("Global workspace profile reads and updates stay inside global.business_profiles", () => {
+  assert.match(backend, /function invokeGlobalWorkspaceRecords/);
+  assert.match(backend, /functionName === "workspace-records"/);
+  assert.match(handler, /business_profiles: \[/);
+  assert.match(handler, /Global business profile supports read and update only/);
+  assert.match(rpc, /from global\.business_profiles where workspace_id=p_workspace_id/);
+  assert.match(rpc, /update global\.business_profiles set/);
+  assert.match(rpc, /v_role not in \('owner','admin'\)/);
+});
+
+
+test("Global business tax profile stores the effective registration date in the private schema", () => {
+  assert.match(handler, /tax_registration_effective_from/);
+  assert.match(rpc, /add column if not exists tax_registration_effective_from date/);
+  assert.match(rpc, /tax_registration_effective_from=case/);
+  assert.match(backend, /tax_registration_effective_from/);
+  assert.doesNotMatch(backend, /if \(values\.gstin\) profile\.tax_registration_number/);
+});
+
+
+test("Global tax registration settings preserve the onboarded country", () => {
+  assert.match(settings, /lockCountry = false/);
+  assert.match(settings, /lockCountry \? \{\} : \{ country_code: selectedCountry\.code, locale_code: locale \}/);
+  assert.match(businessProfile, /WorkspaceCountrySettings lockCountry=\{APP_EDITION === "global"\}/);
 });

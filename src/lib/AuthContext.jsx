@@ -108,6 +108,8 @@ export const AuthProvider = ({ children }) => {
         }
         setTenantId(`global:${currentUser.id}`, { migrateLegacy: false });
         resetWorkspaceCache();
+        // Global workspace hydration is routed through the isolated Global records adapter.
+        if (currentUser?.workspace_id) await hydrateWorkspaceData();
         setUser(currentUser);
         signedInRef.current = true;
         setIsAuthenticated(true);
