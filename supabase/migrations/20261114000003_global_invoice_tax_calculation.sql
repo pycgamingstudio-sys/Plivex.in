@@ -122,6 +122,167 @@ BEGIN
     IF _global_price_mode NOT IN ('exclusive','inclusive') THEN
       RAISE EXCEPTION 'invalid global tax price mode' USING ERRCODE = '22023';
     END IF;
+    IF lower(trim(_snapshot->'globalTax'->>'taxCategory')) ~*
+      '(zero[- ]rated|exempt|reduced|reverse[- ]charge|out[- ]of[- ]scope)' THEN
+      RAISE EXCEPTION 'unsupported global tax treatment' USING ERRCODE = '22023';
+    END IF;
+    IF _global_mode = 'automatic' AND lower(trim(_snapshot->'globalTax'->>'taxCategory')) !~*
+      '^standard([- ]rated)?( supply)?
+      _expected_rate_bps := CASE _global_country WHEN 'GB' THEN 2000 WHEN 'AE' THEN 500 WHEN 'AU' THEN 1000 WHEN 'SG' THEN 900 ELSE NULL END;
+      _expected_rule_id := CASE _global_country
+        WHEN 'GB' THEN 'GB-VAT-STANDARD-2026-11'
+        WHEN 'AE' THEN 'AE-VAT-STANDARD-2026-11'
+        WHEN 'AU' THEN 'AU-GST-STANDARD-2026-11'
+        WHEN 'SG' THEN 'SG-GST-STANDARD-2026-11' ELSE NULL END;
+      IF _expected_rate_bps IS NULL
+        OR _snapshot->'globalTaxCalculation'->'ruleSnapshot'->>'id' IS DISTINCT FROM _expected_rule_id
+        OR nullif(_snapshot->'globalTaxCalculation'->'ruleSnapshot'->>'effectiveFrom','') IS NULL
+        OR _issue_date < (_snapshot->'globalTaxCalculation'->'ruleSnapshot'->>'effectiveFrom')::date THEN
+        RAISE EXCEPTION 'no verified automatic tax rule is available for this country and date' USING ERRCODE = '22023';
+      END IF;
+      IF (_global_country = 'GB' AND _snapshot->'globalTaxCalculation'->'ruleSnapshot'->>'source' IS DISTINCT FROM 'https://www.gov.uk/vat-rates')
+        OR (_global_country = 'AE' AND _snapshot->'globalTaxCalculation'->'ruleSnapshot'->>'source' IS DISTINCT FROM 'https://mof.gov.ae/en/public-finance/tax/value-added-tax-vat/')
+        OR (_global_country = 'AU' AND _snapshot->'globalTaxCalculation'->'ruleSnapshot'->>'source' IS DISTINCT FROM 'https://www.ato.gov.au/Business/GST/')
+        OR (_global_country = 'SG' AND _snapshot->'globalTaxCalculation'->'ruleSnapshot'->>'source' IS DISTINCT FROM 'https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/basics-of-gst/current-gst-rates') THEN
+        RAISE EXCEPTION 'automatic tax rule source is not allowlisted' USING ERRCODE = '22023';
+      END IF;
+    ELSIF _global_mode = 'manual' THEN
+      IF _global_country IN ('US','CA') THEN
+        _destination_region := upper(coalesce(
+          _snapshot->'globalTax'->'destinationJurisdiction'->>(CASE WHEN _global_country='US' THEN 'state' ELSE 'province' END), ''
+        ));
+        _registered_region := upper(coalesce(_business.tax_jurisdiction_code,''));
+        IF position('-' in _registered_region) > 0 THEN
+          _registered_region := split_part(_registered_region,'-',2);
+        END IF;
+        IF _destination_region = '' OR _registered_region <> _destination_region
+          OR coalesce((_snapshot->'globalTax'->>'collectionObligationConfirmed')::boolean,false) IS NOT TRUE THEN
+          RAISE EXCEPTION 'US/Canada jurisdiction or collection obligation is not confirmed' USING ERRCODE = '22023';
+        END IF;
+        IF _global_country='US' AND (
+          nullif(trim(_snapshot->'globalTax'->'destinationJurisdiction'->>'county'),'') IS NULL
+          OR nullif(trim(_snapshot->'globalTax'->'destinationJurisdiction'->>'city'),'') IS NULL
+        ) THEN
+          RAISE EXCEPTION 'US county and city are required' USING ERRCODE = '22023';
+        END IF;
+      END IF;
+    ELSE
+      RAISE EXCEPTION 'unsupported global tax calculation mode' USING ERRCODE = '22023';
+    END IF;
+
+    IF jsonb_typeof(_snapshot->'globalTaxCalculation'->'components') <> 'array'
+      OR jsonb_array_length(_snapshot->'globalTaxCalculation'->'components') < 1
+      OR jsonb_array_length(_snapshot->'globalTaxCalculation'->'components') > 8 THEN
+      RAISE EXCEPTION 'global tax components are required' USING ERRCODE = '22023';
+    END IF;
+    FOR _component IN SELECT value FROM jsonb_array_elements(_snapshot->'globalTaxCalculation'->'components') LOOP
+      IF nullif(trim(_component->>'id'),'') IS NULL
+        OR nullif(trim(_component->>'name'),'') IS NULL
+        OR coalesce((_component->>'rateBps')::integer,0) <= 0
+        OR coalesce((_component->>'rateBps')::integer,0) > 10000
+        OR coalesce((_component->>'amountMinor')::numeric,-1) < 0 THEN
+        RAISE EXCEPTION 'invalid global tax component' USING ERRCODE = '22023';
+      END IF;
+      _component_count := _component_count + 1;
+      _global_rate := _global_rate + (_component->>'rateBps')::numeric / 10000;
+      _components_total_minor := _components_total_minor + (_component->>'amountMinor')::numeric;
+    END LOOP;
+    IF (SELECT count(DISTINCT value->>'id') FROM jsonb_array_elements(_snapshot->'globalTaxCalculation'->'components')) <> _component_count THEN
+      RAISE EXCEPTION 'duplicate global tax component IDs' USING ERRCODE = '22023';
+    END IF;
+    IF _global_rate <= 0 OR _global_rate > 1 THEN
+      RAISE EXCEPTION 'global tax rate is outside supported range' USING ERRCODE = '22023';
+    END IF;
+    IF _global_mode = 'automatic' AND (_component_count <> 1 OR
+      (SELECT coalesce(sum((value->>'rateBps')::integer),0) FROM jsonb_array_elements(_snapshot->'globalTaxCalculation'->'components')) <> _expected_rate_bps) THEN
+      RAISE EXCEPTION 'automatic rule component does not match the allowlisted rate' USING ERRCODE = '22023';
+    END IF;
+
+    _global_gross := round(GREATEST(0, _subtotal - _dv), 2);
+    IF _global_price_mode = 'inclusive' THEN
+      _taxable := round(_global_gross / (1 + _global_rate), 2);
+      _tax := _global_gross - _taxable;
+      _global_total := _global_gross;
+    ELSE
+      _taxable := _global_gross;
+      _tax := round(_taxable * _global_rate, 2);
+      _global_total := _taxable + _tax;
+    END IF;
+    _expected_taxable_minor := round(_taxable * 100);
+    _expected_tax_minor := round(_tax * 100);
+    IF abs(coalesce((_snapshot->'globalTaxCalculation'->>'taxableMinor')::numeric,-1) - _expected_taxable_minor) > 0
+      OR abs(coalesce((_snapshot->'globalTaxCalculation'->>'taxMinor')::numeric,-1) - _expected_tax_minor) > 0
+      OR abs(coalesce((_snapshot->'globalTaxCalculation'->>'totalMinor')::numeric,-1) - round(_global_total * 100)) > 0
+      OR abs(_components_total_minor - _expected_tax_minor) > 0 THEN
+      RAISE EXCEPTION 'global tax calculation snapshot does not reconcile with server totals' USING ERRCODE = '22023';
+    END IF;
+    -- Verify each displayed component amount as well as the aggregate tax.
+    _components_total_minor := 0;
+    _component_index := 0;
+    FOR _component IN SELECT value FROM jsonb_array_elements(_snapshot->'globalTaxCalculation'->'components') LOOP
+      _component_index := _component_index + 1;
+      IF _component_index = _component_count THEN
+        _expected_component_minor := _expected_tax_minor - _components_total_minor;
+      ELSE
+        _expected_component_minor := floor((_expected_taxable_minor * (_component->>'rateBps')::numeric + 5000) / 10000);
+      END IF;
+      IF (_component->>'amountMinor')::numeric <> _expected_component_minor THEN
+        RAISE EXCEPTION 'global tax component amount does not reconcile' USING ERRCODE = '22023';
+      END IF;
+      _components_total_minor := _components_total_minor + _expected_component_minor;
+    END LOOP;
+  END IF;
+
+  IF _invoice_id IS NULL THEN
+    INSERT INTO public.invoice_counters (workspace_id, last_number) VALUES (_ws, 1)
+      ON CONFLICT (workspace_id) DO UPDATE SET last_number = public.invoice_counters.last_number + 1
+      RETURNING last_number INTO _n;
+    INSERT INTO public.invoices (workspace_id, created_by, number)
+      VALUES (_ws, auth.uid(), 'INV-' || lpad(_n::text, 3, '0')) RETURNING * INTO _inv;
+  ELSE
+    SELECT * INTO _inv FROM public.invoices WHERE id = _invoice_id AND workspace_id = _ws FOR UPDATE;
+    IF _inv.id IS NULL THEN RAISE EXCEPTION 'not found' USING ERRCODE = 'P0002'; END IF;
+    IF _inv.status = 'Cancelled' THEN RAISE EXCEPTION 'invoice cancelled' USING ERRCODE = '55000'; END IF;
+    IF _role = 'employee' AND NOT (_inv.is_draft AND _inv.created_by = auth.uid()) THEN
+      RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
+    END IF;
+    DELETE FROM public.invoice_items WHERE invoice_id = _inv.id;
+  END IF;
+
+  INSERT INTO public.invoice_items (invoice_id, description, quantity, rate, gst_rate)
+  SELECT _inv.id, left(COALESCE(e->>'description',''), 500),
+    GREATEST(0, COALESCE((e->>'quantity')::numeric,0)), GREATEST(0, COALESCE((e->>'rate')::numeric,0)), (e->>'gst_rate')::numeric
+  FROM jsonb_array_elements(_items) e;
+
+  UPDATE public.invoices SET
+    client_name = _data->>'client_name', client_email = _data->>'client_email', business_name = _data->>'business_name',
+    issue_date = COALESCE((_data->>'issue_date')::date, issue_date), due_date = (_data->>'due_date')::date,
+    currency = COALESCE(_data->>'currency','INR'), tax_mode = _mode, tax_rate = CASE WHEN _global_tax THEN 0 ELSE _rate END,
+    discount_type = _dtype, discount = _disc, notes = _data->>'notes', terms = _data->>'terms',
+    status = _status, is_draft = _draft,
+    subtotal = _subtotal, tax_value = _tax,
+    cgst = CASE WHEN _global_tax THEN 0 WHEN _mode = 'split' THEN _tax / 2 ELSE 0 END,
+    sgst = CASE WHEN _global_tax THEN 0 WHEN _mode = 'split' THEN _tax / 2 ELSE 0 END,
+    igst = CASE WHEN _global_tax THEN 0 WHEN _mode = 'igst' THEN _tax ELSE 0 END,
+    total = GREATEST(0, CASE WHEN _global_tax THEN _global_total ELSE _taxable + _tax END),
+    invoice_snapshot = COALESCE(_snapshot, invoice_snapshot),
+    updated_at = now()
+  WHERE id = _inv.id RETURNING * INTO _inv;
+
+  IF NOT _inv.is_draft AND NOT _inv.stock_applied THEN
+    UPDATE public.stock s SET quantity = GREATEST(0, s.quantity - q.qty)
+    FROM (
+      SELECT lower(trim(description)) d, sum(GREATEST(0, quantity)) qty
+      FROM public.invoice_items WHERE invoice_id = _inv.id GROUP BY 1
+    ) q
+    WHERE s.workspace_id = _ws AND lower(trim(s.name)) = q.d;
+    UPDATE public.invoices SET stock_applied = true WHERE id = _inv.id RETURNING * INTO _inv;
+  END IF;
+  RETURN _inv;
+END $$;
+ THEN
+      RAISE EXCEPTION 'automatic tax calculation requires a standard-rated supply' USING ERRCODE = '22023';
+    END IF;
 
     IF _global_mode = 'automatic' THEN
       _expected_rate_bps := CASE _global_country WHEN 'GB' THEN 2000 WHEN 'AE' THEN 500 WHEN 'AU' THEN 1000 WHEN 'SG' THEN 900 ELSE NULL END;

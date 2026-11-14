@@ -77,6 +77,9 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
   if (mode !== "manual" && !/^standard(?:[- ]rated)?(?: supply)?$/i.test(String(config.taxCategory || "").trim())) {
     return fail("UNSUPPORTED_TAX_TREATMENT", "Automatic calculation currently supports only standard-rated supplies. Reduced, zero-rated, exempt and special treatments fail closed.");
   }
+  if (mode === "manual" && /(zero[- ]rated|exempt|reduced|reverse[- ]charge|out[- ]of[- ]scope)/i.test(String(config.taxCategory || "").trim())) {
+    return fail("UNSUPPORTED_TAX_TREATMENT", "Manual tax components do not support zero-rated, exempt, reduced, reverse-charge or out-of-scope treatments.");
+  }
 
   const amount = amountMinor(invoice);
   if (!Number.isSafeInteger(amount) || amount < 0) return fail("INVALID_AMOUNT", "Invoice amount is outside supported calculation limits.");

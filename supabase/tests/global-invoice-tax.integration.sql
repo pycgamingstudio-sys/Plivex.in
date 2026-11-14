@@ -181,6 +181,30 @@ BEGIN
         'tax_mode','split','tax_rate',0,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
         'invoice_snapshot',jsonb_build_object(
           'business',jsonb_build_object('name','Seller Ltd','address','1 Business Street'),
+          'globalTax',jsonb_build_object('countryCode','US','mode','manual','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','California','placeOfSupplyConfirmed',true,'taxCategory','exempt','taxCategoryConfirmed',true,'collectionObligationConfirmed',true,'destinationJurisdiction',jsonb_build_object('state','CA','county','Los Angeles','city','Los Angeles')),
+          'globalTaxCalculation',jsonb_build_object('ok',true,'status','manual_unverified','countryCode','US','currencyCode','USD','taxableMinor',10000,'taxMinor',500,'totalMinor',10500,
+            'components',jsonb_build_array(jsonb_build_object('id','state','name','State sales tax','rateBps',500,'amountMinor',500,'source','user-entered')))
+        )
+      ),
+      '[{"description":"US exempt service","quantity":1,"rate":100}]'::jsonb,
+      NULL
+    );
+    RAISE EXCEPTION 'US manual exempt treatment unexpectedly accepted';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    NULL;
+  END;
+END
+$test$;
+
+DO $test$
+BEGIN
+  BEGIN
+    PERFORM public.save_invoice(
+      jsonb_build_object(
+        'client_name','US customer','business_name','US seller','issue_date','2026-11-14','currency','USD',
+        'tax_mode','split','tax_rate',0,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
+        'invoice_snapshot',jsonb_build_object(
+          'business',jsonb_build_object('name','Seller Ltd','address','1 Business Street'),
           'globalTax',jsonb_build_object('countryCode','US','mode','automatic','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','California','placeOfSupplyConfirmed',true,'taxCategory','taxable service','taxCategoryConfirmed',true),
           'globalTaxCalculation',jsonb_build_object('ok',true,'status','calculated','countryCode','US','currencyCode','USD','taxableMinor',10000,'taxMinor',700,'totalMinor',10700,
             'components',jsonb_build_array(jsonb_build_object('id','US-FAKE','name','Fake rate','rateBps',700,'amountMinor',700)))

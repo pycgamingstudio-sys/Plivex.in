@@ -111,6 +111,19 @@ test("automatic calculation rejects reduced, zero-rated and exempt treatments", 
   }
 });
 
+test("manual calculation rejects unsupported zero-rated, exempt and reduced treatments", () => {
+  for (const taxCategory of ["zero-rated", "exempt", "reduced", "reverse-charge", "out-of-scope"]) {
+    const result = calculateInvoiceGlobalTax(invoice("USD", {
+      mode: "manual",
+      taxCategory,
+      collectionObligationConfirmed: true,
+      destinationJurisdiction: { state: "CA", county: "Los Angeles", city: "Los Angeles" },
+      components: [{ id: "state", name: "State tax", rateBps: 500 }],
+    }), profile("US", "USD"));
+    assert.equal(result.code, "UNSUPPORTED_TAX_TREATMENT", taxCategory);
+  }
+});
+
 test("manual jurisdiction must match the saved seller registration region", () => {
   const result = calculateInvoiceGlobalTax(invoice("USD", {
     mode: "manual",
