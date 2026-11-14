@@ -86,12 +86,6 @@ function replay(port, plan, applyRemoteCompatibilityBridge = false) {
       // the local-only compatibility migration in this disposable replay to
       // reconstruct the observed function state without altering the archive.
       console.log("APPLY COMPATIBILITY BRIDGE 202610280004 (disposable database only)");
-      const accessQuery = query(port, "plivex_migration_replay", `
-        SELECT substring(pg_get_functiondef('public.get_access_status(text)'::regprocedure)
-          FROM position('select max' IN lower(pg_get_functiondef('public.get_access_status(text)'::regprocedure)))
-          FOR 700);
-      `);
-      console.log("PRE-BRIDGE get_access_status query excerpt:", accessQuery);
       psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/migrations/202610280004_fix_overlapping_subscription_tier_priority.sql")]);
       compatibilityBridgeApplied = true;
     }
@@ -167,7 +161,7 @@ function assertRollback(port) {
 }
 function summary(port, remote) {
   const sql = remote
-    ? "SELECT concat_ws('|',(SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r'),(SELECT count(*) FROM pg_policies WHERE schemaname='public'),(SELECT count(*) FROM public.invoice_share_links),(SELECT count(*) FROM vault.secrets))"
+    ? "SELECT concat_ws('|',(SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r'),(SELECT count(*) FROM pg_policies WHERE schemaname='public'),(SELECT count(*) FROM public.invoice_share_links),(SELECT count(*) FROM public.stage4_vault_secrets))"
     : "SELECT concat_ws('|',(SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r'),(SELECT count(*) FROM pg_policies WHERE schemaname='public'),(SELECT count(*) FROM public.invoice_share_links),(SELECT count(*) FROM public.payment_refunds))";
   return query(port, "plivex_migration_replay", sql);
 }
