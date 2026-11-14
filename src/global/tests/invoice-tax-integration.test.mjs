@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateInvoiceGlobalTax } from "../tax/invoice-tax-integration.js";
+import { calculateInvoiceGlobalTax, resolveInvoiceCurrencyForWorkspace } from "../tax/invoice-tax-integration.js";
 
 const profile = (countryCode, currencyCode, overrides = {}) => ({
   countryCode, currencyCode,
@@ -129,4 +129,15 @@ test("manual zero-rate components fail closed instead of silently creating a tax
     components: [{ id: "state", name: "State sales tax", rateBps: 0 }],
   }), profile("US", "USD"));
   assert.equal(result.code, "MANUAL_COMPONENT_INVALID");
+});
+
+
+test("workspace country always selects its required invoice currency, including after country changes", () => {
+  const expected = { IN: "INR", US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD" };
+  for (const [country, currency] of Object.entries(expected)) {
+    assert.equal(resolveInvoiceCurrencyForWorkspace(country, "INR"), currency, country);
+  }
+  assert.equal(resolveInvoiceCurrencyForWorkspace("CA", "GBP"), "CAD");
+  assert.equal(resolveInvoiceCurrencyForWorkspace("IN", "GBP"), "GBP");
+  assert.equal(resolveInvoiceCurrencyForWorkspace("ZZ", "EUR"), "EUR");
 });

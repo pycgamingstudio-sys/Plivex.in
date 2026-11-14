@@ -15,7 +15,7 @@ import { DEFAULT_DESIGN_ID, InvoiceDesign, isPremiumDesign } from "@/components/
 import { SUPPORTED_CURRENCIES, formatMoney, amountInWords } from "@/lib/currency";
 import { backend } from "@/api/backendClient";
 import GlobalTaxEditor from "@/components/invoice/GlobalTaxEditor";
-import { calculateInvoiceGlobalTax, GLOBAL_COUNTRY_CURRENCIES } from "@/global/tax/invoice-tax-integration.js";
+import { calculateInvoiceGlobalTax, GLOBAL_COUNTRY_CURRENCIES, resolveInvoiceCurrencyForWorkspace } from "@/global/tax/invoice-tax-integration.js";
 import {
   AlertCircle,
   BadgeCheck,
@@ -519,7 +519,10 @@ export default function Home() {
           registeredJurisdiction: record.tax_jurisdiction_code || "",
         });
         if (countryCode !== "IN" && GLOBAL_COUNTRY_CURRENCIES[countryCode]) {
-          setInvoice((old) => old.currency === "INR" ? { ...old, currency: GLOBAL_COUNTRY_CURRENCIES[countryCode] } : old);
+          setInvoice((old) => ({
+            ...old,
+            currency: resolveInvoiceCurrencyForWorkspace(countryCode, old.currency),
+          }));
         }
       } catch {
         if (active) setWorkspaceTaxProfile({ countryCode: "UNKNOWN", currencyCode: "", loadError: true });
@@ -707,7 +710,17 @@ export default function Home() {
     try { sessionStorage.removeItem("plivex:pendingDownload"); } catch { /* ignore */ }
     generatePdf();
   }, [isPremium]);
-  const newInvoice = () => { const defaultCurrency = loadState(KEYS.settings, { currency: "INR" })?.currency || "INR"; setInvoice(applyBusinessProfile({ ...initialInvoice, currency: canAccess("multi_currency") ? defaultCurrency : "INR", items: [{ ...initialInvoice.items[0], id: `item-${Date.now()}` }] })); setErrors({}); setMobileMenuOpen(false); setMobileTab("edit"); notify("Fresh invoice started with your saved business details"); };
+  const newInvoice = () => {
+    const preferredCurrency = canAccess("multi_currency")
+      ? (loadState(KEYS.settings, { currency: "INR" })?.currency || "INR")
+      : "INR";
+    const defaultCurrency = resolveInvoiceCurrencyForWorkspace(workspaceTaxProfile?.countryCode, preferredCurrency);
+    setInvoice(applyBusinessProfile({ ...initialInvoice, currency: defaultCurrency, items: [{ ...initialInvoice.items[0], id: `item-${Date.now()}` }] }));
+    setErrors({});
+    setMobileMenuOpen(false);
+    setMobileTab("edit");
+    notify("Fresh invoice started with your saved business details");
+  };
   useEffect(() => {
     if (!location.state?.newInvoice) return;
     newInvoice();

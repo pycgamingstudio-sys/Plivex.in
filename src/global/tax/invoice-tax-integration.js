@@ -6,6 +6,12 @@ export const GLOBAL_COUNTRY_CURRENCIES = Object.freeze({
   IN: "INR", US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD",
 });
 
+/** Global invoices always use the selected workspace country's currency. */
+export function resolveInvoiceCurrencyForWorkspace(countryCode, preferredCurrency = "INR") {
+  const code = String(countryCode || "").trim().toUpperCase();
+  return GLOBAL_COUNTRY_CURRENCIES[code] || preferredCurrency || "INR";
+}
+
 const MINOR_UNITS = Object.freeze({ INR: 2, USD: 2, GBP: 2, AED: 2, CAD: 2, AUD: 2, SGD: 2 });
 const fail = (code, message) => ({ ok: false, status: "needs_review", code, message });
 const validDate = (value) => {
