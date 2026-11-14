@@ -80,11 +80,13 @@ cleanup_refund_race() {
 trap cleanup_refund_race EXIT
 
 PGAPPNAME=plivex-refund-first psql -v ON_ERROR_STOP=1 -d "$db" > /tmp/plivex-refund-first.log 2>&1 <<SQL &
-SET ROLE service_role;
 BEGIN;
+-- The fixture owner acquires the row lock; service_role intentionally has
+-- no UPDATE grant on subscriptions, and the RPC itself runs SECURITY DEFINER.
 SELECT id FROM public.subscriptions
  WHERE txnid='ORDER-REFUND-PARALLEL'
  FOR UPDATE;
+SET ROLE service_role;
 SELECT public.apply_cashfree_refund_event(
  (SELECT id FROM public.subscriptions WHERE txnid='ORDER-REFUND-PARALLEL'),
  'ORDER-REFUND-PARALLEL','CFPAY-REFUND-PARALLEL',
