@@ -153,7 +153,10 @@ VALUES
    '{"data":{"refund":{"order_id":"PLXCF-REPLAY-000000000000000003","cf_payment_id":700003}}}'),
   ('30000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000014',NULL,
    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','ws-a','cashfree','RF-HIST-AMBIGUOUS',500,'INR','success',
-   '{"data":{"refund":{"order_id":"PLXCF-HIST-AMBIG-000000000014","cf_payment_id":714001}}}');
+   '{"data":{"refund":{"order_id":"PLXCF-HIST-AMBIG-000000000014","cf_payment_id":714001}}}'),
+  ('30000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000015',NULL,
+   'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','ws-a','cashfree','RF-HIST-SERVICE-RECON',1000,'INR','success',
+   '{"data":{"refund":{"order_id":"PLXCF-HIST-UNLINKED-000000000015","cf_payment_id":715002}}}');
 
 -- Historical provider/gateway mismatches and NULL provider are not Cashfree
 -- ledger rows and must never be cleared/rebuilt by Cashfree cleanup.
@@ -512,6 +515,40 @@ BEGIN
   END IF;
 END
 $test_block$;
+
+-- Once a mapping becomes deterministic, service_role alone can invoke the
+-- audited reconciliation function. The unrelated unresolved ₹2,000 row keeps
+-- the subscription-wide reconciliation hold in place.
+INSERT INTO public.payment_logs
+  (id,workspace_id,gateway,txnid,amount,currency,outcome,provider,subscription_id,provider_payment_id)
+VALUES
+  ('20000000-0000-0000-0000-000000000024','ws-a','cashfree',
+   'PLXCF-HIST-UNLINKED-000000000015',10000,'INR','applied','cashfree',
+   '10000000-0000-0000-0000-000000000015','715002');
+SET ROLE service_role;
+DO $service_reconcile$
+DECLARE v jsonb;
+BEGIN
+  v := public.reconcile_cashfree_refund_payment_log('30000000-0000-0000-0000-000000000004');
+  IF v->>'ok' <> 'true' OR v->>'reconciled' <> 'true' THEN
+    RAISE EXCEPTION 'service_role verified historical reconciliation failed: %', v;
+  END IF;
+END
+$service_reconcile$;
+RESET ROLE;
+DO $service_reconcile_check$
+BEGIN
+  IF (SELECT payment_log_id FROM public.payment_refunds
+      WHERE id='30000000-0000-0000-0000-000000000004')
+     <> '20000000-0000-0000-0000-000000000024'::uuid THEN
+    RAISE EXCEPTION 'service_role reconciliation did not persist exact link';
+  END IF;
+  IF (SELECT refund_status FROM public.payment_logs
+      WHERE id='20000000-0000-0000-0000-000000000021') <> 'reconciliation_required' THEN
+    RAISE EXCEPTION 'Reconciliation hold cleared while another historical refund remained unlinked';
+  END IF;
+END
+$service_reconcile_check$;
 
 -- Verified NULL -> exact payment-log reconciliation is audited; ambiguous
 -- historical mapping remains NULL and flagged for manual review.
