@@ -15,7 +15,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function validateValues(table: string, values: Record<string, unknown>, currencyCode: string, creating: boolean): string | null {
+function validateValues(table: string, values: Record<string, unknown>, creating: boolean): string | null {
   const allowed = TABLE_FIELDS[table];
   if (!allowed) return "This Global record type is read-only.";
   if (Object.keys(values).some((key) => !allowed.includes(key))) return "One or more fields are not supported.";
@@ -47,7 +47,7 @@ function validateValues(table: string, values: Record<string, unknown>, currency
       const value = values[key];
       if (value !== undefined && (!Number.isSafeInteger(value) || Number(value) < 0)) return `${key} must be a non-negative integer.`;
     }
-    if (values.currency_code !== undefined && values.currency_code !== currencyCode) return "Product currency must match the workspace currency.";
+    if (values.currency_code !== undefined && (typeof values.currency_code !== "string" || !CURRENCY.test(values.currency_code))) return "Choose a valid ISO currency code.";
     if (values.is_active !== undefined && typeof values.is_active !== "boolean") return "is_active must be true or false.";
   }
   if (table === "expenses") {
@@ -55,15 +55,16 @@ function validateValues(table: string, values: Record<string, unknown>, currency
     if (values.category !== undefined && (typeof values.category !== "string" || !values.category.trim())) return "Expense category is required.";
     if (creating && (!Number.isSafeInteger(values.amount_minor) || Number(values.amount_minor) <= 0)) return "Expense amount must be a positive integer in minor units.";
     if (values.amount_minor !== undefined && (!Number.isSafeInteger(values.amount_minor) || Number(values.amount_minor) <= 0)) return "Expense amount must be a positive integer in minor units.";
-    if (values.currency_code !== undefined && values.currency_code !== currencyCode) return "Expense currency must match the workspace currency.";
+    if (values.currency_code !== undefined && (typeof values.currency_code !== "string" || !CURRENCY.test(values.currency_code))) return "Choose a valid ISO currency code.";
     if (values.expense_date !== undefined && (typeof values.expense_date !== "string" || !DATE.test(values.expense_date) || Number.isNaN(Date.parse(values.expense_date)))) return "Expense date must use YYYY-MM-DD.";
   }
   return null;
 }
 
-function canWrite(table: string, role: string): boolean {
-  if (table === "expenses") return ["owner", "admin", "accountant"].includes(role);
-  return ["owner", "admin", "manager"].includes(role);
+function rpcStatus(reason: string): number {
+  if (reason === "access_denied" || reason === "forbidden" || reason === "read_only") return 403;
+  if (reason === "not_found" || reason === "workspace_not_found") return 404;
+  return 400;
 }
 
 Deno.serve(async (req: Request) => {
@@ -94,73 +95,46 @@ Deno.serve(async (req: Request) => {
     if (!["list", "create", "update", "delete"].includes(String(action))) return globalJson({ error: "Unsupported action." }, 400, origin);
     if (action !== "list" && READ_ONLY_TABLES.has(table)) return globalJson({ error: "This Global record type is read-only." }, 403, origin);
 
-    const { data: membership, error: membershipError } = await auth.admin
-      .schema("global").from("workspace_members").select("role")
-      .eq("workspace_id", workspaceId).eq("user_id", auth.user.id).eq("status", "active").maybeSingle();
-    if (membershipError) {
-      console.error("Global membership lookup failed", { code: membershipError.code });
-      return globalJson({ error: "Could not verify Global workspace access." }, 500, origin);
-    }
-    if (!membership) return globalJson({ error: "You do not have access to this Global workspace." }, 403, origin);
-
-    const { data: workspace, error: workspaceError } = await auth.admin
-      .schema("global").from("workspaces").select("currency_code")
-      .eq("id", workspaceId).maybeSingle();
-    if (workspaceError || !workspace) return globalJson({ error: "Global workspace not found." }, 404, origin);
-
-    const query = auth.admin.schema("global").from(table);
-    if (action === "list") {
-      const limit = Number.isInteger(body.limit) ? Math.min(Math.max(Number(body.limit), 1), 100) : 50;
-      const orderColumn = table === "stock_levels" ? "product_id"
-        : table === "invoice_items" ? "sort_order"
-        : table === "invoice_payments" ? "payment_date" : "created_at";
-      const { data, error } = await query.select("*").eq("workspace_id", workspaceId)
-        .order(orderColumn, { ascending: table === "stock_levels" || table === "invoice_items" })
-        .limit(limit);
-      if (error) {
-        console.error("Global records list failed", { table, code: error.code });
-        return globalJson({ error: "Could not load Global records." }, 400, origin);
-      }
-      return globalJson({ records: data || [] }, 200, origin);
-    }
-
-    const role = String(membership.role || "");
-    if (!canWrite(table, role)) return globalJson({ error: "Your Global workspace role cannot change these records." }, 403, origin);
-    if (action === "create") {
-      if (!isObject(body.values)) return globalJson({ error: "Record values are required." }, 400, origin);
-      const values = body.values;
-      const validationError = validateValues(table, values, workspace.currency_code, true);
-      if (validationError) return globalJson({ error: validationError }, 400, origin);
-      const { data, error } = await query.insert({ ...values, currency_code: values.currency_code ?? workspace.currency_code, workspace_id: workspaceId, created_by: auth.user.id }).select("*").single();
-      if (error) {
-        console.error("Global record create failed", { table, code: error.code });
-        return globalJson({ error: "Could not create Global record." }, 400, origin);
-      }
-      return globalJson({ record: data }, 201, origin);
-    }
-
     const recordId = body.id;
-    if (typeof recordId !== "string" || !UUID.test(recordId)) return globalJson({ error: "A valid record id is required." }, 400, origin);
-    if (action === "update") {
-      if (!isObject(body.values) || Object.keys(body.values).length === 0) return globalJson({ error: "Updated record values are required." }, 400, origin);
-      const validationError = validateValues(table, body.values, workspace.currency_code, false);
-      if (validationError) return globalJson({ error: validationError }, 400, origin);
-      const { data, error } = await query.update(body.values).eq("id", recordId).eq("workspace_id", workspaceId).select("*").maybeSingle();
-      if (error) {
-        console.error("Global record update failed", { table, code: error.code });
-        return globalJson({ error: "Could not update Global record." }, 400, origin);
+    if ((action === "update" || action === "delete") && (typeof recordId !== "string" || !UUID.test(recordId))) {
+      return globalJson({ error: "A valid record id is required." }, 400, origin);
+    }
+    let values: Record<string, unknown> = {};
+    if (action === "create" || action === "update") {
+      if (!isObject(body.values) || (action === "update" && Object.keys(body.values).length === 0)) {
+        return globalJson({ error: "Record values are required." }, 400, origin);
       }
-      if (!data) return globalJson({ error: "Global record not found." }, 404, origin);
-      return globalJson({ record: data }, 200, origin);
+      values = body.values;
+      const validationError = validateValues(table, values, action === "create");
+      if (validationError) return globalJson({ error: validationError }, 400, origin);
     }
 
-    const { data, error } = await query.delete().eq("id", recordId).eq("workspace_id", workspaceId).select("id").maybeSingle();
+    const { data, error } = await auth.admin.rpc("global_business_records", {
+      p_user_id: auth.user.id,
+      p_workspace_id: workspaceId,
+      p_table: table,
+      p_action: action,
+      p_record_id: recordId || null,
+      p_values: values,
+      p_limit: Number.isInteger(body.limit) ? Math.min(Math.max(Number(body.limit), 1), 100) : 50,
+    });
     if (error) {
-      console.error("Global record delete failed", { table, code: error.code });
-      return globalJson({ error: "Could not delete Global record." }, 400, origin);
+      console.error("Global business records RPC failed", { code: error.code });
+      return globalJson({ error: "Global records service is not ready. Please try again later." }, 503, origin);
     }
-    if (!data) return globalJson({ error: "Global record not found." }, 404, origin);
-    return globalJson({ ok: true, id: data.id }, 200, origin);
+    if (!data?.ok) {
+      const reason = String(data?.reason || "request_failed");
+      const messages: Record<string, string> = {
+        access_denied: "You do not have access to this Global workspace.",
+        forbidden: "Your Global workspace role cannot change these records.",
+        read_only: "This Global record type is read-only.",
+        not_found: "Global record not found.",
+        workspace_not_found: "Global workspace not found.",
+        invalid_currency: "Record currency must match the Global workspace currency.",
+      };
+      return globalJson({ error: messages[reason] || "Could not complete the Global records request.", reason }, rpcStatus(reason), origin);
+    }
+    return globalJson(data, action === "create" ? 201 : 200, origin);
   } catch (error) {
     console.error("global-business-records failed", error);
     return globalJson({ error: "Something went wrong with Global records." }, 500, origin);
