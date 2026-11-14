@@ -25,11 +25,17 @@ Deno.serve(async(req:Request)=>{
  if(paymentStatus!=="SUCCESS"){
   const normalized=paymentStatus==="FAILED"?"failed":paymentStatus==="PENDING"?"pending":null;
   if(normalized) {
+   // Cashfree deliveries are at-least-once and may arrive out of order.
+   // PENDING can only fill an unset/created/pending state. FAILED may advance
+   // those states, but neither can overwrite SUCCESS or an active subscription.
+   const allowedPriorStates=normalized==="pending"
+    ? "payment_status.is.null,payment_status.in.(created,pending)"
+    : "payment_status.is.null,payment_status.in.(created,pending,failed)";
    const {error:updateError}=await admin.from("subscriptions").update({
     payment_status:normalized,provider_payment_status:paymentStatus,
     provider_order_status:String(data?.order?.order_status||"").toUpperCase()||null,
     updated_at:new Date().toISOString()
-   }).eq("id",order.id).eq("status","created");
+   }).eq("id",order.id).eq("status","created").or(allowedPriorStates);
    if(updateError)return json({error:"Payment status update failed"},503);
   }
   return json({received:true,updated:Boolean(normalized)});
