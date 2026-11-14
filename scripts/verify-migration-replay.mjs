@@ -146,7 +146,7 @@ function assertCandidateIndia(port) {
     FROM public.plan_features f JOIN public.plan_limits l ON l.plan=f.plan AND l.resource='leads'
     WHERE f.plan='basic' AND f.feature='lead_pipeline';
   `);
-  if (lead !== "false|0|total") fail("Local Basic no-op did not preserve shared India entitlement: " + lead);
+  if (lead !== "true|200|total") fail("Candidate replay changed the seeded India Basic entitlement: " + lead);
 }
 function assertRollback(port) {
   const before = query(port, "plivex_migration_replay", "SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relkind='r'");
