@@ -296,6 +296,22 @@ BEGIN
     RAISE EXCEPTION 'Unrelated payment log was modified';
   END IF;
 
+  -- Provider/gateway mismatches must not satisfy the exact Cashfree mapping.
+  INSERT INTO public.payment_logs
+    (id,workspace_id,gateway,txnid,amount,currency,outcome,provider,subscription_id,provider_payment_id)
+  VALUES
+    ('20000000-0000-0000-0000-000000000096','ws-a','payu',
+     'PLXCF-MULTI-000000000000000011',10000,'INR','applied','cashfree',
+     '10000000-0000-0000-0000-000000000011','711001');
+  v := public.apply_cashfree_refund_event(
+    '10000000-0000-0000-0000-000000000011','RF-WRONG-GATEWAY',100,'INR','success',
+    '{"data":{"refund":{"order_id":"PLXCF-MULTI-000000000000000011","cf_payment_id":711001}}}'::jsonb
+  );
+  IF v->>'reason' <> 'payment_mapping_ambiguous' THEN
+    RAISE EXCEPTION 'Exact provider/gateway matching did not reject the duplicate Cashfree payment ID: %', v;
+  END IF;
+  DELETE FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000096';
+
   -- A refund with a non-existent cf_payment_id is rejected, not guessed by order ID.
   v := public.apply_cashfree_refund_event(
     '10000000-0000-0000-0000-000000000011','RF-UNKNOWN',100,'INR','success',
@@ -426,6 +442,16 @@ BEGIN
   IF NOT has_function_privilege('service_role','public.apply_cashfree_refund_event(uuid,text,bigint,text,text,jsonb)','EXECUTE') THEN
     RAISE EXCEPTION 'service_role is missing RPC EXECUTE';
   END IF;
+  IF has_function_privilege('anon','public.reconcile_cashfree_refund_payment_log(uuid)','EXECUTE')
+     OR has_function_privilege('authenticated','public.reconcile_cashfree_refund_payment_log(uuid)','EXECUTE') THEN
+    RAISE EXCEPTION 'anon/authenticated unexpectedly have historical reconciliation EXECUTE';
+  END IF;
+  IF NOT has_function_privilege('service_role','public.reconcile_cashfree_refund_payment_log(uuid)','EXECUTE') THEN
+    RAISE EXCEPTION 'service_role is missing historical reconciliation EXECUTE';
+  END IF;
+  IF has_table_privilege('service_role','public.cashfree_refund_reconciliation_audit','SELECT') THEN
+    RAISE EXCEPTION 'service_role unexpectedly has direct audit-table SELECT';
+  END IF;
   IF has_table_privilege('anon','public.payment_refunds','SELECT') THEN
     RAISE EXCEPTION 'anon unexpectedly has payment_refunds SELECT';
   END IF;
@@ -501,6 +527,22 @@ BEGIN
       WHERE id='30000000-0000-0000-0000-000000000003') IS NOT NULL THEN
     RAISE EXCEPTION 'Ambiguous historical refund was incorrectly linked';
   END IF;
+
+  v := public.reconcile_cashfree_refund_payment_log('30000000-0000-0000-0000-000000000003');
+  IF v->>'reason' <> 'historical_refund_mapping_ambiguous' THEN
+    RAISE EXCEPTION 'Ambiguous historical reconciliation was not rejected: %', v;
+  END IF;
+
+  -- A direct NULL -> non-NULL update is not a general-purpose bypass.
+  v_blocked := false;
+  BEGIN
+    UPDATE public.payment_refunds
+    SET payment_log_id='20000000-0000-0000-0000-000000000011'
+    WHERE id='30000000-0000-0000-0000-000000000003';
+  EXCEPTION WHEN raise_exception THEN
+    v_blocked := true;
+  END;
+  IF NOT v_blocked THEN RAISE EXCEPTION 'Direct NULL-to-linked identity update bypassed reconciliation'; END IF;
   IF (SELECT refund_status FROM public.payment_logs
       WHERE id='20000000-0000-0000-0000-000000000011') <> 'reconciliation_required' THEN
     RAISE EXCEPTION 'Ambiguous historical refund did not retain reconciliation marker';
