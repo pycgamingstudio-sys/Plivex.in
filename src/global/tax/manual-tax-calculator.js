@@ -11,12 +11,12 @@ const roundDiv = (n, d) => Math.floor((n + Math.floor(d / 2)) / d);
 export function calculateManualTax(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) return fail("INVALID_INPUT", "Manual tax input is required.");
   const countryCode = String(input.countryCode || "").toUpperCase();
+  if (!["US", "GB", "AE", "CA", "AU", "SG"].includes(countryCode)) {
+    return fail("UNSUPPORTED_COUNTRY", "Manual Global tax is unavailable for this country; India uses its existing GST path.");
+  }
   const currencyCode = String(input.currencyCode || "").toUpperCase();
   if (!Object.hasOwn(CURRENCY_MINOR_UNITS, currencyCode) || CURRENCY_MINOR_UNITS[currencyCode] !== input.currencyMinorUnits) {
     return fail("INVALID_CURRENCY", "A supported country currency and its minor-unit precision are required.");
-  }
-  if (!["US", "GB", "AE", "CA", "AU", "SG"].includes(countryCode)) {
-    return fail("UNSUPPORTED_COUNTRY", "Manual Global tax is unavailable for this country; India uses its existing GST path.");
   }
   if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor < 0) return fail("INVALID_AMOUNT", "Amount must be a non-negative safe integer in minor units.");
   if (!["inclusive", "exclusive"].includes(input.priceMode)) return fail("PRICE_MODE_REQUIRED", "Choose whether the entered price includes tax.");
