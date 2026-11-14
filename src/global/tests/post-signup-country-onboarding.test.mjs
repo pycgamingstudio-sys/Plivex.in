@@ -13,6 +13,7 @@ test("Global signup defers country choice until after authentication", async () 
   assert.match(google, /APP_EDITION !== "global"/);
   assert.doesNotMatch(google, /plivex\.signup\.region/);
   assert.match(backend, /APP_EDITION === "global"/);
+  assert.match(backend, /"global-ensure-owner", "global-business-records"/);
 });
 
 test("new Global identities are held at onboarding before workspace provisioning", async () => {
