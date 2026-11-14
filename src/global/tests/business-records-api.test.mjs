@@ -66,6 +66,7 @@ test("Global business tax profile stores the effective registration date in the 
   assert.match(rpc, /add column if not exists tax_registration_effective_from date/);
   assert.match(rpc, /tax_registration_effective_from=case/);
   assert.match(backend, /tax_registration_effective_from/);
+  assert.doesNotMatch(backend, /if \(values\.gstin\) profile\.tax_registration_number/);
 });
 
 
