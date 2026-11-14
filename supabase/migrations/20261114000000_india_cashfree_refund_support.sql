@@ -4,33 +4,35 @@
 
 ALTER TABLE public.subscriptions
   ADD COLUMN IF NOT EXISTS amount_minor_units bigint,
-  ADD COLUMN IF NOT EXISTS payment_status text NOT NULL DEFAULT 'created',
+  ADD COLUMN IF NOT EXISTS payment_status text,
   ADD COLUMN IF NOT EXISTS refund_status text,
   ADD COLUMN IF NOT EXISTS refunded_at timestamptz;
 
 ALTER TABLE public.payment_logs
   ADD COLUMN IF NOT EXISTS refund_status text,
-  ADD COLUMN IF NOT EXISTS refund_amount_minor_units bigint,
-  ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+  ADD COLUMN IF NOT EXISTS refund_amount_minor_units bigint;
 
 -- Preserve legacy India amounts as exact minor units without changing amount_paise.
 UPDATE public.subscriptions
 SET amount_minor_units = COALESCE(amount_minor_units, amount_paise::bigint)
 WHERE upper(COALESCE(currency, '')) = 'INR'
-  AND amount_paise IS NOT NULL;
+  AND amount_paise IS NOT NULL
+  AND (lower(COALESCE(gateway,'')) = 'cashfree' OR lower(COALESCE(provider,'')) = 'cashfree');
 
 UPDATE public.subscriptions
 SET payment_status = CASE
   WHEN status::text = 'active' AND payment_status = 'created' THEN 'success'
   WHEN status::text = 'failed' AND payment_status = 'created' THEN 'failed'
+  WHEN payment_status IS NULL THEN 'created'
   ELSE payment_status
-END;
+END
+WHERE lower(COALESCE(gateway,'')) = 'cashfree' OR lower(COALESCE(provider,'')) = 'cashfree';
 
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.subscriptions'::regclass AND conname='subscriptions_refund_payment_status_check') THEN
     ALTER TABLE public.subscriptions ADD CONSTRAINT subscriptions_refund_payment_status_check
-      CHECK (payment_status IN ('created','pending','success','failed','refunded','partially_refunded'));
+      CHECK (payment_status IS NULL OR payment_status IN ('created','pending','success','failed','refunded','partially_refunded'));
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.subscriptions'::regclass AND conname='subscriptions_refund_status_check') THEN
     ALTER TABLE public.subscriptions ADD CONSTRAINT subscriptions_refund_status_check
@@ -208,8 +210,7 @@ BEGIN
 
   UPDATE public.payment_logs
   SET refund_status = v_next_status,
-      refund_amount_minor_units = v_total,
-      updated_at = clock_timestamp()
+      refund_amount_minor_units = v_total
   WHERE subscription_id = v_order.id AND provider = 'cashfree';
 
   RETURN jsonb_build_object(
