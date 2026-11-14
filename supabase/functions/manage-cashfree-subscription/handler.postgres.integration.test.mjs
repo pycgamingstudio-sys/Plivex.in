@@ -103,7 +103,7 @@ async function createHandler() {
 Deno.test("actual subscription handler reads and updates disposable PostgreSQL through PostgREST", async () => {
   const { handler, admin, userToken, anonToken, request } = await createHandler();
 
-  const profileProbe = await fetch(URL + "/profiles?select=workspace_id,role&id=eq." + USER_ID, {
+  const profileProbe = await fetch(URL + "/rest/v1/profiles?select=workspace_id,role&id=eq." + USER_ID, {
     headers: { Authorization: "Bearer " + userToken, apikey: anonToken },
   });
   const profileProbeBody = await profileProbe.text();
