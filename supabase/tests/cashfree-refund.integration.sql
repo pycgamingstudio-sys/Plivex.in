@@ -731,6 +731,27 @@ SELECT public.apply_cashfree_refund_event(
 );
 RESET ROLE;
 
+-- Prepare a historically ambiguous refund for a deterministic lock-order race.
+-- The two duplicate payment attempts are removed only after all ambiguity assertions.
+DELETE FROM public.payment_logs
+WHERE id IN ('20000000-0000-0000-0000-000000000023',
+             '20000000-0000-0000-0000-000000000098');
+
+DO $prepare_reconcile_webhook_race$
+BEGIN
+  IF (SELECT count(*) FROM public.payment_logs
+      WHERE subscription_id='10000000-0000-0000-0000-000000000014'
+        AND provider='cashfree' AND gateway='cashfree'
+        AND provider_payment_id='714001') <> 1 THEN
+    RAISE EXCEPTION 'Concurrency fixture does not have exactly one verified payment match';
+  END IF;
+  IF (SELECT payment_log_id FROM public.payment_refunds
+      WHERE id='30000000-0000-0000-0000-000000000003') IS NOT NULL THEN
+    RAISE EXCEPTION 'Concurrency fixture must begin with an unlinked historical refund';
+  END IF;
+END
+$prepare_reconcile_webhook_race$;
+
 -- Migration replay did not duplicate refund rows; Cashfree mapping remains unique.
 DO $$
 BEGIN
