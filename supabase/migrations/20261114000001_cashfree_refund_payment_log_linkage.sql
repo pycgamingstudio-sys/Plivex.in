@@ -118,6 +118,8 @@ DECLARE
   v_payment_log_id uuid;
   v_match_count integer;
   v_rows integer;
+  v_subscription_total bigint;
+  v_subscription_original bigint;
 BEGIN
   SELECT * INTO v_refund
   FROM public.payment_refunds
@@ -170,6 +172,62 @@ BEGIN
     (refund_id, subscription_id, payment_log_id, action, reconciled_by)
   VALUES
     (v_refund.id, v_refund.subscription_id, v_payment_log_id, 'verified_null_to_link', session_user);
+
+  -- Rebuild aggregate values and clear the hold only after every historical
+  -- Cashfree refund for this subscription has an exact verified payment link.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.payment_refunds unresolved
+    WHERE unresolved.subscription_id = v_refund.subscription_id
+      AND unresolved.provider = 'cashfree'
+      AND unresolved.payment_log_id IS NULL
+  ) THEN
+    UPDATE public.payment_logs l
+    SET refund_amount_minor_units = COALESCE((
+          SELECT sum(r.amount_minor_units)
+          FROM public.payment_refunds r
+          WHERE r.payment_log_id = l.id
+            AND r.provider = 'cashfree'
+            AND r.status = 'success'
+        ), 0)::bigint,
+        refund_status = CASE
+          WHEN COALESCE((SELECT sum(r.amount_minor_units) FROM public.payment_refunds r
+                         WHERE r.payment_log_id = l.id AND r.provider = 'cashfree' AND r.status = 'success'),0) >= l.amount THEN 'success'
+          WHEN COALESCE((SELECT sum(r.amount_minor_units) FROM public.payment_refunds r
+                         WHERE r.payment_log_id = l.id AND r.provider = 'cashfree' AND r.status = 'success'),0) > 0 THEN 'partially_refunded'
+          WHEN EXISTS (SELECT 1 FROM public.payment_refunds r WHERE r.payment_log_id = l.id AND r.provider = 'cashfree' AND r.status = 'pending') THEN 'pending'
+          WHEN EXISTS (SELECT 1 FROM public.payment_refunds r WHERE r.payment_log_id = l.id AND r.provider = 'cashfree' AND r.status = 'failed') THEN 'failed'
+          ELSE NULL
+        END
+    WHERE l.subscription_id = v_refund.subscription_id
+      AND l.provider = 'cashfree' AND l.gateway = 'cashfree';
+
+    SELECT COALESCE(sum(amount_minor_units) FILTER (WHERE status = 'success'), 0)::bigint
+    INTO v_subscription_total
+    FROM public.payment_refunds
+    WHERE subscription_id = v_refund.subscription_id AND provider = 'cashfree';
+    v_subscription_original := COALESCE(
+      v_subscription.amount_minor_units,
+      CASE WHEN upper(v_subscription.currency) = 'INR' THEN v_subscription.amount_paise::bigint END
+    );
+    UPDATE public.subscriptions
+    SET refund_status = CASE
+          WHEN v_subscription_total >= v_subscription_original THEN 'success'
+          WHEN v_subscription_total > 0 THEN 'partially_refunded'
+          ELSE NULL
+        END,
+        payment_status = CASE
+          WHEN v_subscription_total >= v_subscription_original THEN 'refunded'
+          WHEN v_subscription_total > 0 THEN 'partially_refunded'
+          ELSE payment_status
+        END,
+        refunded_at = CASE
+          WHEN v_subscription_total >= v_subscription_original THEN COALESCE(refunded_at, clock_timestamp())
+          ELSE NULL
+        END,
+        status = CASE WHEN v_subscription_total >= v_subscription_original THEN 'failed' ELSE status END,
+        updated_at = clock_timestamp()
+    WHERE id = v_subscription.id;
+  END IF;
 
   RETURN jsonb_build_object('ok', true, 'reconciled', true, 'payment_log_id', v_payment_log_id);
 END;
