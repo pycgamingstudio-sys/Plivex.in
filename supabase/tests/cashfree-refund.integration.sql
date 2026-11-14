@@ -174,8 +174,8 @@ VALUES
    '10000000-0000-0000-0000-000000000014','714001',NULL,NULL),
   ('20000000-0000-0000-0000-000000000023','ws-a','cashfree','PLXCF-HIST-AMBIG-000000000014',10000,'INR','applied','cashfree',
    '10000000-0000-0000-0000-000000000014','714001',NULL,NULL),
-  ('20000000-0000-0000-0000-000000000098','ws-a','cashfree','PLXCF-MULTI-000000000000000011',10000,'INR','applied','cashfree',
-   '10000000-0000-0000-0000-000000000011','711001',NULL,NULL);
+  ('20000000-0000-0000-0000-000000000098','ws-a','cashfree','PLXCF-HIST-AMBIG-000000000014',10000,'INR','applied','cashfree',
+   '10000000-0000-0000-0000-000000000014','714001',NULL,NULL);
 
 -- The real schema declares payment_logs.gateway NOT NULL; prove the NULL
 -- gateway fixture is rejected rather than weakening the production-shaped test schema.
@@ -317,7 +317,7 @@ BEGIN
      '10000000-0000-0000-0000-000000000011','799991');
   v := public.apply_cashfree_refund_event(
     '10000000-0000-0000-0000-000000000011','RF-WRONG-GATEWAY',100,'INR','success',
-    '{"data":{"refund":{"order_id":"PLXCF-MULTI-000000000000000011","cf_payment_id":711001}}}'::jsonb
+    '{"data":{"refund":{"order_id":"PLXCF-MULTI-000000000000000011","cf_payment_id":799991}}}'::jsonb
   );
   IF v->>'reason' <> 'payment_mapping_not_found' THEN
     RAISE EXCEPTION 'Gateway-mismatched payment log incorrectly satisfied Cashfree mapping: %', v;
