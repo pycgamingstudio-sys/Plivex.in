@@ -7,6 +7,7 @@ const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 test("Global signup defers country choice until after authentication", async () => {
   const register = await read("../../pages/Register.jsx");
   const google = await read("../../components/auth/GoogleSignInButton.jsx");
+  const backend = await read("../../api/backendClient.js");
   assert.match(register, /APP_EDITION !== "global" && !inviteCode/);
   assert.match(register, /APP_EDITION === "global" \? \{ email, password \}/);
   assert.match(google, /APP_EDITION !== "global"/);
