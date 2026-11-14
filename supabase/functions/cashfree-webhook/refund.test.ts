@@ -73,3 +73,49 @@ Deno.test("non-refund Cashfree payment events do not enter the refund handler", 
   });
   if (response !== null) throw new Error("Payment event was consumed by refund handler");
 });
+
+
+Deno.test("Cashfree refund amounts convert exact decimal major units to integer minor units", async () => {
+  const validCases = [
+    { amount: 0.29, expectedMinor: 29 },
+    { amount: 0.01, expectedMinor: 1 },
+    { amount: 49.5, expectedMinor: 4950 },
+  ];
+  for (const [index, testCase] of validCases.entries()) {
+    let rpcCalls = 0;
+    const event = {
+      type: "REFUND_STATUS_WEBHOOK",
+      data: { refund: {
+        refund_id: `R-DECIMAL-${index}`,
+        refund_status: "SUCCESS",
+        refund_amount: testCase.amount,
+      } },
+    };
+    const response = await handleCashfreeRefundEvent(event, order, async (args) => {
+      rpcCalls++;
+      if (args.p_amount_minor !== testCase.expectedMinor ||
+          !Number.isSafeInteger(args.p_amount_minor) ||
+          args.p_amount_minor <= 0) {
+        throw new Error(`Atomic refund RPC received incorrect minor units for ${testCase.amount}`);
+      }
+      return { data: { ok: true, refunded_minor_units: args.p_amount_minor }, error: null };
+    });
+    if (response?.status !== 200 || rpcCalls !== 1)
+      throw new Error(`Valid decimal refund ${testCase.amount} was not applied`);
+  }
+
+  let invalidRpcCalls = 0;
+  const invalid = await handleCashfreeRefundEvent({
+    type: "REFUND_STATUS_WEBHOOK",
+    data: { refund: {
+      refund_id: "R-DECIMAL-INVALID",
+      refund_status: "SUCCESS",
+      refund_amount: 1.001,
+    } },
+  }, order, async () => {
+    invalidRpcCalls++;
+    return { data: { ok: true }, error: null };
+  });
+  if (invalid?.status !== 400 || invalidRpcCalls !== 0)
+    throw new Error("Refund with more than two decimal places was not rejected before RPC");
+});
