@@ -29,7 +29,7 @@ Deno.test("published plan price is consistent across accounts in the same countr
 Deno.test("Cashfree webhook HMAC accepts only the exact signed timestamp and raw body", async () => {
   const { verifyWebhookSignature } = await import("./cashfree.ts");
   const secret = "ci-only-cashfree-webhook-secret";
-  const timestamp = "1794580000";
+  const timestamp = String(Date.now());
   const raw = JSON.stringify({ type: "PAYMENT_SUCCESS_WEBHOOK", data: { order: { order_id: "PLXCF-TEST" } } });
   const key = await crypto.subtle.importKey(
     "raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
@@ -180,4 +180,28 @@ Deno.test("Cashfree payment activation requires exact provider order and payment
   if (mismatchedSavedCurrency.ok || rpcCalls !== 1) {
     throw new Error("International order with mismatched saved currency must be rejected before the payment RPC");
   }
+});
+
+
+Deno.test("Cashfree webhook signature rejects stale and far-future timestamps", async () => {
+  const { verifyWebhookSignature, isCashfreeWebhookTimestampFresh, CASHFREE_WEBHOOK_MAX_AGE_MS } = await import("./cashfree.ts");
+  const secret = "ci-only-cashfree-webhook-secret";
+  const now = Date.now();
+  const raw = JSON.stringify({ type: "PAYMENT_PENDING_WEBHOOK", data: {} });
+  const sign = async (timestamp: string) => {
+    const key = await crypto.subtle.importKey(
+      "raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+    );
+    const digest = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(timestamp + raw));
+    return btoa(String.fromCharCode(...new Uint8Array(digest)));
+  };
+  const fresh = String(now - 60_000);
+  if (!isCashfreeWebhookTimestampFresh(fresh, now)) throw new Error("Fresh timestamp was rejected");
+  if (!isCashfreeWebhookTimestampFresh(String(Math.floor(now / 1000)), now)) throw new Error("Epoch-seconds timestamp was rejected");
+  const stale = String(now - CASHFREE_WEBHOOK_MAX_AGE_MS - 1);
+  if (isCashfreeWebhookTimestampFresh(stale, now)) throw new Error("Stale timestamp was accepted");
+  const future = String(now + 6 * 60_000);
+  if (isCashfreeWebhookTimestampFresh(future, now)) throw new Error("Far-future timestamp was accepted");
+  if (await verifyWebhookSignature(raw, stale, await sign(stale), secret, now)) throw new Error("Validly signed stale webhook was accepted");
+  if (await verifyWebhookSignature(raw, future, await sign(future), secret, now)) throw new Error("Validly signed far-future webhook was accepted");
 });
