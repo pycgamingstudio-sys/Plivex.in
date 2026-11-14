@@ -4,7 +4,7 @@
 -- Previous versions wrote a subscription aggregate to every Cashfree payment log.
 -- Clear those copied values, then rebuild only records with an exact ledger link.
 -- NOT VALID preserves any legacy ambiguous rows, while enforcing linkage on all new/updated rows.
-DO $$
+DO $reconcile_migration$$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
@@ -111,7 +111,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog, pg_temp
-AS $
+AS $reconcile$
 DECLARE
   v_refund public.payment_refunds%ROWTYPE;
   v_subscription public.subscriptions%ROWTYPE;
@@ -231,7 +231,7 @@ BEGIN
 
   RETURN jsonb_build_object('ok', true, 'reconciled', true, 'payment_log_id', v_payment_log_id);
 END;
-$;
+$reconcile$;
 
 REVOKE ALL ON FUNCTION public.reconcile_cashfree_refund_payment_log(uuid)
   FROM PUBLIC, anon, authenticated;
@@ -251,7 +251,7 @@ BEGIN
     PERFORM public.reconcile_cashfree_refund_payment_log(v_refund_id);
   END LOOP;
 END
-$;
+$reconcile$;
 
 -- Only homogeneous Cashfree rows are reset/rebuilt. Provider/gateway mismatches
 -- and NULL-provider legacy rows are deliberately preserved for manual review.
