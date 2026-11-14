@@ -3,13 +3,15 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [backend, authContext, stores, paywall, login, register] = await Promise.all([
+const [backend, authContext, stores, paywall, login, register, app, onboarding] = await Promise.all([
   read("../../api/backendClient.js"),
   read("../../lib/AuthContext.jsx"),
   read("../../lib/stores.js"),
   read("../../lib/paywall.jsx"),
   read("../../pages/Login.jsx"),
   read("../../pages/Register.jsx"),
+  read("../../App.jsx"),
+  read("../../components/global/GlobalCountryOnboarding.jsx"),
 ]);
 
 test("Global backend defaults fail closed and blocks India endpoint fallback", () => {
@@ -21,7 +23,9 @@ test("Global backend defaults fail closed and blocks India endpoint fallback", (
 
 test("Global auth uses Global RPCs and never hydrates India workspace records", () => {
   assert.match(authContext, /APP_EDITION === "global"/);
-  assert.match(authContext, /globalEnsureOwner/);
+  assert.doesNotMatch(authContext, /globalEnsureOwner/);
+  assert.match(app, /GlobalCountryOnboarding/);
+  assert.match(onboarding, /globalEnsureOwner/);
   assert.match(authContext, /global:\$\{currentUser\.id\}/);
   assert.match(authContext, /Global workspace invitations are not available yet/);
   const globalStart = authContext.indexOf('if (APP_EDITION === "global")');
