@@ -52,7 +52,8 @@ function validateValues(table: string, values: Record<string, unknown>, creating
     if (values.currency_code !== undefined && (typeof values.currency_code !== "string" || !CURRENCY.test(values.currency_code))) return "Choose a valid ISO currency code.";
     if (values.is_active !== undefined && typeof values.is_active !== "boolean") return "is_active must be true or false.";
   }
-  if (table === "business_profiles" && values.tax_registration_status !== undefined && !["unregistered", "pending", "registered", "deregistered"].includes(String(values.tax_registration_status))) return "Invalid tax registration status.";\n  if (table === "expenses") {
+  if (table === "business_profiles" && values.tax_registration_status !== undefined && !["unregistered", "pending", "registered", "deregistered"].includes(String(values.tax_registration_status))) return "Invalid tax registration status.";
+  if (table === "expenses") {
     if (creating && (typeof values.category !== "string" || !values.category.trim())) return "Expense category is required.";
     if (values.category !== undefined && (typeof values.category !== "string" || !values.category.trim())) return "Expense category is required.";
     if (creating && (!Number.isSafeInteger(values.amount_minor) || Number(values.amount_minor) <= 0)) return "Expense amount must be a positive integer in minor units.";
@@ -95,7 +96,8 @@ Deno.serve(async (req: Request) => {
       return globalJson({ error: "Unsupported Global record type." }, 400, origin);
     }
     if (!["list", "create", "update", "delete"].includes(String(action))) return globalJson({ error: "Unsupported action." }, 400, origin);
-    if (action !== "list" && READ_ONLY_TABLES.has(table)) return globalJson({ error: "This Global record type is read-only." }, 403, origin);\n    if (table === "business_profiles" && !["list", "update"].includes(String(action))) return globalJson({ error: "Global business profile supports read and update only." }, 403, origin);
+    if (action !== "list" && READ_ONLY_TABLES.has(table)) return globalJson({ error: "This Global record type is read-only." }, 403, origin);
+    if (table === "business_profiles" && !["list", "update"].includes(String(action))) return globalJson({ error: "Global business profile supports read and update only." }, 403, origin);
 
     const recordId = body.id;
     if ((action === "update" || action === "delete") && (typeof recordId !== "string" || !UUID.test(recordId))) {
