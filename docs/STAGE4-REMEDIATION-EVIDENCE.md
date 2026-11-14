@@ -69,7 +69,7 @@ No main/production code, production Supabase schema/data/ledger/RLS/grants, prod
 
 ## Stage 4 final remediation automation prepared
 
-A dedicated workflow, `.github/workflows/stage4-remediation.yml`, is being added on `global-dev` only. It is designed to execute two isolated verification lanes:
+A dedicated workflow, `.github/workflows/stage4-remediation-verification.yml`, is present on `global-dev` only. It is designed to execute two isolated verification lanes:
 
 1. Exact remote-history replay: 39 recovered SQL sources plus 8 normalized local equivalents, ordered as the 47 remote ledger versions.
 2. Current global-dev candidate replay: 35 remote historical sources missing by basename plus all 23 current local migrations, ordered by their local migration filenames.
@@ -78,7 +78,7 @@ The candidate replay seeds disposable India INR/PayU legacy rows after the histo
 
 The replay database uses the official Supabase PostgreSQL image with pg_cron/pg_net. Auth and Storage schema objects are compatibility fixtures; Vault secret creation is a local test stub. This is not a hosted Supabase environment and makes no connection to production. The separate Auth integration lane uses a disposable GoTrue service and PostgREST.
 
-CI execution and all replay/rollback assertions remain pending until the new workflow completes on the final candidate SHA. No test is described as passed before that run.
+The dedicated workflow is executing on the current candidate; its final CI run and all replay/rollback assertions remain pending until completion. No test is described as passed before that run.
 
 ## Cashfree Sandbox lifecycle test plan (prepared, not executed)
 
