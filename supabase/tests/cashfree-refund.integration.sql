@@ -135,8 +135,52 @@ SET payu_payment_id='PAYU-12'
 WHERE id='20000000-0000-0000-0000-000000000013';
 
 -- Apply both real migrations, then replay the targeted additive migration.
-\ir ../migrations/20261114000000_india_cashfree_refund_support.sql
-\ir ../migrations/20261114000001_cashfree_refund_payment_log_linkage.sql
+\\ir ../migrations/20261114000000_india_cashfree_refund_support.sql
+
+-- Historical refund fixtures are seeded before the linkage migration so its
+-- audited reconciliation path sees realistic pre-existing NULL links.
+INSERT INTO public.payment_refunds
+  (id,subscription_id,payment_log_id,user_id,workspace_id,provider,provider_refund_id,
+   amount_minor_units,currency,status,raw)
+VALUES
+  ('30000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000005',NULL,
+   'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','ws-a','cashfree','RF-HIST-UNLINKED-2K',2000,'INR','success',
+   '{"data":{"refund":{"order_id":"PLXCF-OVER-00000000000000000005","cf_payment_id":799005}}}'),
+  ('30000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000003',NULL,
+   'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','ws-a','cashfree','RF-HIST-VERIFIED',1500,'INR','success',
+   '{"data":{"refund":{"order_id":"PLXCF-REPLAY-000000000000000003","cf_payment_id":700003}}}'),
+  ('30000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000011',NULL,
+   'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','ws-a','cashfree','RF-HIST-AMBIGUOUS',500,'INR','success',
+   '{"data":{"refund":{"order_id":"PLXCF-MULTI-000000000000000011","cf_payment_id":711001}}}');
+
+-- Historical provider/gateway mismatches and NULL provider are not Cashfree
+-- ledger rows and must never be cleared/rebuilt by Cashfree cleanup.
+INSERT INTO public.payment_logs
+  (id,workspace_id,gateway,txnid,amount,currency,outcome,provider,subscription_id,
+   provider_payment_id,refund_status,refund_amount_minor_units)
+VALUES
+  ('20000000-0000-0000-0000-000000000015','ws-a','payu','LEGACY-PROVIDER-CASHFREE-GATEWAY',10000,'INR','applied','cashfree',NULL,'MISMATCH-1','legacy_provider_mismatch',2222),
+  ('20000000-0000-0000-0000-000000000016','ws-a','cashfree','LEGACY-GATEWAY-CASHFREE-PROVIDER',10000,'INR','applied','payu',NULL,'MISMATCH-2','legacy_gateway_mismatch',3333),
+  ('20000000-0000-0000-0000-000000000017','ws-a','cashfree','LEGACY-NULL-PROVIDER',10000,'INR','applied',NULL,NULL,'NULL-PROVIDER','legacy_null_provider',4444),
+  ('20000000-0000-0000-0000-000000000098','ws-a','cashfree','PLXCF-MULTI-000000000000000011',10000,'INR','applied','cashfree',
+   '10000000-0000-0000-0000-000000000011','711001',NULL,NULL);
+
+-- The real schema declares payment_logs.gateway NOT NULL; prove the NULL
+-- gateway fixture is rejected rather than weakening the production-shaped test schema.
+DO $
+DECLARE v_blocked boolean := false;
+BEGIN
+  BEGIN
+    INSERT INTO public.payment_logs (id,gateway,provider,txnid)
+    VALUES ('20000000-0000-0000-0000-000000000097',NULL,'cashfree','NULL-GATEWAY-UNSUPPORTED');
+  EXCEPTION WHEN not_null_violation THEN
+    v_blocked := true;
+  END;
+  IF NOT v_blocked THEN RAISE EXCEPTION 'Expected payment_logs.gateway NOT NULL constraint'; END IF;
+END
+$;
+
+\\ir ../migrations/20261114000001_cashfree_refund_payment_log_linkage.sql
 \ir ../migrations/20261114000001_cashfree_refund_payment_log_linkage.sql
 
 DO $$
@@ -387,6 +431,91 @@ BEGIN
   END IF;
 END
 $$;
+
+-- Historical unlinked ₹2,000 refund blocks a new ₹10,000 refund against
+-- the ₹10,000 original. The rejected webhook must not mutate any ledger or
+-- accounting state.
+DO $
+DECLARE
+  v jsonb;
+  v_count integer;
+  v_status text;
+  v_payment_status text;
+  v_refund_status text;
+  v_log_status text;
+  v_log_total bigint;
+  v_old_amount bigint;
+  v_old_status text;
+BEGIN
+  SELECT amount_minor_units,status INTO v_old_amount,v_old_status
+  FROM public.payment_refunds WHERE id='30000000-0000-0000-0000-000000000001';
+  SELECT status::text,payment_status,refund_status INTO v_status,v_payment_status,v_refund_status
+  FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000005';
+  SELECT refund_status,refund_amount_minor_units INTO v_log_status,v_log_total
+  FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000005';
+  SELECT count(*) INTO v_count FROM public.payment_refunds WHERE subscription_id='10000000-0000-0000-0000-000000000005';
+
+  v := public.apply_cashfree_refund_event(
+    '10000000-0000-0000-0000-000000000005','RF-HIST-NEW-10K',10000,'INR','success',
+    '{"data":{"refund":{"order_id":"PLXCF-OVER-00000000000000000005","cf_payment_id":700005}}}'::jsonb
+  );
+  IF v->>'reason' <> 'historical_refund_reconciliation_required' THEN
+    RAISE EXCEPTION 'Historical unlinked refund did not block new refund: %', v;
+  END IF;
+  IF (SELECT count(*) FROM public.payment_refunds WHERE subscription_id='10000000-0000-0000-0000-000000000005') <> v_count
+     OR (SELECT amount_minor_units FROM public.payment_refunds WHERE id='30000000-0000-0000-0000-000000000001') <> v_old_amount
+     OR (SELECT status FROM public.payment_refunds WHERE id='30000000-0000-0000-0000-000000000001') <> v_old_status THEN
+    RAISE EXCEPTION 'Rejected historical-conflict refund changed refund ledger rows';
+  END IF;
+  IF (SELECT status::text FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000005') <> v_status
+     OR (SELECT payment_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000005') IS DISTINCT FROM v_payment_status
+     OR (SELECT refund_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000005') IS DISTINCT FROM v_refund_status THEN
+    RAISE EXCEPTION 'Rejected historical-conflict refund changed subscription accounting state';
+  END IF;
+  IF (SELECT refund_status FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000005') IS DISTINCT FROM v_log_status
+     OR (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000005') IS DISTINCT FROM v_log_total THEN
+    RAISE EXCEPTION 'Rejected historical-conflict refund changed payment-log totals/status';
+  END IF;
+END
+$;
+
+-- Verified NULL -> exact payment-log reconciliation is audited; ambiguous
+-- historical mapping remains NULL and flagged for manual review.
+DO $
+DECLARE
+  v_link uuid;
+  v_count integer;
+BEGIN
+  SELECT payment_log_id INTO v_link FROM public.payment_refunds
+  WHERE id='30000000-0000-0000-0000-000000000002';
+  IF v_link <> '20000000-0000-0000-0000-000000000003'::uuid THEN
+    RAISE EXCEPTION 'Verified historical refund was not linked to exact payment log';
+  END IF;
+  SELECT count(*) INTO v_count FROM public.cashfree_refund_reconciliation_audit
+  WHERE refund_id='30000000-0000-0000-0000-000000000002'
+    AND payment_log_id='20000000-0000-0000-0000-000000000003'
+    AND action='verified_null_to_link';
+  IF v_count <> 1 THEN RAISE EXCEPTION 'Verified historical reconciliation was not audited exactly once'; END IF;
+
+  IF (SELECT payment_log_id FROM public.payment_refunds
+      WHERE id='30000000-0000-0000-0000-000000000003') IS NOT NULL THEN
+    RAISE EXCEPTION 'Ambiguous historical refund was incorrectly linked';
+  END IF;
+  IF (SELECT refund_status FROM public.payment_logs
+      WHERE id='20000000-0000-0000-0000-000000000011') <> 'reconciliation_required' THEN
+    RAISE EXCEPTION 'Ambiguous historical refund did not retain reconciliation marker';
+  END IF;
+
+  IF (SELECT refund_status FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000015') <> 'legacy_provider_mismatch'
+     OR (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000015') <> 2222
+     OR (SELECT refund_status FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000016') <> 'legacy_gateway_mismatch'
+     OR (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000016') <> 3333
+     OR (SELECT refund_status FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000017') <> 'legacy_null_provider'
+     OR (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000017') <> 4444 THEN
+    RAISE EXCEPTION 'Cashfree cleanup changed mismatched or NULL-provider payment-log values';
+  END IF;
+END
+$;
 
 -- RLS must expose only the authenticated user's own refund rows.
 RESET ROLE;
