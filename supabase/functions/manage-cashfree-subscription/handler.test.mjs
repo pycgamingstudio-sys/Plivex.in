@@ -5,12 +5,12 @@ const WORKSPACE_A = "workspace-a";
 const WORKSPACE_B = "workspace-b";
 const NOW = "2026-11-14T00:00:00.000Z";
 
-function harness({ role = "admin", workspaceId = WORKSPACE_A, subscriptionWorkspace = WORKSPACE_A, initialCancel = false, barrier = null, gateway = "cashfree", provider = "cashfree" } = {}) {
+function harness({ role = "admin", workspaceId = WORKSPACE_A, subscriptionWorkspace = WORKSPACE_A, initialCancel = false, barrier = null, gateway = "cashfree", provider = "cashfree", authResult = { data: { user: { id: USER_ID } }, error: null } } = {}) {
   const state = { cancel: initialCancel, requestedAt: initialCancel ? "2026-11-13T00:00:00.000Z" : null, updatedAt: null, workspace: subscriptionWorkspace };
   const queryLog = [];
   const createClient = (_url, key) => {
     if (key === "anon-key") return {
-      auth: { getUser: async () => ({ data: { user: { id: USER_ID } }, error: null }) },
+      auth: { getUser: async () => authResult },
       from: (table) => ({
         select: () => ({ eq: (column, value) => {
           queryLog.push({ table, column, value });
@@ -173,3 +173,19 @@ Deno.test("status action reports current cancellation state without writing", as
   }
 });
 
+
+Deno.test("endpoint rejects invalid or expired bearer tokens when auth.getUser returns an error", async () => {
+  const h = harness({ authResult: { data: { user: null }, error: { message: "Invalid JWT" } } });
+  const response = await h.request("cancel");
+  if (response.status !== 401) throw new Error("Invalid or expired bearer token was not rejected");
+  if (h.queryLog.length !== 0) throw new Error("Invalid bearer token reached profile or subscription lookup");
+  if (h.state.cancel !== false) throw new Error("Invalid bearer token changed subscription state");
+});
+
+Deno.test("endpoint rejects a null authenticated user even when auth.getUser has no error", async () => {
+  const h = harness({ authResult: { data: { user: null }, error: null } });
+  const response = await h.request("cancel");
+  if (response.status !== 401) throw new Error("Null authenticated user was not rejected");
+  if (h.queryLog.length !== 0) throw new Error("Null authenticated user reached profile or subscription lookup");
+  if (h.state.cancel !== false) throw new Error("Null authenticated user changed subscription state");
+});
