@@ -252,6 +252,11 @@ BEGIN
         status = CASE WHEN v_subscription_total >= v_subscription_original THEN 'failed' ELSE status END,
         updated_at = clock_timestamp()
     WHERE id = v_subscription.id;
+  ELSE
+    UPDATE public.payment_logs l
+    SET refund_status = 'reconciliation_required'
+    WHERE l.subscription_id = v_refund.subscription_id
+      AND l.provider = 'cashfree' AND l.gateway = 'cashfree';
   END IF;
 
   RETURN jsonb_build_object('ok', true, 'reconciled', true, 'payment_log_id', v_payment_log_id);
