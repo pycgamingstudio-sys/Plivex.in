@@ -58,7 +58,10 @@ begin
 
   if p_action = 'list' then
     case p_table
-      when 'business_profiles' then\n        select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) into v_records\n        from (select * from global.business_profiles where workspace_id=p_workspace_id limit 1) t;\n      when 'clients' then
+      when 'business_profiles' then
+        select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) into v_records
+        from (select * from global.business_profiles where workspace_id=p_workspace_id limit 1) t;
+      when 'clients' then
         select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) into v_records
         from (select * from global.clients where workspace_id=p_workspace_id order by created_at desc limit v_limit) t;
       when 'products' then
@@ -143,7 +146,21 @@ begin
 
   if p_action = 'update' then
     case p_table
-      when 'business_profiles' then\n        update global.business_profiles set\n          legal_name=case when p_values ? 'legal_name' then p_values->>'legal_name' else legal_name end,\n          display_name=case when p_values ? 'display_name' then p_values->>'display_name' else display_name end,\n          email=case when p_values ? 'email' then p_values->>'email' else email end,\n          phone=case when p_values ? 'phone' then p_values->>'phone' else phone end,\n          address=case when p_values ? 'address' then p_values->>'address' else address end,\n          tax_registration_number=case when p_values ? 'tax_registration_number' then p_values->>'tax_registration_number' else tax_registration_number end,\n          tax_registration_type=case when p_values ? 'tax_registration_type' then p_values->>'tax_registration_type' else tax_registration_type end,\n          tax_registration_status=case when p_values ? 'tax_registration_status' then p_values->>'tax_registration_status' else tax_registration_status end,\n          tax_jurisdiction_code=case when p_values ? 'tax_jurisdiction_code' then p_values->>'tax_jurisdiction_code' else tax_jurisdiction_code end\n        where workspace_id=p_workspace_id\n        returning to_jsonb(global.business_profiles.*) into v_record;\n      when 'clients' then\n        update global.clients set
+      when 'business_profiles' then
+        update global.business_profiles set
+          legal_name=case when p_values ? 'legal_name' then p_values->>'legal_name' else legal_name end,
+          display_name=case when p_values ? 'display_name' then p_values->>'display_name' else display_name end,
+          email=case when p_values ? 'email' then p_values->>'email' else email end,
+          phone=case when p_values ? 'phone' then p_values->>'phone' else phone end,
+          address=case when p_values ? 'address' then p_values->>'address' else address end,
+          tax_registration_number=case when p_values ? 'tax_registration_number' then p_values->>'tax_registration_number' else tax_registration_number end,
+          tax_registration_type=case when p_values ? 'tax_registration_type' then p_values->>'tax_registration_type' else tax_registration_type end,
+          tax_registration_status=case when p_values ? 'tax_registration_status' then p_values->>'tax_registration_status' else tax_registration_status end,
+          tax_jurisdiction_code=case when p_values ? 'tax_jurisdiction_code' then p_values->>'tax_jurisdiction_code' else tax_jurisdiction_code end
+        where workspace_id=p_workspace_id
+        returning to_jsonb(global.business_profiles.*) into v_record;
+      when 'clients' then
+        update global.clients set
           name=case when p_values ? 'name' then p_values->>'name' else name end,
           email=case when p_values ? 'email' then p_values->>'email' else email end,
           phone=case when p_values ? 'phone' then p_values->>'phone' else phone end,
