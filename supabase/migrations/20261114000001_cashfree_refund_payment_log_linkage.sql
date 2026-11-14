@@ -129,7 +129,7 @@ BEGIN
      AND OLD.gateway = 'cashfree'
      AND (
        NEW.id IS DISTINCT FROM OLD.id
-       OR NEW.subscription_id IS DISTINCT FROM OLD.subscription_id
+       OR (NEW.subscription_id IS DISTINCT FROM OLD.subscription_id AND NEW.subscription_id IS NOT NULL)
        OR NEW.txnid IS DISTINCT FROM OLD.txnid
        OR NEW.provider IS DISTINCT FROM OLD.provider
        OR NEW.gateway IS DISTINCT FROM OLD.gateway
@@ -193,10 +193,7 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'reason', 'invalid_refund_data');
   END IF;
 
-  v_cf_payment_id := NULLIF(trim(COALESCE(
-    p_raw #>> '{data,refund,cf_payment_id}',
-    p_raw #>> '{data,refund,payment_id}'
-  )), '');
+  v_cf_payment_id := NULLIF(trim(p_raw #>> '{data,refund,cf_payment_id}'), '');
   v_refund_order_id := NULLIF(trim(COALESCE(
     p_raw #>> '{data,refund,order_id}',
     p_raw #>> '{data,order,order_id}'
