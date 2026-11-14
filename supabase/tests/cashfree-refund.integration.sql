@@ -101,6 +101,10 @@ VALUES
   ('10000000-0000-0000-0000-000000000012','dddddddd-dddd-dddd-dddd-dddddddddddd','d@example.test','ws-d','basic_monthly','Basic','basic','active',300,30000,'INR','payu','payu','PLX-PAYU-LEGACY-0000000000000012'),
   ('10000000-0000-0000-0000-000000000013','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-PER-PAYMENT-000000000013');
 
+UPDATE public.subscriptions
+SET payu_txnid='PAYU-TXN-12', payu_payment_id='PAYU-12'
+WHERE id='10000000-0000-0000-0000-000000000012';
+
 INSERT INTO public.payment_logs
   (id,user_id,user_email,workspace_id,gateway,txnid,plan_id,plan_name,tier,amount,currency,
    outcome,hash_verified,provider,status,subscription_id,provider_status,provider_payment_id,raw)
@@ -108,17 +112,21 @@ VALUES
   ('20000000-0000-0000-0000-000000000001','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-PARTIAL-000000000000000001','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000001','SUCCESS','700001','{"payment":{"cf_payment_id":700001}}'),
   ('20000000-0000-0000-0000-000000000002','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','b@example.test','ws-b','cashfree','PLXCF-FULL-00000000000000000002','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000002','SUCCESS','700002','{"payment":{"cf_payment_id":700002}}'),
   ('20000000-0000-0000-0000-000000000003','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-REPLAY-000000000000000003','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000003','SUCCESS','700003','{"payment":{"cf_payment_id":700003}}'),
-  ('20000000-0000-0000-0000-000000000004','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','ws-a','cashfree','PLXCF-CURRENCY-0000000000000004','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000004','SUCCESS','700004','{"payment":{"cf_payment_id":700004}}'),
-  ('20000000-0000-0000-0000-000000000005','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','ws-a','cashfree','PLXCF-OVER-00000000000000000005','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000005','SUCCESS','700005','{"payment":{"cf_payment_id":700005}}'),
-  ('20000000-0000-0000-0000-000000000006','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','ws-a','cashfree','PLXCF-CUMULATIVE-000000000000006','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000006','SUCCESS','700006','{"payment":{"cf_payment_id":700006}}'),
-  ('20000000-0000-0000-0000-000000000007','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','ws-a','cashfree','PLXCF-TRANSITION-000000000000007','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000007','SUCCESS','700007','{"payment":{"cf_payment_id":700007}}'),
-  ('20000000-0000-0000-0000-000000000008','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','ws-a','cashfree','PLXCF-SERVICE-000000000000000008','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000008','SUCCESS','700008','{"payment":{"cf_payment_id":700008}}'),
-  ('20000000-0000-0000-0000-000000000009','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','ws-a','cashfree','PLXCF-CONCURRENT-000000000000000009','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000009','SUCCESS','700009','{"payment":{"cf_payment_id":700009}}'),
-  ('20000000-0000-0000-0000-000000000010','cccccccc-cccc-cccc-cccc-cccccccccccc','ws-c','phonepe','PLX-PHONEPE-LEGACY-0000000000000010','basic_monthly','Basic','basic',20000,'INR','applied',true,'phonepe','success','10000000-0000-0000-0000-000000000010','COMPLETED','PP-10010','{}'),
-  ('20000000-0000-0000-0000-000000000011','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','ws-a','cashfree','PLXCF-MULTI-000000000000000011','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000011','SUCCESS','711001','{"payment":{"cf_payment_id":711001}}'),
-  ('20000000-0000-0000-0000-000000000012','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','ws-a','cashfree','PLXCF-MULTI-000000000000000011','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000011','SUCCESS','711002','{"payment":{"cf_payment_id":711002}}'),
-  ('20000000-0000-0000-0000-000000000013','dddddddd-dddd-dddd-dddd-dddddddddddd','ws-d','payu','PLX-PAYU-LEGACY-0000000000000012','basic_monthly','Basic','basic',30000,'INR','applied',true,'payu','success','10000000-0000-0000-0000-000000000012','SUCCESS','PAYU-12','{}'),
-  ('20000000-0000-0000-0000-000000000014','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','ws-a','cashfree','PLXCF-PER-PAYMENT-000000000013','basic_monthly','Basic','basic',5000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000013','SUCCESS','713001','{"payment":{"cf_payment_id":713001}}');
+  ('20000000-0000-0000-0000-000000000004','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-CURRENCY-0000000000000004','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000004','SUCCESS','700004','{"payment":{"cf_payment_id":700004}}'),
+  ('20000000-0000-0000-0000-000000000005','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-OVER-00000000000000000005','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000005','SUCCESS','700005','{"payment":{"cf_payment_id":700005}}'),
+  ('20000000-0000-0000-0000-000000000006','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-CUMULATIVE-000000000000006','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000006','SUCCESS','700006','{"payment":{"cf_payment_id":700006}}'),
+  ('20000000-0000-0000-0000-000000000007','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-TRANSITION-000000000000007','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000007','SUCCESS','700007','{"payment":{"cf_payment_id":700007}}'),
+  ('20000000-0000-0000-0000-000000000008','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-SERVICE-000000000000000008','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000008','SUCCESS','700008','{"payment":{"cf_payment_id":700008}}'),
+  ('20000000-0000-0000-0000-000000000009','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-CONCURRENT-000000000000000009','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000009','SUCCESS','700009','{"payment":{"cf_payment_id":700009}}'),
+  ('20000000-0000-0000-0000-000000000010','cccccccc-cccc-cccc-cccc-cccccccccccc','c@example.test','ws-c','phonepe','PLX-PHONEPE-LEGACY-0000000000000010','basic_monthly','Basic','basic',20000,'INR','applied',true,'phonepe','success','10000000-0000-0000-0000-000000000010','COMPLETED','PP-10010','{}'),
+  ('20000000-0000-0000-0000-000000000011','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-MULTI-000000000000000011','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000011','SUCCESS','711001','{"payment":{"cf_payment_id":711001}}'),
+  ('20000000-0000-0000-0000-000000000012','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-MULTI-000000000000000011','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000011','SUCCESS','711002','{"payment":{"cf_payment_id":711002}}'),
+  ('20000000-0000-0000-0000-000000000013','dddddddd-dddd-dddd-dddd-dddddddddddd','d@example.test','ws-d','payu','PLX-PAYU-LEGACY-0000000000000012','basic_monthly','Basic','basic',30000,'INR','applied',true,'payu','success','10000000-0000-0000-0000-000000000012','SUCCESS','PAYU-12','{}'),
+  ('20000000-0000-0000-0000-000000000014','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-PER-PAYMENT-000000000013','basic_monthly','Basic','basic',5000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000013','SUCCESS','713001','{"payment":{"cf_payment_id":713001}}');
+
+UPDATE public.payment_logs
+SET payu_payment_id='PAYU-12'
+WHERE id='20000000-0000-0000-0000-000000000013';
 
 -- Apply both real migrations, then replay the targeted additive migration.
 \ir ../migrations/20261114000000_india_cashfree_refund_support.sql
@@ -355,6 +363,9 @@ BEGIN
   SELECT amount_paise INTO v_minor FROM public.subscriptions
    WHERE id='10000000-0000-0000-0000-000000000012';
   IF v_minor <> 30000 THEN RAISE EXCEPTION 'PayU subscription amount was changed'; END IF;
+  IF (SELECT payu_payment_id FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000013') <> 'PAYU-12' THEN
+    RAISE EXCEPTION 'PayU payment-log identifier was changed';
+  END IF;
 
   -- Permissions: only service_role may execute the RPC; anon cannot read the refund ledger.
   IF has_function_privilege('anon','public.apply_cashfree_refund_event(uuid,text,bigint,text,text,jsonb)','EXECUTE')
