@@ -11,7 +11,7 @@ test("Global signup defers country choice until after authentication", async () 
   assert.match(register, /APP_EDITION !== "global" && !inviteCode/);
   assert.match(register, /APP_EDITION === "global" \? \{ email, password \}/);
   assert.match(google, /APP_EDITION !== "global"/);
-  assert.doesNotMatch(google, /plivex\.signup\.region/);
+  assert.match(google, /else if \(APP_EDITION !== "global"\).*localStorage\.setItem/s);
   assert.match(backend, /APP_EDITION === "global"/);
   assert.match(backend, /"global-ensure-owner", "global-business-records"/);
 });
