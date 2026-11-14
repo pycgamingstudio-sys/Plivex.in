@@ -36,9 +36,9 @@ export const KEYS = {
 const NAMESPACE = "invoicepulse";
 let _tenantId = "guest";
 
-export function setTenantId(id) {
+export function setTenantId(id, options = {}) {
   _tenantId = id ? String(id) : "guest";
-  migrateLegacyData(_tenantId);
+  if (options?.migrateLegacy !== false) migrateLegacyData(_tenantId);
 }
 
 export function getTenantId() {
