@@ -8,11 +8,11 @@ const URL = Deno.env.get("TEST_SUPABASE_URL") || "http://127.0.0.1:3000";
 const JWT_SECRET = Deno.env.get("TEST_JWT_SECRET") || "";
 const ANON_KEY = "disposable-anon-key";
 
-function base64Url(bytes: Uint8Array) {
+function base64Url(bytes) {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-async function signJwt(claims: Record<string, unknown>) {
+async function signJwt(claims) {
   if (!JWT_SECRET) throw new Error("TEST_JWT_SECRET is required");
   const encoder = new TextEncoder();
   const header = base64Url(encoder.encode(JSON.stringify({ alg: "HS256", typ: "JWT" })));
@@ -43,21 +43,21 @@ async function createHandler() {
     iat: nowSeconds,
     exp: nowSeconds + 3600,
   });
-  const createDbClient = (url: string, key: string, options?: Record<string, unknown>) => {
-    const client = createClient(url, key, options as never);
+  const createDbClient = (url, key, options) => {
+    const client = createClient(url, key, options);
     if (key === ANON_KEY) {
       // Only Supabase Auth identity lookup is stubbed. Profile and subscription
       // reads/writes below go through real Supabase JS -> PostgREST -> PostgreSQL.
       client.auth.getUser = async () => ({
         data: { user: { id: USER_ID, email: "admin@example.test" } },
         error: null,
-      }) as never;
+      });
     }
     return client;
   };
   const handler = createManageCashfreeSubscriptionHandler({
     createClient: createDbClient,
-    getEnv: (name: string) => ({
+    getEnv: (name) => ({
       SUPABASE_URL: URL,
       SUPABASE_ANON_KEY: ANON_KEY,
       SUPABASE_SERVICE_ROLE_KEY: serviceToken,
@@ -68,7 +68,7 @@ async function createHandler() {
   return {
     handler,
     admin,
-    request: (action: string) => handler(new Request(URL + "/functions/v1/manage-cashfree-subscription", {
+    request: (action) => handler(new Request(URL + "/functions/v1/manage-cashfree-subscription", {
       method: "POST",
       headers: {
         Authorization: "Bearer " + userToken,
