@@ -6,6 +6,17 @@ ON CONFLICT (id) DO NOTHING;
 SET session_replication_role = origin;
 SET request.jwt.claim.role = 'service_role';
 
+-- Recreate the existing India Basic entitlement baseline before later
+-- edition-specific migrations run. The local no-op migration must preserve it.
+INSERT INTO public.plan_features (plan, feature, allowed)
+VALUES ('basic', 'lead_pipeline', true)
+ON CONFLICT (plan, feature) DO UPDATE SET allowed = EXCLUDED.allowed;
+
+INSERT INTO public.plan_limits (plan, resource, max_count, period)
+VALUES ('basic', 'leads', 200, 'total')
+ON CONFLICT (plan, resource) DO UPDATE
+SET max_count = EXCLUDED.max_count, period = EXCLUDED.period;
+
 INSERT INTO public.profiles (id, email, full_name, role, workspace_id)
 VALUES ('11111111-1111-4111-8111-111111111111','india-owner@example.test','India Regression Owner','admin','workspace-india-regression')
 ON CONFLICT (id) DO NOTHING;
