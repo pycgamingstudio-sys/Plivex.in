@@ -175,6 +175,33 @@ RELEASE SAVEPOINT migration010_rollback_probe;
 -- Apply and reapply normally to prove convergence.
 \ir ../migrations/202611130010_cashfree_refund_identity_immutability.sql
 \ir ../migrations/202611130010_cashfree_refund_identity_immutability.sql
+-- Verify the exact-payment refund RPC migration is transactional and repeatable.
+CREATE TEMP TABLE migration011_before AS
+SELECT pg_get_functiondef(oid) AS definition, proconfig, proacl, proowner, prosecdef
+FROM pg_catalog.pg_proc
+WHERE oid = 'public.apply_cashfree_refund_event(uuid,text,bigint,text,text,jsonb)'::regprocedure;
+SAVEPOINT migration011_rollback_probe;
+\ir ../migrations/20261114000005_cashfree_refund_exact_payment_mapping.sql
+ROLLBACK TO SAVEPOINT migration011_rollback_probe;
+DO $migration011_rollback_assert$
+BEGIN
+ IF NOT EXISTS (
+   SELECT 1 FROM migration011_before b
+   JOIN pg_catalog.pg_proc p
+     ON p.oid = 'public.apply_cashfree_refund_event(uuid,text,bigint,text,text,jsonb)'::regprocedure
+   WHERE pg_get_functiondef(p.oid)=b.definition
+     AND p.proconfig IS NOT DISTINCT FROM b.proconfig
+     AND p.proacl IS NOT DISTINCT FROM b.proacl
+     AND p.proowner IS NOT DISTINCT FROM b.proowner
+     AND p.prosecdef IS NOT DISTINCT FROM b.prosecdef
+ ) THEN RAISE EXCEPTION 'Migration 011 rollback did not restore legacy RPC state'; END IF;
+ IF to_regprocedure('public.apply_cashfree_refund_event(uuid,text,text,text,bigint,text,text,jsonb)') IS NOT NULL THEN
+   RAISE EXCEPTION 'Migration 011 rollback left the new RPC installed'; END IF;
+END
+$migration011_rollback_assert$;
+RELEASE SAVEPOINT migration011_rollback_probe;
+\ir ../migrations/20261114000005_cashfree_refund_exact_payment_mapping.sql
+\ir ../migrations/20261114000005_cashfree_refund_exact_payment_mapping.sql
 GRANT SELECT ON public.subscriptions TO service_role;
 
 DO $legacy$
@@ -256,18 +283,26 @@ $replay$;
 SET ROLE service_role;
 SELECT public.apply_cashfree_refund_event(
  (SELECT id FROM public.subscriptions WHERE txnid='PLXCF-ORDER000000000000000001'),
+ 'PLXCF-ORDER000000000000000001',
+ 'CFPAY-001',
  'CFREFUND-001',200,'USD','success','{"test":"partial-1"}'::jsonb
 );
 SELECT public.apply_cashfree_refund_event(
  (SELECT id FROM public.subscriptions WHERE txnid='PLXCF-ORDER000000000000000001'),
+ 'PLXCF-ORDER000000000000000001',
+ 'CFPAY-001',
  'CFREFUND-002',300,'USD','success','{"test":"partial-2"}'::jsonb
 );
 SELECT public.apply_cashfree_refund_event(
  (SELECT id FROM public.subscriptions WHERE txnid='PLXCF-ORDER000000000000000001'),
+ 'PLXCF-ORDER000000000000000001',
+ 'CFPAY-001',
  'CFREFUND-002',300,'USD','success','{"test":"partial-2-replay"}'::jsonb
 );
 SELECT public.apply_cashfree_refund_event(
  (SELECT id FROM public.subscriptions WHERE txnid='PLXCF-ORDER000000000000000001'),
+ 'PLXCF-ORDER000000000000000001',
+ 'CFPAY-001',
  'CFREFUND-OVER',100,'USD','success','{"test":"over-refund"}'::jsonb
 );
 RESET ROLE;
@@ -293,6 +328,8 @@ $partial_refunds$;
 SET ROLE service_role;
 SELECT public.apply_cashfree_refund_event(
  (SELECT id FROM public.subscriptions WHERE txnid='PLXCF-ORDER000000000000000001'),
+ 'PLXCF-ORDER000000000000000001',
+ 'CFPAY-001',
  'CFREFUND-003',99,'USD','success','{"test":"final-refund"}'::jsonb
 );
 RESET ROLE;
@@ -572,6 +609,118 @@ BEGIN
 END
 $null_workspace_cross_user_b$;
 
+-- A subscription with two successful Cashfree payments must reconcile each
+-- refund against exactly the provider payment ID supplied by Cashfree.
+INSERT INTO public.subscriptions (
+ user_id,user_email,workspace_id,plan_id,plan_name,tier,status,amount,amount_minor_units,amount_major,
+ currency,country_code,locale_code,billing_period,gateway,provider,txnid,payment_status
+) VALUES (
+ '80000000-0000-0000-0000-000000000008','multi-refund@example.test','ws-multi-refund',
+ 'basic_monthly','Basic Monthly','basic','active',10,1000,10.00,
+ 'USD','US','en-US','month','cashfree','cashfree','MULTI-REFUND-ORDER','success'
+);
+INSERT INTO public.payment_logs (
+ user_id,workspace_id,gateway,txnid,plan_id,tier,amount,currency,status,outcome,
+ provider,subscription_id,provider_payment_id,amount_minor_units,amount_major
+) VALUES
+ ('80000000-0000-0000-0000-000000000008','ws-multi-refund','cashfree','MULTI-REFUND-ORDER',
+  'basic_monthly','basic',600,'USD','success','applied','cashfree',
+  (SELECT id FROM public.subscriptions WHERE txnid='MULTI-REFUND-ORDER'),'CFPAY-MULTI-A',600,6.00),
+ ('80000000-0000-0000-0000-000000000008','ws-multi-refund','cashfree','MULTI-REFUND-ORDER',
+  'basic_monthly','basic',400,'USD','success','applied','cashfree',
+  (SELECT id FROM public.subscriptions WHERE txnid='MULTI-REFUND-ORDER'),'CFPAY-MULTI-B',400,4.00);
+SET ROLE service_role;
+SELECT public.apply_cashfree_refund_event(
+ (SELECT id FROM public.subscriptions WHERE txnid='MULTI-REFUND-ORDER'),
+ 'MULTI-REFUND-ORDER','CFPAY-MULTI-A','CFREFUND-MULTI-A',300,'USD','success','{"test":"multi-a"}'::jsonb
+);
+SELECT public.apply_cashfree_refund_event(
+ (SELECT id FROM public.subscriptions WHERE txnid='MULTI-REFUND-ORDER'),
+ 'MULTI-REFUND-ORDER','CFPAY-MULTI-B','CFREFUND-MULTI-B',200,'USD','success','{"test":"multi-b"}'::jsonb
+);
+SELECT public.apply_cashfree_refund_event(
+ (SELECT id FROM public.subscriptions WHERE txnid='MULTI-REFUND-ORDER'),
+ 'MULTI-REFUND-ORDER','CFPAY-MULTI-A','CFREFUND-MULTI-A',300,'USD','success','{"test":"multi-a-replay"}'::jsonb
+);
+RESET ROLE;
+DO $multi_payment_refunds$
+DECLARE v_a uuid; v_b uuid; v_total bigint; v_a_refund bigint; v_b_refund bigint;
+BEGIN
+ SELECT id INTO v_a FROM public.payment_logs WHERE provider_payment_id='CFPAY-MULTI-A';
+ SELECT id INTO v_b FROM public.payment_logs WHERE provider_payment_id='CFPAY-MULTI-B';
+ SELECT sum(amount_minor_units) INTO v_total FROM public.payment_refunds
+ WHERE subscription_id=(SELECT id FROM public.subscriptions WHERE txnid='MULTI-REFUND-ORDER') AND status='success';
+ SELECT refund_amount_minor_units INTO v_a_refund FROM public.payment_logs WHERE id=v_a;
+ SELECT refund_amount_minor_units INTO v_b_refund FROM public.payment_logs WHERE id=v_b;
+ IF v_total<>500 OR v_a_refund<>300 OR v_b_refund<>200 THEN
+   RAISE EXCEPTION 'Per-payment/subscription refund totals incorrect: total %, A %, B %',v_total,v_a_refund,v_b_refund;
+ END IF;
+ IF (SELECT payment_log_id FROM public.payment_refunds WHERE provider_refund_id='CFREFUND-MULTI-A') IS DISTINCT FROM v_a
+    OR (SELECT payment_log_id FROM public.payment_refunds WHERE provider_refund_id='CFREFUND-MULTI-B') IS DISTINCT FROM v_b THEN
+   RAISE EXCEPTION 'Refund rows were not linked to their exact originating payment logs';
+ END IF;
+ IF (SELECT status::text FROM public.subscriptions WHERE txnid='MULTI-REFUND-ORDER')<>'active'
+    OR (SELECT payment_status FROM public.subscriptions WHERE txnid='MULTI-REFUND-ORDER')<>'partially_refunded' THEN
+   RAISE EXCEPTION 'Partial aggregate refund must preserve paid subscription access';
+ END IF;
+END
+$multi_payment_refunds$;
+DO $missing_payment_mapping$
+DECLARE v_result jsonb;
+BEGIN
+ v_result := public.apply_cashfree_refund_event(
+  (SELECT id FROM public.subscriptions WHERE txnid='MULTI-REFUND-ORDER'),
+  'MULTI-REFUND-ORDER','CFPAY-NOT-FOUND','CFREFUND-MISSING',10,'USD','success','{}'::jsonb
+ );
+ IF v_result->>'reason'<>'payment_log_not_found' THEN
+   RAISE EXCEPTION 'Unknown provider payment ID was not rejected: %',v_result;
+ END IF;
+ v_result := public.apply_cashfree_refund_event(
+  (SELECT id FROM public.subscriptions WHERE txnid='MULTI-REFUND-ORDER'),
+  'WRONG-ORDER','CFPAY-MULTI-A','CFREFUND-WRONG-ORDER',10,'USD','success','{}'::jsonb
+ );
+ IF v_result->>'reason'<>'refund_order_mismatch' THEN
+   RAISE EXCEPTION 'Mismatched Cashfree order ID was not rejected: %',v_result;
+ END IF;
+END
+$missing_payment_mapping$;
+
+-- Existing unlinked history is never silently assigned to an arbitrary payment.
+INSERT INTO public.subscriptions (
+ user_id,workspace_id,plan_id,tier,status,amount,amount_minor_units,amount_major,currency,country_code,
+ locale_code,billing_period,gateway,provider,txnid,payment_status
+) VALUES (
+ '90000000-0000-0000-0000-000000000009','ws-unlinked','basic_monthly','basic','active',5,500,5.00,
+ 'USD','US','en-US','month','cashfree','cashfree','UNLINKED-REFUND-ORDER','success'
+);
+INSERT INTO public.payment_logs (
+ user_id,workspace_id,gateway,txnid,plan_id,tier,amount,currency,status,outcome,provider,
+ subscription_id,provider_payment_id,amount_minor_units,amount_major
+) VALUES (
+ '90000000-0000-0000-0000-000000000009','ws-unlinked','cashfree','UNLINKED-REFUND-ORDER',
+ 'basic_monthly','basic',500,'USD','success','applied','cashfree',
+ (SELECT id FROM public.subscriptions WHERE txnid='UNLINKED-REFUND-ORDER'),'CFPAY-UNLINKED',500,5.00
+);
+INSERT INTO public.payment_refunds (
+ subscription_id,user_id,workspace_id,provider,provider_refund_id,amount_minor_units,currency,status
+) VALUES (
+ (SELECT id FROM public.subscriptions WHERE txnid='UNLINKED-REFUND-ORDER'),
+ '90000000-0000-0000-0000-000000000009','ws-unlinked','cashfree','HISTORICAL-UNLINKED',50,'USD','success'
+);
+DO $historical_unlinked_fail_closed$
+DECLARE v_result jsonb;
+BEGIN
+ v_result := public.apply_cashfree_refund_event(
+  (SELECT id FROM public.subscriptions WHERE txnid='UNLINKED-REFUND-ORDER'),
+  'UNLINKED-REFUND-ORDER','CFPAY-UNLINKED','CFREFUND-AFTER-UNLINKED',50,'USD','success','{}'::jsonb
+ );
+ IF v_result->>'reason'<>'historical_unlinked_refund' THEN
+   RAISE EXCEPTION 'Historical unlinked refund did not fail closed: %',v_result;
+ END IF;
+END
+$historical_unlinked_fail_closed$;
+
+
 -- Refund ID amount/currency are immutable in every lifecycle state.
 INSERT INTO public.subscriptions (
  user_id,user_email,workspace_id,plan_id,plan_name,tier,status,amount,amount_minor_units,amount_major,
@@ -581,11 +730,22 @@ INSERT INTO public.subscriptions (
  'basic_monthly','Basic Monthly','basic','active',5,500,5.00,
  'USD','US','en-US','month','cashfree','cashfree','REFUND-IMMUTABLE-ORDER'
 );
+INSERT INTO public.payment_logs (
+ user_id,workspace_id,gateway,txnid,plan_id,tier,amount,currency,status,outcome,
+ provider,subscription_id,provider_payment_id,amount_minor_units,amount_major
+) VALUES (
+ '70000000-0000-0000-0000-000000000007','ws-refund-immutable','cashfree','REFUND-IMMUTABLE-ORDER',
+ 'basic_monthly','basic',500,'USD','success','applied','cashfree',
+ (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+ 'CFPAY-REFUND-IMMUTABLE',500,5.00
+);
 
 -- First pending event establishes the immutable provider refund amount/currency.
 SET ROLE service_role;
 SELECT public.apply_cashfree_refund_event(
  (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+ 'REFUND-IMMUTABLE-ORDER',
+ 'CFPAY-REFUND-IMMUTABLE',
  'CFREFUND-IMMUTABLE',100,'USD','pending','{"test":"pending"}'::jsonb
 );
 RESET ROLE;
@@ -595,6 +755,8 @@ DECLARE v_result jsonb;
 BEGIN
  v_result := public.apply_cashfree_refund_event(
    (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+   'REFUND-IMMUTABLE-ORDER',
+   'CFPAY-REFUND-IMMUTABLE',
    'CFREFUND-IMMUTABLE',101,'USD','pending','{"test":"pending-amount-mismatch"}'::jsonb
  );
  IF v_result->>'reason' <> 'refund_amount_conflict' THEN
@@ -602,6 +764,8 @@ BEGIN
  END IF;
  v_result := public.apply_cashfree_refund_event(
    (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+   'REFUND-IMMUTABLE-ORDER',
+   'CFPAY-REFUND-IMMUTABLE',
    'CFREFUND-IMMUTABLE',100,'CAD','pending','{"test":"pending-currency-mismatch"}'::jsonb
  );
  IF v_result->>'reason' <> 'refund_amount_conflict' THEN
@@ -614,6 +778,8 @@ $refund_pending_immutability$;
 SET ROLE service_role;
 SELECT public.apply_cashfree_refund_event(
  (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+ 'REFUND-IMMUTABLE-ORDER',
+ 'CFPAY-REFUND-IMMUTABLE',
  'CFREFUND-IMMUTABLE',100,'USD','failed','{"test":"failed"}'::jsonb
 );
 RESET ROLE;
@@ -623,6 +789,8 @@ DECLARE v_result jsonb;
 BEGIN
  v_result := public.apply_cashfree_refund_event(
    (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+   'REFUND-IMMUTABLE-ORDER',
+   'CFPAY-REFUND-IMMUTABLE',
    'CFREFUND-IMMUTABLE',102,'USD','failed','{"test":"failed-amount-mismatch"}'::jsonb
  );
  IF v_result->>'reason' <> 'refund_amount_conflict' THEN
@@ -630,6 +798,8 @@ BEGIN
  END IF;
  v_result := public.apply_cashfree_refund_event(
    (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+   'REFUND-IMMUTABLE-ORDER',
+   'CFPAY-REFUND-IMMUTABLE',
    'CFREFUND-IMMUTABLE',100,'CAD','failed','{"test":"failed-currency-mismatch"}'::jsonb
  );
  IF v_result->>'reason' <> 'refund_amount_conflict' THEN
@@ -641,6 +811,8 @@ $refund_failed_immutability$;
 SET ROLE service_role;
 SELECT public.apply_cashfree_refund_event(
  (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+ 'REFUND-IMMUTABLE-ORDER',
+ 'CFPAY-REFUND-IMMUTABLE',
  'CFREFUND-IMMUTABLE',100,'USD','success','{"test":"success"}'::jsonb
 );
 RESET ROLE;
@@ -650,6 +822,8 @@ DECLARE v_result jsonb;
 BEGIN
  v_result := public.apply_cashfree_refund_event(
    (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+   'REFUND-IMMUTABLE-ORDER',
+   'CFPAY-REFUND-IMMUTABLE',
    'CFREFUND-IMMUTABLE',99,'USD','success','{"test":"success-amount-mismatch"}'::jsonb
  );
  IF v_result->>'reason' <> 'refund_amount_conflict' THEN
@@ -657,6 +831,8 @@ BEGIN
  END IF;
  v_result := public.apply_cashfree_refund_event(
    (SELECT id FROM public.subscriptions WHERE txnid='REFUND-IMMUTABLE-ORDER'),
+   'REFUND-IMMUTABLE-ORDER',
+   'CFPAY-REFUND-IMMUTABLE',
    'CFREFUND-IMMUTABLE',100,'GBP','success','{"test":"success-currency-mismatch"}'::jsonb
  );
  IF v_result->>'reason' <> 'refund_amount_conflict' THEN

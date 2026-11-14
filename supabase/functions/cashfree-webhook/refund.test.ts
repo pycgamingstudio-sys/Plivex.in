@@ -1,16 +1,16 @@
 import { handleCashfreeRefundEvent, isCashfreeRefundEvent } from "./refund.ts";
 
-const order = { id: "00000000-0000-0000-0000-000000000001", currency: "INR" };
+const order = { id: "00000000-0000-0000-0000-000000000001", txnid: "PLXCF-12345678123412341234123456", currency: "INR" };
 const successEvent = {
   type: "REFUND_STATUS_WEBHOOK",
-  data: { refund: { cf_refund_id: "CF-REFUND-1", order_id: "PLXCF-12345678123412341234123456", refund_status: "SUCCESS", refund_amount: 49.5 } },
+  data: { refund: { cf_refund_id: "CF-REFUND-1", order_id: "PLXCF-12345678123412341234123456", cf_payment_id: "CFPAY-1", refund_status: "SUCCESS", refund_amount: 49.5 } },
 };
 
 Deno.test("Cashfree refund handler applies valid INR refund events with normalized RPC arguments", async () => {
   let calls = 0;
   const response = await handleCashfreeRefundEvent(successEvent, order, async (args) => {
     calls++;
-    if (args.p_subscription_id !== order.id || args.p_provider_refund_id !== "CF-REFUND-1" ||
+    if (args.p_subscription_id !== order.id || args.p_order_id !== order.txnid || args.p_provider_payment_id !== "CFPAY-1" || args.p_provider_refund_id !== "CF-REFUND-1" ||
         args.p_amount_minor !== 4950 || args.p_currency !== "INR" || args.p_refund_status !== "success" ||
         args.p_raw !== successEvent) throw new Error("Refund RPC arguments were not normalized correctly");
     return { data: { ok: true, refund_status: "partially_refunded", refunded_minor_units: 4950, already_applied: false }, error: null };
@@ -54,7 +54,7 @@ Deno.test("Cashfree refund handler reports replay as already applied without dup
 Deno.test("Cashfree refund handler maps provider cancellation to failed and surfaces over-refund conflicts", async () => {
   const cancelled = await handleCashfreeRefundEvent({
     type: "REFUND_STATUS_WEBHOOK",
-    data: { refund: { refund_id: "R-CANCEL", refund_status: "CANCELLED", refund_amount: 1 } },
+    data: { refund: { refund_id: "R-CANCEL", order_id: order.txnid, cf_payment_id: "CFPAY-1", refund_status: "CANCELLED", refund_amount: 1 } },
   }, order, async (args) => {
     if (args.p_refund_status !== "failed") throw new Error("Cancelled refund status was not normalized");
     return { data: { ok: true, refund_status: "failed" }, error: null };
@@ -63,6 +63,28 @@ Deno.test("Cashfree refund handler maps provider cancellation to failed and surf
     data: { ok: false, reason: "cumulative_refund_exceeds_payment" }, error: null,
   }));
   if (cancelled?.status !== 200 || over?.status !== 409) throw new Error("Refund conflict/cancellation mapping failed");
+});
+
+
+Deno.test("Cashfree refund handler rejects missing payment identity and mismatched order IDs", async () => {
+  let calls = 0;
+  const invalid = [
+    { type: "REFUND_STATUS_WEBHOOK", data: { refund: {
+      refund_id: "R-NO-PAYMENT", order_id: order.txnid, refund_status: "SUCCESS", refund_amount: 1,
+    } } },
+    { type: "REFUND_STATUS_WEBHOOK", data: { refund: {
+      refund_id: "R-WRONG-ORDER", order_id: "OTHER-ORDER", cf_payment_id: "CFPAY-1",
+      refund_status: "SUCCESS", refund_amount: 1,
+    } } },
+  ];
+  for (const event of invalid) {
+    const response = await handleCashfreeRefundEvent(event, order, async () => {
+      calls++;
+      return { data: { ok: true }, error: null };
+    });
+    if (response?.status !== 400) throw new Error("Invalid refund payment identity was accepted");
+  }
+  if (calls !== 0) throw new Error("Invalid payment identity reached the refund RPC");
 });
 
 Deno.test("non-refund Cashfree payment events do not enter the refund handler", async () => {
@@ -87,6 +109,8 @@ Deno.test("Cashfree refund amounts convert exact decimal major units to integer 
       type: "REFUND_STATUS_WEBHOOK",
       data: { refund: {
         refund_id: `R-DECIMAL-${index}`,
+        order_id: order.txnid,
+        cf_payment_id: "CFPAY-1",
         refund_status: "SUCCESS",
         refund_amount: testCase.amount,
       } },
@@ -109,6 +133,8 @@ Deno.test("Cashfree refund amounts convert exact decimal major units to integer 
     type: "REFUND_STATUS_WEBHOOK",
     data: { refund: {
       refund_id: "R-DECIMAL-INVALID",
+      order_id: order.txnid,
+      cf_payment_id: "CFPAY-1",
       refund_status: "SUCCESS",
       refund_amount: 1.001,
     } },
