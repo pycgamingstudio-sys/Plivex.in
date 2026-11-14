@@ -58,7 +58,7 @@ jobs:
         run: |
           createdb plivex_billing_test
           psql -d plivex_billing_test -v ON_ERROR_STOP=1 -f supabase/tests/global-billing.integration.sql
-      - name: Verify real PostgreSQL Cashfree cancel/resume concurrency and expiry guard
+      - name: Verify disposable PostgreSQL CAS predicate model and expiry guards (not HTTP handler integration)
         shell: bash
         run: |
           createdb plivex_cashfree_cancel_cas_test
