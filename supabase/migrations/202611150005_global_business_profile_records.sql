@@ -93,7 +93,11 @@ begin
   if p_table in ('stock_levels','stock_movements','invoices','invoice_items','invoice_payments') then
     return jsonb_build_object('ok', false, 'reason', 'read_only');
   end if;
-  if p_table = 'expenses' then
+  if p_table = 'business_profiles' then
+    if v_role not in ('owner','admin') then
+      return jsonb_build_object('ok', false, 'reason', 'forbidden');
+    end if;
+  elsif p_table = 'expenses' then
     if v_role not in ('owner','admin','accountant') then
       return jsonb_build_object('ok', false, 'reason', 'forbidden');
     end if;
