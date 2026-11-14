@@ -113,7 +113,7 @@ function assertRls(port, includeGlobal) {
   if (unsafe) fail("Required public tables missing or without RLS: " + unsafe);
 }
 function assertGlobalFoundation(port) {
-  const missing = query(port, "plivex_migration_replay", "SELECT string_agg(t.name, ',') FROM (VALUES ('workspaces'),('user_profiles'),('workspace_members'),('business_profiles'),('clients'),('products'),('stock_levels'),('invoices'),('invoice_items'),('invoice_payments'),('expenses')) AS t(name) WHERE to_regclass('global.' || t.name) IS NULL OR NOT COALESCE((SELECT c.relrowsecurity FROM pg_class c WHERE c.oid = to_regclass('global.' || t.name)), false);");
+  const missing = query(port, "plivex_migration_replay", "SELECT string_agg(t.name, ',') FROM (VALUES ('workspaces'),('user_profiles'),('workspace_members'),('business_profiles'),('clients'),('products'),('stock_levels'),('stock_movements'),('invoices'),('invoice_items'),('invoice_payments'),('expenses')) AS t(name) WHERE to_regclass('global.' || t.name) IS NULL OR NOT COALESCE((SELECT c.relrowsecurity FROM pg_class c WHERE c.oid = to_regclass('global.' || t.name)), false);");
   if (missing) fail("Global foundation tables missing or RLS disabled: " + missing);
   const usage = query(port, "plivex_migration_replay", "SELECT has_schema_privilege('authenticated','global','USAGE')::text || '|' || has_schema_privilege('anon','global','USAGE')::text;");
   if (usage !== "true|false") fail("Global schema grants are not least-privilege: " + usage);
@@ -163,7 +163,7 @@ function assertGlobalMigrationRollback(port) {
     psql(port, db, ["-f", provisioningPath]);
     const businessRollback = applyForcedMigrationRollback(port, db, businessDataPath);
     if (businessRollback.status === 0) fail("Global business-data migration rollback probe unexpectedly committed");
-    const businessResidue = query(port, db, "SELECT string_agg(t.name, ',') FROM (VALUES ('clients'),('products'),('stock_levels'),('invoices'),('invoice_items'),('invoice_payments'),('expenses')) AS t(name) WHERE to_regclass('global.' || t.name) IS NOT NULL");
+    const businessResidue = query(port, db, "SELECT string_agg(t.name, ',') FROM (VALUES ('clients'),('products'),('stock_levels'),('stock_movements'),('invoices'),('invoice_items'),('invoice_payments'),('expenses')) AS t(name) WHERE to_regclass('global.' || t.name) IS NOT NULL");
     if (businessResidue) fail("Global business-data rollback left tables behind: " + businessResidue);
     console.log("PASS actual DDL rollback for all three Global foundation migrations");
   } finally {
