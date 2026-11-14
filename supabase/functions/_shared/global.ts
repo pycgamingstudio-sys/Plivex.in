@@ -6,8 +6,7 @@ const ALLOWED_ORIGINS = new Set([
   "http://127.0.0.1:5173",
 ]);
 const allowedOrigin = (origin: string | null) => !origin || ALLOWED_ORIGINS.has(origin)
-  || /^https:\/\/(?:[a-z0-9-]+\.)+[a-z0-9-]+\.workers\.dev$/.test(origin)
-  || /^https:\/\/(?:[a-z0-9-]+\.)+[a-z0-9-]+\.pages\.dev$/.test(origin);
+  || /^https:\/\/(?:[a-z0-9-]+\.)?[a-z0-9-]+\.(?:workers|pages)\.dev$/.test(origin);
 export const globalCorsHeaders = (origin: string | null) => ({
   "Access-Control-Allow-Origin": origin && allowedOrigin(origin) ? origin : "https://global.plivex.in",
   "Vary": "Origin",
