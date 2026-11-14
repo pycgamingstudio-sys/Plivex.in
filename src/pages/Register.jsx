@@ -16,6 +16,17 @@ import { clearSessionCache } from "@/lib/sessionCache";
 import { getPendingInviteCode, rememberPendingInviteCode, authPageLink } from "@/components/auth/workspaceInvite";
 import { COUNTRY_REGISTRY, getCountryByCode } from "@/global/countries/country-registry.js";
 
+function getInitialSignupCountry() {
+  try {
+    const locales = [navigator.language, ...(navigator.languages || [])].filter(Boolean);
+    for (const locale of locales) {
+      const region = new Intl.Locale(locale).region;
+      if (region && getCountryByCode(region)) return region;
+    }
+  } catch { /* use the safe default when locale detection is unavailable */ }
+  return "IN";
+}
+
 function passwordRequirementError(password) {
   if (password.length < 6) return "Password must be at least 6 characters.";
   return "";
@@ -29,8 +40,8 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [inviteCode, setInviteCode] = useState(getPendingInviteCode);
-  const [countryCode, setCountryCode] = useState("IN");
-  const [localeCode, setLocaleCode] = useState("en-IN");
+  const [countryCode, setCountryCode] = useState(getInitialSignupCountry);
+  const [localeCode, setLocaleCode] = useState(() => getCountryByCode(getInitialSignupCountry())?.locales?.[0] || "en-IN");
   const localeOptions = getCountryByCode(countryCode)?.locales || [];
 
   // Smart role invite links: /register?invite_token=XXXXXX (or ?invite_code=) auto-maps
