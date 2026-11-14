@@ -84,6 +84,18 @@ BEGIN
     RAISE EXCEPTION 'Unexpected get_access_status startedAt query; refusing to modify it';
   END IF;
 
+  -- The later convergence migration records the JSON key with a space
+  -- after the comma. Normalize this formatting-only difference exactly once.
+  v_old_count := (length(v_access_def) - length(replace(v_access_def, '''startedAt'',case', ''))) / length('''startedAt'',case');
+  v_final_count := (length(v_access_def) - length(replace(v_access_def, '''startedAt'', case', ''))) / length('''startedAt'', case');
+  IF v_old_count = 1 AND v_final_count = 0 THEN
+    v_access_def := replace(v_access_def, '''startedAt'',case', '''startedAt'', case');
+  ELSIF v_old_count = 0 AND v_final_count = 1 THEN
+    NULL;
+  ELSE
+    RAISE EXCEPTION 'Unexpected startedAt JSON key formatting; refusing to modify it';
+  END IF;
+
   -- Execute only after every expected fragment has been validated. A failed
   -- guard leaves both functions unchanged because the DO block is atomic.
   EXECUTE v_current_def;
