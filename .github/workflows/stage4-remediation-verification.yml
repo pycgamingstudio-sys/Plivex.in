@@ -24,18 +24,23 @@ jobs:
           for spec in "plivex-remote-replay-db:5433" "plivex-candidate-replay-db:5434"; do
             name="${spec%%:*}"
             port="${spec##*:}"
-            docker run --detach --rm --name "$name" --publish "$port:5432" \
+            docker run --detach --name "$name" --publish "$port:5432" \
               --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=postgres --env POSTGRES_DB=postgres \
               supabase/postgres:17.6.1.136 \
-              postgres -c shared_preload_libraries=pg_cron -c cron.database_name=plivex_migration_replay
+              postgres -c shared_preload_libraries=pg_cron,pg_net -c cron.database_name=plivex_migration_replay
             ready=0
             for attempt in $(seq 1 60); do
-              if docker exec "$name" pg_isready -U postgres -d postgres >/dev/null 2>&1; then ready=1; break; fi
+              if docker exec -u postgres "$name" pg_isready -U postgres -d postgres >/dev/null 2>&1; then ready=1; break; fi
               sleep 2
             done
-            if [ "$ready" != "1" ]; then docker logs "$name"; exit 1; fi
+            if [ "$ready" != "1" ]; then
+              docker ps -a --filter "name=$name"
+              docker logs "$name" 2>&1 || true
+              docker inspect "$name" --format '{{json .State}}' || true
+              exit 1
+            fi
             for ext in pgcrypto pg_cron pg_net; do
-              docker exec -e PGPASSWORD=postgres "$name" psql -h 127.0.0.1 -U postgres -d postgres -Atc "SELECT name FROM pg_available_extensions WHERE name='$ext'" | grep -qx "$ext"
+              docker exec -u postgres "$name" psql -U postgres -d postgres -Atc "SELECT name FROM pg_available_extensions WHERE name='$ext'" | grep -qx "$ext"
             done
           done
       - name: Replay all 47 recorded remote versions and all 58 global candidate inputs
