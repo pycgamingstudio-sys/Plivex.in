@@ -93,8 +93,8 @@ jobs:
           docker run --detach --rm --name plivex-gotrue --network host \
             --env GOTRUE_API_HOST=0.0.0.0 --env GOTRUE_API_PORT=9999 \
             --env API_EXTERNAL_URL=http://127.0.0.1:9999 \
-            --env GOTRUE_DB_DRIVER=postgres --env DB_NAMESPACE=auth \
-            --env GOTRUE_DB_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/plivex_handler_test?sslmode=disable \
+            --env GOTRUE_DB_DRIVER=postgres --env DB_NAMESPACE=auth --env GOTRUE_DB_DB_NAMESPACE=auth \
+            --env "GOTRUE_DB_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/plivex_handler_test?sslmode=disable&options=-c%20search_path%3Dauth" \
             --env GOTRUE_SITE_URL=http://127.0.0.1:3001 \
             --env GOTRUE_URI_ALLOW_LIST=http://127.0.0.1:3001 \
             --env GOTRUE_DISABLE_SIGNUP=false \
