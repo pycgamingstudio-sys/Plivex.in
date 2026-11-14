@@ -110,7 +110,7 @@ VALUES
   ('10000000-0000-0000-0000-000000000015','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-UNLINKED-000000000015'),
   ('10000000-0000-0000-0000-000000000016','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','e@example.test','ws-e','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-PARTIAL-000000000016'),
   ('10000000-0000-0000-0000-000000000017','ffffffff-ffff-ffff-ffff-ffffffffffff','f@example.test','ws-f','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-HELD-000000000017'),
-  ('10000000-0000-0000-0000-000000000018','gggggggg-gggg-gggg-gggg-gggggggggggg','g@example.test','ws-g','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-MISSING-000000000018');
+  ('10000000-0000-0000-0000-000000000018','18181818-1818-1818-1818-181818181818','g@example.test','ws-g','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-MISSING-000000000018');
 
 UPDATE public.subscriptions
 SET payu_txnid='PAYU-TXN-12', payu_payment_id='PAYU-12'
@@ -134,15 +134,6 @@ VALUES
   ('20000000-0000-0000-0000-000000000012','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-MULTI-000000000000000011','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000011','SUCCESS','711002','{"payment":{"cf_payment_id":711002}}'),
   ('20000000-0000-0000-0000-000000000013','dddddddd-dddd-dddd-dddd-dddddddddddd','d@example.test','ws-d','payu','PLX-PAYU-LEGACY-0000000000000012','basic_monthly','Basic','basic',30000,'INR','applied',true,'payu','success','10000000-0000-0000-0000-000000000012','SUCCESS','PAYU-12','{}'),
   ('20000000-0000-0000-0000-000000000014','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-PER-PAYMENT-000000000013','basic_monthly','Basic','basic',5000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000013','SUCCESS','713001','{"payment":{"cf_payment_id":713001}}');
-INSERT INTO public.payment_logs
-  (id,user_id,user_email,workspace_id,gateway,txnid,plan_id,plan_name,tier,amount,currency,
-   outcome,hash_verified,provider,status,subscription_id,provider_status,provider_payment_id,
-   refund_status,refund_amount_minor_units,raw)
-VALUES
-  ('20000000-0000-0000-0000-000000000030','gggggggg-gggg-gggg-gggg-gggggggggggg','g@example.test','ws-g',
-   'cashfree','PLXCF-HIST-MISSING-000000000018','basic_monthly','Basic','basic',10000,'INR',
-   'applied',true,'cashfree','success','10000000-0000-0000-0000-000000000018','SUCCESS','718001',
-   'partially_refunded',5000,'{"payment":{"cf_payment_id":718001}}');
 
 UPDATE public.payment_logs
 SET payu_payment_id='PAYU-12'
@@ -150,6 +141,15 @@ WHERE id='20000000-0000-0000-0000-000000000013';
 
 -- Apply both real migrations, then replay the targeted additive migration.
 \ir ../migrations/20261114000000_india_cashfree_refund_support.sql
+INSERT INTO public.payment_logs
+  (id,user_id,user_email,workspace_id,gateway,txnid,plan_id,plan_name,tier,amount,currency,
+   outcome,hash_verified,provider,status,subscription_id,provider_status,provider_payment_id,
+   refund_status,refund_amount_minor_units,raw)
+VALUES
+  ('20000000-0000-0000-0000-000000000030','18181818-1818-1818-1818-181818181818','g@example.test','ws-g',
+   'cashfree','PLXCF-HIST-MISSING-000000000018','basic_monthly','Basic','basic',10000,'INR',
+   'applied',true,'cashfree','success','10000000-0000-0000-0000-000000000018','SUCCESS','718001',
+   'partially_refunded',5000,'{"payment":{"cf_payment_id":718001}}');
 
 -- Historical refund fixtures are seeded before the linkage migration so its
 -- audited reconciliation path sees realistic pre-existing NULL links.
