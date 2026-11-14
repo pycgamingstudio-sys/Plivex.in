@@ -88,7 +88,7 @@ jobs:
           docker run --detach --rm --name plivex-gotrue --network host \
             --env GOTRUE_API_HOST=0.0.0.0 --env GOTRUE_API_PORT=9999 \
             --env API_EXTERNAL_URL=http://127.0.0.1:9999 \
-            --env GOTRUE_DB_DRIVER=postgres \
+            --env GOTRUE_DB_DRIVER=postgres --env DB_NAMESPACE=auth \
             --env GOTRUE_DB_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/plivex_handler_test?sslmode=disable \
             --env GOTRUE_SITE_URL=http://127.0.0.1:3001 \
             --env GOTRUE_URI_ALLOW_LIST=http://127.0.0.1:3001 \
@@ -153,6 +153,12 @@ jobs:
           TEST_JWT_SECRET: plivex-disposable-ci-jwt-secret-only-never-production-00000000000000000000000000000000
           TEST_SUPABASE_URL: http://127.0.0.1:3001
         run: deno test --no-check --allow-env --allow-net supabase/functions/manage-cashfree-subscription/handler.auth.integration.test.mjs
+      - name: Collect Auth/PostgREST diagnostics on failure
+        if: failure()
+        run: |
+          docker logs plivex-gotrue 2>&1 || true
+          docker logs plivex-postgrest-auth 2>&1 || true
+          psql -h 127.0.0.1 -U postgres -d plivex_handler_test -c "\\dt auth.*" || true
       - name: Always stop disposable Auth and PostgREST
         if: always()
         run: docker stop plivex-gotrue plivex-postgrest-auth 2>/dev/null || true
