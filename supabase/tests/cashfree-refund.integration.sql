@@ -110,6 +110,7 @@ VALUES
   ('10000000-0000-0000-0000-000000000015','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-UNLINKED-000000000015'),
   ('10000000-0000-0000-0000-000000000016','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','e@example.test','ws-e','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-PARTIAL-000000000016'),
   ('10000000-0000-0000-0000-000000000017','ffffffff-ffff-ffff-ffff-ffffffffffff','f@example.test','ws-f','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-HELD-000000000017');
+  ('10000000-0000-0000-0000-000000000018','gggggggg-gggg-gggg-gggg-gggggggggggg','g@example.test','ws-g','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-MISSING-000000000018');
 
 UPDATE public.subscriptions
 SET payu_txnid='PAYU-TXN-12', payu_payment_id='PAYU-12'
@@ -133,6 +134,15 @@ VALUES
   ('20000000-0000-0000-0000-000000000012','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-MULTI-000000000000000011','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000011','SUCCESS','711002','{"payment":{"cf_payment_id":711002}}'),
   ('20000000-0000-0000-0000-000000000013','dddddddd-dddd-dddd-dddd-dddddddddddd','d@example.test','ws-d','payu','PLX-PAYU-LEGACY-0000000000000012','basic_monthly','Basic','basic',30000,'INR','applied',true,'payu','success','10000000-0000-0000-0000-000000000012','SUCCESS','PAYU-12','{}'),
   ('20000000-0000-0000-0000-000000000014','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-PER-PAYMENT-000000000013','basic_monthly','Basic','basic',5000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000013','SUCCESS','713001','{"payment":{"cf_payment_id":713001}}');
+INSERT INTO public.payment_logs
+  (id,user_id,user_email,workspace_id,gateway,txnid,plan_id,plan_name,tier,amount,currency,
+   outcome,hash_verified,provider,status,subscription_id,provider_status,provider_payment_id,
+   refund_status,refund_amount_minor_units,raw)
+VALUES
+  ('20000000-0000-0000-0000-000000000030','gggggggg-gggg-gggg-gggg-gggggggggggg','g@example.test','ws-g',
+   'cashfree','PLXCF-HIST-MISSING-000000000018','basic_monthly','Basic','basic',10000,'INR',
+   'applied',true,'cashfree','success','10000000-0000-0000-0000-000000000018','SUCCESS','718001',
+   'partially_refunded',5000,'{"payment":{"cf_payment_id":718001}}');
 
 UPDATE public.payment_logs
 SET payu_payment_id='PAYU-12'
@@ -284,6 +294,13 @@ VALUES
   ('30000000-0000-0000-0000-000000000019','10000000-0000-0000-0000-000000000017',NULL,
    'ffffffff-ffff-ffff-ffff-ffffffffffff','ws-f','cashfree','RF-HIST-HELD-1K',1000,'INR','success',
    '{"data":{"refund":{"order_id":"PLXCF-HIST-HELD-000000000017","cf_payment_id":717001}}}');
+INSERT INTO public.payment_refunds
+  (id,subscription_id,payment_log_id,user_id,workspace_id,provider,provider_refund_id,
+   amount_minor_units,currency,status,raw)
+VALUES
+  ('30000000-0000-0000-0000-000000000020','10000000-0000-0000-0000-000000000016',NULL,
+   'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','ws-e','cashfree','RF-HIST-PARTIAL-2K',2000,'INR','success',
+   '{"data":{"refund":{"order_id":"PLXCF-HIST-PARTIAL-000000000016","cf_payment_id":716001}}}');
 ALTER TABLE public.payment_refunds
   ADD CONSTRAINT payment_refunds_payment_log_required
   CHECK (payment_log_id IS NOT NULL) NOT VALID;
@@ -299,6 +316,81 @@ BEGIN
 END
 $incomplete_reconcile_hold$;
 RESET ROLE;
+
+-- The exact successful linked ledger now equals the immutable historical
+-- 5,000 snapshot. Only this exact proof resolves the incomplete-ledger hold.
+SET ROLE service_role;
+SELECT set_config('request.jwt.claim.role','service_role',false);
+DO $incomplete_exact_resolution$
+DECLARE v jsonb;
+BEGIN
+  v := public.reconcile_cashfree_refund_payment_log('30000000-0000-0000-0000-000000000020');
+  IF v->>'ok' <> 'true' OR v->>'reconciled' <> 'true' THEN
+    RAISE EXCEPTION 'Exact historical 5,000 reconciliation failed: %',v;
+  END IF;
+END
+$incomplete_exact_resolution$;
+RESET ROLE;
+
+-- Replay must preserve the first exception snapshot and its resolved marker.
+\\ir ../migrations/20261114000001_cashfree_refund_payment_log_linkage.sql
+DO $h03_resolution_and_replay$
+DECLARE v jsonb;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.cashfree_refund_cleanup_exceptions
+    WHERE payment_log_id='20000000-0000-0000-0000-000000000026'
+      AND reason='cashfree_ledger_incomplete'
+      AND prior_refund_amount_minor_units=5000
+      AND prior_refund_status='partially_refunded'
+      AND resolved_at IS NOT NULL
+  ) THEN RAISE EXCEPTION 'Exact complete ledger did not resolve while preserving the original snapshot'; END IF;
+
+  v := public.apply_cashfree_refund_event(
+    '10000000-0000-0000-0000-000000000016','RF-AFTER-HISTORICAL-RESOLUTION',1000,'INR','success',
+    '{"data":{"refund":{"order_id":"PLXCF-HIST-PARTIAL-000000000016","cf_payment_id":716001}}}'::jsonb
+  );
+  IF v->>'ok' <> 'true' OR (v->>'payment_refunded_minor_units')::bigint <> 6000
+     OR (v->>'refunded_minor_units')::bigint <> 6000 THEN
+    RAISE EXCEPTION 'Legitimate new refund remained blocked after exact historical resolution: %',v;
+  END IF;
+  IF (SELECT refund_amount_minor_units FROM public.payment_logs
+      WHERE id='20000000-0000-0000-0000-000000000026') <> 6000
+     OR (SELECT refund_status FROM public.payment_logs
+         WHERE id='20000000-0000-0000-0000-000000000026') <> 'partially_refunded'
+     OR (SELECT payment_status FROM public.subscriptions
+         WHERE id='10000000-0000-0000-0000-000000000016') <> 'partially_refunded'
+     OR (SELECT refund_status FROM public.subscriptions
+         WHERE id='10000000-0000-0000-0000-000000000016') <> 'partially_refunded' THEN
+    RAISE EXCEPTION 'Post-resolution refund accounting totals/status are incorrect'; END IF;
+
+  -- A missing-ledger exception has no exact ledger evidence to resolve it.
+  -- It must remain unresolved and block a new refund; order ID alone is not proof.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.cashfree_refund_cleanup_exceptions
+    WHERE payment_log_id='20000000-0000-0000-0000-000000000030'
+      AND reason='cashfree_ledger_missing'
+      AND resolved_at IS NULL
+      AND prior_refund_amount_minor_units=5000
+      AND prior_refund_status='partially_refunded'
+  ) THEN RAISE EXCEPTION 'Missing-ledger exception snapshot/hold was not preserved'; END IF;
+  v := public.apply_cashfree_refund_event(
+    '10000000-0000-0000-0000-000000000018','RF-MISSING-LEDGER-BLOCKED',1000,'INR','success',
+    '{"data":{"refund":{"order_id":"PLXCF-HIST-MISSING-000000000018","cf_payment_id":718001}}}'::jsonb
+  );
+  IF v->>'reason' <> 'historical_refund_reconciliation_required' THEN
+    RAISE EXCEPTION 'Missing-ledger exception did not retain its safe hold: %',v;
+  END IF;
+  IF (SELECT refund_amount_minor_units FROM public.payment_logs
+      WHERE id='20000000-0000-0000-0000-000000000030') <> 5000
+     OR (SELECT refund_status FROM public.payment_logs
+         WHERE id='20000000-0000-0000-0000-000000000030') <> 'reconciliation_required'
+     OR EXISTS (SELECT 1 FROM public.payment_refunds
+       WHERE provider_refund_id='RF-MISSING-LEDGER-BLOCKED') THEN
+    RAISE EXCEPTION 'Blocked missing-ledger refund mutated accounting'; END IF;
+END
+$h03_resolution_and_replay$;
+
 DO $incomplete_reconcile_assert$
 BEGIN
   IF (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000026') <> 5000
