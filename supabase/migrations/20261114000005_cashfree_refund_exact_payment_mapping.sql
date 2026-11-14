@@ -54,6 +54,24 @@ BEGIN
   IF NOT FOUND THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'subscription_not_found');
   END IF;
+  -- Check an existing provider refund's immutable monetary identity before
+  -- comparing the incoming event to the order currency. This makes a reused
+  -- refund ID with altered currency report an identity conflict deterministically.
+  SELECT * INTO v_existing
+  FROM public.payment_refunds
+  WHERE provider = 'cashfree' AND provider_refund_id = p_provider_refund_id
+  FOR UPDATE;
+  v_has_existing := FOUND;
+  IF v_has_existing AND v_existing.subscription_id <> p_subscription_id THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'refund_id_already_used');
+  END IF;
+  IF v_has_existing AND (
+    v_existing.amount_minor_units IS DISTINCT FROM p_amount_minor
+    OR upper(COALESCE(v_existing.currency,'')) IS DISTINCT FROM upper(p_currency)
+  ) THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'refund_amount_conflict');
+  END IF;
+
   IF lower(COALESCE(v_order.gateway,'')) <> 'cashfree'
      OR lower(COALESCE(v_order.provider,'')) <> 'cashfree'
      OR upper(COALESCE(v_order.currency,'')) <> upper(p_currency)
@@ -103,23 +121,8 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'reason', 'refund_amount_invalid');
   END IF;
 
-  SELECT * INTO v_existing
-  FROM public.payment_refunds
-  WHERE provider = 'cashfree' AND provider_refund_id = p_provider_refund_id
-  FOR UPDATE;
-  v_has_existing := FOUND;
-
-  IF v_has_existing AND (
-    v_existing.subscription_id <> p_subscription_id
-    OR v_existing.payment_log_id IS DISTINCT FROM v_payment.id
-  ) THEN
+  IF v_has_existing AND v_existing.payment_log_id IS DISTINCT FROM v_payment.id THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'refund_id_already_used');
-  END IF;
-  IF v_has_existing AND (
-    v_existing.amount_minor_units IS DISTINCT FROM p_amount_minor
-    OR upper(COALESCE(v_existing.currency,'')) IS DISTINCT FROM upper(p_currency)
-  ) THEN
-    RETURN jsonb_build_object('ok', false, 'reason', 'refund_amount_conflict');
   END IF;
   IF v_has_existing AND v_existing.status = 'success' THEN
     IF v_status <> 'success' THEN
