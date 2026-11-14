@@ -1,4 +1,4 @@
-import { backend as db } from '@/api/backendClient';
+import { backend as db, APP_EDITION } from '@/api/backendClient';
 
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -40,7 +40,7 @@ export default function Register() {
     // tokens / workspace state from a previous account so role & trial data never leak.
     const code = getPendingInviteCode();
     clearSessionCache();
-    if (code) { rememberPendingInviteCode(code); setInviteCode(code); }
+    if (code && APP_EDITION !== "global") { rememberPendingInviteCode(code); setInviteCode(code); }
   }, []);
 
   const handleSubmit = async (e) => {
@@ -56,6 +56,7 @@ export default function Register() {
       return;
     }
     const code = getPendingInviteCode(inviteCode);
+    if (APP_EDITION === "global" && code) { setError("Global workspace invitations are not available yet. Create or use your own Global account."); return; }
     if (code && code.includes("-")) {
       try { parseAndValidateInviteCode(code); } catch (err) {
         setError(err.message || "Invalid invite code");
@@ -158,7 +159,7 @@ export default function Register() {
           <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">This saves your business country and display locale. It does not determine tax residency or legal compliance.</p>
         </div>
       )}
-      <GoogleSignInButton inviteCode={inviteCode} countryCode={countryCode} localeCode={localeCode} returnTo={safeReturnTo()} onError={setError} disabled={loading} className="mb-6" />
+      <GoogleSignInButton inviteCode={inviteCode} countryCode={countryCode} localeCode={localeCode} returnTo={safeReturnTo()} onError={setError} disabled={loading || (APP_EDITION === "global" && Boolean(getPendingInviteCode(inviteCode)))} className="mb-6" />
 
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
@@ -219,6 +220,7 @@ export default function Register() {
             />
           </div>
         </div>
+        {APP_EDITION !== "global" && (
         <div className="space-y-2">
           <Label htmlFor="inviteCode">Have a Workspace Invite Code? <span className="text-muted-foreground font-normal">(optional)</span></Label>
           <div className="relative">
@@ -226,6 +228,7 @@ export default function Register() {
             <Input id="inviteCode" type="text" placeholder="e.g. AB3X9K" value={inviteCode} onChange={(e) => setInviteCode(e.target.value.toUpperCase())} className="pl-10 h-12" />
           </div>
         </div>
+        )}
         <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
           {loading ? (
             <>
