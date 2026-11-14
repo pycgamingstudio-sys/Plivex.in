@@ -107,6 +107,77 @@ const adapters = {
   },
 };
 
+// Global workspace-record adapter. It never calls India workspace-record endpoints.
+async function invokeGlobalWorkspaceRecords(payload = {}) {
+  const { data: context, error: contextError } = await supabase.functions.invoke("global-auth-context", { body: {} });
+  if (contextError) throw new ApiError(contextError.message || "Could not load your Global workspace.", contextError.status || 400, { operation: "global-auth-context" });
+  const workspaceId = context?.user?.workspace_id;
+  const currencyCode = context?.user?.currency_code || "USD";
+  if (!workspaceId) throw new ApiError("Your Global workspace is not ready.", 409, { operation: "workspaceRecords" });
+
+  const sourceTable = String(payload.table || "");
+  const table = sourceTable === "business_profile" ? "business_profiles" : sourceTable;
+  if (!["business_profiles", "clients", "expenses"].includes(table)) {
+    throw new ApiError("This Global record type is not connected yet.", 501, { operation: "workspaceRecords", table: sourceTable });
+  }
+  const requestedAction = String(payload.action || "list");
+  const action = requestedAction === "get" ? "list" : requestedAction === "upsert" ? "update" : requestedAction;
+  if (!["list", "create", "update", "delete"].includes(action) || (table === "business_profiles" && !["list", "update"].includes(action))) {
+    throw new ApiError("This Global record operation is not available.", 501, { operation: "workspaceRecords", table, action: requestedAction });
+  }
+
+  const values = { ...(payload.values || {}) };
+  if (table === "business_profiles") {
+    const profile = {};
+    if (values.name !== undefined) { profile.legal_name = values.name; profile.display_name = values.name; }
+    for (const [from, to] of [["email", "email"], ["phone", "phone"], ["address", "address"], ["gstin", "tax_registration_number"]]) {
+      if (values[from] !== undefined) profile[to] = values[from] || null;
+    }
+    Object.assign(values, profile);
+    for (const key of ["name", "gstin", "logo_url", "upi_id"]) delete values[key];
+  } else if (table === "clients") {
+    if (values.name === undefined && values.company !== undefined) values.name = values.company;
+    if (values.gstin !== undefined) values.tax_registration_number = values.gstin;
+    if (values.address !== undefined) values.billing_address = { formatted: String(values.address || "") };
+    for (const key of ["company", "gstin", "address"]) delete values[key];
+  } else if (table === "expenses") {
+    const digits = new Intl.NumberFormat("en", { style: "currency", currency: currencyCode }).resolvedOptions().maximumFractionDigits;
+    if (values.amount !== undefined) values.amount_minor = Math.round(Number(values.amount) * (10 ** digits));
+    if (values.date !== undefined) values.expense_date = values.date || null;
+    if (values.method !== undefined) values.payment_method = values.method || null;
+    values.currency_code = currencyCode;
+    for (const key of ["amount", "date", "method", "status"]) delete values[key];
+  }
+
+  const request = { workspace_id: workspaceId, table, action, limit: payload.limit || 100 };
+  if (action === "create" || action === "update") request.values = values;
+  if (action === "update") request.id = table === "business_profiles" ? workspaceId : payload.id;
+  if (action === "delete") request.id = payload.id;
+  const { data, error } = await supabase.functions.invoke("global-business-records", { body: request });
+  if (error) {
+    let message = error.message || "Global records request failed.";
+    try {
+      const body = await error.context?.clone?.().json();
+      if (typeof body?.error === "string") message = body.error;
+    } catch { /* keep SDK message */ }
+    throw new ApiError(message, error.status || 400, { operation: "workspaceRecords", table });
+  }
+
+  const normalize = (record) => {
+    if (!record || typeof record !== "object") return record;
+    if (table === "business_profiles") return { ...record, name: record.display_name || record.legal_name || "", gstin: record.tax_registration_number || "" };
+    if (table === "clients") return { ...record, company: record.name || "", gstin: record.tax_registration_number || "", address: record.billing_address?.formatted || "" };
+    if (table === "expenses") {
+      const digits = new Intl.NumberFormat("en", { style: "currency", currency: currencyCode }).resolvedOptions().maximumFractionDigits;
+      return { ...record, amount: Number(record.amount_minor || 0) / (10 ** digits), date: record.expense_date || "", method: record.payment_method || "" };
+    }
+    return record;
+  };
+  const records = Array.isArray(data?.records) ? data.records.map(normalize) : [];
+  const record = normalize(data?.record || records[0] || null);
+  return { data: { ...data, records, record, items: records } };
+}
+
 // Features whose backend is not built yet. They fail with a clear message instead of a crash.
 const NOT_READY = {};
 
@@ -117,6 +188,7 @@ const functions = {
     // operations intentionally retain the legacy fallback until their contracts
     // and runtime tests are complete.
     const functionName = kebab(String(name || ""));
+    if (APP_EDITION === "global" && functionName === "workspace-records") return invokeGlobalWorkspaceRecords(payload);
     if (APP_EDITION === "global" && !["global-ensure-owner", "global-business-records"].includes(functionName)) {
       throw new ApiError("This Global feature is not enabled yet. Your India workspace is kept separate.", 503, { operation: name });
     }
