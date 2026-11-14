@@ -665,6 +665,43 @@ BEGIN
  END IF;
 END
 $multi_payment_refunds$;
+
+-- Reusing a refund ID against a valid sibling payment must be rejected and
+-- must not move the existing refund ledger row or mutate the sibling totals.
+SET ROLE service_role;
+DO $sibling_refund_id_reuse$
+DECLARE
+ v_result jsonb;
+ v_payment_a uuid;
+ v_payment_b uuid;
+ v_refund_rows integer;
+ v_payment_b_refunded bigint;
+BEGIN
+ SELECT id INTO v_payment_a FROM public.payment_logs WHERE provider_payment_id='CFPAY-MULTI-A';
+ SELECT id INTO v_payment_b FROM public.payment_logs WHERE provider_payment_id='CFPAY-MULTI-B';
+ v_result := public.apply_cashfree_refund_event(
+  (SELECT id FROM public.subscriptions WHERE txnid='MULTI-REFUND-ORDER'),
+  'MULTI-REFUND-ORDER','CFPAY-MULTI-B','CFREFUND-MULTI-A',300,'USD','success',
+  '{"test":"sibling-payment-refund-id-reuse"}'::jsonb
+ );
+ IF v_result->>'reason' <> 'refund_id_already_used' THEN
+   RAISE EXCEPTION 'Refund ID reuse on a sibling payment was not rejected: %',v_result;
+ END IF;
+ SELECT count(*) INTO v_refund_rows FROM public.payment_refunds
+ WHERE provider_refund_id='CFREFUND-MULTI-A';
+ IF v_refund_rows <> 1 OR
+    (SELECT payment_log_id FROM public.payment_refunds WHERE provider_refund_id='CFREFUND-MULTI-A') IS DISTINCT FROM v_payment_a THEN
+   RAISE EXCEPTION 'Sibling payment reuse moved or duplicated the original refund ledger row';
+ END IF;
+ SELECT refund_amount_minor_units INTO v_payment_b_refunded
+ FROM public.payment_logs WHERE id=v_payment_b;
+ IF v_payment_b_refunded IS DISTINCT FROM 200 THEN
+   RAISE EXCEPTION 'Sibling payment refund total changed after rejected refund ID reuse: %',v_payment_b_refunded;
+ END IF;
+END
+$sibling_refund_id_reuse$;
+RESET ROLE;
+
 DO $missing_payment_mapping$
 DECLARE v_result jsonb;
 BEGIN
