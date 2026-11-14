@@ -87,7 +87,7 @@ export function calculateVerifiedTaxRule(input) {
     || input.jurisdictionVerified !== true || input.jurisdictionId !== rule.jurisdictionId
     || input.collectionObligationVerified !== true || !Array.isArray(registration.jurisdictions)
     || !registration.jurisdictions.includes(rule.jurisdictionId))) {
-    return fail("JURISDICTION_OR_NEXUS_REQUIRED", "US/Canada require verified destination jurisdiction, seller collection obligation and matching registration.");
+    return fail("JURISDICTION_OR_NEXUS_REQUIRED", "US/Canada require independently verified destination jurisdiction and collection-obligation evidence; matching seller registration region is not proof of nexus.");
   }
 
   const rateBps = rule.components.reduce((sum, component) => sum + component.rateBps, 0);

@@ -17,7 +17,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
     taxCategory: "",
     taxCategoryConfirmed: false,
     registrationConfirmed: false,
-    collectionObligationConfirmed: false,
+    collectionObligationAttested: false,
     destinationJurisdiction: { state: "", county: "", city: "", province: "" },
     components: [{ id: "manual-tax-1", name: "", rateBps: 0 }],
   };
@@ -78,7 +78,10 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
           <input className={fieldClass} maxLength={180} value={config.placeOfSupply || ""} onChange={(e) => update({ placeOfSupply: e.target.value, placeOfSupplyConfirmed: false })} placeholder="Destination / place where supply is made" />
         </label>
         <label className={labelClass}>{format?.classificationLabel || "Goods/services tax category"}
-          <input className={fieldClass} maxLength={120} value={config.taxCategory || ""} onChange={(e) => update({ taxCategory: e.target.value, taxCategoryConfirmed: false })} placeholder={manual ? "Enter reviewed tax treatment" : "Enter standard-rated"} />
+          <select className={fieldClass} value={config.taxCategory || ""} onChange={(e) => update({ taxCategory: e.target.value, taxCategoryConfirmed: false })}>
+            <option value="">Select supported treatment</option>
+            <option value="standard-rated">Standard-rated taxable supply</option>
+          </select>
         </label>
       </div>
 
@@ -91,7 +94,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
       {(isUS || isCA) && (
         <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">
           <p className="font-bold">Jurisdiction-specific rates are not auto-filled.</p>
-          <p className="mt-1">A verified address-level rate provider is not configured. Plivex will not guess US state/county/city or Canadian province rates. Manual rates are unverified and must be checked against official rules.</p>
+          <p className="mt-1">A verified address-level rate and nexus provider is not configured. Plivex will not guess US state/county/city or Canadian province rates. Manual rates are user-entered and unverified; the attestation is not independent verification.</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {isUS ? <>
               <label className={labelClass}>Destination state code<input className={fieldClass} maxLength={8} value={config.destinationJurisdiction?.state || ""} onChange={(e) => updateJurisdiction("state", e.target.value.toUpperCase())} placeholder="e.g. CA" /></label>
@@ -104,7 +107,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
               <input className={fieldClass} value={workspaceProfile?.registeredJurisdiction || ""} readOnly />
             </label>
           </div>
-          <label className="mt-3 flex items-start gap-2"><input type="checkbox" checked={config.collectionObligationConfirmed === true} onChange={(e) => update({ collectionObligationConfirmed: e.target.checked })} /><span>I have independently confirmed this business is required and permitted to collect the entered tax in this destination jurisdiction.</span></label>
+          <label className="mt-3 flex items-start gap-2"><input type="checkbox" checked={config.collectionObligationAttested === true} onChange={(e) => update({ collectionObligationAttested: e.target.checked })} /><span>I attest that I have checked whether this business must collect tax in this destination jurisdiction. Plivex does not independently verify nexus or collection obligations.</span></label>
         </div>
       )}
 

@@ -223,3 +223,17 @@ test("assistant validator rejects unsupported global invoice country", () => {
   });
   assert.equal(result, null);
 });
+
+test("public invoice sanitizer exposes only persisted global registration metadata", () => {
+  const safe = sanitizePublicInvoice({
+    number: "INV-REG-1", invoice_snapshot: {
+      business: { name: "Seller", address: "1 Main", taxRegistrationNumber: "DB-REG-1", taxRegistrationType: "VAT", taxRegistrationStatus: "registered", taxRegistrationEffectiveFrom: "2011-01-04", registeredJurisdiction: "GB-ENG", email: "private@example.test" },
+      globalTaxProfileSnapshot: { countryCode: "GB", registrationNumber: "DB-REG-1", registrationType: "VAT", registrationStatus: "registered", registrationEffectiveFrom: "2011-01-04", registeredJurisdiction: "GB-ENG" },
+      globalTax: { countryCode: "GB", placeOfSupply: "UK", taxCategory: "standard-rated" },
+      globalTaxCalculation: { ok: true, status: "calculated" }, client: {}, items: [],
+    },
+  });
+  assert.equal(safe.invoice_snapshot.globalTaxProfileSnapshot.registrationNumber, "DB-REG-1");
+  assert.equal(safe.invoice_snapshot.business.taxRegistrationNumber, "DB-REG-1");
+  assert.equal("email" in safe.invoice_snapshot.business, false);
+});

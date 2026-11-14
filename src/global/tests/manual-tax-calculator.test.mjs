@@ -4,7 +4,7 @@ import { calculateManualTax } from "../tax/manual-tax-calculator.js";
 
 const base = {
   countryCode: "GB", currencyCode: "GBP", currencyMinorUnits: 2,
-  amountMinor: 10000, priceMode: "exclusive",
+  amountMinor: 10000, priceMode: "exclusive", taxTreatment: "standard-rated",
   components: [{ id: "vat", name: "VAT", rateBps: 2000 }],
 };
 
@@ -32,4 +32,11 @@ test("manual rates reject invalid components and India uses legacy GST", () => {
 test("manual calculator rejects unsafe arithmetic", () => {
   const result = calculateManualTax({ ...base, amountMinor: Number.MAX_SAFE_INTEGER });
   assert.equal(result.ok, false);
+});
+
+test("manual calculator requires an explicitly supported treatment", () => {
+  assert.equal(calculateManualTax({ ...base, taxTreatment: "" }).code, "UNSUPPORTED_TAX_TREATMENT");
+  assert.equal(calculateManualTax({ ...base, taxTreatment: "special scheme" }).code, "UNSUPPORTED_TAX_TREATMENT");
+  assert.equal(calculateManualTax({ ...base, taxTreatment: "unknown" }).code, "UNSUPPORTED_TAX_TREATMENT");
+  assert.equal(calculateManualTax({ ...base, taxTreatment: "standard-rated" }).ok, true);
 });

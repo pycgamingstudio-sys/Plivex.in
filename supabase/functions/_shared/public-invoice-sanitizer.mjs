@@ -17,11 +17,11 @@ export function sanitizePublicInvoice(invoice) {
       "currency", "status", "subtotal", "cgst", "sgst", "igst", "total",
     ]),
     invoice_snapshot: {
-      business: pick(business, ["name", "address", "gstin", "locale", "countryLocale"]),
+      business: pick(business, ["name", "address", "gstin", "locale", "countryLocale", "taxRegistrationNumber", "taxRegistrationType", "taxRegistrationStatus", "taxRegistrationEffectiveFrom", "registeredJurisdiction"]),
       client: pick(client, ["name", "company", "address", "gstin"]),
       items: (items.length ? items : (Array.isArray(invoice?.invoice_items) ? invoice.invoice_items : []))
         .map((item) => pick(item, ["description", "quantity", "rate", "gstRate"])),
-      ...pick(snapshot, ["notes", "terms"]),
+      ...pick(snapshot, ["notes", "terms", "globalTax", "globalTaxCalculation", "globalTaxProfileSnapshot"]),
     },
     invoice_items: Array.isArray(invoice?.invoice_items)
       ? invoice.invoice_items.map((item) => pick(item, ["description", "quantity", "rate"]))

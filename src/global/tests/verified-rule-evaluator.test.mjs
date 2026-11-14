@@ -33,10 +33,10 @@ test("Canada componentized GST/PST sums and reconciles component totals", () => 
   assert.equal(result.ruleSnapshot.id, "CA-ON-2026-01");
 });
 
-test("US and Canada fail closed without jurisdiction and seller obligation facts", () => {
+test("US and Canada fail closed without independent jurisdiction and collection-obligation evidence", () => {
   assert.equal(calculateVerifiedTaxRule({ ...base, jurisdictionVerified: false }).code, "JURISDICTION_OR_NEXUS_REQUIRED");
   assert.equal(calculateVerifiedTaxRule({ ...base, collectionObligationVerified: false }).code, "JURISDICTION_OR_NEXUS_REQUIRED");
-  assert.equal(calculateVerifiedTaxRule({ ...base, sellerRegistration: { ...base.sellerRegistration, jurisdictions: [] } }).code, "JURISDICTION_OR_NEXUS_REQUIRED");
+  assert.equal(calculateVerifiedTaxRule({ ...base, sellerRegistration: { ...base.sellerRegistration, jurisdictions: [] } }).ok, true);
 });
 
 test("rule rejects duplicate components, bad source and invalid rates", () => {

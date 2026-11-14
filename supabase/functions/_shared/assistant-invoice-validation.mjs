@@ -60,7 +60,7 @@ export function validateInvoiceAction(action) {
     taxCategory: text(rawGlobalTax.taxCategory, 120),
     taxCategoryConfirmed: false,
     registrationConfirmed: false,
-    collectionObligationConfirmed: false,
+    collectionObligationAttested: false,
     destinationJurisdiction: {
       state: text(rawGlobalTax.destinationJurisdiction?.state, 80),
       county: text(rawGlobalTax.destinationJurisdiction?.county, 100),

@@ -4,6 +4,7 @@ CREATE SCHEMA IF NOT EXISTS auth;
 DO $roles$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon; END IF;
 END
 $roles$;
 CREATE TYPE public.app_role AS ENUM ('admin','manager','employee','accountant');
@@ -67,12 +68,107 @@ $$;
 CREATE OR REPLACE FUNCTION public.ist_today() RETURNS date LANGUAGE sql STABLE AS $$ SELECT CURRENT_DATE $$;
 
 \ir ../migrations/20261114000003_global_invoice_tax_calculation.sql
+CREATE TEMP TABLE save_invoice_rpc_baseline AS
+SELECT pg_get_functiondef('public.save_invoice(jsonb,jsonb,uuid)'::regprocedure) AS definition, p.proowner, p.prosecdef, p.proconfig, p.proacl
+FROM pg_proc p WHERE p.oid='public.save_invoice(jsonb,jsonb,uuid)'::regprocedure;
+BEGIN;
+\ir ../migrations/20261114000004_global_tax_snapshot_hardening.sql
+ROLLBACK;
+DO $rollback$
+DECLARE b record; p record;
+BEGIN
+  SELECT * INTO b FROM save_invoice_rpc_baseline;
+  SELECT pg_get_functiondef('public.save_invoice(jsonb,jsonb,uuid)'::regprocedure) AS definition, proowner, prosecdef, proconfig, proacl INTO p
+  FROM pg_proc WHERE oid='public.save_invoice(jsonb,jsonb,uuid)'::regprocedure;
+  IF p.definition IS DISTINCT FROM b.definition OR p.proowner IS DISTINCT FROM b.proowner
+    OR p.prosecdef IS DISTINCT FROM b.prosecdef OR p.proconfig IS DISTINCT FROM b.proconfig OR p.proacl IS DISTINCT FROM b.proacl THEN
+    RAISE EXCEPTION 'Migration rollback did not restore save_invoice definition/ACL/owner/security/search_path';
+  END IF;
+END
+$rollback$;
+\ir ../migrations/20261114000004_global_tax_snapshot_hardening.sql
+CREATE TEMP TABLE save_invoice_rpc_applied AS
+SELECT pg_get_functiondef('public.save_invoice(jsonb,jsonb,uuid)'::regprocedure) AS definition, p.proowner, p.prosecdef, p.proconfig, p.proacl
+FROM pg_proc p WHERE p.oid='public.save_invoice(jsonb,jsonb,uuid)'::regprocedure;
+\ir ../migrations/20261114000004_global_tax_snapshot_hardening.sql
+DO $reapply$
+DECLARE b record; p record;
+BEGIN
+  SELECT * INTO b FROM save_invoice_rpc_applied;
+  SELECT pg_get_functiondef('public.save_invoice(jsonb,jsonb,uuid)'::regprocedure) AS definition, proowner, prosecdef, proconfig, proacl INTO p
+  FROM pg_proc WHERE oid='public.save_invoice(jsonb,jsonb,uuid)'::regprocedure;
+  IF p.definition IS DISTINCT FROM b.definition OR p.proowner IS DISTINCT FROM b.proowner
+    OR p.prosecdef IS DISTINCT FROM b.prosecdef OR p.proconfig IS DISTINCT FROM b.proconfig OR p.proacl IS DISTINCT FROM b.proacl THEN
+    RAISE EXCEPTION 'Migration reapplication changed save_invoice definition/ACL/owner/security/search_path';
+  END IF;
+  IF p.prosecdef IS NOT TRUE OR NOT ('search_path=public, pg_temp' = ANY(p.proconfig))
+    OR NOT has_function_privilege('authenticated','public.save_invoice(jsonb,jsonb,uuid)','EXECUTE')
+    OR has_function_privilege('anon','public.save_invoice(jsonb,jsonb,uuid)','EXECUTE') THEN
+    RAISE EXCEPTION 'save_invoice SECURITY DEFINER/search_path/ACL boundary is invalid';
+  END IF;
+END
+$reapply$;
 
 INSERT INTO public.profiles(id,workspace_id,role)
 VALUES ('11111111-1111-4111-8111-111111111111','workspace-global','admin');
 INSERT INTO public.business_profile(workspace_id,country_code,tax_registration_number,tax_registration_type,tax_registration_status,tax_registration_effective_from,tax_jurisdiction_code)
 VALUES ('workspace-global','GB','GB123456789','VAT','registered','2026-01-01',NULL);
 SELECT set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',false);
+GRANT ALL ON public.profiles, public.business_profile, public.invoice_counters, public.invoices, public.invoice_items, public.stock TO authenticated;
+SET ROLE authenticated;
+DO $security$
+DECLARE v public.invoices;
+BEGIN
+  v := public.save_invoice(
+    jsonb_build_object(
+      'client_name','Snapshot customer','business_name','Seller Ltd','issue_date','2026-11-14','currency','GBP',
+      'tax_mode','split','tax_rate',0,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
+      'invoice_snapshot',jsonb_build_object(
+        'business',jsonb_build_object('name','Seller Ltd','address','12 Display Road','email','seller@example.test','phone','+44-20-0000-0000','taxRegistrationNumber','FORGED-BUSINESS','taxRegistrationType','Fake','taxRegistrationStatus','unregistered','taxRegistrationEffectiveFrom','2099-01-01','registeredJurisdiction','US-ZZ'),
+        'globalTaxProfileSnapshot',jsonb_build_object('countryCode','ZZ','registrationNumber','FORGED-SNAPSHOT','registrationType','Fake','registrationStatus','cancelled','registrationEffectiveFrom','2099-01-01','registeredJurisdiction','US-ZZ'),
+        'globalTax',jsonb_build_object('countryCode','GB','mode','automatic','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','United Kingdom','placeOfSupplyConfirmed',true,'taxCategory','standard-rated','taxCategoryConfirmed',true),
+        'globalTaxCalculation',jsonb_build_object('ok',true,'status','calculated','countryCode','GB','currencyCode','GBP','taxableMinor',10000,'taxMinor',2000,'totalMinor',12000,
+          'components',jsonb_build_array(jsonb_build_object('id','GB-VAT-STANDARD-2026-11','name','VAT','rateBps',2000,'amountMinor',2000)),
+          'ruleSnapshot',jsonb_build_object('id','GB-VAT-STANDARD-2026-11','version','2026.11','source','https://www.gov.uk/vat-rates','effectiveFrom','2011-01-04','reviewedOn','2026-11-14'))
+      )
+    ),
+    '[{"description":"Snapshot test","quantity":1,"rate":100}]'::jsonb, NULL
+  );
+  IF v.invoice_snapshot->'globalTaxProfileSnapshot'->>'registrationNumber' <> 'GB123456789'
+    OR v.invoice_snapshot->'globalTaxProfileSnapshot'->>'registrationType' <> 'VAT'
+    OR v.invoice_snapshot->'globalTaxProfileSnapshot'->>'registrationStatus' <> 'registered'
+    OR v.invoice_snapshot->'globalTaxProfileSnapshot'->>'registrationEffectiveFrom' <> '2026-01-01'
+    OR v.invoice_snapshot->'globalTaxProfileSnapshot'->>'registeredJurisdiction' IS NOT NULL
+    OR v.invoice_snapshot->'business'->>'taxRegistrationNumber' <> 'GB123456789'
+    OR v.invoice_snapshot->'business'->>'taxRegistrationType' <> 'VAT'
+    OR v.invoice_snapshot->'business'->>'name' <> 'Seller Ltd'
+    OR v.invoice_snapshot->'business'->>'address' <> '12 Display Road'
+    OR v.invoice_snapshot->'business'->>'email' <> 'seller@example.test' THEN
+    RAISE EXCEPTION 'RPC did not replace forged registration metadata or preserve seller display fields';
+  END IF;
+  UPDATE public.business_profile SET tax_registration_number='GB987654321',tax_registration_type='VAT-UPDATED',
+    tax_registration_status='registered',tax_registration_effective_from='2026-02-01',tax_jurisdiction_code='GB-ENG'
+  WHERE workspace_id='workspace-global';
+  v := public.save_invoice(
+    jsonb_build_object('client_name','Snapshot customer','business_name','Seller Ltd','issue_date','2026-11-14','currency','GBP',
+      'tax_mode','split','tax_rate',0,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
+      'invoice_snapshot',v.invoice_snapshot || jsonb_build_object(
+        'globalTaxProfileSnapshot',jsonb_build_object('registrationNumber','FORGED-AGAIN'),
+        'business',v.invoice_snapshot->'business' || jsonb_build_object('taxRegistrationNumber','FORGED-AGAIN'))),
+    '[{"description":"Snapshot test updated","quantity":1,"rate":100}]'::jsonb, v.id
+  );
+  IF v.invoice_snapshot->'globalTaxProfileSnapshot'->>'registrationNumber' <> 'GB987654321'
+    OR v.invoice_snapshot->'globalTaxProfileSnapshot'->>'registrationType' <> 'VAT-UPDATED'
+    OR v.invoice_snapshot->'globalTaxProfileSnapshot'->>'registrationEffectiveFrom' <> '2026-02-01'
+    OR v.invoice_snapshot->'globalTaxProfileSnapshot'->>'registeredJurisdiction' <> 'GB-ENG' THEN
+    RAISE EXCEPTION 'Updated business_profile registration values were not persisted';
+  END IF;
+END
+$security$;
+RESET ROLE;
+UPDATE public.business_profile SET tax_registration_number='GB123456789',tax_registration_type='VAT',
+  tax_registration_status='registered',tax_registration_effective_from='2026-01-01',tax_jurisdiction_code=NULL
+WHERE workspace_id='workspace-global';
 
 DO $test$
 DECLARE v public.invoices;
@@ -86,7 +182,7 @@ BEGIN
         'globalTax',jsonb_build_object('countryCode','GB','mode','automatic','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','United Kingdom','placeOfSupplyConfirmed',true,'taxCategory','standard-rated','taxCategoryConfirmed',true),
         'globalTaxCalculation',jsonb_build_object('ok',true,'status','calculated','countryCode','GB','currencyCode','GBP','taxableMinor',10000,'taxMinor',2000,'totalMinor',12000,
           'components',jsonb_build_array(jsonb_build_object('id','GB-VAT-STANDARD-2026-11','name','VAT','rateBps',2000,'amountMinor',2000)),
-          'ruleSnapshot',jsonb_build_object('id','GB-VAT-STANDARD-2026-11','version','2026.11','source','https://www.gov.uk/vat-rates','effectiveFrom','2026-01-01'))
+          'ruleSnapshot',jsonb_build_object('id','GB-VAT-STANDARD-2026-11','version','2026.11','source','https://www.gov.uk/vat-rates','effectiveFrom','2011-01-04','reviewedOn','2026-11-14'))
       )
     ),
     '[{"description":"Consulting","quantity":1,"rate":100}]'::jsonb,
@@ -105,7 +201,7 @@ BEGIN
         'globalTax',jsonb_build_object('countryCode','GB','mode','automatic','priceMode','inclusive','registrationConfirmed',true,'placeOfSupply','United Kingdom','placeOfSupplyConfirmed',true,'taxCategory','standard-rated','taxCategoryConfirmed',true),
         'globalTaxCalculation',jsonb_build_object('ok',true,'status','calculated','countryCode','GB','currencyCode','GBP','taxableMinor',10000,'taxMinor',2000,'totalMinor',12000,
           'components',jsonb_build_array(jsonb_build_object('id','GB-VAT-STANDARD-2026-11','name','VAT','rateBps',2000,'amountMinor',2000)),
-          'ruleSnapshot',jsonb_build_object('id','GB-VAT-STANDARD-2026-11','version','2026.11','source','https://www.gov.uk/vat-rates','effectiveFrom','2026-01-01'))
+          'ruleSnapshot',jsonb_build_object('id','GB-VAT-STANDARD-2026-11','version','2026.11','source','https://www.gov.uk/vat-rates','effectiveFrom','2011-01-04','reviewedOn','2026-11-14'))
       )
     ),
     '[{"description":"VAT inclusive service","quantity":1,"rate":120}]'::jsonb,
@@ -145,7 +241,7 @@ BEGIN
           'globalTax',jsonb_build_object('countryCode',r.country_code,'mode','automatic','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','Domestic supply','placeOfSupplyConfirmed',true,'taxCategory','standard-rated','taxCategoryConfirmed',true),
           'globalTaxCalculation',jsonb_build_object('ok',true,'status','calculated','countryCode',r.country_code,'currencyCode',r.currency_code,'taxableMinor',10000,'taxMinor',r.rate_bps,'totalMinor',10000+r.rate_bps,
             'components',jsonb_build_array(jsonb_build_object('id',r.rule_id,'name',r.registration_type,'rateBps',r.rate_bps,'amountMinor',r.rate_bps)),
-            'ruleSnapshot',jsonb_build_object('id',r.rule_id,'version','2026.11','source',r.source_url,'effectiveFrom','2026-01-01'))
+            'ruleSnapshot',jsonb_build_object('id',r.rule_id,'version','2026.11','source',r.source_url,'effectiveFrom',CASE r.country_code WHEN 'AE' THEN '2018-01-01' WHEN 'AU' THEN '2000-07-01' WHEN 'SG' THEN '2024-01-01' ELSE '2011-01-04' END,'reviewedOn','2026-11-14'))
         )
       ),
       '[{"description":"Global taxable service","quantity":1,"rate":100}]'::jsonb,
@@ -172,7 +268,7 @@ BEGIN
           'globalTax',jsonb_build_object('countryCode','GB','mode','automatic','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','United Kingdom','placeOfSupplyConfirmed',true,'taxCategory','standard-rated','taxCategoryConfirmed',true),
           'globalTaxCalculation',jsonb_build_object('ok',true,'status','calculated','countryCode','GB','currencyCode','GBP','taxableMinor',10000,'taxMinor',1999,'totalMinor',11999,
             'components',jsonb_build_array(jsonb_build_object('id','GB-VAT-STANDARD-2026-11','name','VAT','rateBps',2000,'amountMinor',2000)),
-            'ruleSnapshot',jsonb_build_object('id','GB-VAT-STANDARD-2026-11','version','2026.11','source','https://www.gov.uk/vat-rates','effectiveFrom','2026-01-01'))
+            'ruleSnapshot',jsonb_build_object('id','GB-VAT-STANDARD-2026-11','version','2026.11','source','https://www.gov.uk/vat-rates','effectiveFrom','2011-01-04','reviewedOn','2026-11-14'))
         )
       ),
       '[{"description":"Tampered service","quantity":1,"rate":100}]'::jsonb,
@@ -195,7 +291,7 @@ BEGIN
       'tax_mode','split','tax_rate',0,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
       'invoice_snapshot',jsonb_build_object(
         'business',jsonb_build_object('name','Seller Ltd','address','1 Business Street'),
-        'globalTax',jsonb_build_object('countryCode','US','mode','manual','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','Los Angeles, CA','placeOfSupplyConfirmed',true,'taxCategory','taxable service','taxCategoryConfirmed',true,'collectionObligationConfirmed',true,'destinationJurisdiction',jsonb_build_object('state','CA','county','Los Angeles','city','Los Angeles')),
+        'globalTax',jsonb_build_object('countryCode','US','mode','manual','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','Los Angeles, CA','placeOfSupplyConfirmed',true,'taxCategory','standard-rated','taxCategoryConfirmed',true,'collectionObligationAttested',true,'destinationJurisdiction',jsonb_build_object('state','NY','county','New York','city','New York')),
         'globalTaxCalculation',jsonb_build_object('ok',true,'status','manual_unverified','countryCode','US','currencyCode','USD','taxableMinor',10000,'taxMinor',625,'totalMinor',10625,
           'components',jsonb_build_array(
             jsonb_build_object('id','state','name','State sales tax','rateBps',500,'amountMinor',500,'source','user-entered'),
@@ -223,7 +319,7 @@ BEGIN
         'tax_mode','split','tax_rate',0,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
         'invoice_snapshot',jsonb_build_object(
           'business',jsonb_build_object('name','Seller Ltd','address','1 Business Street'),
-          'globalTax',jsonb_build_object('countryCode','US','mode','manual','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','Example','placeOfSupplyConfirmed',true,'taxCategory','taxable service','taxCategoryConfirmed',true,'collectionObligationConfirmed',true,'destinationJurisdiction',jsonb_build_object('state','ZZ','county','Example County','city','Example City')),
+          'globalTax',jsonb_build_object('countryCode','US','mode','manual','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','Example','placeOfSupplyConfirmed',true,'taxCategory','standard-rated','taxCategoryConfirmed',true,'collectionObligationAttested',true,'destinationJurisdiction',jsonb_build_object('state','ZZ','county','Example County','city','Example City')),
           'globalTaxCalculation',jsonb_build_object('ok',true,'status','manual_unverified','countryCode','US','currencyCode','USD','taxableMinor',10000,'taxMinor',500,'totalMinor',10500,
             'components',jsonb_build_array(jsonb_build_object('id','state','name','State sales tax','rateBps',500,'amountMinor',500,'source','user-entered')))
         )
@@ -249,7 +345,7 @@ BEGIN
       'tax_mode','split','tax_rate',0,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
       'invoice_snapshot',jsonb_build_object(
         'business',jsonb_build_object('name','Seller Ltd','address','1 Business Street'),
-        'globalTax',jsonb_build_object('countryCode','CA','mode','manual','priceMode','inclusive','registrationConfirmed',true,'placeOfSupply','Ontario','placeOfSupplyConfirmed',true,'taxCategory','manual test supply','taxCategoryConfirmed',true,'collectionObligationConfirmed',true,'destinationJurisdiction',jsonb_build_object('province','ON')),
+        'globalTax',jsonb_build_object('countryCode','CA','mode','manual','priceMode','inclusive','registrationConfirmed',true,'placeOfSupply','Ontario','placeOfSupplyConfirmed',true,'taxCategory','standard-rated','taxCategoryConfirmed',true,'collectionObligationAttested',true,'destinationJurisdiction',jsonb_build_object('province','BC')),
         'globalTaxCalculation',jsonb_build_object('ok',true,'status','manual_unverified','countryCode','CA','currencyCode','CAD','taxableMinor',9259,'taxMinor',741,'totalMinor',10000,
           'components',jsonb_build_array(
             jsonb_build_object('id','gst','name','GST component','rateBps',500,'amountMinor',463,'source','user-entered'),
@@ -276,7 +372,7 @@ BEGIN
         'tax_mode','split','tax_rate',0,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
         'invoice_snapshot',jsonb_build_object(
           'business',jsonb_build_object('name','Seller Ltd','address','1 Business Street'),
-          'globalTax',jsonb_build_object('countryCode','US','mode','manual','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','California','placeOfSupplyConfirmed',true,'taxCategory','exempt','taxCategoryConfirmed',true,'collectionObligationConfirmed',true,'destinationJurisdiction',jsonb_build_object('state','CA','county','Los Angeles','city','Los Angeles')),
+          'globalTax',jsonb_build_object('countryCode','US','mode','manual','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','California','placeOfSupplyConfirmed',true,'taxCategory','exempt','taxCategoryConfirmed',true,'collectionObligationAttested',true,'destinationJurisdiction',jsonb_build_object('state','CA','county','Los Angeles','city','Los Angeles')),
           'globalTaxCalculation',jsonb_build_object('ok',true,'status','manual_unverified','countryCode','US','currencyCode','USD','taxableMinor',10000,'taxMinor',500,'totalMinor',10500,
             'components',jsonb_build_array(jsonb_build_object('id','state','name','State sales tax','rateBps',500,'amountMinor',500,'source','user-entered')))
         )
@@ -300,7 +396,7 @@ BEGIN
         'tax_mode','split','tax_rate',0,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
         'invoice_snapshot',jsonb_build_object(
           'business',jsonb_build_object('name','Seller Ltd','address','1 Business Street'),
-          'globalTax',jsonb_build_object('countryCode','US','mode','automatic','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','California','placeOfSupplyConfirmed',true,'taxCategory','taxable service','taxCategoryConfirmed',true),
+          'globalTax',jsonb_build_object('countryCode','US','mode','automatic','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','California','placeOfSupplyConfirmed',true,'taxCategory','standard-rated','taxCategoryConfirmed',true),
           'globalTaxCalculation',jsonb_build_object('ok',true,'status','calculated','countryCode','US','currencyCode','USD','taxableMinor',10000,'taxMinor',700,'totalMinor',10700,
             'components',jsonb_build_array(jsonb_build_object('id','US-FAKE','name','Fake rate','rateBps',700,'amountMinor',700)))
         )

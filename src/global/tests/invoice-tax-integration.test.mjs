@@ -51,7 +51,7 @@ test("US manual invoice requires state, county, city and collection-obligation c
 
   const result = calculateInvoiceGlobalTax(invoice("USD", {
     mode: "manual",
-    collectionObligationConfirmed: true,
+    collectionObligationAttested: true,
     destinationJurisdiction: { state: "CA", county: "Los Angeles", city: "Los Angeles" },
     components: [
       { id: "state", name: "State sales tax", rateBps: 500 },
@@ -67,7 +67,7 @@ test("US manual invoice requires state, county, city and collection-obligation c
 test("Canada manual inclusive GST/PST preserves the entered gross total", () => {
   const result = calculateInvoiceGlobalTax(invoice("CAD", {
     mode: "manual", priceMode: "inclusive",
-    collectionObligationConfirmed: true,
+    collectionObligationAttested: true,
     destinationJurisdiction: { province: "ON" },
     components: [
       { id: "gst", name: "GST", rateBps: 500 },
@@ -86,21 +86,21 @@ test("US/Canada automatic rate lookup fails closed without a verified jurisdicti
 
 test("US and Canada manual jurisdiction codes must be valid and country-matched", () => {
   const usInvalid = calculateInvoiceGlobalTax(invoice("USD", {
-    mode: "manual", collectionObligationConfirmed: true,
+    mode: "manual", collectionObligationAttested: true,
     destinationJurisdiction: { state: "ZZ", county: "Example County", city: "Example City" },
     components: [{ id: "state", name: "State tax", rateBps: 500 }],
   }), profile("US", "USD", { registeredJurisdiction: "US-ZZ" }));
   assert.equal(usInvalid.code, "INVALID_JURISDICTION");
 
   const usWrongPrefix = calculateInvoiceGlobalTax(invoice("USD", {
-    mode: "manual", collectionObligationConfirmed: true,
+    mode: "manual", collectionObligationAttested: true,
     destinationJurisdiction: { state: "CA", county: "Los Angeles", city: "Los Angeles" },
     components: [{ id: "state", name: "State tax", rateBps: 500 }],
   }), profile("US", "USD", { registeredJurisdiction: "CA-CA" }));
   assert.equal(usWrongPrefix.code, "JURISDICTION_OR_NEXUS_REQUIRED");
 
   const caInvalid = calculateInvoiceGlobalTax(invoice("CAD", {
-    mode: "manual", collectionObligationConfirmed: true,
+    mode: "manual", collectionObligationAttested: true,
     destinationJurisdiction: { province: "XX" },
     components: [{ id: "gst", name: "GST", rateBps: 500 }],
   }), profile("CA", "CAD", { registeredJurisdiction: "CA-XX" }));
@@ -139,7 +139,7 @@ test("manual calculation rejects unsupported zero-rated, exempt and reduced trea
     const result = calculateInvoiceGlobalTax(invoice("USD", {
       mode: "manual",
       taxCategory,
-      collectionObligationConfirmed: true,
+      collectionObligationAttested: true,
       destinationJurisdiction: { state: "CA", county: "Los Angeles", city: "Los Angeles" },
       components: [{ id: "state", name: "State tax", rateBps: 500 }],
     }), profile("US", "USD"));
@@ -147,20 +147,20 @@ test("manual calculation rejects unsupported zero-rated, exempt and reduced trea
   }
 });
 
-test("manual jurisdiction must match the saved seller registration region", () => {
+test("manual jurisdiction does not infer nexus from matching seller and buyer regions", () => {
   const result = calculateInvoiceGlobalTax(invoice("USD", {
     mode: "manual",
-    collectionObligationConfirmed: true,
+    collectionObligationAttested: true,
     destinationJurisdiction: { state: "NY", county: "New York", city: "New York" },
     components: [{ id: "state", name: "State sales tax", rateBps: 400 }],
   }), profile("US", "USD"));
-  assert.equal(result.code, "JURISDICTION_OR_NEXUS_REQUIRED");
+  assert.equal(result.ok, true);
 });
 
 test("manual zero-rate components fail closed instead of silently creating a tax-free invoice", () => {
   const result = calculateInvoiceGlobalTax(invoice("USD", {
     mode: "manual",
-    collectionObligationConfirmed: true,
+    collectionObligationAttested: true,
     destinationJurisdiction: { state: "CA", county: "Los Angeles", city: "Los Angeles" },
     components: [{ id: "state", name: "State sales tax", rateBps: 0 }],
   }), profile("US", "USD"));
@@ -176,4 +176,33 @@ test("workspace country always selects its required invoice currency, including 
   assert.equal(resolveInvoiceCurrencyForWorkspace("CA", "GBP"), "CAD");
   assert.equal(resolveInvoiceCurrencyForWorkspace("IN", "GBP"), "GBP");
   assert.equal(resolveInvoiceCurrencyForWorkspace("ZZ", "EUR"), "EUR");
+});
+
+test("manual treatment uses an explicit allowlist and rejects unknown labels", () => {
+  for (const taxCategory of ["", "unknown", "special scheme", "reverse charge", "taxable service", "exempt", "standard"]) {
+    const result = calculateInvoiceGlobalTax(invoice("GBP", { mode: "manual", taxCategory,
+      components: [{ id: "vat", name: "VAT", rateBps: 2000 }] }), profile("GB", "GBP"));
+    assert.equal(result.code, "UNSUPPORTED_TAX_TREATMENT", taxCategory);
+  }
+  const supported = calculateInvoiceGlobalTax(invoice("GBP", { mode: "manual", taxCategory: "standard-rated",
+    components: [{ id: "vat", name: "VAT", rateBps: 2000 }] }), profile("GB", "GBP"));
+  assert.equal(supported.ok, true);
+});
+
+test("US/Canada manual tax validates destination separately from seller registration region", () => {
+  const us = calculateInvoiceGlobalTax(invoice("USD", { mode: "manual", collectionObligationAttested: true,
+    destinationJurisdiction: { state: "NY", county: "New York", city: "New York" },
+    components: [{ id: "state", name: "State tax", rateBps: 500 }] }), profile("US", "USD", { registeredJurisdiction: "US-CA" }));
+  assert.equal(us.ok, true);
+  const ca = calculateInvoiceGlobalTax(invoice("CAD", { mode: "manual", collectionObligationAttested: true,
+    destinationJurisdiction: { province: "BC" },
+    components: [{ id: "gst", name: "GST", rateBps: 500 }] }), profile("CA", "CAD", { registeredJurisdiction: "CA-ON" }));
+  assert.equal(ca.ok, true);
+});
+
+test("US/Canada manual rates require user attestation", () => {
+  const result = calculateInvoiceGlobalTax(invoice("USD", { mode: "manual",
+    destinationJurisdiction: { state: "CA", county: "Los Angeles", city: "Los Angeles" },
+    components: [{ id: "state", name: "State tax", rateBps: 500 }] }), profile("US", "USD"));
+  assert.equal(result.code, "COLLECTION_OBLIGATION_ATTESTATION_REQUIRED");
 });

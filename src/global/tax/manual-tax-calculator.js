@@ -3,6 +3,8 @@
  * Results are intentionally marked manual_unverified: user-entered rates are
  * not official tax advice and do not establish registration or collection duties.
  */
+import { isSupportedManualTaxTreatment } from "./tax-treatment-policy.js";
+
 const CURRENCY_MINOR_UNITS = Object.freeze({ USD: 2, GBP: 2, AED: 2, CAD: 2, AUD: 2, SGD: 2 });
 
 const fail = (code, message) => ({ ok: false, status: "needs_review", code, message });
@@ -20,6 +22,7 @@ export function calculateManualTax(input) {
   }
   if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor < 0) return fail("INVALID_AMOUNT", "Amount must be a non-negative safe integer in minor units.");
   if (!["inclusive", "exclusive"].includes(input.priceMode)) return fail("PRICE_MODE_REQUIRED", "Choose whether the entered price includes tax.");
+  if (!isSupportedManualTaxTreatment(input.taxTreatment)) return fail("UNSUPPORTED_TAX_TREATMENT", "Only standard-rated supplies are supported for manual tax components.");
   if (!Array.isArray(input.components) || input.components.length < 1 || input.components.length > 8) return fail("INVALID_COMPONENTS", "Enter one to eight tax components.");
   const ids = new Set();
   for (const item of input.components) {

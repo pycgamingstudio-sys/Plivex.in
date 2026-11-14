@@ -39,6 +39,7 @@ test("verified standard baselines exist for GB, AE, AU and SG", () => {
   assert.equal(getStandardRateBaseline("AE").rateBps, 500);
   assert.equal(getStandardRateBaseline("AU").rateBps, 1000);
   assert.equal(getStandardRateBaseline("SG").rateBps, 900);
+  assert.equal(getStandardRateBaseline("GB").effectiveFrom, "2011-01-04");
   assert.equal(getStandardRateBaseline("US"), null);
   assert.equal(getStandardRateBaseline("CA"), null);
 });

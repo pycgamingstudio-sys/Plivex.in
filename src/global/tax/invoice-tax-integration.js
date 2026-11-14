@@ -76,11 +76,9 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
   if (config.taxCategoryConfirmed !== true || !String(config.taxCategory || "").trim()) {
     return fail("TAX_CATEGORY_REQUIRED", "Enter and confirm the goods/services tax category.");
   }
-  if (mode !== "manual" && !/^standard(?:[- ]rated)?(?: supply)?$/i.test(String(config.taxCategory || "").trim())) {
-    return fail("UNSUPPORTED_TAX_TREATMENT", "Automatic calculation currently supports only standard-rated supplies. Reduced, zero-rated, exempt and special treatments fail closed.");
-  }
-  if (mode === "manual" && /(zero[- ]rated|exempt|reduced|reverse[- ]charge|out[- ]of[- ]scope)/i.test(String(config.taxCategory || "").trim())) {
-    return fail("UNSUPPORTED_TAX_TREATMENT", "Manual tax components do not support zero-rated, exempt, reduced, reverse-charge or out-of-scope treatments.");
+  const normalizedTreatment = normalizeManualTaxTreatment(config.taxCategory);
+  if (normalizedTreatment !== "standard-rated" || (mode === "manual" && !isSupportedManualTaxTreatment(config.taxCategory))) {
+    return fail("UNSUPPORTED_TAX_TREATMENT", "Only the explicitly supported standard-rated treatment is available. Unknown, blank and special-scheme labels are rejected.");
   }
 
   const amount = amountMinor(invoice);
@@ -106,20 +104,17 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
         : ["province"];
       const destinationRegion = String(jurisdiction[countryCode === "US" ? "state" : "province"] || "").trim().toUpperCase();
       const registeredParts = String(workspaceProfile?.registeredJurisdiction || "").trim().toUpperCase().split("-");
-      const registeredRegion = registeredParts[1] || "";
+      const sellerRegion = registeredParts[1] || "";
       const allowedRegions = countryCode === "US" ? US_JURISDICTIONS : CA_JURISDICTIONS;
-      if (required.some((key) => !String(jurisdiction[key] || "").trim())
-        || !destinationRegion
-        || config.collectionObligationConfirmed !== true
-        || registeredParts.length !== 2
-        || registeredParts[0] !== countryCode
-        || registeredRegion !== destinationRegion) {
-        return fail("JURISDICTION_OR_NEXUS_REQUIRED", countryCode === "US"
-          ? "Enter state, county and city, confirm the destination jurisdiction and your collection obligation, and save your registered jurisdiction."
-          : "Enter the destination province, confirm your collection obligation and save your registered province.");
+      const sellerRegionValid = registeredParts.length === 2 && registeredParts[0] === countryCode && allowedRegions.has(sellerRegion);
+      if (required.some((key) => !String(jurisdiction[key] || "").trim()) || !destinationRegion) {
+        return fail("DESTINATION_JURISDICTION_REQUIRED", "Enter the required destination state/county/city or province/territory.");
       }
-      if (!allowedRegions.has(destinationRegion)) {
-        return fail("INVALID_JURISDICTION", "Enter a valid US state or Canadian province/territory code.");
+      if (!allowedRegions.has(destinationRegion) || !sellerRegionValid) {
+        return fail("INVALID_JURISDICTION", "Enter valid destination and seller registration state/province codes for the selected country.");
+      }
+      if (config.collectionObligationAttested !== true) {
+        return fail("COLLECTION_OBLIGATION_ATTESTATION_REQUIRED", "Attest that you have checked the collection obligation for this destination. Plivex does not independently verify nexus or collection duties.");
       }
     }
     const result = calculateManualTax({
@@ -128,17 +123,18 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
       currencyMinorUnits: MINOR_UNITS[currencyCode],
       amountMinor: amount,
       priceMode: config.priceMode,
+      taxTreatment: normalizedTreatment,
       components: components.map((item) => ({
         id: String(item.id || ""),
         name: String(item.name || item.id || ""),
         rateBps: Number(item.rateBps),
       })),
       jurisdictionConfirmed: (countryCode === "US" || countryCode === "CA")
-        ? config.collectionObligationConfirmed === true
+        ? config.collectionObligationAttested === true
         : true,
     });
     return result.ok
-      ? { ...result, mode: "manual", countryCode, invoiceDate: issueDate, format, registrationEvidence: "user-attested", warning: result.warning + " Registration and collection obligations are not independently verified by Plivex." }
+      ? { ...result, mode: "manual", countryCode, invoiceDate: issueDate, format, registrationEvidence: "user-attested", warning: result.warning + " Registration and collection-obligation details are user-attested and are not independently verified by Plivex." }
       : result;
   }
 
