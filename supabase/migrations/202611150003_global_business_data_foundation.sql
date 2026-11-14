@@ -204,7 +204,7 @@ drop trigger if exists global_expenses_set_updated_at on global.expenses;
 create trigger global_expenses_set_updated_at before update on global.expenses
   for each row execute function global.set_updated_at();
 
-comment on table global.clients is 'Global-only customer records; workspace-scoped and never shared with India public.clients.';
+comment on table global.clients is 'Global-only customer records; workspace-scoped and never shared with India edition client records.';
 comment on table global.products is 'Global-only product catalogue; monetary values are integer minor units.';
 comment on table global.stock_levels is 'Global-only current stock balance; writes require audited server-side operations.';
 comment on table global.stock_movements is 'Append-only Global inventory movement ledger; writes require audited server-side operations.';
