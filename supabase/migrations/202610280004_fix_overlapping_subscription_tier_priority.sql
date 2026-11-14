@@ -42,7 +42,7 @@ BEGIN
   -- Historical get_access_status source produced by the preceding local
   -- 202610270002 migration. Flexible whitespace does not relax the predicates.
   v_old_pattern := $pattern$
-select max\(s\.expires_at\) into v_expires[[:space:]]+
+[[:space:]]*select max\(s\.expires_at\) into v_expires[[:space:]]+
 from public\.subscriptions s[[:space:]]+
 where s\.workspace_id = p_workspace_id[[:space:]]+
 and s\.status::text = 'active'[[:space:]]+
@@ -51,7 +51,7 @@ and s\.started_at <= clock_timestamp\(\)[[:space:]]+
 and s\.tier::text in \('basic','pro'\);
 $pattern$;
   v_final_pattern := $pattern$
-select s\.expires_at into v_expires[[:space:]]+
+[[:space:]]*select s\.expires_at into v_expires[[:space:]]+
 from public\.subscriptions s[[:space:]]+
 where s\.workspace_id = p_workspace_id[[:space:]]+
 and s\.status::text = 'active'[[:space:]]+
