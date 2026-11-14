@@ -57,3 +57,11 @@ test("Global workspace profile reads and updates stay inside global.business_pro
   assert.match(rpc, /update global\.business_profiles set/);
   assert.match(rpc, /v_role not in \('owner','admin'\)/);
 });
+
+
+test("Global business tax profile stores the effective registration date in the private schema", () => {
+  assert.match(handler, /tax_registration_effective_from/);
+  assert.match(rpc, /add column if not exists tax_registration_effective_from date/);
+  assert.match(rpc, /tax_registration_effective_from=case/);
+  assert.match(backend, /tax_registration_effective_from/);
+});
