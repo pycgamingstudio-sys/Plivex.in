@@ -31,7 +31,7 @@ test("Global auth hydrates workspace data only through the isolated Global adapt
   const globalStart = authContext.indexOf('if (APP_EDITION === "global")');
   const indiaStart = authContext.indexOf("setTenantId(currentUser?.id)", globalStart);
   const globalBranch = authContext.slice(globalStart, indiaStart);
-  assert.match(globalBranch, /await hydrateWorkspaceData\(\)/);
+  assert.match(globalBranch, /if \(currentUser\?\.workspace_id\) await hydrateWorkspaceData\(\)/);
 });
 
 test("Global tenant storage never imports legacy India localStorage keys", () => {
