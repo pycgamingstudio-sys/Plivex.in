@@ -6,7 +6,6 @@ const SUBSCRIPTION_ID = "22222222-2222-4222-8222-222222222222";
 const WORKSPACE_ID = "workspace-postgrest";
 const URL = Deno.env.get("TEST_SUPABASE_URL") || "http://127.0.0.1:3000";
 const JWT_SECRET = Deno.env.get("TEST_JWT_SECRET") || "";
-const ANON_KEY = "disposable-anon-key";
 
 function base64Url(bytes) {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
@@ -43,9 +42,15 @@ async function createHandler() {
     iat: nowSeconds,
     exp: nowSeconds + 3600,
   });
+  const anonToken = await signJwt({
+    role: "anon",
+    aud: "authenticated",
+    iat: nowSeconds,
+    exp: nowSeconds + 3600,
+  });
   const createDbClient = (url, key, options) => {
     const client = createClient(url, key, options);
-    if (key === ANON_KEY) {
+    if (key === anonToken) {
       // Only Supabase Auth identity lookup is stubbed. Profile and subscription
       // reads/writes below go through real Supabase JS -> PostgREST -> PostgreSQL.
       client.auth.getUser = async () => ({
@@ -59,7 +64,7 @@ async function createHandler() {
     createClient: createDbClient,
     getEnv: (name) => ({
       SUPABASE_URL: URL,
-      SUPABASE_ANON_KEY: ANON_KEY,
+      SUPABASE_ANON_KEY: anonToken,
       SUPABASE_SERVICE_ROLE_KEY: serviceToken,
     })[name],
     now: () => new Date(),
@@ -68,6 +73,8 @@ async function createHandler() {
   return {
     handler,
     admin,
+    userToken,
+    anonToken,
     request: (action) => handler(new Request(URL + "/functions/v1/manage-cashfree-subscription", {
       method: "POST",
       headers: {
@@ -81,10 +88,10 @@ async function createHandler() {
 }
 
 Deno.test("actual subscription handler reads and updates disposable PostgreSQL through PostgREST", async () => {
-  const { handler, admin, userToken, request } = await createHandler();
+  const { handler, admin, userToken, anonToken, request } = await createHandler();
 
   const profileProbe = await fetch(URL + "/profiles?select=workspace_id,role&id=eq." + USER_ID, {
-    headers: { Authorization: "Bearer " + userToken, apikey: ANON_KEY },
+    headers: { Authorization: "Bearer " + userToken, apikey: anonToken },
   });
   const profileProbeBody = await profileProbe.text();
   if (!profileProbe.ok) {
