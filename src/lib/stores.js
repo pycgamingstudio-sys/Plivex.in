@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { backend as api } from "@/api/backendClient";
+import { invoiceSaveSignature } from "@/global/tax/invoice-save-signature.js";
 
 // ──────────────────────────────────────────────────────────────────────────
 // Multi-tenant storage layer.
@@ -373,11 +374,7 @@ export function useLocalState(key, fallback) {
 
 // ── Saving an invoice (the server calculates totals, the invoice number and the stock change) ──
 
-const invoiceSignature = (inv) => JSON.stringify([
-  inv.client?.name, inv.client?.email, inv.business?.name, inv.issueDate, inv.dueDate, inv.currency, inv.taxMode, inv.taxRate,
-  inv.discountType, inv.discount, inv.notes, inv.terms,
-  (inv.items || []).map((i) => [i.description, i.quantity, i.rate, i.gstRate]),
-]);
+const invoiceSignature = invoiceSaveSignature;
 
 export async function saveInvoiceToServer(inv) {
   const sig = invoiceSignature(inv);
