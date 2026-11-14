@@ -1,6 +1,6 @@
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import {api,verifyWebhook,activatePaidOrder} from "../_shared/cashfree.ts";
-import {isCashfreeOrderId} from "../_shared/cashfree.ts";
+import {isCashfreeOrderId,cashfreePaymentStatusUpdateFilter} from "../_shared/cashfree.ts";
 import {handleCashfreeRefundEvent} from "./refund.ts";
 const json=(b:unknown,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{"Content-Type":"application/json","Cache-Control":"no-store"}});
 Deno.serve(async(req:Request)=>{
@@ -28,9 +28,7 @@ Deno.serve(async(req:Request)=>{
    // Cashfree deliveries are at-least-once and may arrive out of order.
    // PENDING can only fill an unset/created/pending state. FAILED may advance
    // those states, but neither can overwrite SUCCESS or an active subscription.
-   const allowedPriorStates=normalized==="pending"
-    ? "payment_status.is.null,payment_status.in.(created,pending)"
-    : "payment_status.is.null,payment_status.in.(created,pending,failed)";
+   const allowedPriorStates=cashfreePaymentStatusUpdateFilter(normalized);
    const {error:updateError}=await admin.from("subscriptions").update({
     payment_status:normalized,provider_payment_status:paymentStatus,
     provider_order_status:String(data?.order?.order_status||"").toUpperCase()||null,
