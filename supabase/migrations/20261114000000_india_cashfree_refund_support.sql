@@ -21,8 +21,8 @@ WHERE upper(COALESCE(currency, '')) = 'INR'
 
 UPDATE public.subscriptions
 SET payment_status = CASE
-  WHEN status::text = 'active' AND payment_status = 'created' THEN 'success'
-  WHEN status::text = 'failed' AND payment_status = 'created' THEN 'failed'
+  WHEN status::text = 'active' THEN 'success'
+  WHEN status::text = 'failed' THEN 'failed'
   WHEN payment_status IS NULL THEN 'created'
   ELSE payment_status
 END
