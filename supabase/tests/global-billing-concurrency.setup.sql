@@ -63,6 +63,8 @@ CREATE TABLE public.payment_logs (
 \ir ../migrations/202611130007_global_billing_and_cashfree_atomicity.sql
 \ir ../migrations/202611130008_cashfree_refund_atomicity.sql
 \ir ../migrations/202611130009_global_billing_concurrency_and_definer_hardening.sql
+\ir ../migrations/202611130010_cashfree_refund_identity_immutability.sql
+\ir ../migrations/20261114000005_cashfree_refund_exact_payment_mapping.sql
 GRANT SELECT ON public.subscriptions TO service_role;
 
 INSERT INTO public.subscriptions (
