@@ -2,7 +2,7 @@
   "project_ref": "sqzpaiibmfsvarrkwkvb",
   "captured_at": "2026-11-14",
   "source": "read-only SELECT from supabase_migrations.schema_migrations (version,name,statements)",
-  "remote_ledger_entries": 51,
+  "remote_ledger_entries": 52,
   "local_migration_files": 32,
   "exact_version_matches": 0,
   "basename_matches": [
@@ -115,6 +115,13 @@
       "remote_version": "20261114163153",
       "name": "global_business_records_rpc",
       "local_path": "supabase/migrations/202611150004_global_business_records_rpc.sql",
+      "content_equivalence": "applied from this local SQL source",
+      "normalized_sql_match": true
+    },
+    {
+      "remote_version": "20261114182255",
+      "name": "global_business_profile_records",
+      "local_path": "supabase/migrations/202611150005_global_business_profile_records.sql",
       "content_equivalence": "applied from this local SQL source",
       "normalized_sql_match": true
     }
@@ -346,8 +353,7 @@
     "20261114000002_global_workspace_tax_registration_profile.sql",
     "20261114000003_global_invoice_tax_calculation.sql",
     "20261114000004_global_tax_snapshot_hardening.sql",
-    "20261114000005_cashfree_refund_exact_payment_mapping.sql",
-    "202611150005_global_business_profile_records.sql"
+    "20261114000005_cashfree_refund_exact_payment_mapping.sql"
   ],
   "notes": [
     "Recovered SQL is copied from the production migration ledger statements column.",
@@ -360,7 +366,7 @@
     "202611150002_global_owner_provisioning.sql adds service_role-only RPC wrappers for Global auth context, idempotent owner workspace provisioning, and Global profile updates. It is included in the disposable 66-entry candidate replay; business data remains in the global schema.",
     "202611150004_global_business_records_rpc.sql adds a service_role-only public RPC that keeps the global schema private from PostgREST while enforcing active Global workspace membership for client/product/expense CRUD and read-only invoice/inventory listing.",
     "The four Global migrations were applied to the existing Supabase project on 2026-11-14 through the Supabase migration API. Their recorded remote versions are 20261114163116, 20261114163144, 20261114163149, and 20261114163153; the matching local SQL files are tracked in basename_matches for replay convergence.",
-    "202611150005_global_business_profile_records.sql is a new Global-only forward migration that adds the business tax-registration effective date and extends the service-role business-record RPC; it is candidate-only and has not been applied to the live Supabase project."
+    "202611150005_global_business_profile_records.sql was applied to the live Supabase project as migration version 20261114182255 (name global_business_profile_records) after disposable replay, rollback, RLS and India regression checks passed."
   ],
   "recovered_historical_sources": [
     {
