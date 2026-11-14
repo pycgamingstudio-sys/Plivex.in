@@ -42,8 +42,19 @@ export const api=async(path:string,init:RequestInit={})=>{
  if(!r.ok)throw new Error("Cashfree API request failed ("+r.status+").");
  return data;
 };
-export const verifyWebhookSignature=async(raw:string,timestamp:string,signature:string,secret:string)=>{
- if(!timestamp||!signature||!secret)return false;
+// Cashfree retries webhook deliveries; retain a 24-hour tolerance so ordinary
+// provider retries/resends are not rejected, while bounding captured-signature replay.
+// Accept the provider's epoch-seconds and epoch-milliseconds representations.
+export const CASHFREE_WEBHOOK_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+export const CASHFREE_WEBHOOK_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
+export function isCashfreeWebhookTimestampFresh(timestamp:string,nowMs=Date.now()){
+ if(!/^\\d{10}(?:\\d{3})?$/.test(timestamp))return false;
+ const raw=Number(timestamp),eventMs=timestamp.length===10?raw*1000:raw;
+ return Number.isSafeInteger(eventMs)&&eventMs<=nowMs+CASHFREE_WEBHOOK_MAX_FUTURE_SKEW_MS&&
+   nowMs-eventMs<=CASHFREE_WEBHOOK_MAX_AGE_MS;
+}
+export const verifyWebhookSignature=async(raw:string,timestamp:string,signature:string,secret:string,nowMs=Date.now())=>{
+ if(!timestamp||!signature||!secret||!isCashfreeWebhookTimestampFresh(timestamp,nowMs))return false;
  const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
  const digest=await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(timestamp+raw));
  const expected=btoa(String.fromCharCode(...new Uint8Array(digest)));
