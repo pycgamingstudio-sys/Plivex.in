@@ -58,7 +58,7 @@ function run(command, args, env, input) {
   return result.stdout || "";
 }
 function envFor(port, database = "postgres") {
-  return { ...process.env, PGHOST: "127.0.0.1", PGPORT: String(port), PGUSER: "postgres", PGPASSWORD: "postgres", PGDATABASE: database };
+  return { ...process.env, PGHOST: "127.0.0.1", PGPORT: String(port), PGUSER: process.env.PGUSER || "supabase_admin", PGPASSWORD: "postgres", PGDATABASE: database };
 }
 function psql(port, db, args, input) {
   return run("psql", ["-X", "-v", "ON_ERROR_STOP=1", "-d", db, ...args], envFor(port, db), input);
@@ -67,8 +67,8 @@ function query(port, db, sql) {
   return psql(port, db, ["-A", "-t", "-c", sql]).trim();
 }
 function resetDb(port) {
-  run("dropdb", ["--if-exists", "plivex_migration_replay"], envFor(port));
-  run("createdb", ["plivex_migration_replay"], envFor(port));
+  // Each disposable container is created with a fresh replay database already
+  // selected as pg_cron's database. Do not drop it: pg_cron holds a connection.
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/migration-replay-bootstrap.sql")]);
 }
 function replay(port, plan) {
