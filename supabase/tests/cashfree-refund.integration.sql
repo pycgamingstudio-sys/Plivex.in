@@ -109,7 +109,7 @@ VALUES
   ('10000000-0000-0000-0000-000000000014','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-AMBIG-000000000014'),
   ('10000000-0000-0000-0000-000000000015','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-UNLINKED-000000000015'),
   ('10000000-0000-0000-0000-000000000016','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','e@example.test','ws-e','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-PARTIAL-000000000016'),
-  ('10000000-0000-0000-0000-000000000017','ffffffff-ffff-ffff-ffff-ffffffffffff','f@example.test','ws-f','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-HELD-000000000017');
+  ('10000000-0000-0000-0000-000000000017','ffffffff-ffff-ffff-ffff-ffffffffffff','f@example.test','ws-f','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-HELD-000000000017'),
   ('10000000-0000-0000-0000-000000000018','gggggggg-gggg-gggg-gggg-gggggggggggg','g@example.test','ws-g','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-MISSING-000000000018');
 
 UPDATE public.subscriptions
@@ -333,7 +333,7 @@ $incomplete_exact_resolution$;
 RESET ROLE;
 
 -- Replay must preserve the first exception snapshot and its resolved marker.
-\\ir ../migrations/20261114000001_cashfree_refund_payment_log_linkage.sql
+\ir ../migrations/20261114000001_cashfree_refund_payment_log_linkage.sql
 DO $h03_resolution_and_replay$
 DECLARE v jsonb;
 BEGIN
