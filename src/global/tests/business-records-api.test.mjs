@@ -7,7 +7,7 @@ const [backend, handler, shared, rpc] = await Promise.all([
   read("../../api/backendClient.js"),
   read("../../../supabase/functions/global-business-records/index.ts"),
   read("../../../supabase/functions/_shared/global.ts"),
-  read("../../../supabase/migrations/202611150004_global_business_records_rpc.sql"),
+  read("../../../supabase/migrations/202611150005_global_business_profile_records.sql"),
 ]);
 
 test("Global app can invoke only the dedicated Global business records function", () => {
