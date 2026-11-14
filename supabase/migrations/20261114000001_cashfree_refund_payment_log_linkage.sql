@@ -30,7 +30,7 @@ WHERE r.id = m.refund_id
 UPDATE public.payment_logs
 SET refund_status = NULL,
     refund_amount_minor_units = NULL
-WHERE provider = 'cashfree' AND gateway = 'cashfree';
+WHERE provider = 'cashfree' OR gateway = 'cashfree';
 
 WITH payment_totals AS (
   SELECT
@@ -58,8 +58,7 @@ WHERE l.id = t.payment_log_id;
 -- An unlinked historical refund makes every attempt for that order unsafe to reconcile.
 UPDATE public.payment_logs l
 SET refund_status = 'reconciliation_required'
-WHERE l.provider = 'cashfree'
-  AND l.gateway = 'cashfree'
+WHERE (l.provider = 'cashfree' OR l.gateway = 'cashfree')
   AND EXISTS (
     SELECT 1
     FROM public.payment_refunds r
@@ -118,6 +117,37 @@ BEFORE UPDATE OF subscription_id, payment_log_id, provider, provider_refund_id,
 ON public.payment_refunds
 FOR EACH ROW
 EXECUTE FUNCTION public.prevent_cashfree_refund_identity_change();
+
+
+CREATE OR REPLACE FUNCTION public.prevent_cashfree_payment_log_identity_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, pg_temp
+AS $
+BEGIN
+  IF OLD.provider = 'cashfree'
+     AND OLD.gateway = 'cashfree'
+     AND (
+       NEW.id IS DISTINCT FROM OLD.id
+       OR NEW.subscription_id IS DISTINCT FROM OLD.subscription_id
+       OR NEW.txnid IS DISTINCT FROM OLD.txnid
+       OR NEW.provider IS DISTINCT FROM OLD.provider
+       OR NEW.gateway IS DISTINCT FROM OLD.gateway
+       OR NEW.provider_payment_id IS DISTINCT FROM OLD.provider_payment_id
+     ) THEN
+    RAISE EXCEPTION 'Cashfree payment-log identity is immutable';
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS cashfree_payment_logs_identity_immutable
+  ON public.payment_logs;
+CREATE TRIGGER cashfree_payment_logs_identity_immutable
+BEFORE UPDATE OF id, subscription_id, txnid, provider, gateway, provider_payment_id
+ON public.payment_logs
+FOR EACH ROW
+EXECUTE FUNCTION public.prevent_cashfree_payment_log_identity_change();
 
 CREATE OR REPLACE FUNCTION public.apply_cashfree_refund_event(
   p_subscription_id uuid,
@@ -358,4 +388,6 @@ REVOKE ALL ON FUNCTION public.apply_cashfree_refund_event(uuid,text,bigint,text,
 GRANT EXECUTE ON FUNCTION public.apply_cashfree_refund_event(uuid,text,bigint,text,text,jsonb)
   TO service_role;
 REVOKE ALL ON FUNCTION public.prevent_cashfree_refund_identity_change()
+  FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.prevent_cashfree_payment_log_identity_change()
   FROM PUBLIC, anon, authenticated;
