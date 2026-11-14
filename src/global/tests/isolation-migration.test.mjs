@@ -8,34 +8,30 @@ const migration = await readFile(
 );
 
 test("Global isolation migration is additive and uses a private schema", () => {
-  assert.match(migration, /create schema if not exists global/i);
-  assert.match(migration, /revoke all on schema global from public, anon, authenticated/i);
-  assert.match(migration, /grant usage on schema global to service_role/i);
-  assert.doesNotMatch(migration, /alter table public\./i);
-  assert.doesNotMatch(migration, /drop table\s+(if exists\s+)?public\./i);
+  assert.ok(migration.includes("create schema if not exists global"));
+  assert.ok(migration.includes("revoke all on schema global from public, anon, authenticated"));
+  assert.ok(migration.includes("grant usage on schema global to authenticated, service_role"));
+  assert.equal(/alter\s+table\s+public\./i.test(migration), false);
+  assert.equal(/drop\s+table\s+(if exists\s+)?public\./i.test(migration), false);
 });
 
 test("Global authorization is based on Global memberships, not India profiles", () => {
-  assert.match(migration, /global\.workspace_members/);
-  assert.match(migration, /wm\.user_id = auth\.uid\(\)/);
-  assert.match(migration, /global\.is_workspace_member/);
-  assert.doesNotMatch(migration, /public\.profiles/i);
+  assert.ok(migration.includes("global.workspace_members"));
+  assert.ok(migration.includes("wm.user_id = auth.uid()"));
+  assert.ok(migration.includes("global.is_workspace_member"));
+  assert.equal(/public\.profiles/i.test(migration), false);
 });
 
 test("Global tenant tables enforce RLS and least-privilege provisioning", () => {
   for (const table of ["workspaces", "user_profiles", "workspace_members", "business_profiles"]) {
-    assert.match(migration, new RegExp(`alter table global\\.${table} enable row level security`, "i"));
+    assert.ok(migration.includes(`alter table global.${table} enable row level security`));
   }
-  assert.match(migration, /for update to authenticated/i);
-  assert.match(migration, /No authenticated INSERT\/DELETE policies/i);
-  assert.match(migration, /grant all on all tables in schema global to service_role/i);
+  assert.ok(migration.includes("for update to authenticated"));
+  assert.ok(migration.includes("No authenticated INSERT/DELETE policies"));
+  assert.ok(migration.includes("grant all on all tables in schema global to service_role"));
 });
 
-test("Global workspace data has constrained country, locale and currency identifiers", () => {
-  assert.ok(migration.includes("country_code text not null check (country_code ~ '^[A-Z]{2}
-});
-)"));
-  assert.ok(migration.includes("currency_code text not null check (currency_code ~ '^[A-Z]{3}
-});
-)"));
+test("Global workspace country and currency identifiers are constrained", () => {
+  assert.ok(migration.includes("country_code ~ '^[A-Z]{2}$'"));
+  assert.ok(migration.includes("currency_code ~ '^[A-Z]{3}$'"));
 });
