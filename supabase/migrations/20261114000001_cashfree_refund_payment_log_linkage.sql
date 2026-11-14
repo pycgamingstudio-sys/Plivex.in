@@ -136,6 +136,7 @@ FROM public.payment_logs l
 WHERE l.provider = 'cashfree'
   AND l.gateway = 'cashfree'
   AND (l.refund_status IS NOT NULL OR l.refund_amount_minor_units IS NOT NULL)
+  AND l.refund_status IS DISTINCT FROM 'reconciliation_required'
   AND NOT EXISTS (
     SELECT 1 FROM public.payment_refunds r
     WHERE r.payment_log_id = l.id AND r.provider = 'cashfree'
