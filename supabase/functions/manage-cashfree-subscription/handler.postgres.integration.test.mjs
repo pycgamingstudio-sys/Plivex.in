@@ -49,7 +49,20 @@ async function createHandler() {
     exp: nowSeconds + 3600,
   });
   const createDbClient = (url, key, options) => {
-    const client = createClient(url, key, options);
+    const tracedOptions = {
+      ...options,
+      global: {
+        ...options?.global,
+        fetch: async (input, init) => {
+          const response = await fetch(input, init);
+          if (String(input).includes("/profiles")) {
+            console.log("[disposable PostgREST profiles]", response.status, await response.clone().text());
+          }
+          return response;
+        },
+      },
+    };
+    const client = createClient(url, key, tracedOptions);
     if (key === anonToken) {
       // Only Supabase Auth identity lookup is stubbed. Profile and subscription
       // reads/writes below go through real Supabase JS -> PostgREST -> PostgreSQL.
