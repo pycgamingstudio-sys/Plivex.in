@@ -158,7 +158,7 @@ grant usage, select on all sequences in schema global to service_role;
 drop trigger if exists global_workspaces_set_updated_at on global.workspaces;\ncreate trigger global_workspaces_set_updated_at before update on global.workspaces\n  for each row execute function global.set_updated_at();\ndrop trigger if exists global_user_profiles_set_updated_at on global.user_profiles;\ncreate trigger global_user_profiles_set_updated_at before update on global.user_profiles\n  for each row execute function global.set_updated_at();\ndrop trigger if exists global_workspace_members_set_updated_at on global.workspace_members;\ncreate trigger global_workspace_members_set_updated_at before update on global.workspace_members\n  for each row execute function global.set_updated_at();\ndrop trigger if exists global_business_profiles_set_updated_at on global.business_profiles;\ncreate trigger global_business_profiles_set_updated_at before update on global.business_profiles\n  for each row execute function global.set_updated_at();\n\ncomment on schema global is
   'Plivex Global edition data. Never reuse India public-schema records here.';
 comment on table global.user_profiles is
-  'Global-only profile; India public.profiles never grants Global roles or access.';
+  'Global-only profile; profiles from other editions never grant Global roles or access.';
 comment on table global.workspace_members is
   'Global-only workspace authorization membership.';
 comment on function global.is_workspace_member(uuid) is
