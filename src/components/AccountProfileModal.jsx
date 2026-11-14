@@ -1,4 +1,4 @@
-import { backend as db } from '@/api/backendClient';
+import { backend as db, APP_EDITION } from '@/api/backendClient';
 
 import { useState } from "react";
 import { X, Copy, Check, LogOut, Upload } from "lucide-react";
