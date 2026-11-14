@@ -1,0 +1,73 @@
+name: Deploy Plivex Global to isolated Cloudflare Worker
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plivex-global-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-global:
+    if: github.ref == 'refs/heads/global-dev'
+    name: Build and deploy Global edition
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      VITE_APP_EDITION: global
+    steps:
+      - name: Verify deployment credential is configured
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Add the CLOUDFLARE_API_TOKEN repository Actions secret before deploying Global."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run India compatibility tests
+        run: npm run test:membership
+
+      - name: Run Global tests
+        run: npm run test:global
+
+      - name: Type-check Global Edge Functions
+        run: deno check supabase/functions/_shared/global.ts supabase/functions/global-auth-context/index.ts supabase/functions/global-ensure-owner/index.ts supabase/functions/global-update-profile/index.ts supabase/functions/global-business-records/index.ts
+
+      - name: Run lint and type checks
+        run: |
+          npm run lint
+          npm run typecheck
+
+      - name: Build Global edition
+        run: npm run build
+
+      - name: Verify Global build configuration
+        run: npm run verify:build-env
+
+      - name: Deploy isolated Global Worker
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: b85d15e337a2d822cfa53bd62731e44b
+          command: deploy --config wrangler.global.jsonc
