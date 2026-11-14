@@ -265,6 +265,17 @@ BEGIN
   END;
   IF NOT v_blocked THEN RAISE EXCEPTION 'Refund payment_log_id identity was mutable'; END IF;
 
+  -- Cashfree payment-log identity fields cannot be rewritten after payment capture.
+  v_blocked := false;
+  BEGIN
+    UPDATE public.payment_logs
+    SET provider_payment_id='799001'
+    WHERE id='20000000-0000-0000-0000-000000000011';
+  EXCEPTION WHEN raise_exception THEN
+    v_blocked := true;
+  END;
+  IF NOT v_blocked THEN RAISE EXCEPTION 'Cashfree provider_payment_id identity was mutable'; END IF;
+
   -- Per-payment cumulative boundary: payment log amount is 5,000 while subscription is 10,000.
   v := public.apply_cashfree_refund_event(
     '10000000-0000-0000-0000-000000000013','RF-PER-PAYMENT-1',3000,'INR','success',
