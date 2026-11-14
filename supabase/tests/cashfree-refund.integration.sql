@@ -97,7 +97,7 @@ VALUES
   ('10000000-0000-0000-0000-000000000002','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','b@example.test','ws-b','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-FULL-00000000000000000002'),
   ('10000000-0000-0000-0000-000000000003','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-REPLAY-000000000000000003'),
   ('10000000-0000-0000-0000-000000000004','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-CURRENCY-0000000000000004'),
-  ('10000000-0000-0000-0000-000000000005','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-OVER-00000000000000000005'),
+  ('10000000-0000-0000-0000-000000000015','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-OVER-00000000000000000005'),
   ('10000000-0000-0000-0000-000000000006','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-CUMULATIVE-000000000000006'),
   ('10000000-0000-0000-0000-000000000007','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-TRANSITION-000000000000007'),
   ('10000000-0000-0000-0000-000000000008','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-SERVICE-000000000000000008'),
@@ -105,7 +105,9 @@ VALUES
   ('10000000-0000-0000-0000-000000000010','cccccccc-cccc-cccc-cccc-cccccccccccc','c@example.test','ws-c','basic_monthly','Basic','basic','active',200,20000,'INR','phonepe','phonepe','PLX-PHONEPE-LEGACY-0000000000000010'),
   ('10000000-0000-0000-0000-000000000011','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-MULTI-000000000000000011'),
   ('10000000-0000-0000-0000-000000000012','dddddddd-dddd-dddd-dddd-dddddddddddd','d@example.test','ws-d','basic_monthly','Basic','basic','active',300,30000,'INR','payu','payu','PLX-PAYU-LEGACY-0000000000000012'),
-  ('10000000-0000-0000-0000-000000000013','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-PER-PAYMENT-000000000013');
+  ('10000000-0000-0000-0000-000000000013','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-PER-PAYMENT-000000000013'),
+  ('10000000-0000-0000-0000-000000000014','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-AMBIG-000000000014'),
+  ('10000000-0000-0000-0000-000000000015','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-UNLINKED-000000000015');
 
 UPDATE public.subscriptions
 SET payu_txnid='PAYU-TXN-12', payu_payment_id='PAYU-12'
@@ -119,7 +121,7 @@ VALUES
   ('20000000-0000-0000-0000-000000000002','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','b@example.test','ws-b','cashfree','PLXCF-FULL-00000000000000000002','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000002','SUCCESS','700002','{"payment":{"cf_payment_id":700002}}'),
   ('20000000-0000-0000-0000-000000000003','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-REPLAY-000000000000000003','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000003','SUCCESS','700003','{"payment":{"cf_payment_id":700003}}'),
   ('20000000-0000-0000-0000-000000000004','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-CURRENCY-0000000000000004','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000004','SUCCESS','700004','{"payment":{"cf_payment_id":700004}}'),
-  ('20000000-0000-0000-0000-000000000005','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-OVER-00000000000000000005','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000005','SUCCESS','700005','{"payment":{"cf_payment_id":700005}}'),
+  ('20000000-0000-0000-0000-000000000021','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-OVER-00000000000000000005','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000005','SUCCESS','700005','{"payment":{"cf_payment_id":700005}}'),
   ('20000000-0000-0000-0000-000000000006','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-CUMULATIVE-000000000000006','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000006','SUCCESS','700006','{"payment":{"cf_payment_id":700006}}'),
   ('20000000-0000-0000-0000-000000000007','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-TRANSITION-000000000000007','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000007','SUCCESS','700007','{"payment":{"cf_payment_id":700007}}'),
   ('20000000-0000-0000-0000-000000000008','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-SERVICE-000000000000000008','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000008','SUCCESS','700008','{"payment":{"cf_payment_id":700008}}'),
@@ -143,15 +145,15 @@ INSERT INTO public.payment_refunds
   (id,subscription_id,payment_log_id,user_id,workspace_id,provider,provider_refund_id,
    amount_minor_units,currency,status,raw)
 VALUES
-  ('30000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000005',NULL,
+  ('30000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000015',NULL,
    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','ws-a','cashfree','RF-HIST-UNLINKED-2K',2000,'INR','success',
-   '{"data":{"refund":{"order_id":"PLXCF-OVER-00000000000000000005","cf_payment_id":799005}}}'),
+   '{"data":{"refund":{"order_id":"PLXCF-HIST-UNLINKED-000000000015","cf_payment_id":799015}}}'),
   ('30000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000003',NULL,
    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','ws-a','cashfree','RF-HIST-VERIFIED',1500,'INR','success',
    '{"data":{"refund":{"order_id":"PLXCF-REPLAY-000000000000000003","cf_payment_id":700003}}}'),
-  ('30000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000011',NULL,
+  ('30000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000014',NULL,
    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','ws-a','cashfree','RF-HIST-AMBIGUOUS',500,'INR','success',
-   '{"data":{"refund":{"order_id":"PLXCF-MULTI-000000000000000011","cf_payment_id":711001}}}');
+   '{"data":{"refund":{"order_id":"PLXCF-HIST-AMBIG-000000000014","cf_payment_id":714001}}}');
 
 -- Historical provider/gateway mismatches and NULL provider are not Cashfree
 -- ledger rows and must never be cleared/rebuilt by Cashfree cleanup.
@@ -162,6 +164,12 @@ VALUES
   ('20000000-0000-0000-0000-000000000015','ws-a','payu','LEGACY-PROVIDER-CASHFREE-GATEWAY',10000,'INR','applied','cashfree',NULL,'MISMATCH-1','legacy_provider_mismatch',2222),
   ('20000000-0000-0000-0000-000000000016','ws-a','cashfree','LEGACY-GATEWAY-CASHFREE-PROVIDER',10000,'INR','applied','payu',NULL,'MISMATCH-2','legacy_gateway_mismatch',3333),
   ('20000000-0000-0000-0000-000000000017','ws-a','cashfree','LEGACY-NULL-PROVIDER',10000,'INR','applied',NULL,NULL,'NULL-PROVIDER','legacy_null_provider',4444),
+  ('20000000-0000-0000-0000-000000000021','ws-a','cashfree','PLXCF-HIST-UNLINKED-000000000015',10000,'INR','applied','cashfree',
+   '10000000-0000-0000-0000-000000000015','715001',NULL,NULL),
+  ('20000000-0000-0000-0000-000000000022','ws-a','cashfree','PLXCF-HIST-AMBIG-000000000014',10000,'INR','applied','cashfree',
+   '10000000-0000-0000-0000-000000000014','714001',NULL,NULL),
+  ('20000000-0000-0000-0000-000000000023','ws-a','cashfree','PLXCF-HIST-AMBIG-000000000014',10000,'INR','applied','cashfree',
+   '10000000-0000-0000-0000-000000000014','714001',NULL,NULL),
   ('20000000-0000-0000-0000-000000000098','ws-a','cashfree','PLXCF-MULTI-000000000000000011',10000,'INR','applied','cashfree',
    '10000000-0000-0000-0000-000000000011','711001',NULL,NULL);
 
@@ -539,14 +547,14 @@ BEGIN
   v_blocked := false;
   BEGIN
     UPDATE public.payment_refunds
-    SET payment_log_id='20000000-0000-0000-0000-000000000011'
+    SET payment_log_id='20000000-0000-0000-0000-000000000022'
     WHERE id='30000000-0000-0000-0000-000000000003';
   EXCEPTION WHEN raise_exception THEN
     v_blocked := true;
   END;
   IF NOT v_blocked THEN RAISE EXCEPTION 'Direct NULL-to-linked identity update bypassed reconciliation'; END IF;
   IF (SELECT refund_status FROM public.payment_logs
-      WHERE id='20000000-0000-0000-0000-000000000011') <> 'reconciliation_required' THEN
+      WHERE id='20000000-0000-0000-0000-000000000022') <> 'reconciliation_required' THEN
     RAISE EXCEPTION 'Ambiguous historical refund did not retain reconciliation marker';
   END IF;
 
