@@ -90,8 +90,8 @@ SELECT public.apply_cashfree_refund_event(
  'ORDER-REFUND-PARALLEL','CFPAY-REFUND-PARALLEL',
  'CFREFUND-PARALLEL-1',600,'USD','success','{"test":"concurrent-first"}'::jsonb
 );
-\\! touch "$ready_file"
-\\! while [ ! -f "$release_file" ]; do sleep 0.05; done
+\! touch "$ready_file"
+\! while [ ! -f "$release_file" ]; do sleep 0.05; done
 COMMIT;
 RESET ROLE;
 SQL
