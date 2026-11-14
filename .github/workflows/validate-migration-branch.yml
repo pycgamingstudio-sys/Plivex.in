@@ -72,7 +72,7 @@ jobs:
           # same subscription-first lock boundary; this removes scheduler timing.
           coproc LOCKER { psql -X -qAt -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1; }
           locker_pid=$LOCKER_PID
-          printf "BEGIN; SELECT 'LOCK_READY' FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000014' FOR UPDATE;\\n" >&"${LOCKER[1]}"
+          printf "BEGIN; SELECT 'LOCK_READY' FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000014' FOR UPDATE;\n" >&"${LOCKER[1]}"
           IFS= read -r lock_ready <&"${LOCKER[0]}"
           test "$lock_ready" = "LOCK_READY"
           PGAPPNAME=refund-reconcile-race psql -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1 -Atc "SET ROLE service_role; SELECT public.reconcile_cashfree_refund_payment_log('30000000-0000-0000-0000-000000000003');" > "$RUNNER_TEMP/reconcile-race.json" &
@@ -86,10 +86,10 @@ jobs:
             sleep 0.05
           done
           if [[ "$waiters" -ne 2 ]]; then
-            printf "Expected both workers at the subscription lock barrier; observed %s\\n" "$waiters" >&2
+            printf "Expected both workers at the subscription lock barrier; observed %s\n" "$waiters" >&2
             exit 1
           fi
-          printf "COMMIT;\\n\\q\\n" >&"${LOCKER[1]}"
+          printf "COMMIT;\n\q\n" >&"${LOCKER[1]}"
           wait "$locker_pid"
           wait "$reconcile_pid"
           wait "$webhook_pid"
