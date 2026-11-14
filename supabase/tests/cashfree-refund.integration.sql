@@ -108,7 +108,8 @@ VALUES
   ('10000000-0000-0000-0000-000000000013','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-PER-PAYMENT-000000000013'),
   ('10000000-0000-0000-0000-000000000014','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-AMBIG-000000000014'),
   ('10000000-0000-0000-0000-000000000015','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-UNLINKED-000000000015'),
-  ('10000000-0000-0000-0000-000000000016','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','e@example.test','ws-e','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-PARTIAL-000000000016');
+  ('10000000-0000-0000-0000-000000000016','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','e@example.test','ws-e','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-PARTIAL-000000000016'),
+  ('10000000-0000-0000-0000-000000000017','ffffffff-ffff-ffff-ffff-ffffffffffff','f@example.test','ws-f','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-HELD-000000000017');
 
 UPDATE public.subscriptions
 SET payu_txnid='PAYU-TXN-12', payu_payment_id='PAYU-12'
@@ -202,6 +203,15 @@ VALUES
    'cashfree','PLXCF-HIST-PARTIAL-000000000016','basic_monthly','Basic','basic',10000,'INR',
    'applied',true,'cashfree','success','10000000-0000-0000-0000-000000000016','SUCCESS','716001',
    'partially_refunded',5000,'{"payment":{"cf_payment_id":716001}}');
+INSERT INTO public.payment_logs
+  (id,user_id,user_email,workspace_id,gateway,txnid,plan_id,plan_name,tier,amount,currency,
+   outcome,hash_verified,provider,status,subscription_id,provider_status,provider_payment_id,
+   refund_status,refund_amount_minor_units,raw)
+VALUES
+  ('20000000-0000-0000-0000-000000000027','ffffffff-ffff-ffff-ffff-ffffffffffff','f@example.test','ws-f',
+   'cashfree','PLXCF-HIST-HELD-000000000017','basic_monthly','Basic','basic',10000,'INR',
+   'applied',true,'cashfree','success','10000000-0000-0000-0000-000000000017','SUCCESS','717001',
+   'reconciliation_required',5000,'{"payment":{"cf_payment_id":717001}}');
 INSERT INTO public.payment_refunds
   (id,subscription_id,payment_log_id,user_id,workspace_id,provider,provider_refund_id,
    amount_minor_units,currency,status,raw)
@@ -209,7 +219,11 @@ VALUES
   ('30000000-0000-0000-0000-000000000016','10000000-0000-0000-0000-000000000016',
    '20000000-0000-0000-0000-000000000026','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','ws-e',
    'cashfree','RF-HIST-PARTIAL-2K',2000,'INR','success',
-   '{"data":{"refund":{"order_id":"PLXCF-HIST-PARTIAL-000000000016","cf_payment_id":716001}}}');
+   '{"data":{"refund":{"order_id":"PLXCF-HIST-PARTIAL-000000000016","cf_payment_id":716001}}}'),
+  ('30000000-0000-0000-0000-000000000017','10000000-0000-0000-0000-000000000017',
+   '20000000-0000-0000-0000-000000000027','ffffffff-ffff-ffff-ffff-ffffffffffff','ws-f',
+   'cashfree','RF-HIST-HELD-2K',2000,'INR','success',
+   '{"data":{"refund":{"order_id":"PLXCF-HIST-HELD-000000000017","cf_payment_id":717001}}}');
 
 \ir ../migrations/20261114000001_cashfree_refund_payment_log_linkage.sql
 \ir ../migrations/20261114000001_cashfree_refund_payment_log_linkage.sql
@@ -233,10 +247,72 @@ BEGIN
     SELECT 1 FROM public.cashfree_refund_cleanup_exceptions
     WHERE payment_log_id='20000000-0000-0000-0000-000000000026'
       AND reason='cashfree_ledger_incomplete'
-      AND prior_refund_amount_minor_units=5000
-  ) THEN RAISE EXCEPTION 'Incomplete ₹5,000/₹2,000 ledger exception was not recorded'; END IF;
+      AND prior_refund_status='partially_refunded'
+      AND prior_refund_amount_minor_units=5000 AND resolved_at IS NULL
+  ) THEN RAISE EXCEPTION 'Fixture A exception snapshot was not preserved'; END IF;
+  SELECT refund_amount_minor_units, refund_status INTO v_total, v_status
+  FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000027';
+  IF v_total <> 5000 OR v_status <> 'reconciliation_required' THEN
+    RAISE EXCEPTION 'Fixture B historical amount/status was changed: %, %',v_total,v_status;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.cashfree_refund_cleanup_exceptions
+    WHERE payment_log_id='20000000-0000-0000-0000-000000000027'
+      AND reason='cashfree_ledger_incomplete'
+      AND prior_refund_status='reconciliation_required'
+      AND prior_refund_amount_minor_units=5000 AND resolved_at IS NULL
+  ) THEN RAISE EXCEPTION 'Fixture B exception snapshot was not preserved'; END IF;
+  IF (SELECT status::text FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000017') <> 'active'
+     OR (SELECT payment_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000017') IS DISTINCT FROM 'success'
+     OR (SELECT refund_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000017') IS NOT NULL THEN
+    RAISE EXCEPTION 'Fixture B changed subscription accounting fields'; END IF;
 END
 $historical_partial_ledger$;
+
+-- Add one more exactly mappable historical entry to each fixture. Linking it
+-- raises ledger totals to 3,000, still below the immutable 5,000 snapshot.
+INSERT INTO public.payment_refunds
+  (id,subscription_id,payment_log_id,user_id,workspace_id,provider,provider_refund_id,
+   amount_minor_units,currency,status,raw)
+VALUES
+  ('30000000-0000-0000-0000-000000000018','10000000-0000-0000-0000-000000000016',NULL,
+   'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','ws-e','cashfree','RF-HIST-PARTIAL-1K',1000,'INR','success',
+   '{"data":{"refund":{"order_id":"PLXCF-HIST-PARTIAL-000000000016","cf_payment_id":716001}}}'),
+  ('30000000-0000-0000-0000-000000000019','10000000-0000-0000-0000-000000000017',NULL,
+   'ffffffff-ffff-ffff-ffff-ffffffffffff','ws-f','cashfree','RF-HIST-HELD-1K',1000,'INR','success',
+   '{"data":{"refund":{"order_id":"PLXCF-HIST-HELD-000000000017","cf_payment_id":717001}}}');
+SET ROLE service_role;
+SELECT set_config('request.jwt.claim.role','service_role',false);
+DO $incomplete_reconcile_hold$
+DECLARE v jsonb;
+BEGIN
+  v := public.reconcile_cashfree_refund_payment_log('30000000-0000-0000-0000-000000000018');
+  IF v->>'ok' <> 'true' OR v->>'reconciled' <> 'true' THEN RAISE EXCEPTION 'Fixture A reconciliation failed: %',v; END IF;
+  v := public.reconcile_cashfree_refund_payment_log('30000000-0000-0000-0000-000000000019');
+  IF v->>'ok' <> 'true' OR v->>'reconciled' <> 'true' THEN RAISE EXCEPTION 'Fixture B reconciliation failed: %',v; END IF;
+END
+$incomplete_reconcile_hold$;
+RESET ROLE;
+DO $incomplete_reconcile_assert$
+BEGIN
+  IF (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000026') <> 5000
+     OR (SELECT refund_status FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000026') <> 'reconciliation_required'
+     OR (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000027') <> 5000
+     OR (SELECT refund_status FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000027') <> 'reconciliation_required' THEN
+    RAISE EXCEPTION 'Reconciliation replaced incomplete 5,000 snapshots with partial 3,000 ledger sums'; END IF;
+  IF EXISTS (SELECT 1 FROM public.cashfree_refund_cleanup_exceptions
+    WHERE payment_log_id IN ('20000000-0000-0000-0000-000000000026','20000000-0000-0000-0000-000000000027')
+      AND (resolved_at IS NOT NULL OR prior_refund_amount_minor_units <> 5000)) THEN
+    RAISE EXCEPTION 'Exception snapshot was overwritten or prematurely resolved'; END IF;
+  IF (SELECT status::text FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000016') <> 'active'
+     OR (SELECT payment_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000016') IS DISTINCT FROM 'success'
+     OR (SELECT refund_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000016') IS NOT NULL
+     OR (SELECT status::text FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000017') <> 'active'
+     OR (SELECT payment_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000017') IS DISTINCT FROM 'success'
+     OR (SELECT refund_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000017') IS NOT NULL THEN
+    RAISE EXCEPTION 'Incomplete reconciliation changed subscription accounting fields'; END IF;
+END
+$incomplete_reconcile_assert$;
 
 
 

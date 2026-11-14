@@ -115,8 +115,11 @@ CREATE TABLE IF NOT EXISTS public.cashfree_refund_cleanup_exceptions (
   prior_refund_status text,
   prior_refund_amount_minor_units bigint,
   reason text NOT NULL CHECK (reason IN ('provider_gateway_mismatch','cashfree_ledger_missing','cashfree_ledger_incomplete')),
-  detected_at timestamptz NOT NULL DEFAULT clock_timestamp()
+  detected_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  resolved_at timestamptz
 );
+ALTER TABLE public.cashfree_refund_cleanup_exceptions
+  ADD COLUMN IF NOT EXISTS resolved_at timestamptz;
 REVOKE ALL ON public.cashfree_refund_cleanup_exceptions FROM PUBLIC, anon, authenticated, service_role;
 
 INSERT INTO public.cashfree_refund_cleanup_exceptions
@@ -149,7 +152,7 @@ SELECT l.id, l.provider, l.gateway, l.refund_status, l.refund_amount_minor_units
        'cashfree_ledger_incomplete'
 FROM public.payment_logs l
 WHERE l.provider = 'cashfree' AND l.gateway = 'cashfree'
-  AND l.refund_status IS DISTINCT FROM 'reconciliation_required'
+  -- Detect amount/ledger mismatches regardless of the existing status marker.
   AND (l.refund_status IS NOT NULL OR l.refund_amount_minor_units IS NOT NULL)
   AND l.refund_amount_minor_units IS DISTINCT FROM (
     SELECT COALESCE(sum(r.amount_minor_units) FILTER (WHERE r.status = 'success'), 0)::bigint
@@ -235,8 +238,24 @@ BEGIN
     (v_refund.id, v_refund.subscription_id, v_payment_log_id, 'verified_null_to_link',
     COALESCE(NULLIF(current_setting('request.jwt.claim.role', true), ''), session_user));
 
-  -- Rebuild aggregate values and clear the hold only after every historical
-  -- Cashfree refund for this subscription has an exact verified payment link.
+  -- Resolve an incomplete-ledger exception only when the original snapshot
+  -- total is fully represented by successful, exactly linked ledger entries.
+  -- Keep the first snapshot immutable; resolved_at records the later proof.
+  UPDATE public.cashfree_refund_cleanup_exceptions e
+  SET resolved_at = clock_timestamp()
+  FROM public.payment_logs l
+  WHERE e.payment_log_id = l.id
+    AND l.subscription_id = v_refund.subscription_id
+    AND e.reason = 'cashfree_ledger_incomplete'
+    AND e.resolved_at IS NULL
+    AND e.prior_refund_amount_minor_units IS NOT DISTINCT FROM (
+      SELECT COALESCE(sum(r.amount_minor_units) FILTER (WHERE r.status = 'success'), 0)::bigint
+      FROM public.payment_refunds r
+      WHERE r.payment_log_id = l.id AND r.provider = 'cashfree'
+    );
+
+  -- Rebuild aggregate values only after every historical refund is linked and
+  -- every incomplete historical amount has been proven complete.
   IF NOT EXISTS (
     SELECT 1 FROM public.payment_refunds unresolved
     WHERE unresolved.subscription_id = v_refund.subscription_id
@@ -247,6 +266,7 @@ BEGIN
     JOIN public.payment_logs l ON l.id = e.payment_log_id
     WHERE l.subscription_id = v_refund.subscription_id
       AND e.reason IN ('cashfree_ledger_missing','cashfree_ledger_incomplete')
+      AND e.resolved_at IS NULL
   ) THEN
     UPDATE public.payment_logs l
     SET refund_amount_minor_units = COALESCE((
@@ -387,6 +407,7 @@ WITH payment_totals AS (
       SELECT 1 FROM public.cashfree_refund_cleanup_exceptions e
       WHERE e.payment_log_id = r.payment_log_id
         AND e.reason IN ('cashfree_ledger_missing','cashfree_ledger_incomplete')
+        AND e.resolved_at IS NULL
     )
   GROUP BY r.payment_log_id
 )
@@ -410,6 +431,7 @@ WHERE l.provider = 'cashfree' AND l.gateway = 'cashfree'
     SELECT 1 FROM public.cashfree_refund_cleanup_exceptions e
     WHERE e.payment_log_id = l.id
       AND e.reason IN ('cashfree_ledger_missing','cashfree_ledger_incomplete')
+      AND e.resolved_at IS NULL
   );
 
 -- Leave a stable marker on strict Cashfree attempts while any historical
