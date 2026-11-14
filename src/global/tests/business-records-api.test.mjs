@@ -3,11 +3,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [backend, handler, shared, rpc] = await Promise.all([
+const [backend, handler, shared, rpc, settings, businessProfile] = await Promise.all([
   read("../../api/backendClient.js"),
   read("../../../supabase/functions/global-business-records/index.ts"),
   read("../../../supabase/functions/_shared/global.ts"),
   read("../../../supabase/migrations/202611150005_global_business_profile_records.sql"),
+  read("../../components/global/WorkspaceCountrySettings.jsx"),
+  read("../../pages/BusinessProfile.jsx"),
 ]);
 
 test("Global app can invoke only the dedicated Global business records function", () => {
@@ -64,4 +66,11 @@ test("Global business tax profile stores the effective registration date in the 
   assert.match(rpc, /add column if not exists tax_registration_effective_from date/);
   assert.match(rpc, /tax_registration_effective_from=case/);
   assert.match(backend, /tax_registration_effective_from/);
+});
+
+
+test("Global tax registration settings preserve the onboarded country", () => {
+  assert.match(settings, /lockCountry = false/);
+  assert.match(settings, /lockCountry \? \{\} : \{ country_code: selectedCountry\.code, locale_code: locale \}/);
+  assert.match(businessProfile, /WorkspaceCountrySettings lockCountry=\{APP_EDITION === "global"\}/);
 });
