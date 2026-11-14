@@ -117,6 +117,7 @@ DECLARE
   v_subscription public.subscriptions%ROWTYPE;
   v_payment_log_id uuid;
   v_match_count integer;
+  v_rows integer;
 BEGIN
   SELECT * INTO v_refund
   FROM public.payment_refunds
@@ -158,9 +159,10 @@ BEGIN
   UPDATE public.payment_refunds
   SET payment_log_id = v_payment_log_id
   WHERE id = v_refund.id AND payment_log_id IS NULL;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
   PERFORM set_config('app.cashfree_refund_reconciliation', 'off', true);
 
-  IF NOT FOUND THEN
+  IF v_rows <> 1 THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'historical_refund_reconciliation_race');
   END IF;
 
@@ -299,17 +301,6 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'reason', 'subscription_not_found');
   END IF;
 
-  -- Do not accept another refund while any historical Cashfree ledger row for
-  -- this subscription is unresolved; this check precedes all accounting writes.
-  IF EXISTS (
-    SELECT 1 FROM public.payment_refunds r
-    WHERE r.subscription_id = v_order.id
-      AND r.provider = 'cashfree'
-      AND r.payment_log_id IS NULL
-  ) THEN
-    RETURN jsonb_build_object('ok', false, 'reason', 'historical_refund_reconciliation_required');
-  END IF;
-
   IF v_refund_order_id IS DISTINCT FROM v_order.txnid
      OR lower(COALESCE(v_order.gateway,'')) <> 'cashfree'
      OR lower(COALESCE(v_order.provider,'')) <> 'cashfree'
@@ -388,6 +379,17 @@ BEGIN
 
   IF v_has_existing AND v_existing.status = 'failed' AND v_status = 'pending' THEN
     RETURN jsonb_build_object('ok', true, 'already_applied', true, 'reason', 'stale_refund_event');
+  END IF;
+
+  -- Do not accept another refund while any historical Cashfree ledger row for
+  -- this subscription is unresolved; this check precedes all accounting writes.
+  IF EXISTS (
+    SELECT 1 FROM public.payment_refunds r
+    WHERE r.subscription_id = v_order.id
+      AND r.provider = 'cashfree'
+      AND r.payment_log_id IS NULL
+  ) THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'historical_refund_reconciliation_required');
   END IF;
 
   SELECT COALESCE(sum(amount_minor_units), 0)::bigint
