@@ -1,4 +1,5 @@
--- Disposable PostgreSQL fixture for real Cashfree cancellation CAS concurrency.
+-- Disposable PostgreSQL fixture for the Cashfree cancellation CAS predicate model.
+-- This is not an HTTP handler integration test.
 DROP TABLE IF EXISTS public.cashfree_cancel_cas_test;
 CREATE TABLE public.cashfree_cancel_cas_test (
   id text PRIMARY KEY,
