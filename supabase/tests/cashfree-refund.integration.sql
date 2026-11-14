@@ -527,6 +527,7 @@ VALUES
    'PLXCF-HIST-UNLINKED-000000000015',10000,'INR','applied','cashfree',
    '10000000-0000-0000-0000-000000000015','715002');
 SET ROLE service_role;
+SELECT set_config('request.jwt.claim.role','service_role',false);
 DO $service_reconcile$
 DECLARE v jsonb;
 BEGIN
@@ -545,8 +546,14 @@ BEGIN
     RAISE EXCEPTION 'service_role reconciliation did not persist exact link';
   END IF;
   IF (SELECT refund_status FROM public.payment_logs
-      WHERE id='20000000-0000-0000-0000-000000000021') <> 'reconciliation_required' THEN
-    RAISE EXCEPTION 'Reconciliation hold cleared while another historical refund remained unlinked';
+      WHERE id='20000000-0000-0000-0000-000000000021') <> 'reconciliation_required'
+     OR (SELECT refund_status FROM public.payment_logs
+         WHERE id='20000000-0000-0000-0000-000000000024') <> 'reconciliation_required' THEN
+    RAISE EXCEPTION 'Reconciliation hold cleared or was not propagated while another historical refund remained unlinked';
+  END IF;
+  IF (SELECT reconciled_by FROM public.cashfree_refund_reconciliation_audit
+      WHERE refund_id='30000000-0000-0000-0000-000000000004') <> 'service_role' THEN
+    RAISE EXCEPTION 'Historical reconciliation audit did not capture service_role caller';
   END IF;
 END
 $service_reconcile_check$;
