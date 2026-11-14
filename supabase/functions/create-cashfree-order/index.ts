@@ -10,12 +10,12 @@ Deno.serve(async(req:Request)=>{
  try{
   const authClient=createClient(url,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data:{user},error:authError}=await authClient.auth.getUser();if(authError||!user)return json({error:"Session expired. Sign in again."},401,origin);
-  const body=await req.json().catch(()=>({}));if(!isPlanId(body?.planId))return json({error:"Invalid plan."},400,origin);
+  const body=await req.json().catch(()=>({}));const requestedPlanId:unknown=body?.planId;if(!isPlanId(requestedPlanId))return json({error:"Invalid plan."},400,origin);
   const {data:profile,error:profileError}=await authClient.from("profiles").select("email,full_name,workspace_id").eq("id",user.id).maybeSingle();if(profileError)return json({error:"Could not load profile."},500,origin);
   const email=String(profile?.email||user.email||"").trim();if(!email)return json({error:"Account email is missing."},400,origin);
   const phone=String(user.phone||user.user_metadata?.phone||user.user_metadata?.phone_number||"").replace(/\D/g,"").slice(-10);
   if(!/^\d{10}$/.test(phone))return json({error:"Add a valid 10-digit mobile number to your Plivex account before checkout."},400,origin);
-  const plan=PLANS[body.planId];
+  const plan=PLANS[requestedPlanId];
   const amountPaise=email.toLowerCase()==="virendra.sharma99978@gmail.com"&&plan.id==="basic_monthly"?2500:plan.amountPaise;
   const orderId="PLXCF-"+crypto.randomUUID().replaceAll("-","").slice(0,26).toUpperCase();
   const returnOrigin=allowedOrigin(body?.origin),returnPath=safePath(body?.path);

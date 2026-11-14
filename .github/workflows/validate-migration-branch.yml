@@ -13,7 +13,21 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: plivex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d plivex_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,13 +45,68 @@ jobs:
           deno-version: v2.x
       - name: Check Supabase Edge Functions
         run: |
-          deno check supabase/functions/_shared/team.ts supabase/functions/_shared/payu.ts supabase/functions/_shared/email.ts
+          deno check supabase/functions/_shared/team.ts supabase/functions/_shared/email.ts
+          deno check supabase/functions/_shared/cashfree.ts supabase/functions/create-cashfree-order/index.ts supabase/functions/cashfree-webhook/index.ts supabase/functions/cashfree-webhook/refund.ts supabase/functions/cashfree-return/index.ts
           deno check supabase/functions/ensure-owner-role/index.ts supabase/functions/send-team-invite/index.ts supabase/functions/send-payment-reminder/index.ts supabase/functions/verify-invite-code/index.ts
           deno check supabase/functions/manage-workspace-member/index.ts supabase/functions/get-workspace-team/index.ts
           deno check supabase/functions/ping-presence/index.ts supabase/functions/track-staff-action/index.ts supabase/functions/get-team-presence/index.ts
-          deno check supabase/functions/get-access-status/index.ts supabase/functions/create-payu-order/index.ts supabase/functions/verify-payu-payment/index.ts
+          deno check supabase/functions/get-access-status/index.ts
           deno check supabase/functions/workspace-records/index.ts supabase/functions/list-invoices/index.ts
           deno check supabase/functions/save-invoice/index.ts supabase/functions/set-invoice-status/index.ts
+      - name: Cashfree refund regression tests
+        run: deno test supabase/functions/cashfree-webhook/refund.test.ts
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Apply refund migration and run PostgreSQL integration tests
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1 -f supabase/tests/cashfree-refund.integration.sql
+      - name: Verify concurrent historical reconciliation and webhook retry use one lock order
+        env:
+          PGPASSWORD: postgres
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Hold the subscription row until both workers are waiting at the
+          # same subscription-first lock boundary; this removes scheduler timing.
+          coproc LOCKER { psql -X -qAt -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1; }
+          locker_pid=$LOCKER_PID
+          printf "BEGIN; SELECT 'LOCK_READY' FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000014' FOR UPDATE;\n" >&"${LOCKER[1]}"
+          IFS= read -r lock_ready <&"${LOCKER[0]}"
+          test "$lock_ready" = "LOCK_READY"
+          PGAPPNAME=refund-reconcile-race psql -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1 -Atc "SET ROLE service_role; SELECT public.reconcile_cashfree_refund_payment_log('30000000-0000-0000-0000-000000000003');" > "$RUNNER_TEMP/reconcile-race.json" &
+          reconcile_pid=$!
+          PGAPPNAME=refund-webhook-race psql -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1 -Atc "SET ROLE service_role; SELECT public.apply_cashfree_refund_event('10000000-0000-0000-0000-000000000014','RF-HIST-AMBIGUOUS',500,'INR','success',jsonb_build_object('data',jsonb_build_object('refund',jsonb_build_object('order_id','PLXCF-HIST-AMBIG-000000000014','cf_payment_id',714099))));" > "$RUNNER_TEMP/webhook-race.json" &
+          webhook_pid=$!
+          waiters=0
+          for attempt in {1..100}; do
+            waiters=$(psql -h 127.0.0.1 -U postgres -d plivex_test -Atc "SELECT count(*) FROM pg_stat_activity WHERE application_name IN ('refund-reconcile-race','refund-webhook-race') AND wait_event_type='Lock';")
+            if [[ "$waiters" -eq 2 ]]; then break; fi
+            sleep 0.05
+          done
+          if [[ "$waiters" -ne 2 ]]; then
+            printf "Expected both workers at the subscription lock barrier; observed %s\n" "$waiters" >&2
+            exit 1
+          fi
+          printf "COMMIT;\n\q\n" >&"${LOCKER[1]}"
+          wait "$locker_pid"
+          wait "$reconcile_pid"
+          wait "$webhook_pid"
+          psql -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1 -c "DO \$\$ BEGIN IF (SELECT payment_log_id FROM public.payment_refunds WHERE id='30000000-0000-0000-0000-000000000003') IS DISTINCT FROM '20000000-0000-0000-0000-000000000029'::uuid THEN RAISE EXCEPTION 'Concurrent reconciliation/webhook mapping is not the exact payment log'; END IF; IF (SELECT count(*) FROM public.payment_refunds WHERE provider='cashfree' AND provider_refund_id='RF-HIST-AMBIGUOUS') <> 1 THEN RAISE EXCEPTION 'Concurrent retry duplicated refund ledger row'; END IF; IF (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000029') IS DISTINCT FROM 500 THEN RAISE EXCEPTION 'Concurrent refund total is not exactly 500'; END IF; IF (SELECT refund_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000014') IS DISTINCT FROM 'partially_refunded' THEN RAISE EXCEPTION 'Concurrent subscription aggregate is inconsistent'; END IF; IF (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000031') IS NOT NULL OR (SELECT refund_status FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000031') IS NOT NULL THEN RAISE EXCEPTION 'H-05 marker-only payment log retained a false hold after exact reconciliation'; END IF; IF EXISTS (SELECT 1 FROM public.cashfree_refund_cleanup_exceptions WHERE payment_log_id='20000000-0000-0000-0000-000000000031' AND reason='cashfree_ledger_missing') THEN RAISE EXCEPTION 'H-05 marker-only payment log has a false missing-ledger exception'; END IF; END \$\$;"
+      - name: Verify concurrent partial refunds are atomic
+        env:
+          PGPASSWORD: postgres
+        shell: bash
+        run: |
+          set -euo pipefail
+          pids=()
+          for i in 1 2 3 4 5 6; do
+            psql -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1 -Atc "SELECT public.apply_cashfree_refund_event('10000000-0000-0000-0000-000000000009','CONC-$i',2000,'INR','success',jsonb_build_object('data',jsonb_build_object('refund',jsonb_build_object('order_id','PLXCF-CONCURRENT-000000000000000009','cf_payment_id',700009))));" > "$RUNNER_TEMP/refund-$i.json" &
+            pids+=("$!")
+          done
+          for pid in "${pids[@]}"; do wait "$pid"; done
+          psql -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1 -c "DO \$\$ BEGIN IF (SELECT count(*) FROM public.payment_refunds WHERE provider_refund_id LIKE 'CONC-%' AND status='success') <> 5 THEN RAISE EXCEPTION 'Concurrent refund success count was not exactly five'; END IF; IF (SELECT sum(amount_minor_units) FROM public.payment_refunds WHERE provider_refund_id LIKE 'CONC-%' AND status='success') <> 10000 THEN RAISE EXCEPTION 'Concurrent refunds exceeded original payment'; END IF; END \$\$;"
       - name: Lint
         run: npm run lint
       - name: Membership tests
