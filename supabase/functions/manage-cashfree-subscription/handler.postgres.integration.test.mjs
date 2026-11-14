@@ -127,9 +127,27 @@ Deno.test("actual subscription handler reads and updates disposable PostgreSQL t
     throw new Error("Resume response did not match persisted PostgreSQL state");
   }
 
+  const payuBefore = await admin.from("subscriptions")
+    .select("gateway,provider,status,cancel_at_period_end,cancellation_requested_at,updated_at")
+    .eq("id", "33333333-3333-4333-8333-333333333333")
+    .single();
+  if (payuBefore.error) throw new Error("Could not read legacy PayU fixture: " + payuBefore.error.message);
+
   const statusResponse = await request("status");
   const statusBody = await statusResponse.json();
   if (statusResponse.status !== 200 || statusBody.available !== true || statusBody.cancelAtPeriodEnd !== false) {
     throw new Error("Handler status request did not reflect persisted PostgreSQL state");
+  }
+
+  const payuAfter = await admin.from("subscriptions")
+    .select("gateway,provider,status,cancel_at_period_end,cancellation_requested_at,updated_at")
+    .eq("id", "33333333-3333-4333-8333-333333333333")
+    .single();
+  if (payuAfter.error) throw new Error("Could not re-read legacy PayU fixture: " + payuAfter.error.message);
+  if (JSON.stringify(payuAfter.data) !== JSON.stringify(payuBefore.data)
+    || payuAfter.data.gateway !== "payu"
+    || payuAfter.data.provider !== "payu"
+    || payuAfter.data.status !== "active") {
+    throw new Error("Cashfree handler changed legacy PayU subscription state");
   }
 });
