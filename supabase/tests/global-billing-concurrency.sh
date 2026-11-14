@@ -73,6 +73,7 @@ SET ROLE service_role;
 BEGIN;
 SELECT public.apply_cashfree_refund_event(
  (SELECT id FROM public.subscriptions WHERE txnid='ORDER-REFUND-PARALLEL'),
+ 'ORDER-REFUND-PARALLEL','CFPAY-REFUND-PARALLEL',
  'CFREFUND-PARALLEL-1',600,'USD','success','{"test":"concurrent-first"}'::jsonb
 );
 SELECT pg_sleep(2);
@@ -86,6 +87,7 @@ psql -v ON_ERROR_STOP=1 -d "$db" > /tmp/plivex-refund-second.log 2>&1 <<'SQL'
 SET ROLE service_role;
 SELECT public.apply_cashfree_refund_event(
  (SELECT id FROM public.subscriptions WHERE txnid='ORDER-REFUND-PARALLEL'),
+ 'ORDER-REFUND-PARALLEL','CFPAY-REFUND-PARALLEL',
  'CFREFUND-PARALLEL-2',500,'USD','success','{"test":"concurrent-second"}'::jsonb
 );
 RESET ROLE;
