@@ -200,7 +200,31 @@ BEGIN
           ELSE NULL
         END
     WHERE l.subscription_id = v_refund.subscription_id
-      AND l.provider = 'cashfree' AND l.gateway = 'cashfree';
+      AND l.provider = 'cashfree' AND l.gateway = 'cashfree'
+      AND (
+        (l.refund_status IS NULL AND l.refund_amount_minor_units IS NULL)
+        OR EXISTS (
+          SELECT 1 FROM public.payment_refunds linked
+          WHERE linked.payment_log_id = l.id AND linked.provider = 'cashfree'
+        )
+      );
+
+    -- If the hold is gone but a log has no linked ledger, restore its audited
+    -- legacy status (if any) and retain its unreconstructable amount unchanged.
+    UPDATE public.payment_logs l
+    SET refund_status = (
+      SELECT e.prior_refund_status
+      FROM public.cashfree_refund_cleanup_exceptions e
+      WHERE e.payment_log_id = l.id
+        AND e.reason = 'cashfree_ledger_missing'
+    )
+    WHERE l.subscription_id = v_refund.subscription_id
+      AND l.provider = 'cashfree' AND l.gateway = 'cashfree'
+      AND l.refund_status = 'reconciliation_required'
+      AND NOT EXISTS (
+        SELECT 1 FROM public.payment_refunds linked
+        WHERE linked.payment_log_id = l.id AND linked.provider = 'cashfree'
+      );
 
     SELECT COALESCE(sum(amount_minor_units) FILTER (WHERE status = 'success'), 0)::bigint
     INTO v_subscription_total
