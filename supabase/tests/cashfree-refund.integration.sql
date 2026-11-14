@@ -167,6 +167,7 @@ VALUES
   ('20000000-0000-0000-0000-000000000015','ws-a','payu','LEGACY-PROVIDER-CASHFREE-GATEWAY',10000,'INR','applied','cashfree',NULL,'MISMATCH-1','legacy_provider_mismatch',2222),
   ('20000000-0000-0000-0000-000000000016','ws-a','cashfree','LEGACY-GATEWAY-CASHFREE-PROVIDER',10000,'INR','applied','payu',NULL,'MISMATCH-2','legacy_gateway_mismatch',3333),
   ('20000000-0000-0000-0000-000000000017','ws-a','cashfree','LEGACY-NULL-PROVIDER',10000,'INR','applied',NULL,NULL,'NULL-PROVIDER','legacy_null_provider',4444),
+  ('20000000-0000-0000-0000-000000000025','ws-a','cashfree','LEGACY-CASHFREE-NO-LEDGER',10000,'INR','applied','cashfree',NULL,'NO-LEDGER','legacy_unreconstructable',5555),
   ('20000000-0000-0000-0000-000000000021','ws-a','cashfree','PLXCF-HIST-UNLINKED-000000000015',10000,'INR','applied','cashfree',
    '10000000-0000-0000-0000-000000000015','715001',NULL,NULL),
   ('20000000-0000-0000-0000-000000000022','ws-a','cashfree','PLXCF-HIST-AMBIG-000000000014',10000,'INR','applied','cashfree',
@@ -600,8 +601,19 @@ BEGIN
      OR (SELECT refund_status FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000016') <> 'legacy_gateway_mismatch'
      OR (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000016') <> 3333
      OR (SELECT refund_status FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000017') <> 'legacy_null_provider'
-     OR (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000017') <> 4444 THEN
-    RAISE EXCEPTION 'Cashfree cleanup changed mismatched or NULL-provider payment-log values';
+     OR (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000017') <> 4444
+     OR (SELECT refund_status FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000025') <> 'legacy_unreconstructable'
+     OR (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000025') <> 5555 THEN
+    RAISE EXCEPTION 'Cashfree cleanup changed mismatched, NULL-provider, or unreconstructable payment-log values';
+  END IF;
+  IF (SELECT count(*) FROM public.cashfree_refund_cleanup_exceptions
+      WHERE payment_log_id IN ('20000000-0000-0000-0000-000000000015',
+                               '20000000-0000-0000-0000-000000000016',
+                               '20000000-0000-0000-0000-000000000017')
+        AND reason='provider_gateway_mismatch') <> 3
+     OR (SELECT reason FROM public.cashfree_refund_cleanup_exceptions
+         WHERE payment_log_id='20000000-0000-0000-0000-000000000025') <> 'cashfree_ledger_missing' THEN
+    RAISE EXCEPTION 'Provider/gateway mismatches or unreconstructable Cashfree totals were not audited';
   END IF;
 END
 $test_block$;
