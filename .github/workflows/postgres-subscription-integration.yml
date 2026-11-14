@@ -272,10 +272,30 @@ jobs:
             docker logs plivex-postgrest
             exit 1
           fi
+          cat > /tmp/plivex-postgrest-proxy.ts <<'TS'
+          Deno.serve({ hostname: "127.0.0.1", port: 3001 }, async (request) => {
+            const target = new URL(request.url);
+            target.port = "3000";
+            target.pathname = target.pathname.replace(/^\\/rest\\/v1(?=\\/|$)/, "") || "/";
+            return await fetch(new Request(target, request));
+          });
+          TS
+          deno run --allow-net /tmp/plivex-postgrest-proxy.ts > /tmp/plivex-postgrest-proxy.log 2>&1 &
+          ready=0
+          for attempt in $(seq 1 15); do
+            code="$(curl -sS -o /tmp/plivex-postgrest-proxy-openapi.json -w '%{http_code}' http://127.0.0.1:3001/rest/v1/ || true)"
+            if [ "$code" = "200" ]; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" != "1" ]; then
+            cat /tmp/plivex-postgrest-proxy.log
+            docker logs plivex-postgrest
+            exit 1
+          fi
       - name: Run actual Edge handler to disposable PostgreSQL integration test
         env:
           TEST_JWT_SECRET: plivex-disposable-ci-jwt-secret-only-never-production-00000000000000000000000000000000
-          TEST_SUPABASE_URL: http://127.0.0.1:3000
+          TEST_SUPABASE_URL: http://127.0.0.1:3001
         run: deno test --allow-env --allow-net supabase/functions/manage-cashfree-subscription/handler.postgres.integration.test.mjs
       - name: Stop disposable PostgREST
         if: always()
