@@ -409,7 +409,7 @@ BEGIN
       AND reason='cashfree_ledger_missing'
       AND resolved_at IS NULL
       AND prior_refund_amount_minor_units=5000
-      AND prior_refund_status='partially_refunded'
+      AND prior_refund_status='reconciliation_required'
   ) THEN RAISE EXCEPTION 'Missing-ledger exception snapshot/hold was not preserved'; END IF;
   v := public.apply_cashfree_refund_event(
     '10000000-0000-0000-0000-000000000018','RF-MISSING-LEDGER-BLOCKED',1000,'INR','success',
