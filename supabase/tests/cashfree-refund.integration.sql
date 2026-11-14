@@ -203,6 +203,7 @@ DECLARE
   v_status text;
   v_payment_log_id uuid;
   v_blocked boolean;
+  v_field text;
 BEGIN
   -- One subscription / one payment log: partial refund links to the exact log.
   v := public.apply_cashfree_refund_event(
@@ -359,6 +360,44 @@ BEGIN
     v_blocked := true;
   END;
   IF NOT v_blocked THEN RAISE EXCEPTION 'Refund payment_log_id identity was mutable'; END IF;
+
+  -- Every other refund identity field is immutable as well.
+  FOR v_field IN SELECT unnest(ARRAY[
+    'subscription_id','user_id','workspace_id','provider','provider_refund_id',
+    'amount_minor_units','currency'
+  ]) LOOP
+    v_blocked := false;
+    BEGIN
+      CASE v_field
+        WHEN 'subscription_id' THEN
+          UPDATE public.payment_refunds SET subscription_id='10000000-0000-0000-0000-000000000001'
+          WHERE provider_refund_id='RF-MULTI-A1';
+        WHEN 'user_id' THEN
+          UPDATE public.payment_refunds SET user_id='bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+          WHERE provider_refund_id='RF-MULTI-A1';
+        WHEN 'workspace_id' THEN
+          UPDATE public.payment_refunds SET workspace_id='ws-other'
+          WHERE provider_refund_id='RF-MULTI-A1';
+        WHEN 'provider' THEN
+          UPDATE public.payment_refunds SET provider='payu'
+          WHERE provider_refund_id='RF-MULTI-A1';
+        WHEN 'provider_refund_id' THEN
+          UPDATE public.payment_refunds SET provider_refund_id='RF-IDENTITY-CHANGED'
+          WHERE provider_refund_id='RF-MULTI-A1';
+        WHEN 'amount_minor_units' THEN
+          UPDATE public.payment_refunds SET amount_minor_units=999
+          WHERE provider_refund_id='RF-MULTI-A1';
+        WHEN 'currency' THEN
+          UPDATE public.payment_refunds SET currency='USD'
+          WHERE provider_refund_id='RF-MULTI-A1';
+      END CASE;
+    EXCEPTION WHEN raise_exception THEN
+      v_blocked := true;
+    END;
+    IF NOT v_blocked THEN
+      RAISE EXCEPTION 'Refund identity field % was mutable', v_field;
+    END IF;
+  END LOOP;
 
   -- Cashfree payment-log identity fields cannot be rewritten after payment capture.
   v_blocked := false;
