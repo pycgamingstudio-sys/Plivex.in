@@ -22,6 +22,13 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_admin') THEN CREATE ROLE supabase_admin NOLOGIN; END IF;
 END
 $roles$;
+DO $postgres_role$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'postgres') THEN
+    CREATE ROLE postgres SUPERUSER LOGIN;
+  END IF;
+END
+$postgres_role$;
 GRANT anon, authenticated, service_role TO postgres;
 
 CREATE TABLE auth.users (
