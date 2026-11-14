@@ -15,14 +15,51 @@ CREATE SCHEMA IF NOT EXISTS storage;
 CREATE SCHEMA IF NOT EXISTS vault;
 CREATE SCHEMA IF NOT EXISTS extensions;
 
+DO $roles$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_auth_admin') THEN CREATE ROLE supabase_auth_admin NOLOGIN CREATEROLE; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_storage_admin') THEN CREATE ROLE supabase_storage_admin NOLOGIN; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_admin') THEN CREATE ROLE supabase_admin NOLOGIN; END IF;
+END
+$roles$;
+GRANT anon, authenticated, service_role TO postgres;
+
 CREATE TABLE auth.users (
+  instance_id uuid,
   id uuid PRIMARY KEY,
-  email text UNIQUE,
-  phone text,
-  raw_user_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+  aud varchar(255),
+  role varchar(255),
+  email varchar(255) UNIQUE,
+  encrypted_password varchar(255),
+  email_confirmed_at timestamptz,
+  invited_at timestamptz,
+  confirmation_token varchar(255),
+  confirmation_sent_at timestamptz,
+  recovery_token varchar(255),
+  recovery_sent_at timestamptz,
+  email_change_token_new varchar(255),
+  email_change varchar(255),
+  email_change_sent_at timestamptz,
+  last_sign_in_at timestamptz,
   raw_app_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+  raw_user_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+  is_super_admin boolean,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  phone text UNIQUE,
+  phone_confirmed_at timestamptz,
+  phone_change text,
+  phone_change_token varchar(255),
+  phone_change_sent_at timestamptz,
+  confirmed_at timestamptz,
+  email_change_token_current varchar(255),
+  email_change_confirm_status smallint NOT NULL DEFAULT 0,
+  banned_until timestamptz,
+  reauthentication_token varchar(255),
+  reauthentication_sent_at timestamptz,
+  is_sso_user boolean NOT NULL DEFAULT false,
+  deleted_at timestamptz,
+  is_anonymous boolean NOT NULL DEFAULT false
 );
 
 CREATE OR REPLACE FUNCTION auth.uid()
@@ -50,9 +87,17 @@ $function$;
 GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION auth.uid(), auth.role(), auth.jwt() TO anon, authenticated, service_role;
 
+CREATE TABLE storage.buckets (
+  id text PRIMARY KEY,
+  name text NOT NULL,
+  owner uuid,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  public boolean NOT NULL DEFAULT false
+);
 CREATE TABLE storage.objects (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  bucket_id text NOT NULL,
+  bucket_id text NOT NULL REFERENCES storage.buckets(id),
   name text NOT NULL,
   owner_id uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -99,3 +144,14 @@ $function$;
 
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
   REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
+
+CREATE OR REPLACE FUNCTION storage.filename(p_name text)
+RETURNS text LANGUAGE sql IMMUTABLE AS $function$
+  SELECT (storage.foldername(p_name))[array_length(storage.foldername(p_name), 1)]
+$function$;
+CREATE OR REPLACE FUNCTION storage.extension(p_name text)
+RETURNS text LANGUAGE sql IMMUTABLE AS $function$
+  SELECT CASE WHEN position('.' in reverse(storage.filename(p_name))) > 0
+    THEN reverse(split_part(reverse(storage.filename(p_name)), '.', 1)) ELSE '' END
+$function$;
+GRANT EXECUTE ON FUNCTION storage.filename(text), storage.extension(text) TO authenticated, service_role;
