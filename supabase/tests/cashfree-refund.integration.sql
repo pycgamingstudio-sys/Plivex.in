@@ -208,6 +208,15 @@ BEGIN
     '{"data":{"refund":{"order_id":"PLXCF-MULTI-000000000000000011","cf_payment_id":711001}}}'::jsonb
   );
   IF v->>'ok' <> 'true' THEN RAISE EXCEPTION 'First refund on attempt A failed: %', v; END IF;
+  -- Replaying the same refund identity against another payment log is rejected.
+  v := public.apply_cashfree_refund_event(
+    '10000000-0000-0000-0000-000000000011','RF-MULTI-A1',1000,'INR','success',
+    '{"data":{"refund":{"order_id":"PLXCF-MULTI-000000000000000011","cf_payment_id":711002}}}'::jsonb
+  );
+  IF v->>'reason' <> 'refund_payment_mapping_conflict' THEN
+    RAISE EXCEPTION 'Refund ID was allowed to move to another payment log: %', v;
+  END IF;
+
   v := public.apply_cashfree_refund_event(
     '10000000-0000-0000-0000-000000000011','RF-MULTI-A2',2000,'INR','success',
     '{"data":{"refund":{"order_id":"PLXCF-MULTI-000000000000000011","cf_payment_id":711001}}}'::jsonb
