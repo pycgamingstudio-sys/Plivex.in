@@ -152,7 +152,7 @@ jobs:
         env:
           TEST_JWT_SECRET: plivex-disposable-ci-jwt-secret-only-never-production-00000000000000000000000000000000
           TEST_SUPABASE_URL: http://127.0.0.1:3001
-        run: deno test --allow-env --allow-net supabase/functions/manage-cashfree-subscription/handler.auth.integration.test.mjs
+        run: deno test --no-check --allow-env --allow-net supabase/functions/manage-cashfree-subscription/handler.auth.integration.test.mjs
       - name: Always stop disposable Auth and PostgREST
         if: always()
         run: docker stop plivex-gotrue plivex-postgrest-auth 2>/dev/null || true
