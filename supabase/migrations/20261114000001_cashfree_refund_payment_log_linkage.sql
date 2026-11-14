@@ -171,7 +171,8 @@ BEGIN
   INSERT INTO public.cashfree_refund_reconciliation_audit
     (refund_id, subscription_id, payment_log_id, action, reconciled_by)
   VALUES
-    (v_refund.id, v_refund.subscription_id, v_payment_log_id, 'verified_null_to_link', session_user);
+    (v_refund.id, v_refund.subscription_id, v_payment_log_id, 'verified_null_to_link',
+    COALESCE(NULLIF(current_setting('request.jwt.claim.role', true), ''), session_user));
 
   -- Rebuild aggregate values and clear the hold only after every historical
   -- Cashfree refund for this subscription has an exact verified payment link.
