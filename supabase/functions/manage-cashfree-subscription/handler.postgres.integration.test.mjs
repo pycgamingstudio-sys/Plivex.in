@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { createManageCashfreeSubscriptionHandler } from "./handler.mjs";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
