@@ -405,6 +405,7 @@ WHERE l.id = t.payment_log_id;
 UPDATE public.payment_logs l
 SET refund_status = 'reconciliation_required'
 WHERE l.provider = 'cashfree' AND l.gateway = 'cashfree'
+  AND l.subscription_id IS NOT NULL
   AND EXISTS (
     SELECT 1 FROM public.cashfree_refund_cleanup_exceptions e
     WHERE e.payment_log_id = l.id
