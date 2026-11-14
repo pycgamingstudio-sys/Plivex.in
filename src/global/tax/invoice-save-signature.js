@@ -17,7 +17,7 @@ export function invoiceSaveSignature(inv) {
     inv.discount,
     inv.notes,
     inv.terms,
-    (inv.items || []).map((item) => [item.description, item.quantity, item.rate, item.gstRate]),
+    (inv.items || []).map((item) => [item.description, item.quantity, item.rate, item.gstRate, item.hsnSac || null]),
     inv.business?.address,
     inv.globalTax || null,
     inv.globalTaxProfileSnapshot || null,

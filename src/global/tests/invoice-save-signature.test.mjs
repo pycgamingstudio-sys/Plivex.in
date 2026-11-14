@@ -70,3 +70,12 @@ test("changing the calculated tax snapshot invalidates the invoice save cache ke
   };
   assert.notEqual(invoiceSaveSignature(base), invoiceSaveSignature(changed));
 });
+
+test("changing India HSN/SAC invalidates the invoice save cache key", () => {
+  const changed = {
+    ...base,
+    items: [{ ...base.items[0], hsnSac: "998313" }],
+  };
+  const existing = { ...base, items: [{ ...base.items[0], hsnSac: "998312" }] };
+  assert.notEqual(invoiceSaveSignature(existing), invoiceSaveSignature(changed));
+});
