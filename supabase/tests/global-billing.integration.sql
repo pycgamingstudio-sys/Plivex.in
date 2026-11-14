@@ -685,8 +685,9 @@ BEGIN
   'MULTI-REFUND-ORDER','CFPAY-MULTI-B','CFREFUND-MULTI-A',300,'USD','success',
   '{"test":"sibling-payment-refund-id-reuse"}'::jsonb
  );
- IF v_result->>'reason' <> 'refund_id_already_used' THEN
-   RAISE EXCEPTION 'Refund ID reuse on a sibling payment was not rejected: %',v_result;
+ IF v_result->'ok' IS DISTINCT FROM 'false'::jsonb
+    OR v_result->>'reason' IS DISTINCT FROM 'refund_id_already_used' THEN
+   RAISE EXCEPTION 'Refund ID reuse on a sibling payment was not rejected with the expected failure response: %',v_result;
  END IF;
  SELECT count(*) INTO v_refund_rows FROM public.payment_refunds
  WHERE provider_refund_id='CFREFUND-MULTI-A';
