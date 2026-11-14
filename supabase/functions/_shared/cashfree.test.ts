@@ -205,3 +205,16 @@ Deno.test("Cashfree webhook signature rejects stale and far-future timestamps", 
   if (await verifyWebhookSignature(raw, stale, await sign(stale), secret, now)) throw new Error("Validly signed stale webhook was accepted");
   if (await verifyWebhookSignature(raw, future, await sign(future), secret, now)) throw new Error("Validly signed far-future webhook was accepted");
 });
+
+
+Deno.test("Cashfree non-success event filters prevent payment-state downgrade", async () => {
+  const { cashfreePaymentStatusUpdateFilter } = await import("./cashfree.ts");
+  const pending = cashfreePaymentStatusUpdateFilter("pending");
+  const failed = cashfreePaymentStatusUpdateFilter("failed");
+  if (pending !== "payment_status.is.null,payment_status.in.(created,pending)") {
+    throw new Error("PENDING must not overwrite FAILED or SUCCESS");
+  }
+  if (failed !== "payment_status.is.null,payment_status.in.(created,pending,failed)") {
+    throw new Error("FAILED may advance pending but must not overwrite SUCCESS");
+  }
+});
