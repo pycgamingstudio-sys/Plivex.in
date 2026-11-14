@@ -10,7 +10,7 @@ const FIELDS: Record<string, string[]> = {
   services: ["name","rate","gst_rate","description"],
   leads: ["name","phone","requirement","value","stage"],
   quotations: ["number","client_name","date","total","status","tax_rate","items"],
-  business_profile: ["name","email","phone","gstin","address","logo_url","upi_id","country_code","locale_code"],
+  business_profile: ["name","email","phone","gstin","address","logo_url","upi_id","country_code","locale_code","tax_registration_number","tax_registration_type","tax_registration_status","tax_registration_effective_from","tax_jurisdiction_code"],
 };
 const COUNTRY_LOCALES: Record<string, string[]> = {
   IN: ["en-IN", "hi-IN"], US: ["en-US", "es-US"], GB: ["en-GB"],
@@ -58,6 +58,27 @@ Deno.serve(async (req: Request) => {
             || typeof localeCode !== "string" || !COUNTRY_LOCALES[countryCode].includes(localeCode)) {
             return json({ error: "Choose a supported country and matching locale." }, 400, origin);
           }
+        }
+        if (Object.hasOwn(incoming, "tax_registration_status")) {
+          const allowedStatuses = ["unregistered", "pending", "registered", "deregistered"];
+          if (typeof incoming.tax_registration_status !== "string" || !allowedStatuses.includes(incoming.tax_registration_status)) {
+            return json({ error: "Choose a valid tax registration status." }, 400, origin);
+          }
+          if (incoming.tax_registration_status === "registered"
+            && (typeof incoming.tax_registration_number !== "string" || !incoming.tax_registration_number.trim()
+              || typeof incoming.tax_registration_effective_from !== "string"
+              || !/^\\d{4}-\\d{2}-\\d{2}$/.test(incoming.tax_registration_effective_from))) {
+            return json({ error: "Registered businesses must provide a registration number and effective date." }, 400, origin);
+          }
+        }
+        if (Object.hasOwn(incoming, "tax_registration_number")
+          && (typeof incoming.tax_registration_number !== "string" || incoming.tax_registration_number.length > 80)) {
+          return json({ error: "Tax registration number must be 80 characters or fewer." }, 400, origin);
+        }
+        if (Object.hasOwn(incoming, "tax_jurisdiction_code")
+          && incoming.tax_jurisdiction_code !== null
+          && (typeof incoming.tax_jurisdiction_code !== "string" || incoming.tax_jurisdiction_code.length > 32)) {
+          return json({ error: "Tax jurisdiction code must be 32 characters or fewer." }, 400, origin);
         }
         const values = { ...pick(body.values, fields), workspace_id: profile.workspace_id };
         const { data: existing, error: readError } = await db.from(table).select("id").eq("workspace_id", profile.workspace_id).maybeSingle();
