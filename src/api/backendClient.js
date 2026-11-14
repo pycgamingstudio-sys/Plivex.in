@@ -117,14 +117,14 @@ const functions = {
     // operations intentionally retain the legacy fallback until their contracts
     // and runtime tests are complete.
     const functionName = kebab(String(name || ""));
-    if (APP_EDITION === "global" && functionName !== "global-ensure-owner") {
+    if (APP_EDITION === "global" && !["global-ensure-owner", "global-business-records"].includes(functionName)) {
       throw new ApiError("This Global feature is not enabled yet. Your India workspace is kept separate.", 503, { operation: name });
     }
     const migratedFunctions = new Set([
       "add-client", "ensure-owner-role", "send-team-invite", "verify-invite-code",
       "get-workspace-team", "manage-workspace-member", "ping-presence",
       "track-staff-action", "get-team-presence", "get-access-status", "create-payu-order",
-      "workspace-records", "manage-cashfree-subscription", "list-invoices", "save-invoice", "set-invoice-status", "send-payment-reminder", "set-invoice-reminder", "confirm-payment-reminder", "update-invoice-client-email",
+      "global-business-records", "workspace-records", "manage-cashfree-subscription", "list-invoices", "save-invoice", "set-invoice-status", "send-payment-reminder", "set-invoice-reminder", "confirm-payment-reminder", "update-invoice-client-email",
     ]);
     const adapter = adapters[name] || {};
     const requestPayload = adapter.request ? adapter.request(payload) : payload;
