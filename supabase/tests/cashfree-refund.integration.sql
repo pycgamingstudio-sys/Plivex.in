@@ -511,6 +511,8 @@ DO $
 DECLARE
   v_link uuid;
   v_count integer;
+  v jsonb;
+  v_blocked boolean;
 BEGIN
   SELECT payment_log_id INTO v_link FROM public.payment_refunds
   WHERE id='30000000-0000-0000-0000-000000000002';
