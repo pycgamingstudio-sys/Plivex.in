@@ -179,7 +179,7 @@ RELEASE SAVEPOINT migration010_rollback_probe;
 CREATE TEMP TABLE migration011_before AS
 SELECT pg_get_functiondef(oid) AS definition, proconfig, proacl, proowner, prosecdef
 FROM pg_catalog.pg_proc
-WHERE oid = 'public.apply_cashfree_refund_event(uuid,text,text,text,bigint,text,text,jsonb)'::regprocedure;
+WHERE oid = 'public.apply_cashfree_refund_event(uuid,text,bigint,text,text,jsonb)'::regprocedure;
 SAVEPOINT migration011_rollback_probe;
 \ir ../migrations/20261114000005_cashfree_refund_exact_payment_mapping.sql
 ROLLBACK TO SAVEPOINT migration011_rollback_probe;
@@ -188,13 +188,15 @@ BEGIN
  IF NOT EXISTS (
    SELECT 1 FROM migration011_before b
    JOIN pg_catalog.pg_proc p
-     ON p.oid = 'public.apply_cashfree_refund_event(uuid,text,text,text,bigint,text,text,jsonb)'::regprocedure
+     ON p.oid = 'public.apply_cashfree_refund_event(uuid,text,bigint,text,text,jsonb)'::regprocedure
    WHERE pg_get_functiondef(p.oid)=b.definition
      AND p.proconfig IS NOT DISTINCT FROM b.proconfig
      AND p.proacl IS NOT DISTINCT FROM b.proacl
      AND p.proowner IS NOT DISTINCT FROM b.proowner
      AND p.prosecdef IS NOT DISTINCT FROM b.prosecdef
- ) THEN RAISE EXCEPTION 'Migration 011 rollback did not restore exact-payment RPC state'; END IF;
+ ) THEN RAISE EXCEPTION 'Migration 011 rollback did not restore legacy RPC state'; END IF;
+ IF to_regprocedure('public.apply_cashfree_refund_event(uuid,text,text,text,bigint,text,text,jsonb)') IS NOT NULL THEN
+   RAISE EXCEPTION 'Migration 011 rollback left the new RPC installed'; END IF;
 END
 $migration011_rollback_assert$;
 RELEASE SAVEPOINT migration011_rollback_probe;
