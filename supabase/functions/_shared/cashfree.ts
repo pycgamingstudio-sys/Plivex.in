@@ -48,10 +48,15 @@ export const api=async(path:string,init:RequestInit={})=>{
 export const CASHFREE_WEBHOOK_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const CASHFREE_WEBHOOK_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 export function isCashfreeWebhookTimestampFresh(timestamp:string,nowMs=Date.now()){
- if(!/^\\d{10}(?:\\d{3})?$/.test(timestamp))return false;
+ if(!/^\d{10}(?:\\d{3})?$/.test(timestamp))return false;
  const raw=Number(timestamp),eventMs=timestamp.length===10?raw*1000:raw;
  return Number.isSafeInteger(eventMs)&&eventMs<=nowMs+CASHFREE_WEBHOOK_MAX_FUTURE_SKEW_MS&&
    nowMs-eventMs<=CASHFREE_WEBHOOK_MAX_AGE_MS;
+}
+export function cashfreePaymentStatusUpdateFilter(incoming:"pending"|"failed"){
+ return incoming==="pending"
+  ? "payment_status.is.null,payment_status.in.(created,pending)"
+  : "payment_status.is.null,payment_status.in.(created,pending,failed)";
 }
 export const verifyWebhookSignature=async(raw:string,timestamp:string,signature:string,secret:string,nowMs=Date.now())=>{
  if(!timestamp||!signature||!secret||!isCashfreeWebhookTimestampFresh(timestamp,nowMs))return false;
