@@ -599,6 +599,7 @@ BEGIN
     JOIN public.payment_logs l ON l.id = e.payment_log_id
     WHERE l.subscription_id = v_order.id
       AND e.reason IN ('cashfree_ledger_missing','cashfree_ledger_incomplete')
+      AND e.resolved_at IS NULL
   ) THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'historical_refund_reconciliation_required');
   END IF;
