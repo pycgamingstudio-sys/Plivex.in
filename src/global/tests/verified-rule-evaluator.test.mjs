@@ -73,3 +73,8 @@ test("component tax rounding reconciles to the total tax exactly", () => {
   assert.equal(result.ok, true);
   assert.equal(result.components.reduce((sum, c) => sum + c.amountMinor, 0), result.taxMinor);
 });
+
+test("large safe-integer inputs fail closed before intermediate multiplication overflows", () => {
+  const result = calculateVerifiedTaxRule({ ...base, amountMinor: Number.MAX_SAFE_INTEGER });
+  assert.equal(result.code, "RATE_OR_AMOUNT_OUT_OF_RANGE");
+});
