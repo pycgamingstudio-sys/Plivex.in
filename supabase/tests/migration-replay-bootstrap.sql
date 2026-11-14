@@ -31,7 +31,7 @@ END
 $postgres_role$;
 GRANT anon, authenticated, service_role TO postgres;
 
-CREATE TABLE auth.users (
+CREATE TABLE IF NOT EXISTS auth.users (
   instance_id uuid,
   id uuid PRIMARY KEY,
   aud varchar(255),
@@ -94,7 +94,7 @@ $function$;
 GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION auth.uid(), auth.role(), auth.jwt() TO anon, authenticated, service_role;
 
-CREATE TABLE storage.buckets (
+CREATE TABLE IF NOT EXISTS storage.buckets (
   id text PRIMARY KEY,
   name text NOT NULL,
   owner uuid,
@@ -102,7 +102,7 @@ CREATE TABLE storage.buckets (
   updated_at timestamptz NOT NULL DEFAULT now(),
   public boolean NOT NULL DEFAULT false
 );
-CREATE TABLE storage.objects (
+CREATE TABLE IF NOT EXISTS storage.objects (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   bucket_id text NOT NULL REFERENCES storage.buckets(id),
   name text NOT NULL,
@@ -121,7 +121,7 @@ RETURNS text[] LANGUAGE sql IMMUTABLE AS $function$
 $function$;
 GRANT EXECUTE ON FUNCTION storage.foldername(text) TO authenticated, service_role;
 
-CREATE TABLE vault.secrets (
+CREATE TABLE IF NOT EXISTS vault.secrets (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   description text,
