@@ -4,7 +4,7 @@
 -- Previous versions wrote a subscription aggregate to every Cashfree payment log.
 -- Clear those copied values, then rebuild only records with an exact ledger link.
 -- NOT VALID preserves any legacy ambiguous rows, while enforcing linkage on all new/updated rows.
-DO $
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
