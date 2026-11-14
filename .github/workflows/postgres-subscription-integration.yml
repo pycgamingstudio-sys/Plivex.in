@@ -276,7 +276,7 @@ jobs:
           Deno.serve({ hostname: "127.0.0.1", port: 3001 }, async (request) => {
             const target = new URL(request.url);
             target.port = "3000";
-            target.pathname = target.pathname.replace(/^\\/rest\\/v1(?=\\/|$)/, "") || "/";
+            if (target.pathname.startsWith("/rest/v1")) target.pathname = target.pathname.slice("/rest/v1".length) || "/";
             return await fetch(new Request(target, request));
           });
           TS
