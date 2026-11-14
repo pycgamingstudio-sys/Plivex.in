@@ -14,7 +14,7 @@ export const APP_EDITION = resolveEditionId(import.meta.env.VITE_APP_EDITION);
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 // Address where the backend endpoints run (the published Lovable app).
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\\/+$/, '');
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   // Shown in the browser console so a missing Netlify variable is easy to spot.
