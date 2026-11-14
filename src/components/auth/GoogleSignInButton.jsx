@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/api/backendClient";
+import { supabase, APP_EDITION } from "@/api/backendClient";
 import { rememberPendingInviteCode } from "@/components/auth/workspaceInvite";
 
 export default function GoogleSignInButton({ inviteCode = "", countryCode = "IN", localeCode = "en-IN", onError, disabled = false, className = "" }) {
@@ -10,7 +10,7 @@ export default function GoogleSignInButton({ inviteCode = "", countryCode = "IN"
   const handleGoogleSignIn = async () => {
     setLoading(true);
     if (inviteCode) rememberPendingInviteCode(inviteCode);
-    else { try { window.localStorage.setItem("plivex.signup.region", JSON.stringify({ countryCode, localeCode })); } catch {} }
+    else if (APP_EDITION !== "global") { try { window.localStorage.setItem("plivex.signup.region", JSON.stringify({ countryCode, localeCode })); } catch {} }
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
