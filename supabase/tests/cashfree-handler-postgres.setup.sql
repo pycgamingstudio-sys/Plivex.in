@@ -69,3 +69,15 @@ INSERT INTO public.subscriptions (
 );
 
 NOTIFY pgrst, 'reload schema';
+
+-- Legacy India PayU subscription in the same workspace must remain untouched
+-- by the Cashfree-only management handler.
+INSERT INTO public.subscriptions (
+  id, workspace_id, gateway, provider, status, started_at, expires_at,
+  cancel_at_period_end, cancellation_requested_at, updated_at
+) VALUES (
+  '33333333-3333-4333-8333-333333333333',
+  'workspace-postgrest', 'payu', 'payu', 'active',
+  now() - interval '2 days', now() + interval '300 days',
+  false, NULL, now() - interval '2 seconds'
+);
