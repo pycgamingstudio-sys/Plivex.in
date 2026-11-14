@@ -1,0 +1,313 @@
+{
+  "project_ref": "sqzpaiibmfsvarrkwkvb",
+  "captured_at": "2026-11-14",
+  "source": "read-only SELECT from supabase_migrations.schema_migrations (version,name,statements)",
+  "remote_ledger_entries": 47,
+  "local_migration_files": 23,
+  "exact_version_matches": 0,
+  "basename_matches": [
+    {
+      "remote_version": "20261027120518",
+      "name": "h1_invoice_rpcs",
+      "local_path": "supabase/migrations/202610270001_h1_invoice_rpcs.sql",
+      "content_equivalence": "not yet established"
+    },
+    {
+      "remote_version": "20261027143138",
+      "name": "enforce_plan_limits_from_persisted_records",
+      "local_path": "supabase/migrations/202610270002_enforce_plan_limits_from_persisted_records.sql",
+      "content_equivalence": "not yet established"
+    },
+    {
+      "remote_version": "20261027151303",
+      "name": "enforce_global_workspace_limit_lock",
+      "local_path": "supabase/migrations/202610270003_enforce_global_workspace_limit_lock.sql",
+      "content_equivalence": "not yet established"
+    },
+    {
+      "remote_version": "20261028013504",
+      "name": "fix_global_plan_lock_only_after_exceeded",
+      "local_path": "supabase/migrations/202610280001_fix_global_plan_lock_only_after_exceeded.sql",
+      "content_equivalence": "not yet established"
+    },
+    {
+      "remote_version": "20261028014015",
+      "name": "serialize_team_member_plan_activation",
+      "local_path": "supabase/migrations/202610280002_serialize_team_member_plan_activation.sql",
+      "content_equivalence": "not yet established"
+    },
+    {
+      "remote_version": "20261028030016",
+      "name": "allow_plan_limit_recovery",
+      "local_path": "supabase/migrations/202610280003_allow_plan_limit_recovery.sql",
+      "content_equivalence": "not yet established"
+    },
+    {
+      "remote_version": "20261109094458",
+      "name": "invoice_reminder_foundation",
+      "local_path": "supabase/migrations/202611090001_invoice_reminder_foundation.sql",
+      "content_equivalence": "not yet established"
+    },
+    {
+      "remote_version": "20261109094936",
+      "name": "invoice_reminder_scheduler_security",
+      "local_path": "supabase/migrations/202611090002_invoice_reminder_scheduler_security.sql",
+      "content_equivalence": "not yet established"
+    },
+    {
+      "remote_version": "20261109095303",
+      "name": "lock_down_reminder_cron_config",
+      "local_path": "supabase/migrations/202611090003_lock_down_reminder_cron_config.sql",
+      "content_equivalence": "not yet established"
+    },
+    {
+      "remote_version": "20261109100128",
+      "name": "invoice_reminder_due_date_reschedule",
+      "local_path": "supabase/migrations/202611090004_invoice_reminder_due_date_reschedule.sql",
+      "content_equivalence": "not yet established"
+    },
+    {
+      "remote_version": "20261113040332",
+      "name": "basic_plan_lead_management",
+      "local_path": "supabase/migrations/202611130001_basic_plan_lead_management.sql",
+      "content_equivalence": "not yet established"
+    },
+    {
+      "remote_version": "20261113061320",
+      "name": "invoice_share_links",
+      "local_path": "supabase/migrations/202611130002_invoice_share_links.sql",
+      "content_equivalence": "not yet established"
+    }
+  ],
+  "recovered_missing_sources": [
+    {
+      "version": "20261006093558",
+      "name": "6590855d-561c-47b3-8431-c9edd6187092",
+      "path": "supabase/recovered_remote_migrations/20261006093558_6590855d-561c-47b3-8431-c9edd6187092.sql",
+      "blob_sha": "1a02d2ebf1b589a44529218ace04d647e49431b5"
+    },
+    {
+      "version": "20261006100604",
+      "name": "8ce4fb35-44c2-468c-b1e6-345efa2f6ac5",
+      "path": "supabase/recovered_remote_migrations/20261006100604_8ce4fb35-44c2-468c-b1e6-345efa2f6ac5.sql",
+      "blob_sha": "e8eb94b941d39a79328fffdd471d8c2f9c0e70c6"
+    },
+    {
+      "version": "20261011025424",
+      "name": "3cef6a92-1d4c-4ad3-94a4-b589c222edb4",
+      "path": "supabase/recovered_remote_migrations/20261011025424_3cef6a92-1d4c-4ad3-94a4-b589c222edb4.sql",
+      "blob_sha": "a3bb0f13a8166bd9fde6f5e3d3d8d43aa5fed71b"
+    },
+    {
+      "version": "20261025030833",
+      "name": "server_plan_limits_and_enforcement",
+      "path": "supabase/recovered_remote_migrations/20261025030833_server_plan_limits_and_enforcement.sql",
+      "blob_sha": "b0724186129d85517cf94c7bedaddd65044a9167"
+    },
+    {
+      "version": "20261025030902",
+      "name": "preserve_running_trials_and_access_status",
+      "path": "supabase/recovered_remote_migrations/20261025030902_preserve_running_trials_and_access_status.sql",
+      "blob_sha": "7077fd22a2cf873e8659f052fd9f98e297994fc1"
+    },
+    {
+      "version": "20261025030918",
+      "name": "correct_usage_reporting_and_feature_guards",
+      "path": "supabase/recovered_remote_migrations/20261025030918_correct_usage_reporting_and_feature_guards.sql",
+      "blob_sha": "a8dfe5c62f6999f8315b02be093a0869b3b00bd0"
+    },
+    {
+      "version": "20261025030950",
+      "name": "idempotent_insert_retry_behavior",
+      "path": "supabase/recovered_remote_migrations/20261025030950_idempotent_insert_retry_behavior.sql",
+      "blob_sha": "f1e5114a5e49b271e4628c4db452222a0bae065e"
+    },
+    {
+      "version": "20261025031023",
+      "name": "protect_profile_plan_and_trial_fields",
+      "path": "supabase/recovered_remote_migrations/20261025031023_protect_profile_plan_and_trial_fields.sql",
+      "blob_sha": "80ef5f437cf2d6a195fdd1e471e322defb2c7a30"
+    },
+    {
+      "version": "20261025050054",
+      "name": "repair_payu_order_schema_compatibility",
+      "path": "supabase/recovered_remote_migrations/20261025050054_repair_payu_order_schema_compatibility.sql",
+      "blob_sha": "b1bba811bc04318162db09d5df924506e915f92e"
+    },
+    {
+      "version": "20261025050123",
+      "name": "allow_tampered_subscription_status",
+      "path": "supabase/recovered_remote_migrations/20261025050123_allow_tampered_subscription_status.sql",
+      "blob_sha": "04a87b4ed40e2095cca9242f7143a1920c2505a3"
+    },
+    {
+      "version": "20261025050147",
+      "name": "restore_secure_signup_workspace_provisioning",
+      "path": "supabase/recovered_remote_migrations/20261025050147_restore_secure_signup_workspace_provisioning.sql",
+      "blob_sha": "fb420259bcb9acfa8d72f7efa744663d19dcf417"
+    },
+    {
+      "version": "20261025050615",
+      "name": "repair_signup_invites_and_payment_schema",
+      "path": "supabase/recovered_remote_migrations/20261025050615_repair_signup_invites_and_payment_schema.sql",
+      "blob_sha": "768781a5b5c2ab0fc97a4ae4857c5ee02d373285"
+    },
+    {
+      "version": "20261025050853",
+      "name": "make_signup_trigger_duplicate_safe",
+      "path": "supabase/recovered_remote_migrations/20261025050853_make_signup_trigger_duplicate_safe.sql",
+      "blob_sha": "161d571ea86e73a4178b0d19d771519918128c30"
+    },
+    {
+      "version": "20261025051425",
+      "name": "add_update_plan_feature_guards",
+      "path": "supabase/recovered_remote_migrations/20261025051425_add_update_plan_feature_guards.sql",
+      "blob_sha": "56e5b6045d1203fa96e7401856da0dc0f3f42935"
+    },
+    {
+      "version": "20261025051609",
+      "name": "allow_owner_membership_without_team_upgrade",
+      "path": "supabase/recovered_remote_migrations/20261025051609_allow_owner_membership_without_team_upgrade.sql",
+      "blob_sha": "1becad455ebc746701e7b5a84a4a47023d339edb"
+    },
+    {
+      "version": "20261025051641",
+      "name": "allow_trusted_signup_membership_context",
+      "path": "supabase/recovered_remote_migrations/20261025051641_allow_trusted_signup_membership_context.sql",
+      "blob_sha": "5fbe0d68fa84abd86cddb199bb14cdc8a9622294"
+    },
+    {
+      "version": "20261025052531",
+      "name": "remove_duplicate_auth_user_trigger_final_audit",
+      "path": "supabase/recovered_remote_migrations/20261025052531_remove_duplicate_auth_user_trigger_final_audit.sql",
+      "blob_sha": "981c0a8d132941334d5d4b3e7bed9aaba754d70b"
+    },
+    {
+      "version": "20261025052631",
+      "name": "report_active_trial_status_correctly",
+      "path": "supabase/recovered_remote_migrations/20261025052631_report_active_trial_status_correctly.sql",
+      "blob_sha": "ff0486594091c34464ad081c072e7b163f650b76"
+    },
+    {
+      "version": "20261025092442",
+      "name": "harden_trigger_function_privileges",
+      "path": "supabase/recovered_remote_migrations/20261025092442_harden_trigger_function_privileges.sql",
+      "blob_sha": "e026fa08a2e04af19fc8c55171b9625028eb2f14"
+    },
+    {
+      "version": "20261025092518",
+      "name": "restrict_workspace_cycle_start_rpc",
+      "path": "supabase/recovered_remote_migrations/20261025092518_restrict_workspace_cycle_start_rpc.sql",
+      "blob_sha": "291c27836ba39c607517c26b940760c9f5be1e31"
+    },
+    {
+      "version": "20261025092604",
+      "name": "index_payment_logs_subscription_fk",
+      "path": "supabase/recovered_remote_migrations/20261025092604_index_payment_logs_subscription_fk.sql",
+      "blob_sha": "0a12042dc24b42265c4b77106d23aa083419af91"
+    },
+    {
+      "version": "20261025092852",
+      "name": "restrict_plan_helper_rpc_access",
+      "path": "supabase/recovered_remote_migrations/20261025092852_restrict_plan_helper_rpc_access.sql",
+      "blob_sha": "7e071db8070eed014554f177866739a6a8c5b9f4"
+    },
+    {
+      "version": "20261027131940",
+      "name": "fix_protect_server_fields_record_columns",
+      "path": "supabase/recovered_remote_migrations/20261027131940_fix_protect_server_fields_record_columns.sql",
+      "blob_sha": "abdb249b6680ca406f6f88ba51171b4127a2ea65"
+    },
+    {
+      "version": "20261027143011",
+      "name": "grant_get_access_status_to_authenticated",
+      "path": "supabase/recovered_remote_migrations/20261027143011_grant_get_access_status_to_authenticated.sql",
+      "blob_sha": "5aecd76dcafaddfa34bacf3e8af8a5e0cae7f6d0"
+    },
+    {
+      "version": "20261027143444",
+      "name": "enforce_paid_subscription_dates",
+      "path": "supabase/recovered_remote_migrations/20261027143444_enforce_paid_subscription_dates.sql",
+      "blob_sha": "32c908718dd1d34adf6800c09f6dca206e718866"
+    },
+    {
+      "version": "20261027151244",
+      "name": "guard_over_limit_workspaces_on_updates_and_deletes",
+      "path": "supabase/recovered_remote_migrations/20261027151244_guard_over_limit_workspaces_on_updates_and_deletes.sql",
+      "blob_sha": "7cd8e1053c12946c5f65c78a063bc14213213763"
+    },
+    {
+      "version": "20261027151351",
+      "name": "lock_workspace_at_quota_exhaustion",
+      "path": "supabase/recovered_remote_migrations/20261027151351_lock_workspace_at_quota_exhaustion.sql",
+      "blob_sha": "9f66eee5b831d86f5648db673ebb642458867b11"
+    },
+    {
+      "version": "20261027151604",
+      "name": "serialize_workspace_plan_guard_writes",
+      "path": "supabase/recovered_remote_migrations/20261027151604_serialize_workspace_plan_guard_writes.sql",
+      "blob_sha": "29f28b80b87a7b5bf8b05a34d4d32af912d9e768"
+    },
+    {
+      "version": "20261028013407",
+      "name": "revoke_public_execute_from_plan_guard_trigger",
+      "path": "supabase/recovered_remote_migrations/20261028013407_revoke_public_execute_from_plan_guard_trigger.sql",
+      "blob_sha": "cede880690945d3e3e4177e84a78e2c37effaadc"
+    },
+    {
+      "version": "20261028030245",
+      "name": "prioritize_effective_subscription",
+      "path": "supabase/recovered_remote_migrations/20261028030245_prioritize_effective_subscription.sql",
+      "blob_sha": "5c7f64cb232de9bd00da333f9e29e4ce412883c9"
+    },
+    {
+      "version": "20261101100358",
+      "name": "add_phonepe_subscription_provider_fields",
+      "path": "supabase/recovered_remote_migrations/20261101100358_add_phonepe_subscription_provider_fields.sql",
+      "blob_sha": "5edfae050f9ecf8133e24efab13865f647a75d52"
+    },
+    {
+      "version": "20261112041625",
+      "name": "assistant_atomic_action_batches",
+      "path": "supabase/recovered_remote_migrations/20261112041625_assistant_atomic_action_batches.sql",
+      "blob_sha": "942d0e38ce2389c9e1e8f6e10f59e1351387283a"
+    },
+    {
+      "version": "20261112043932",
+      "name": "assistant_invoice_creation_v1",
+      "path": "supabase/recovered_remote_migrations/20261112043932_assistant_invoice_creation_v1.sql",
+      "blob_sha": "34f76ba1661931a610d263e6377a01d72678f437"
+    },
+    {
+      "version": "20261112064416",
+      "name": "preserve_invoice_design_snapshot",
+      "path": "supabase/recovered_remote_migrations/20261112064416_preserve_invoice_design_snapshot.sql",
+      "blob_sha": "c8d93f8dabb50ea8460f5e38b4adec56845e5417"
+    },
+    {
+      "version": "20261112071603",
+      "name": "assistant_invoice_profile_snapshot",
+      "path": "supabase/recovered_remote_migrations/20261112071603_assistant_invoice_profile_snapshot.sql",
+      "blob_sha": "fa5d83ff5f290beda3e63b06514f98141c077064"
+    }
+  ],
+  "local_only_files": [
+    "202610280004_fix_overlapping_subscription_tier_priority.sql",
+    "202611130003_invoice_share_rate_limit.sql",
+    "202611130004_converge_effective_subscription_priority.sql",
+    "202611130005_revoke_anon_assistant_batch_execute.sql",
+    "202611130006_workspace_country_identity.sql",
+    "202611130007_global_billing_and_cashfree_atomicity.sql",
+    "202611130008_cashfree_refund_atomicity.sql",
+    "202611130009_global_billing_concurrency_and_definer_hardening.sql",
+    "202611130010_cashfree_refund_identity_immutability.sql",
+    "20261114000000_invoice_share_created_by_index.sql",
+    "20261114000001_optimize_assistant_batch_rls_policy.sql"
+  ],
+  "notes": [
+    "Recovered SQL is copied from the production migration ledger statements column.",
+    "No production writes or migration operations were performed.",
+    "Recovered archive is outside supabase/migrations and is not auto-applied by Supabase CLI.",
+    "Do not apply recovered sources to production; use disposable replay only."
+  ]
+}
