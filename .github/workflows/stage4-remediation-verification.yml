@@ -1,0 +1,153 @@
+name: Stage 4 Remediation Verification
+
+on:
+  push:
+    branches: [global-dev]
+  pull_request:
+    branches: [global-dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migration-reconciliation:
+    name: Disposable migration replay and India data integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start isolated Supabase PostgreSQL databases
+        shell: bash
+        run: |
+          set -euo pipefail
+          for spec in "plivex-remote-replay-db:5433" "plivex-candidate-replay-db:5434"; do
+            name="${spec%%:*}"
+            port="${spec##*:}"
+            docker run --detach --rm --name "$name" --publish "$port:5432" \
+              --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=postgres --env POSTGRES_DB=postgres \
+              supabase/postgres:17.6.1.136 \
+              postgres -c shared_preload_libraries=pg_cron -c cron.database_name=plivex_migration_replay
+            ready=0
+            for attempt in $(seq 1 60); do
+              if docker exec "$name" pg_isready -U postgres -d postgres >/dev/null 2>&1; then ready=1; break; fi
+              sleep 2
+            done
+            if [ "$ready" != "1" ]; then docker logs "$name"; exit 1; fi
+            for ext in pgcrypto pg_cron pg_net; do
+              docker exec "$name" psql -U postgres -d postgres -Atc "SELECT name FROM pg_available_extensions WHERE name='$ext'" | grep -qx "$ext"
+            done
+          done
+      - name: Replay all 47 recorded remote versions and all 58 global candidate inputs
+        env:
+          REMOTE_PGPORT: "5433"
+          CANDIDATE_PGPORT: "5434"
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: node scripts/verify-migration-replay.mjs
+      - name: Always stop disposable databases
+        if: always()
+        run: docker stop plivex-remote-replay-db plivex-candidate-replay-db 2>/dev/null || true
+
+  real-auth-integration:
+    name: Real GoTrue Auth plus Cashfree handler and PostgREST
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Prepare disposable PostgREST database
+        run: |
+          createdb -h 127.0.0.1 -U postgres plivex_handler_test
+          psql -h 127.0.0.1 -U postgres -d plivex_handler_test -v ON_ERROR_STOP=1 -f supabase/tests/cashfree-handler-postgres.setup.sql
+      - name: Start isolated Supabase GoTrue Auth
+        env:
+          TEST_JWT_SECRET: plivex-disposable-ci-jwt-secret-only-never-production-00000000000000000000000000000000
+        run: |
+          docker run --detach --rm --name plivex-gotrue --network host \
+            --env GOTRUE_API_HOST=0.0.0.0 --env GOTRUE_API_PORT=9999 \
+            --env API_EXTERNAL_URL=http://127.0.0.1:9999 \
+            --env GOTRUE_DB_DRIVER=postgres \
+            --env GOTRUE_DB_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/plivex_handler_test?sslmode=disable \
+            --env GOTRUE_SITE_URL=http://127.0.0.1:3001 \
+            --env GOTRUE_URI_ALLOW_LIST=http://127.0.0.1:3001 \
+            --env GOTRUE_DISABLE_SIGNUP=false \
+            --env GOTRUE_JWT_ADMIN_ROLES=service_role \
+            --env GOTRUE_JWT_AUD=authenticated --env GOTRUE_JWT_DEFAULT_GROUP_NAME=authenticated \
+            --env GOTRUE_JWT_EXP=3600 --env GOTRUE_JWT_SECRET="$TEST_JWT_SECRET" \
+            --env GOTRUE_EXTERNAL_EMAIL_ENABLED=true \
+            --env GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED=false \
+            --env GOTRUE_MAILER_AUTOCONFIRM=true \
+            --env GOTRUE_SMTP_ADMIN_EMAIL=admin@example.test \
+            --env GOTRUE_SMTP_HOST=127.0.0.1 --env GOTRUE_SMTP_PORT=2500 \
+            --env GOTRUE_SMTP_USER=ci --env GOTRUE_SMTP_PASS=ci-only \
+            --env GOTRUE_SMTP_SENDER_NAME="Plivex CI" supabase/gotrue:v2.197.0
+          ready=0
+          for attempt in $(seq 1 60); do
+            code="$(curl -sS -o /tmp/gotrue-health.txt -w '%{http_code}' http://127.0.0.1:9999/health || true)"
+            if [ "$code" = "200" ]; then ready=1; break; fi
+            sleep 2
+          done
+          if [ "$ready" != "1" ]; then docker logs plivex-gotrue; exit 1; fi
+      - name: Start isolated PostgREST
+        env:
+          TEST_JWT_SECRET: plivex-disposable-ci-jwt-secret-only-never-production-00000000000000000000000000000000
+        run: |
+          docker run --detach --rm --name plivex-postgrest-auth --network host \
+            --env PGRST_DB_URI=postgres://postgres:postgres@127.0.0.1:5432/plivex_handler_test \
+            --env PGRST_DB_SCHEMAS=public --env PGRST_DB_ANON_ROLE=anon \
+            --env PGRST_JWT_SECRET="$TEST_JWT_SECRET" postgrest/postgrest:v12.2.3
+          ready=0
+          for attempt in $(seq 1 40); do
+            code="$(curl -sS -o /tmp/postgrest-openapi.json -w '%{http_code}' http://127.0.0.1:3000/ || true)"
+            if [ "$code" = "200" ]; then ready=1; break; fi
+            sleep 2
+          done
+          if [ "$ready" != "1" ]; then docker logs plivex-postgrest-auth; exit 1; fi
+      - name: Route Supabase REST and Auth paths to disposable services
+        run: |
+          cat > /tmp/plivex-supabase-proxy.ts <<'TS'
+          Deno.serve({ hostname: "127.0.0.1", port: 3001 }, async (request) => {
+            const target = new URL(request.url);
+            if (target.pathname.startsWith("/rest/v1")) {
+              target.port = "3000";
+              target.pathname = target.pathname.slice("/rest/v1".length) || "/";
+            } else if (target.pathname.startsWith("/auth/v1")) {
+              target.port = "9999";
+              target.pathname = target.pathname.slice("/auth/v1".length) || "/";
+            }
+            return await fetch(new Request(target, request));
+          });
+          TS
+          deno run --allow-net /tmp/plivex-supabase-proxy.ts >/tmp/plivex-supabase-proxy.log 2>&1 &
+          ready=0
+          for attempt in $(seq 1 30); do
+            code="$(curl -sS -o /tmp/plivex-proxy-openapi.json -w '%{http_code}' http://127.0.0.1:3001/rest/v1/ || true)"
+            if [ "$code" = "200" ]; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" != "1" ]; then cat /tmp/plivex-supabase-proxy.log; exit 1; fi
+      - name: Verify actual GoTrue auth.getUser through Cashfree handler
+        env:
+          TEST_JWT_SECRET: plivex-disposable-ci-jwt-secret-only-never-production-00000000000000000000000000000000
+          TEST_SUPABASE_URL: http://127.0.0.1:3001
+        run: deno test --allow-env --allow-net supabase/functions/manage-cashfree-subscription/handler.auth.integration.test.mjs
+      - name: Always stop disposable Auth and PostgREST
+        if: always()
+        run: docker stop plivex-gotrue plivex-postgrest-auth 2>/dev/null || true
