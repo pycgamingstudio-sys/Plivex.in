@@ -141,6 +141,12 @@ BEGIN
     END IF;
 
     _global_mode := _snapshot->'globalTax'->>'mode';
+    IF (_global_mode = 'automatic'
+        AND _snapshot->'globalTaxCalculation'->>'status' IS DISTINCT FROM 'calculated')
+      OR (_global_mode = 'manual'
+        AND _snapshot->'globalTaxCalculation'->>'status' IS DISTINCT FROM 'manual_unverified') THEN
+      RAISE EXCEPTION 'global tax calculation mode and status do not match' USING ERRCODE = '22023';
+    END IF;
     _global_price_mode := _snapshot->'globalTax'->>'priceMode';
     IF _global_price_mode NOT IN ('exclusive','inclusive') THEN
       RAISE EXCEPTION 'invalid global tax price mode' USING ERRCODE = '22023';
