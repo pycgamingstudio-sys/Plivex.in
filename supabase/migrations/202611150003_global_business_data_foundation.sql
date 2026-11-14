@@ -54,6 +54,22 @@ create table if not exists global.stock_levels (
 create index if not exists global_stock_levels_reorder_idx
   on global.stock_levels(workspace_id, quantity, reorder_level);
 
+create table if not exists global.stock_movements (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null,
+  product_id uuid not null,
+  movement_type text not null check (movement_type in ('opening','receipt','sale','return','adjustment')),
+  quantity_delta numeric(18,4) not null check (quantity_delta <> 0),
+  reference_type text,
+  reference_id uuid,
+  notes text,
+  created_by uuid not null references auth.users(id) on delete restrict,
+  created_at timestamptz not null default now(),
+  foreign key (workspace_id, product_id) references global.products(workspace_id, id) on delete restrict
+);
+create index if not exists global_stock_movements_workspace_product_date_idx
+  on global.stock_movements(workspace_id, product_id, created_at desc);
+
 create table if not exists global.invoices (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references global.workspaces(id) on delete cascade,
@@ -153,7 +169,7 @@ declare
   table_name text;
 begin
   foreach table_name in array array[
-    'clients','products','stock_levels','invoices','invoice_items',
+    'clients','products','stock_levels','stock_movements','invoices','invoice_items',
     'invoice_payments','expenses'
   ] loop
     execute format('alter table global.%I enable row level security', table_name);
@@ -166,9 +182,9 @@ begin
 end
 $policies$;
 
-grant select on global.clients, global.products, global.stock_levels, global.invoices,
+grant select on global.clients, global.products, global.stock_levels, global.stock_movements, global.invoices,
   global.invoice_items, global.invoice_payments, global.expenses to authenticated;
-grant all on global.clients, global.products, global.stock_levels, global.invoices,
+grant all on global.clients, global.products, global.stock_levels, global.stock_movements, global.invoices,
   global.invoice_items, global.invoice_payments, global.expenses to service_role;
 grant usage, select on all sequences in schema global to service_role;
 
@@ -191,6 +207,7 @@ create trigger global_expenses_set_updated_at before update on global.expenses
 comment on table global.clients is 'Global-only customer records; workspace-scoped and never shared with India public.clients.';
 comment on table global.products is 'Global-only product catalogue; monetary values are integer minor units.';
 comment on table global.stock_levels is 'Global-only current stock balance; writes require audited server-side operations.';
+comment on table global.stock_movements is 'Append-only Global inventory movement ledger; writes require audited server-side operations.';
 comment on table global.invoices is 'Global-only invoice headers; tax and totals are stored in currency minor units.';
 comment on table global.invoice_items is 'Global-only invoice lines with composite workspace foreign keys.';
 comment on table global.invoice_payments is 'Global-only invoice payment records; payment writes require server-side reconciliation.';
