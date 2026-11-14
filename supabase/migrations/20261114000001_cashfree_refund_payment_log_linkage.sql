@@ -1,72 +1,8 @@
 -- Targeted Cashfree refund-to-payment-log accounting correction.
 -- Resolve only exact Cashfree order + cf_payment_id matches. Ambiguous historical rows remain flagged.
 
-WITH exact_matches AS (
-  SELECT
-    r.id AS refund_id,
-    (array_agg(l.id ORDER BY l.id))[1] AS payment_log_id,
-    count(l.id) AS match_count
-  FROM public.payment_refunds r
-  JOIN public.subscriptions s ON s.id = r.subscription_id
-  JOIN public.payment_logs l
-    ON l.subscription_id = s.id
-   AND l.txnid = s.txnid
-   AND l.provider = 'cashfree'
-   AND l.gateway = 'cashfree'
-   AND l.provider_payment_id = NULLIF(r.raw #>> '{data,refund,cf_payment_id}', '')
-  WHERE r.provider = 'cashfree'
-    AND r.payment_log_id IS NULL
-    AND NULLIF(r.raw #>> '{data,refund,order_id}', '') = s.txnid
-  GROUP BY r.id
-)
-UPDATE public.payment_refunds r
-SET payment_log_id = m.payment_log_id
-FROM exact_matches m
-WHERE r.id = m.refund_id
-  AND m.match_count = 1;
-
 -- Previous versions wrote a subscription aggregate to every Cashfree payment log.
 -- Clear those copied values, then rebuild only records with an exact ledger link.
-UPDATE public.payment_logs
-SET refund_status = NULL,
-    refund_amount_minor_units = NULL
-WHERE provider = 'cashfree' OR gateway = 'cashfree';
-
-WITH payment_totals AS (
-  SELECT
-    payment_log_id,
-    COALESCE(sum(amount_minor_units) FILTER (WHERE status = 'success'), 0)::bigint AS refunded_minor,
-    bool_or(status = 'pending') AS has_pending,
-    bool_or(status = 'failed') AS has_failed
-  FROM public.payment_refunds
-  WHERE provider = 'cashfree'
-    AND payment_log_id IS NOT NULL
-  GROUP BY payment_log_id
-)
-UPDATE public.payment_logs l
-SET refund_amount_minor_units = t.refunded_minor,
-    refund_status = CASE
-      WHEN t.refunded_minor >= l.amount THEN 'success'
-      WHEN t.refunded_minor > 0 THEN 'partially_refunded'
-      WHEN t.has_pending THEN 'pending'
-      WHEN t.has_failed THEN 'failed'
-      ELSE NULL
-    END
-FROM payment_totals t
-WHERE l.id = t.payment_log_id;
-
--- An unlinked historical refund makes every attempt for that order unsafe to reconcile.
-UPDATE public.payment_logs l
-SET refund_status = 'reconciliation_required'
-WHERE (l.provider = 'cashfree' OR l.gateway = 'cashfree')
-  AND EXISTS (
-    SELECT 1
-    FROM public.payment_refunds r
-    WHERE r.subscription_id = l.subscription_id
-      AND r.provider = 'cashfree'
-      AND r.payment_log_id IS NULL
-  );
-
 -- NOT VALID preserves any legacy ambiguous rows, while enforcing linkage on all new/updated rows.
 DO $$
 BEGIN
@@ -96,13 +32,21 @@ SET search_path = pg_catalog, pg_temp
 AS $$
 BEGIN
   IF NEW.subscription_id IS DISTINCT FROM OLD.subscription_id
-     OR NEW.payment_log_id IS DISTINCT FROM OLD.payment_log_id
      OR NEW.provider IS DISTINCT FROM OLD.provider
      OR NEW.provider_refund_id IS DISTINCT FROM OLD.provider_refund_id
      OR NEW.user_id IS DISTINCT FROM OLD.user_id
      OR NEW.workspace_id IS DISTINCT FROM OLD.workspace_id
      OR NEW.amount_minor_units IS DISTINCT FROM OLD.amount_minor_units
-     OR NEW.currency IS DISTINCT FROM OLD.currency THEN
+     OR NEW.currency IS DISTINCT FROM OLD.currency
+     OR (
+       NEW.payment_log_id IS DISTINCT FROM OLD.payment_log_id
+       AND NOT (
+         OLD.payment_log_id IS NULL
+         AND NEW.payment_log_id IS NOT NULL
+         AND current_user = 'postgres'
+         AND current_setting('app.cashfree_refund_reconciliation', true) = 'on'
+       )
+     ) THEN
     RAISE EXCEPTION 'Cashfree refund identity is immutable';
   END IF;
   RETURN NEW;
@@ -150,6 +94,150 @@ BEFORE UPDATE OF id, subscription_id, txnid, provider, gateway, provider_payment
 ON public.payment_logs
 FOR EACH ROW
 EXECUTE FUNCTION public.prevent_cashfree_payment_log_identity_change();
+
+CREATE TABLE IF NOT EXISTS public.cashfree_refund_reconciliation_audit (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  refund_id uuid NOT NULL REFERENCES public.payment_refunds(id) ON DELETE RESTRICT,
+  subscription_id uuid NOT NULL REFERENCES public.subscriptions(id) ON DELETE RESTRICT,
+  payment_log_id uuid NOT NULL REFERENCES public.payment_logs(id) ON DELETE RESTRICT,
+  action text NOT NULL CHECK (action = 'verified_null_to_link'),
+  reconciled_by text NOT NULL,
+  reconciled_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+REVOKE ALL ON public.cashfree_refund_reconciliation_audit FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.reconcile_cashfree_refund_payment_log(p_refund_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $
+DECLARE
+  v_refund public.payment_refunds%ROWTYPE;
+  v_subscription public.subscriptions%ROWTYPE;
+  v_payment_log_id uuid;
+  v_match_count integer;
+BEGIN
+  SELECT * INTO v_refund
+  FROM public.payment_refunds
+  WHERE id = p_refund_id AND provider = 'cashfree'
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'historical_refund_not_found');
+  END IF;
+  IF v_refund.payment_log_id IS NOT NULL THEN
+    RETURN jsonb_build_object('ok', true, 'already_reconciled', true);
+  END IF;
+
+  SELECT * INTO v_subscription
+  FROM public.subscriptions
+  WHERE id = v_refund.subscription_id
+  FOR UPDATE;
+  IF NOT FOUND OR v_subscription.provider IS DISTINCT FROM 'cashfree'
+     OR v_subscription.gateway IS DISTINCT FROM 'cashfree' THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'historical_refund_mapping_not_found');
+  END IF;
+
+  SELECT count(*), (array_agg(l.id ORDER BY l.id))[1]
+  INTO v_match_count, v_payment_log_id
+  FROM public.payment_logs l
+  WHERE l.subscription_id = v_subscription.id
+    AND l.txnid = v_subscription.txnid
+    AND l.provider = 'cashfree'
+    AND l.gateway = 'cashfree'
+    AND l.provider_payment_id = NULLIF(trim(v_refund.raw #>> '{data,refund,cf_payment_id}'), '')
+    AND NULLIF(trim(v_refund.raw #>> '{data,refund,order_id}'), '') = v_subscription.txnid;
+
+  IF v_match_count = 0 THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'historical_refund_mapping_not_found');
+  ELSIF v_match_count > 1 THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'historical_refund_mapping_ambiguous');
+  END IF;
+
+  PERFORM set_config('app.cashfree_refund_reconciliation', 'on', true);
+  UPDATE public.payment_refunds
+  SET payment_log_id = v_payment_log_id
+  WHERE id = v_refund.id AND payment_log_id IS NULL;
+  PERFORM set_config('app.cashfree_refund_reconciliation', 'off', true);
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'historical_refund_reconciliation_race');
+  END IF;
+
+  INSERT INTO public.cashfree_refund_reconciliation_audit
+    (refund_id, subscription_id, payment_log_id, action, reconciled_by)
+  VALUES
+    (v_refund.id, v_refund.subscription_id, v_payment_log_id, 'verified_null_to_link', session_user);
+
+  RETURN jsonb_build_object('ok', true, 'reconciled', true, 'payment_log_id', v_payment_log_id);
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.reconcile_cashfree_refund_payment_log(uuid)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reconcile_cashfree_refund_payment_log(uuid)
+  TO service_role;
+
+-- Deterministically resolvable legacy rows are linked through the audited,
+-- narrowly-scoped reconciliation function. Ambiguous/unmatched rows remain NULL.
+DO $
+DECLARE v_refund_id uuid;
+BEGIN
+  FOR v_refund_id IN
+    SELECT id FROM public.payment_refunds
+    WHERE provider = 'cashfree' AND payment_log_id IS NULL
+    ORDER BY id
+  LOOP
+    PERFORM public.reconcile_cashfree_refund_payment_log(v_refund_id);
+  END LOOP;
+END
+$;
+
+-- Only homogeneous Cashfree rows are reset/rebuilt. Provider/gateway mismatches
+-- and NULL-provider legacy rows are deliberately preserved for manual review.
+UPDATE public.payment_logs
+SET refund_status = NULL,
+    refund_amount_minor_units = NULL
+WHERE provider = 'cashfree' AND gateway = 'cashfree';
+
+WITH payment_totals AS (
+  SELECT
+    r.payment_log_id,
+    COALESCE(sum(r.amount_minor_units) FILTER (WHERE r.status = 'success'), 0)::bigint AS refunded_minor,
+    bool_or(r.status = 'pending') AS has_pending,
+    bool_or(r.status = 'failed') AS has_failed
+  FROM public.payment_refunds r
+  JOIN public.payment_logs linked
+    ON linked.id = r.payment_log_id
+   AND linked.provider = 'cashfree'
+   AND linked.gateway = 'cashfree'
+  WHERE r.provider = 'cashfree'
+    AND r.payment_log_id IS NOT NULL
+  GROUP BY r.payment_log_id
+)
+UPDATE public.payment_logs l
+SET refund_amount_minor_units = t.refunded_minor,
+    refund_status = CASE
+      WHEN t.refunded_minor >= l.amount THEN 'success'
+      WHEN t.refunded_minor > 0 THEN 'partially_refunded'
+      WHEN t.has_pending THEN 'pending'
+      WHEN t.has_failed THEN 'failed'
+      ELSE NULL
+    END
+FROM payment_totals t
+WHERE l.id = t.payment_log_id;
+
+-- Leave a stable marker on strict Cashfree attempts while any historical
+-- Cashfree refund for the subscription remains unlinked.
+UPDATE public.payment_logs l
+SET refund_status = 'reconciliation_required'
+WHERE l.provider = 'cashfree' AND l.gateway = 'cashfree'
+  AND EXISTS (
+    SELECT 1 FROM public.payment_refunds r
+    WHERE r.subscription_id = l.subscription_id
+      AND r.provider = 'cashfree'
+      AND r.payment_log_id IS NULL
+  );
 
 CREATE OR REPLACE FUNCTION public.apply_cashfree_refund_event(
   p_subscription_id uuid,
@@ -209,6 +297,17 @@ BEGIN
 
   IF NOT FOUND THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'subscription_not_found');
+  END IF;
+
+  -- Do not accept another refund while any historical Cashfree ledger row for
+  -- this subscription is unresolved; this check precedes all accounting writes.
+  IF EXISTS (
+    SELECT 1 FROM public.payment_refunds r
+    WHERE r.subscription_id = v_order.id
+      AND r.provider = 'cashfree'
+      AND r.payment_log_id IS NULL
+  ) THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'historical_refund_reconciliation_required');
   END IF;
 
   IF v_refund_order_id IS DISTINCT FROM v_order.txnid
@@ -381,6 +480,11 @@ BEGIN
   );
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.reconcile_cashfree_refund_payment_log(uuid)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reconcile_cashfree_refund_payment_log(uuid)
+  TO service_role;
 
 REVOKE ALL ON FUNCTION public.apply_cashfree_refund_event(uuid,text,bigint,text,text,jsonb)
   FROM PUBLIC, anon, authenticated;
