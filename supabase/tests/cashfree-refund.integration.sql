@@ -135,7 +135,7 @@ SET payu_payment_id='PAYU-12'
 WHERE id='20000000-0000-0000-0000-000000000013';
 
 -- Apply both real migrations, then replay the targeted additive migration.
-\\ir ../migrations/20261114000000_india_cashfree_refund_support.sql
+\ir ../migrations/20261114000000_india_cashfree_refund_support.sql
 
 -- Historical refund fixtures are seeded before the linkage migration so its
 -- audited reconciliation path sees realistic pre-existing NULL links.
@@ -180,7 +180,7 @@ BEGIN
 END
 $;
 
-\\ir ../migrations/20261114000001_cashfree_refund_payment_log_linkage.sql
+\ir ../migrations/20261114000001_cashfree_refund_payment_log_linkage.sql
 \ir ../migrations/20261114000001_cashfree_refund_payment_log_linkage.sql
 
 DO $$
