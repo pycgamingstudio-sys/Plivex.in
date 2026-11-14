@@ -254,12 +254,57 @@ BEGIN
 END
 $reconcile$;
 
--- Only homogeneous Cashfree rows are reset/rebuilt. Provider/gateway mismatches
--- and NULL-provider legacy rows are deliberately preserved for manual review.
-UPDATE public.payment_logs
+-- Snapshot provider/gateway mismatches and Cashfree rows whose prior totals
+-- cannot be reconstructed from linked Cashfree refund-ledger entries.
+CREATE TABLE IF NOT EXISTS public.cashfree_refund_cleanup_exceptions (
+  payment_log_id uuid PRIMARY KEY REFERENCES public.payment_logs(id) ON DELETE RESTRICT,
+  provider text,
+  gateway text,
+  prior_refund_status text,
+  prior_refund_amount_minor_units bigint,
+  reason text NOT NULL CHECK (reason IN ('provider_gateway_mismatch','cashfree_ledger_missing')),
+  detected_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+REVOKE ALL ON public.cashfree_refund_cleanup_exceptions FROM PUBLIC, anon, authenticated, service_role;
+
+INSERT INTO public.cashfree_refund_cleanup_exceptions
+  (payment_log_id, provider, gateway, prior_refund_status, prior_refund_amount_minor_units, reason)
+SELECT l.id, l.provider, l.gateway, l.refund_status, l.refund_amount_minor_units,
+       'provider_gateway_mismatch'
+FROM public.payment_logs l
+WHERE (l.provider = 'cashfree' AND l.gateway IS DISTINCT FROM 'cashfree')
+   OR (l.gateway = 'cashfree' AND l.provider IS DISTINCT FROM 'cashfree')
+ON CONFLICT (payment_log_id) DO NOTHING;
+
+INSERT INTO public.cashfree_refund_cleanup_exceptions
+  (payment_log_id, provider, gateway, prior_refund_status, prior_refund_amount_minor_units, reason)
+SELECT l.id, l.provider, l.gateway, l.refund_status, l.refund_amount_minor_units,
+       'cashfree_ledger_missing'
+FROM public.payment_logs l
+WHERE l.provider = 'cashfree'
+  AND l.gateway = 'cashfree'
+  AND (l.refund_status IS NOT NULL OR l.refund_amount_minor_units IS NOT NULL)
+  AND NOT EXISTS (
+    SELECT 1 FROM public.payment_refunds r
+    WHERE r.payment_log_id = l.id AND r.provider = 'cashfree'
+  )
+ON CONFLICT (payment_log_id) DO NOTHING;
+
+-- Rebuild only homogeneous Cashfree logs whose existing refund metadata is
+-- absent or can be reconstructed from the linked Cashfree refund ledger.
+-- Preserve all existing totals when the ledger cannot prove their source.
+UPDATE public.payment_logs l
 SET refund_status = NULL,
     refund_amount_minor_units = NULL
-WHERE provider = 'cashfree' AND gateway = 'cashfree';
+WHERE l.provider = 'cashfree'
+  AND l.gateway = 'cashfree'
+  AND (
+    (l.refund_status IS NULL AND l.refund_amount_minor_units IS NULL)
+    OR EXISTS (
+      SELECT 1 FROM public.payment_refunds r
+      WHERE r.payment_log_id = l.id AND r.provider = 'cashfree'
+    )
+  );
 
 WITH payment_totals AS (
   SELECT
