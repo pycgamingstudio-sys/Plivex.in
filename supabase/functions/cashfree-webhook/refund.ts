@@ -1,3 +1,5 @@
+import { majorToMinorUnits } from "../_shared/cashfree.ts";
+
 type RefundRpc = (args: {
   p_subscription_id: string;
   p_provider_refund_id: string;
@@ -29,11 +31,14 @@ export async function handleCashfreeRefundEvent(
   const refundId = String(refund.cf_refund_id || refund.refund_id || "");
   const refundStatus = String(refund.refund_status || "").toUpperCase();
   const refundAmount = Number(refund.refund_amount ?? refund.amount);
-  const refundMinor = refundAmount * 100;
+  // Convert the provider major-unit value using exact decimal arithmetic.
+  // Do not multiply by 100: binary floating-point can turn 0.29 into a
+  // non-integer minor-unit value and incorrectly reject a valid refund.
+  const refundMinor = majorToMinorUnits(refundAmount);
   if (
     !refundId ||
     !["SUCCESS", "PENDING", "FAILED", "CANCELLED"].includes(refundStatus) ||
-    !Number.isSafeInteger(refundMinor) ||
+    refundMinor === null ||
     refundMinor <= 0
   ) return json({ error: "Invalid refund event" }, 400);
 
