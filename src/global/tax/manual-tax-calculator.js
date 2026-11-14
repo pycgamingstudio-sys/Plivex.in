@@ -35,6 +35,9 @@ export function calculateManualTax(input) {
   const rateBps = input.components.reduce((sum, item) => sum + item.rateBps, 0);
   if (rateBps > 10000) return fail("COMBINED_RATE_TOO_HIGH", "Combined manual tax rate cannot exceed 100%.");
   const amount = input.amountMinor;
+  if (!Number.isSafeInteger(amount * 10000) || !Number.isSafeInteger(amount * rateBps)) {
+    return fail("AMOUNT_OUT_OF_RANGE", "Amount exceeds safe integer calculation limits.");
+  }
   const taxableMinor = input.priceMode === "exclusive" ? amount : roundDiv(amount * 10000, 10000 + rateBps);
   const totalMinor = input.priceMode === "exclusive" ? amount + roundDiv(amount * rateBps, 10000) : amount;
   const taxMinor = totalMinor - taxableMinor;
