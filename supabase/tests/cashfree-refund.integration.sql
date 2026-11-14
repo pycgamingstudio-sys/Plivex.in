@@ -107,7 +107,8 @@ VALUES
   ('10000000-0000-0000-0000-000000000012','dddddddd-dddd-dddd-dddd-dddddddddddd','d@example.test','ws-d','basic_monthly','Basic','basic','active',300,30000,'INR','payu','payu','PLX-PAYU-LEGACY-0000000000000012'),
   ('10000000-0000-0000-0000-000000000013','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-PER-PAYMENT-000000000013'),
   ('10000000-0000-0000-0000-000000000014','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-AMBIG-000000000014'),
-  ('10000000-0000-0000-0000-000000000015','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-UNLINKED-000000000015');
+  ('10000000-0000-0000-0000-000000000015','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-UNLINKED-000000000015'),
+  ('10000000-0000-0000-0000-000000000016','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','e@example.test','ws-e','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-HIST-PARTIAL-000000000016');
 
 UPDATE public.subscriptions
 SET payu_txnid='PAYU-TXN-12', payu_payment_id='PAYU-12'
@@ -135,6 +136,30 @@ VALUES
 UPDATE public.payment_logs
 SET payu_payment_id='PAYU-12'
 WHERE id='20000000-0000-0000-0000-000000000013';
+
+-- The historical ₹5,000 total is not complete/reconstructable from a ₹2,000
+-- linked successful ledger. Both migration apply and replay must preserve it.
+DO $historical_partial_ledger$
+DECLARE v_total bigint; v_status text; v_sub_status text; v_sub_payment_status text;
+BEGIN
+  SELECT refund_amount_minor_units, refund_status INTO v_total, v_status
+  FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000026';
+  SELECT status::text, payment_status INTO v_sub_status, v_sub_payment_status
+  FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000016';
+  IF v_total <> 5000 OR v_status <> 'reconciliation_required' THEN
+    RAISE EXCEPTION 'Incomplete historical ledger overwrote/failed to hold ₹5,000 total: %, %',v_total,v_status;
+  END IF;
+  IF v_sub_status <> 'active' OR v_sub_payment_status IS NOT NULL THEN
+    RAISE EXCEPTION 'Incomplete historical ledger changed subscription accounting state: %, %',v_sub_status,v_sub_payment_status;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.cashfree_refund_cleanup_exceptions
+    WHERE payment_log_id='20000000-0000-0000-0000-000000000026'
+      AND reason='cashfree_ledger_incomplete'
+      AND prior_refund_amount_minor_units=5000
+  ) THEN RAISE EXCEPTION 'Incomplete ₹5,000/₹2,000 ledger exception was not recorded'; END IF;
+END
+$historical_partial_ledger$;
 
 -- Apply both real migrations, then replay the targeted additive migration.
 \ir ../migrations/20261114000000_india_cashfree_refund_support.sql
@@ -191,6 +216,24 @@ BEGIN
   IF NOT v_blocked THEN RAISE EXCEPTION 'Expected payment_logs.gateway NOT NULL constraint'; END IF;
 END
 $test_block$;
+
+INSERT INTO public.payment_logs
+  (id,user_id,user_email,workspace_id,gateway,txnid,plan_id,plan_name,tier,amount,currency,
+   outcome,hash_verified,provider,status,subscription_id,provider_status,provider_payment_id,
+   refund_status,refund_amount_minor_units,raw)
+VALUES
+  ('20000000-0000-0000-0000-000000000026','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','e@example.test','ws-e',
+   'cashfree','PLXCF-HIST-PARTIAL-000000000016','basic_monthly','Basic','basic',10000,'INR',
+   'applied',true,'cashfree','success','10000000-0000-0000-0000-000000000016','SUCCESS','716001',
+   'partially_refunded',5000,'{"payment":{"cf_payment_id":716001}}');
+INSERT INTO public.payment_refunds
+  (id,subscription_id,payment_log_id,user_id,workspace_id,provider,provider_refund_id,
+   amount_minor_units,currency,status,raw)
+VALUES
+  ('30000000-0000-0000-0000-000000000016','10000000-0000-0000-0000-000000000016',
+   '20000000-0000-0000-0000-000000000026','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','ws-e',
+   'cashfree','RF-HIST-PARTIAL-2K',2000,'INR','success',
+   '{"data":{"refund":{"order_id":"PLXCF-HIST-PARTIAL-000000000016","cf_payment_id":716001}}}');
 
 \ir ../migrations/20261114000001_cashfree_refund_payment_log_linkage.sql
 \ir ../migrations/20261114000001_cashfree_refund_payment_log_linkage.sql
