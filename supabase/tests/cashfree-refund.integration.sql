@@ -302,13 +302,13 @@ BEGIN
   VALUES
     ('20000000-0000-0000-0000-000000000096','ws-a','payu',
      'PLXCF-MULTI-000000000000000011',10000,'INR','applied','cashfree',
-     '10000000-0000-0000-0000-000000000011','711001');
+     '10000000-0000-0000-0000-000000000011','799991');
   v := public.apply_cashfree_refund_event(
     '10000000-0000-0000-0000-000000000011','RF-WRONG-GATEWAY',100,'INR','success',
     '{"data":{"refund":{"order_id":"PLXCF-MULTI-000000000000000011","cf_payment_id":711001}}}'::jsonb
   );
-  IF v->>'reason' <> 'payment_mapping_ambiguous' THEN
-    RAISE EXCEPTION 'Exact provider/gateway matching did not reject the duplicate Cashfree payment ID: %', v;
+  IF v->>'reason' <> 'payment_mapping_not_found' THEN
+    RAISE EXCEPTION 'Gateway-mismatched payment log incorrectly satisfied Cashfree mapping: %', v;
   END IF;
   DELETE FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000096';
 
