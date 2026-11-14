@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "plivex-global",
+  "compatibility_date": "2026-10-24",
+  "workers_dev": true,
+  "vars": {
+    "VITE_APP_EDITION": "global",
+    "VITE_SUPABASE_URL": "https://sqzpaiibmfsvarrkwkvb.supabase.co",
+    "VITE_SUPABASE_ANON_KEY": "sb_publishable_ChLtODBqpZxL01RdNLX05Q_VvYmoG0F"
+  },
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
