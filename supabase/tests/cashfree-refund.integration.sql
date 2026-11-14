@@ -217,17 +217,17 @@ VALUES
 -- The historical ₹5,000 total is not complete/reconstructable from a ₹2,000
 -- linked successful ledger. Both migration apply and replay must preserve it.
 DO $historical_partial_ledger$
-DECLARE v_total bigint; v_status text; v_sub_status text; v_sub_payment_status text;
+DECLARE v_total bigint; v_status text; v_sub_status text; v_sub_payment_status text; v_sub_refund_status text;
 BEGIN
   SELECT refund_amount_minor_units, refund_status INTO v_total, v_status
   FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000026';
-  SELECT status::text, payment_status INTO v_sub_status, v_sub_payment_status
+  SELECT status::text, payment_status, refund_status INTO v_sub_status, v_sub_payment_status, v_sub_refund_status
   FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000016';
   IF v_total <> 5000 OR v_status <> 'reconciliation_required' THEN
     RAISE EXCEPTION 'Incomplete historical ledger overwrote/failed to hold ₹5,000 total: %, %',v_total,v_status;
   END IF;
-  IF v_sub_status <> 'active' OR v_sub_payment_status IS NOT NULL THEN
-    RAISE EXCEPTION 'Incomplete historical ledger changed subscription accounting state: %, %',v_sub_status,v_sub_payment_status;
+  IF v_sub_status <> 'active' OR v_sub_payment_status IS NOT NULL OR v_sub_refund_status IS NOT NULL THEN
+    RAISE EXCEPTION 'Incomplete historical ledger changed subscription accounting state: %, %, %',v_sub_status,v_sub_payment_status,v_sub_refund_status;
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM public.cashfree_refund_cleanup_exceptions
