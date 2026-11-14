@@ -46,3 +46,14 @@ test("Global records never expose the private Global schema or fall back to Indi
   assert.match(rpc, /grant execute on function public\.global_business_records.*to service_role/s);
   assert.doesNotMatch(handler, /\.from\("profiles"\)/);
 });
+
+
+test("Global workspace profile reads and updates stay inside global.business_profiles", () => {
+  assert.match(backend, /function invokeGlobalWorkspaceRecords/);
+  assert.match(backend, /functionName === "workspace-records"/);
+  assert.match(handler, /business_profiles: \[/);
+  assert.match(handler, /Global business profile supports read and update only/);
+  assert.match(rpc, /from global\.business_profiles where workspace_id=p_workspace_id/);
+  assert.match(rpc, /update global\.business_profiles set/);
+  assert.match(rpc, /v_role not in \('owner','admin'\)/);
+});
