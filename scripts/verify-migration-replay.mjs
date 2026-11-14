@@ -13,9 +13,9 @@ const normalized = pairs.filter((x) => x.normalized_sql_match === true);
 const localOnly = manifest.local_only_files || [];
 
 if (manifest.remote_ledger_entries !== 47 || history.length !== 39 || missing.length !== 35
-  || manifest.local_migration_files !== 28 || pairs.length !== 12
-  || normalized.length !== 8 || pairs.length - normalized.length !== 4 || localOnly.length !== 16) {
-  fail("Migration reconciliation counts differ from the reviewed 47/39/35/24/12/8/4/12 manifest");
+  || manifest.local_migration_files !== 29 || pairs.length !== 12
+  || normalized.length !== 8 || pairs.length - normalized.length !== 4 || localOnly.length !== 17) {
+  fail("Migration reconciliation counts differ from the reviewed 47/39/35/25/12/8/4/13 manifest");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
 
@@ -44,8 +44,8 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 63 || new Set(candidatePlan.map((x) => x.path)).size !== 63) {
-  fail("Candidate replay plan must contain 35 recovered historical and all 28 current local migrations");
+if (candidatePlan.length !== 64 || new Set(candidatePlan.map((x) => x.path)).size !== 64) {
+  fail("Candidate replay plan must contain 35 recovered historical and all 29 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -119,6 +119,7 @@ function assertGlobalFoundation(port) {
   if (usage !== "true|false") fail("Global schema grants are not least-privilege: " + usage);
   console.log("PASS Global foundation table/RLS/grant catalog assertions");
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-isolation-foundation.integration.sql")]);
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-owner-provisioning.integration.sql")]);
 }
 function assertGlobalMigrationRollback(port) {
   const db = "plivex_global_rollback";
@@ -195,7 +196,7 @@ function summary(port, remote) {
 
 const remotePort = Number(process.env.REMOTE_PGPORT || 5433);
 const candidatePort = Number(process.env.CANDIDATE_PGPORT || 5434);
-console.log("Migration reconciliation: 47 remote, 39 archived, 8 normalized local matches, 4 divergent, 63 candidate replay entries.");
+console.log("Migration reconciliation: 47 remote, 39 archived, 8 normalized local matches, 4 divergent, 64 candidate replay entries.");
 resetDb(remotePort);
 replay(remotePort, remotePlan, true);
 assertRls(remotePort, false);
@@ -209,5 +210,5 @@ assertCandidateIndia(candidatePort);
 assertGlobalFoundation(candidatePort);
 assertRollback(candidatePort);
 assertGlobalMigrationRollback(candidatePort);
-console.log("PASS global-dev candidate replay 35 recovered + 28 local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
+console.log("PASS global-dev candidate replay 35 recovered + 29 local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
 console.log("PASS archive hashes, version ordering, replay, Global workspace isolation, migration rollback, RLS and India data-integrity checks.");
