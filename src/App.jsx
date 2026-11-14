@@ -17,6 +17,7 @@ import TrialGate from './components/TrialGate';
 // Route-level lazy loading keeps the initial mobile bundle small.
 const PageNotFound = lazy(() => import("./lib/PageNotFound"));
 const UserNotRegisteredError = lazy(() => import("@/components/UserNotRegisteredError"));
+const GlobalCountryOnboarding = lazy(() => import("@/components/global/GlobalCountryOnboarding"));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
@@ -52,7 +53,7 @@ const AuthenticatedApp = () => {
     return <Routes><Route path="/payment-result" element={<PaymentResult />} /></Routes>;
   }
 
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, isAuthenticated, user } = useAuth();
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -72,6 +73,11 @@ const AuthenticatedApp = () => {
       navigateToLogin();
       return null;
     }
+  }
+
+  // Global users without a workspace must choose their business country first.
+  if (APP_EDITION === "global" && isAuthenticated && user && (!user.workspace_id || !user.role)) {
+    return <GlobalCountryOnboarding />;
   }
 
   // Render the main app
