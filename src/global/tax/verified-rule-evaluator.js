@@ -5,6 +5,24 @@
  */
 const CURRENCY_MINOR_UNITS = Object.freeze({ INR: 2, USD: 2, GBP: 2, AED: 2, CAD: 2, AUD: 2, SGD: 2 });
 const COUNTRIES = Object.freeze({ IN: "INR", US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD" });
+const OFFICIAL_SOURCE_HOSTS = Object.freeze({
+  US: ["gov", "us"],
+  GB: ["gov.uk"],
+  AE: ["gov.ae"],
+  CA: ["canada.ca", "revenuquebec.ca", "gouv.qc.ca"],
+  AU: ["ato.gov.au"],
+  SG: ["iras.gov.sg"],
+});
+const officialSource = (countryCode, value) => {
+  try {
+    const host = new URL(value).hostname.toLowerCase();
+    return (OFFICIAL_SOURCE_HOSTS[countryCode] || []).some((suffix) =>
+      suffix === "gov" || suffix === "us"
+        ? host.endsWith("." + suffix) || host === suffix
+        : host === suffix || host.endsWith("." + suffix)
+    );
+  } catch { return false; }
+};
 const fail = (code, message) => ({ ok: false, status: "needs_review", code, message });
 const record = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const validDate = (value) => {
@@ -58,7 +76,7 @@ export function calculateVerifiedTaxRule(input) {
   for (const component of rule.components) {
     if (!record(component) || typeof component.id !== "string" || !component.id.trim()
       || ids.has(component.id) || !Number.isInteger(component.rateBps) || component.rateBps < 0 || component.rateBps > 10000
-      || typeof (component.source || rule.source) !== "string" || !/^https:\/\//.test(component.source || rule.source)) {
+      || typeof (component.source || rule.source) !== "string" || !officialSource(countryCode, component.source || rule.source)) {
       return fail("INVALID_TAX_COMPONENT", "Each component needs a unique ID, valid rate and official source.");
     }
     ids.add(component.id);
