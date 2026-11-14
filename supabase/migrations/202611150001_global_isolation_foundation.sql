@@ -7,7 +7,7 @@ begin;
 create schema if not exists global;
 
 revoke all on schema global from public, anon, authenticated;
-grant usage on schema global to service_role;
+grant usage on schema global to authenticated, service_role;
 
 create or replace function global.set_updated_at()
 returns trigger
@@ -155,7 +155,7 @@ grant update on global.business_profiles to authenticated;
 grant all on all tables in schema global to service_role;
 grant usage, select on all sequences in schema global to service_role;
 
-comment on schema global is
+drop trigger if exists global_workspaces_set_updated_at on global.workspaces;\ncreate trigger global_workspaces_set_updated_at before update on global.workspaces\n  for each row execute function global.set_updated_at();\ndrop trigger if exists global_user_profiles_set_updated_at on global.user_profiles;\ncreate trigger global_user_profiles_set_updated_at before update on global.user_profiles\n  for each row execute function global.set_updated_at();\ndrop trigger if exists global_workspace_members_set_updated_at on global.workspace_members;\ncreate trigger global_workspace_members_set_updated_at before update on global.workspace_members\n  for each row execute function global.set_updated_at();\ndrop trigger if exists global_business_profiles_set_updated_at on global.business_profiles;\ncreate trigger global_business_profiles_set_updated_at before update on global.business_profiles\n  for each row execute function global.set_updated_at();\n\ncomment on schema global is
   'Plivex Global edition data. Never reuse India public-schema records here.';
 comment on table global.user_profiles is
   'Global-only profile; India public.profiles never grants Global roles or access.';
