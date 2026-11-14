@@ -817,9 +817,16 @@ RESET ROLE;
 -- Retarget only this unlinked refund's raw provider payment ID to a new exact
 -- payment-log fixture so the concurrent reconciliation/webhook race has one
 -- deterministic match without deleting rows referenced by audit exceptions.
+-- Temporarily remove the NOT VALID check only while mutating the legacy
+-- NULL-link fixture; restore it immediately before invoking reconciliation.
+ALTER TABLE public.payment_refunds
+  DROP CONSTRAINT payment_refunds_payment_log_required;
 UPDATE public.payment_refunds
 SET raw = jsonb_set(raw, '{data,refund,cf_payment_id}', '"714099"'::jsonb, false)
 WHERE id='30000000-0000-0000-0000-000000000003';
+ALTER TABLE public.payment_refunds
+  ADD CONSTRAINT payment_refunds_payment_log_required
+  CHECK (payment_log_id IS NOT NULL) NOT VALID;
 
 INSERT INTO public.payment_logs
   (id,workspace_id,gateway,txnid,amount,currency,outcome,provider,subscription_id,provider_payment_id)
