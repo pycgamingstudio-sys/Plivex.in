@@ -27,6 +27,10 @@ INSERT INTO global.stock_levels(workspace_id,product_id,quantity)
 VALUES
  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','11111111-aaaa-4111-8111-111111111111',12),
  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd','22222222-bbbb-4222-8222-222222222222',27);
+INSERT INTO global.stock_movements(workspace_id,product_id,movement_type,quantity_delta,created_by)
+VALUES
+ ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','11111111-aaaa-4111-8111-111111111111','receipt',12,'66666666-6666-4666-8666-666666666666'),
+ ('dddddddd-dddd-4ddd-8ddd-dddddddddddd','22222222-bbbb-4222-8222-222222222222','receipt',27,'77777777-7777-4777-8777-777777777777');
 INSERT INTO global.invoices(id,workspace_id,client_id,invoice_number,currency_code,total_minor,created_by)
 VALUES
  ('33333333-cccc-4333-8333-333333333333','cccccccc-cccc-4ccc-8ccc-cccccccccccc','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','A-001','GBP',12500,'66666666-6666-4666-8666-666666666666'),
@@ -64,7 +68,7 @@ DO $workspace_a$
 DECLARE table_name text;
 DECLARE visible_count bigint;
 BEGIN
-  FOREACH table_name IN ARRAY ARRAY['clients','products','stock_levels','invoices','invoice_items','invoice_payments','expenses'] LOOP
+  FOREACH table_name IN ARRAY ARRAY['clients','products','stock_levels','stock_movements','invoices','invoice_items','invoice_payments','expenses'] LOOP
     EXECUTE format('SELECT count(*) FROM global.%I', table_name) INTO visible_count;
     IF visible_count <> 1 THEN RAISE EXCEPTION 'Workspace A expected one % row, saw %', table_name, visible_count; END IF;
   END LOOP;
@@ -85,6 +89,7 @@ BEGIN
      OR EXISTS (SELECT 1 FROM global.clients WHERE name='Client A')
      OR (SELECT count(*) FROM global.invoices) <> 1
      OR (SELECT count(*) FROM global.products) <> 1
+     OR (SELECT count(*) FROM global.stock_movements) <> 1
      OR (SELECT count(*) FROM global.expenses) <> 1 THEN
     RAISE EXCEPTION 'Workspace B business-data isolation failed';
   END IF;
@@ -98,6 +103,7 @@ BEGIN
      OR has_table_privilege('authenticated','global.clients','UPDATE')
      OR has_table_privilege('authenticated','global.invoices','DELETE')
      OR has_table_privilege('authenticated','global.stock_levels','INSERT')
+     OR has_table_privilege('authenticated','global.stock_movements','INSERT')
      OR has_table_privilege('authenticated','global.expenses','UPDATE') THEN
     RAISE EXCEPTION 'Authenticated role has direct Global business write privileges';
   END IF;
