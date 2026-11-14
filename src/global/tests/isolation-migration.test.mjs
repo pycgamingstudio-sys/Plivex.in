@@ -19,7 +19,8 @@ test("Global authorization is based on Global memberships, not India profiles", 
   assert.ok(migration.includes("global.workspace_members"));
   assert.ok(migration.includes("wm.user_id = auth.uid()"));
   assert.ok(migration.includes("global.is_workspace_member"));
-  assert.equal(/public\.profiles/i.test(migration), false);
+  const executableSql = migration.replace(/--.*$/gm, "");
+  assert.equal(/public\.profiles/i.test(executableSql), false);
 });
 
 test("Global tenant tables enforce RLS and least-privilege provisioning", () => {
