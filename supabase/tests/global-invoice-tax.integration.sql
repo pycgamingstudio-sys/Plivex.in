@@ -213,6 +213,67 @@ BEGIN
 END
 $test$;
 
+-- Legal rule boundary is independent from the rule review date.
+UPDATE public.business_profile SET tax_registration_effective_from='2000-01-01' WHERE workspace_id='workspace-global';
+DO $legal_boundary$
+DECLARE v public.invoices; rejected boolean := false;
+BEGIN
+  BEGIN
+    PERFORM public.save_invoice(
+      jsonb_build_object('client_name','UK historical customer','business_name','UK seller','issue_date','2011-01-03','currency','GBP',
+        'tax_mode','split','tax_rate',0,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
+        'invoice_snapshot',jsonb_build_object(
+          'business',jsonb_build_object('name','Seller Ltd','address','1 Business Street'),
+          'globalTax',jsonb_build_object('countryCode','GB','mode','automatic','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','United Kingdom','placeOfSupplyConfirmed',true,'taxCategory','standard-rated','taxCategoryConfirmed',true),
+          'globalTaxCalculation',jsonb_build_object('ok',true,'status','calculated','countryCode','GB','currencyCode','GBP','taxableMinor',10000,'taxMinor',2000,'totalMinor',12000,
+            'components',jsonb_build_array(jsonb_build_object('id','GB-VAT-STANDARD-2026-11','name','VAT','rateBps',2000,'amountMinor',2000)),
+            'ruleSnapshot',jsonb_build_object('id','GB-VAT-STANDARD-2026-11','version','2026.11','source','https://www.gov.uk/vat-rates','effectiveFrom','2011-01-04','reviewedOn','2026-11-14'))
+        )),
+      '[{"description":"Historical service","quantity":1,"rate":100}]'::jsonb,NULL);
+  EXCEPTION WHEN SQLSTATE '22023' THEN rejected := true;
+  END;
+  IF NOT rejected THEN RAISE EXCEPTION 'GB standard rate was accepted before its legal effective date'; END IF;
+
+  v := public.save_invoice(
+    jsonb_build_object('client_name','UK boundary customer','business_name','UK seller','issue_date','2011-01-04','currency','GBP',
+      'tax_mode','split','tax_rate',0,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
+      'invoice_snapshot',jsonb_build_object(
+        'business',jsonb_build_object('name','Seller Ltd','address','1 Business Street'),
+        'globalTax',jsonb_build_object('countryCode','GB','mode','automatic','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','United Kingdom','placeOfSupplyConfirmed',true,'taxCategory','standard-rated','taxCategoryConfirmed',true),
+        'globalTaxCalculation',jsonb_build_object('ok',true,'status','calculated','countryCode','GB','currencyCode','GBP','taxableMinor',10000,'taxMinor',2000,'totalMinor',12000,
+          'components',jsonb_build_array(jsonb_build_object('id','GB-VAT-STANDARD-2026-11','name','VAT','rateBps',2000,'amountMinor',2000)),
+          'ruleSnapshot',jsonb_build_object('id','GB-VAT-STANDARD-2026-11','version','2026.11','source','https://www.gov.uk/vat-rates','effectiveFrom','2011-01-04','reviewedOn','2026-11-14'))
+      )),
+    '[{"description":"Boundary service","quantity":1,"rate":100}]'::jsonb,NULL);
+  IF v.tax_value <> 20 OR v.total <> 120 THEN RAISE EXCEPTION 'GB rule failed on its legal effective date'; END IF;
+END
+$legal_boundary$;
+UPDATE public.business_profile SET tax_registration_effective_from='2026-01-01' WHERE workspace_id='workspace-global';
+
+-- Unknown, blank and special-scheme manual labels are rejected by the server RPC.
+DO $manual_treatment$
+DECLARE treatment text; rejected boolean;
+BEGIN
+  FOREACH treatment IN ARRAY ARRAY['', 'special scheme', 'custom taxable label', 'reverse charge'] LOOP
+    rejected := false;
+    BEGIN
+      PERFORM public.save_invoice(
+        jsonb_build_object('client_name','Manual customer','business_name','GB seller','issue_date','2026-11-14','currency','GBP',
+          'tax_mode','split','tax_rate',0,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
+          'invoice_snapshot',jsonb_build_object(
+            'business',jsonb_build_object('name','Seller Ltd','address','1 Business Street'),
+            'globalTax',jsonb_build_object('countryCode','GB','mode','manual','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','United Kingdom','placeOfSupplyConfirmed',true,'taxCategory',treatment,'taxCategoryConfirmed',true),
+            'globalTaxCalculation',jsonb_build_object('ok',true,'status','manual_unverified','countryCode','GB','currencyCode','GBP','taxableMinor',10000,'taxMinor',2000,'totalMinor',12000,
+              'components',jsonb_build_array(jsonb_build_object('id','manual-vat','name','VAT','rateBps',2000,'amountMinor',2000)))
+          )),
+        '[{"description":"Manual service","quantity":1,"rate":100}]'::jsonb,NULL);
+    EXCEPTION WHEN SQLSTATE '22023' THEN rejected := true;
+    END;
+    IF NOT rejected THEN RAISE EXCEPTION 'Unsupported manual tax treatment was accepted: %',treatment; END IF;
+  END LOOP;
+END
+$manual_treatment$;
+
 -- Server RPC coverage for the other source-backed standard-rate countries.
 DO $test$
 DECLARE
@@ -431,12 +492,30 @@ DO $test$
 DECLARE v public.invoices;
 BEGIN
   v := public.save_invoice(
-    jsonb_build_object('client_name','India customer','business_name','India seller','issue_date','2026-11-14','currency','INR','tax_mode','split','tax_rate',18,'discount_type','percent','discount',0,'status','Pending','is_draft',false),
+    jsonb_build_object('client_name','India customer','business_name','India seller','issue_date','2026-11-14','currency','INR','tax_mode','split','tax_rate',18,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
+      'invoice_snapshot',jsonb_build_object('business',jsonb_build_object('name','India seller','address','Agra, India'),
+        'items',jsonb_build_array(jsonb_build_object('description','GST service','quantity',1,'rate',100,'gstRate',18,'hsnSac','998313')))),
     '[{"description":"GST service","quantity":1,"rate":100,"gst_rate":18}]'::jsonb,
     NULL
   );
   IF v.tax_value <> 18 OR v.total <> 118 OR v.cgst <> 9 OR v.sgst <> 9 OR v.igst <> 0 THEN
-    RAISE EXCEPTION 'India GST regression totals incorrect: tax %, total %, CGST %, SGST %',v.tax_value,v.total,v.cgst,v.sgst;
+    RAISE EXCEPTION 'India GST create regression totals incorrect: tax %, total %, CGST %, SGST %',v.tax_value,v.total,v.cgst,v.sgst;
+  END IF;
+  SELECT * INTO v FROM public.invoices WHERE id=v.id;
+  IF v.invoice_snapshot->'items'->0->>'hsnSac' <> '998313' THEN
+    RAISE EXCEPTION 'India HSN/SAC snapshot was not retained after invoice reload';
+  END IF;
+  v := public.save_invoice(
+    jsonb_build_object('client_name','India customer','business_name','India seller','issue_date','2026-11-14','currency','INR','tax_mode','igst','tax_rate',18,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
+      'invoice_snapshot',v.invoice_snapshot),
+    '[{"description":"GST service","quantity":1,"rate":100,"gst_rate":18}]'::jsonb,
+    v.id
+  );
+  IF v.tax_value <> 18 OR v.total <> 118 OR v.cgst <> 0 OR v.sgst <> 0 OR v.igst <> 18 THEN
+    RAISE EXCEPTION 'India IGST edit regression totals incorrect: tax %, total %, IGST %',v.tax_value,v.total,v.igst;
+  END IF;
+  IF v.invoice_snapshot->'items'->0->>'hsnSac' <> '998313' THEN
+    RAISE EXCEPTION 'India HSN/SAC snapshot was not preserved during invoice edit';
   END IF;
 END
 $test$;
