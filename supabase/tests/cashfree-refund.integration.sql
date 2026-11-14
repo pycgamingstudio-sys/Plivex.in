@@ -149,7 +149,7 @@ VALUES
   ('20000000-0000-0000-0000-000000000030','18181818-1818-1818-1818-181818181818','g@example.test','ws-g',
    'cashfree','PLXCF-HIST-MISSING-000000000018','basic_monthly','Basic','basic',10000,'INR',
    'applied',true,'cashfree','success','10000000-0000-0000-0000-000000000018','SUCCESS','718001',
-   'partially_refunded',5000,'{"payment":{"cf_payment_id":718001}}');
+   'reconciliation_required',5000,'{"payment":{"cf_payment_id":718001}}');
 
 -- Historical refund fixtures are seeded before the linkage migration so its
 -- audited reconciliation path sees realistic pre-existing NULL links.
@@ -278,6 +278,43 @@ BEGIN
     RAISE EXCEPTION 'Fixture B changed subscription accounting fields'; END IF;
 END
 $historical_partial_ledger$;
+
+-- A historical missing-ledger row already marked reconciliation_required
+-- must still receive an unresolved exception and retain its original snapshot.
+DO $missing_ledger_reconciliation_required$
+DECLARE v jsonb; v_before_count integer;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.cashfree_refund_cleanup_exceptions
+    WHERE payment_log_id='20000000-0000-0000-0000-000000000030'
+      AND reason='cashfree_ledger_missing'
+      AND prior_refund_status='reconciliation_required'
+      AND prior_refund_amount_minor_units=5000
+      AND resolved_at IS NULL
+  ) THEN RAISE EXCEPTION 'Missing-ledger exception was not created with its original snapshot'; END IF;
+
+  SELECT count(*) INTO v_before_count FROM public.payment_refunds
+  WHERE subscription_id='10000000-0000-0000-0000-000000000018';
+  v := public.apply_cashfree_refund_event(
+    '10000000-0000-0000-0000-000000000018','RF-MISSING-RECONCILIATION-REQUIRED-BLOCKED',
+    1000,'INR','success',
+    '{"data":{"refund":{"order_id":"PLXCF-HIST-MISSING-000000000018","cf_payment_id":718001}}}'::jsonb
+  );
+  IF v->>'reason' <> 'historical_refund_reconciliation_required' THEN
+    RAISE EXCEPTION 'Existing reconciliation_required missing-ledger row did not block new refund: %',v;
+  END IF;
+  IF (SELECT count(*) FROM public.payment_refunds
+      WHERE subscription_id='10000000-0000-0000-0000-000000000018') <> v_before_count
+     OR EXISTS (SELECT 1 FROM public.payment_refunds
+       WHERE provider_refund_id='RF-MISSING-RECONCILIATION-REQUIRED-BLOCKED') THEN
+    RAISE EXCEPTION 'Blocked missing-ledger refund inserted or changed a ledger row'; END IF;
+  IF (SELECT refund_amount_minor_units FROM public.payment_logs
+      WHERE id='20000000-0000-0000-0000-000000000030') <> 5000
+     OR (SELECT refund_status FROM public.payment_logs
+      WHERE id='20000000-0000-0000-0000-000000000030') <> 'reconciliation_required' THEN
+    RAISE EXCEPTION 'Blocked missing-ledger refund changed original payment-log snapshot'; END IF;
+END
+$missing_ledger_reconciliation_required$;
 
 -- Add one more exactly mappable historical entry to each fixture. The
 -- NOT VALID constraint is temporarily removed only to seed legacy NULL links;
