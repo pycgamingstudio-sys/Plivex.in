@@ -3,7 +3,7 @@
   "captured_at": "2026-11-14",
   "source": "read-only SELECT from supabase_migrations.schema_migrations (version,name,statements)",
   "remote_ledger_entries": 47,
-  "local_migration_files": 29,
+  "local_migration_files": 30,
   "exact_version_matches": 0,
   "basename_matches": [
     {
@@ -320,7 +320,8 @@
     "20261114000003_global_invoice_tax_calculation.sql",
     "20261114000004_global_tax_snapshot_hardening.sql",
     "202611150001_global_isolation_foundation.sql",
-    "202611150002_global_owner_provisioning.sql"
+    "202611150002_global_owner_provisioning.sql",
+    "202611150003_global_business_data_foundation.sql"
   ],
   "notes": [
     "Recovered SQL is copied from the production migration ledger statements column.",
