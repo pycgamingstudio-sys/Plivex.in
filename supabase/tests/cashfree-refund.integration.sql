@@ -167,7 +167,7 @@ VALUES
 
 -- The real schema declares payment_logs.gateway NOT NULL; prove the NULL
 -- gateway fixture is rejected rather than weakening the production-shaped test schema.
-DO $
+DO $test_block$
 DECLARE v_blocked boolean := false;
 BEGIN
   BEGIN
@@ -178,7 +178,7 @@ BEGIN
   END;
   IF NOT v_blocked THEN RAISE EXCEPTION 'Expected payment_logs.gateway NOT NULL constraint'; END IF;
 END
-$;
+$test_block$;
 
 \ir ../migrations/20261114000001_cashfree_refund_payment_log_linkage.sql
 \ir ../migrations/20261114000001_cashfree_refund_payment_log_linkage.sql
@@ -461,7 +461,7 @@ $$;
 -- Historical unlinked ₹2,000 refund blocks a new ₹10,000 refund against
 -- the ₹10,000 original. The rejected webhook must not mutate any ledger or
 -- accounting state.
-DO $
+DO $test_block$
 DECLARE
   v jsonb;
   v_count integer;
@@ -503,11 +503,11 @@ BEGIN
     RAISE EXCEPTION 'Rejected historical-conflict refund changed payment-log totals/status';
   END IF;
 END
-$;
+$test_block$;
 
 -- Verified NULL -> exact payment-log reconciliation is audited; ambiguous
 -- historical mapping remains NULL and flagged for manual review.
-DO $
+DO $test_block$
 DECLARE
   v_link uuid;
   v_count integer;
@@ -559,7 +559,7 @@ BEGIN
     RAISE EXCEPTION 'Cashfree cleanup changed mismatched or NULL-provider payment-log values';
   END IF;
 END
-$;
+$test_block$;
 
 -- RLS must expose only the authenticated user's own refund rows.
 RESET ROLE;
