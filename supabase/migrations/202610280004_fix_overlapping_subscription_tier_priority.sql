@@ -81,7 +81,7 @@ $pattern$;
   ELSIF v_old_count = 0 AND v_final_count = 1 THEN
     NULL; -- Already selects the effective subscription row.
   ELSE
-    RAISE EXCEPTION 'Unexpected get_access_status expiry query; refusing to modify it';
+    RAISE EXCEPTION 'Unexpected get_access_status expiry query (old matches %, final matches %); refusing to modify it', v_old_count, v_final_count;
   END IF;
 
   -- startedAt must describe the same effective subscription as expiresAt.
