@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS public.cashfree_refund_cleanup_exceptions (
   gateway text,
   prior_refund_status text,
   prior_refund_amount_minor_units bigint,
-  reason text NOT NULL CHECK (reason IN ('provider_gateway_mismatch','cashfree_ledger_missing')),
+  reason text NOT NULL CHECK (reason IN ('provider_gateway_mismatch','cashfree_ledger_missing','cashfree_ledger_incomplete')),
   detected_at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
 REVOKE ALL ON public.cashfree_refund_cleanup_exceptions FROM PUBLIC, anon, authenticated, service_role;
@@ -143,6 +143,21 @@ WHERE l.provider = 'cashfree'
   )
 ON CONFLICT (payment_log_id) DO NOTHING;
 
+INSERT INTO public.cashfree_refund_cleanup_exceptions
+  (payment_log_id, provider, gateway, prior_refund_status, prior_refund_amount_minor_units, reason)
+SELECT l.id, l.provider, l.gateway, l.refund_status, l.refund_amount_minor_units,
+       'cashfree_ledger_incomplete'
+FROM public.payment_logs l
+WHERE l.provider = 'cashfree' AND l.gateway = 'cashfree'
+  AND l.refund_status IS DISTINCT FROM 'reconciliation_required'
+  AND (l.refund_status IS NOT NULL OR l.refund_amount_minor_units IS NOT NULL)
+  AND l.refund_amount_minor_units IS DISTINCT FROM (
+    SELECT COALESCE(sum(r.amount_minor_units) FILTER (WHERE r.status = 'success'), 0)::bigint
+    FROM public.payment_refunds r
+    WHERE r.payment_log_id = l.id AND r.provider = 'cashfree'
+  )
+ON CONFLICT (payment_log_id) DO NOTHING;
+
 
 CREATE OR REPLACE FUNCTION public.reconcile_cashfree_refund_payment_log(p_refund_id uuid)
 RETURNS jsonb
@@ -153,30 +168,38 @@ AS $reconcile$
 DECLARE
   v_refund public.payment_refunds%ROWTYPE;
   v_subscription public.subscriptions%ROWTYPE;
+  v_refund_subscription_id uuid;
   v_payment_log_id uuid;
   v_match_count integer;
   v_rows integer;
   v_subscription_total bigint;
   v_subscription_original bigint;
 BEGIN
-  SELECT * INTO v_refund
+  SELECT subscription_id INTO v_refund_subscription_id
   FROM public.payment_refunds
-  WHERE id = p_refund_id AND provider = 'cashfree'
-  FOR UPDATE;
-  IF NOT FOUND THEN
+  WHERE id = p_refund_id AND provider = 'cashfree';
+  IF NOT FOUND OR v_refund_subscription_id IS NULL THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'historical_refund_not_found');
-  END IF;
-  IF v_refund.payment_log_id IS NOT NULL THEN
-    RETURN jsonb_build_object('ok', true, 'already_reconciled', true);
   END IF;
 
   SELECT * INTO v_subscription
   FROM public.subscriptions
-  WHERE id = v_refund.subscription_id
+  WHERE id = v_refund_subscription_id
   FOR UPDATE;
   IF NOT FOUND OR v_subscription.provider IS DISTINCT FROM 'cashfree'
      OR v_subscription.gateway IS DISTINCT FROM 'cashfree' THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'historical_refund_mapping_not_found');
+  END IF;
+
+  SELECT * INTO v_refund
+  FROM public.payment_refunds
+  WHERE id = p_refund_id AND provider = 'cashfree'
+  FOR UPDATE;
+  IF NOT FOUND OR v_refund.subscription_id IS DISTINCT FROM v_subscription.id THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'historical_refund_not_found');
+  END IF;
+  IF v_refund.payment_log_id IS NOT NULL THEN
+    RETURN jsonb_build_object('ok', true, 'already_reconciled', true);
   END IF;
 
   SELECT count(*), (array_agg(l.id ORDER BY l.id))[1]
@@ -219,6 +242,11 @@ BEGIN
     WHERE unresolved.subscription_id = v_refund.subscription_id
       AND unresolved.provider = 'cashfree'
       AND unresolved.payment_log_id IS NULL
+  ) AND NOT EXISTS (
+    SELECT 1 FROM public.cashfree_refund_cleanup_exceptions e
+    JOIN public.payment_logs l ON l.id = e.payment_log_id
+    WHERE l.subscription_id = v_refund.subscription_id
+      AND e.reason IN ('cashfree_ledger_missing','cashfree_ledger_incomplete')
   ) THEN
     UPDATE public.payment_logs l
     SET refund_amount_minor_units = COALESCE((
@@ -329,6 +357,11 @@ SET refund_status = NULL,
     refund_amount_minor_units = NULL
 WHERE l.provider = 'cashfree'
   AND l.gateway = 'cashfree'
+  AND NOT EXISTS (
+    SELECT 1 FROM public.cashfree_refund_cleanup_exceptions e
+    WHERE e.payment_log_id = l.id
+      AND e.reason IN ('cashfree_ledger_missing','cashfree_ledger_incomplete')
+  )
   AND (
     (l.refund_status IS NULL AND l.refund_amount_minor_units IS NULL)
     OR EXISTS (
@@ -350,6 +383,11 @@ WITH payment_totals AS (
    AND linked.gateway = 'cashfree'
   WHERE r.provider = 'cashfree'
     AND r.payment_log_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM public.cashfree_refund_cleanup_exceptions e
+      WHERE e.payment_log_id = r.payment_log_id
+        AND e.reason IN ('cashfree_ledger_missing','cashfree_ledger_incomplete')
+    )
   GROUP BY r.payment_log_id
 )
 UPDATE public.payment_logs l
@@ -363,6 +401,15 @@ SET refund_amount_minor_units = t.refunded_minor,
     END
 FROM payment_totals t
 WHERE l.id = t.payment_log_id;
+
+UPDATE public.payment_logs l
+SET refund_status = 'reconciliation_required'
+WHERE l.provider = 'cashfree' AND l.gateway = 'cashfree'
+  AND EXISTS (
+    SELECT 1 FROM public.cashfree_refund_cleanup_exceptions e
+    WHERE e.payment_log_id = l.id
+      AND e.reason IN ('cashfree_ledger_missing','cashfree_ledger_incomplete')
+  );
 
 -- Leave a stable marker on strict Cashfree attempts while any historical
 -- Cashfree refund for the subscription remains unlinked.
@@ -523,6 +570,11 @@ BEGIN
     WHERE r.subscription_id = v_order.id
       AND r.provider = 'cashfree'
       AND r.payment_log_id IS NULL
+  ) OR EXISTS (
+    SELECT 1 FROM public.cashfree_refund_cleanup_exceptions e
+    JOIN public.payment_logs l ON l.id = e.payment_log_id
+    WHERE l.subscription_id = v_order.id
+      AND e.reason IN ('cashfree_ledger_missing','cashfree_ledger_incomplete')
   ) THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'historical_refund_reconciliation_required');
   END IF;
