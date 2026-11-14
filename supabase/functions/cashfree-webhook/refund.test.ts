@@ -89,8 +89,12 @@ Deno.test("Cashfree refund handler maps cancellation to failed and surfaces paym
   const ambiguous = await handleCashfreeRefundEvent(successEvent, order, async () => ({
     data: { ok: false, reason: "payment_mapping_ambiguous" }, error: null,
   }));
-  if (cancelled?.status !== 200 || onHold?.status !== 200 || ambiguous?.status !== 409) {
-    throw new Error("Refund mapping conflict/cancellation handling failed");
+  const historicalHold = await handleCashfreeRefundEvent(successEvent, order, async () => ({
+    data: { ok: false, reason: "historical_refund_reconciliation_required" }, error: null,
+  }));
+  if (cancelled?.status !== 200 || onHold?.status !== 200 || ambiguous?.status !== 409 ||
+      historicalHold?.status !== 409) {
+    throw new Error("Refund mapping conflict/cancellation/historical-hold handling failed");
   }
 });
 
