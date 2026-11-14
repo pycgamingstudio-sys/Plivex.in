@@ -134,6 +134,8 @@ BEGIN
        OR NEW.provider IS DISTINCT FROM OLD.provider
        OR NEW.gateway IS DISTINCT FROM OLD.gateway
        OR NEW.provider_payment_id IS DISTINCT FROM OLD.provider_payment_id
+       OR NEW.amount IS DISTINCT FROM OLD.amount
+       OR NEW.currency IS DISTINCT FROM OLD.currency
      ) THEN
     RAISE EXCEPTION 'Cashfree payment-log identity is immutable';
   END IF;
@@ -144,7 +146,7 @@ $cashfree_payment_log_identity$;
 DROP TRIGGER IF EXISTS cashfree_payment_logs_identity_immutable
   ON public.payment_logs;
 CREATE TRIGGER cashfree_payment_logs_identity_immutable
-BEFORE UPDATE OF id, subscription_id, txnid, provider, gateway, provider_payment_id
+BEFORE UPDATE OF id, subscription_id, txnid, provider, gateway, provider_payment_id, amount, currency
 ON public.payment_logs
 FOR EACH ROW
 EXECUTE FUNCTION public.prevent_cashfree_payment_log_identity_change();
