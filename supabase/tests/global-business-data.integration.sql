@@ -65,8 +65,9 @@ RESET ROLE;
 SET ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','66666666-6666-4666-8666-666666666666',false);
 DO $workspace_a$
-DECLARE table_name text;
-DECLARE visible_count bigint;
+DECLARE
+  table_name text;
+  visible_count bigint;
 BEGIN
   FOREACH table_name IN ARRAY ARRAY['clients','products','stock_levels','stock_movements','invoices','invoice_items','invoice_payments','expenses'] LOOP
     EXECUTE format('SELECT count(*) FROM global.%I', table_name) INTO visible_count;
