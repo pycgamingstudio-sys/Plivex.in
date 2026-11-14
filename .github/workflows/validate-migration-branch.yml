@@ -37,7 +37,7 @@ jobs:
           deno check supabase/functions/manage-workspace-member/index.ts supabase/functions/get-workspace-team/index.ts
           deno check supabase/functions/ping-presence/index.ts supabase/functions/track-staff-action/index.ts supabase/functions/get-team-presence/index.ts
           deno check supabase/functions/get-access-status/index.ts
-          deno check supabase/functions/create-cashfree-order/index.ts supabase/functions/cashfree-return/index.ts supabase/functions/cashfree-webhook/index.ts
+          deno check supabase/functions/cashfree-return/index.ts supabase/functions/cashfree-webhook/index.ts
           deno check supabase/functions/workspace-records/index.ts supabase/functions/list-invoices/index.ts
           deno check supabase/functions/save-invoice/index.ts supabase/functions/set-invoice-status/index.ts
       - name: Cashfree refund regression tests
