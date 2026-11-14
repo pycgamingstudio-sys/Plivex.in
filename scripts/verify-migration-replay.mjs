@@ -15,7 +15,7 @@ const localOnly = manifest.local_only_files || [];
 if (manifest.remote_ledger_entries !== 51 || history.length !== 39 || missing.length !== 35
   || manifest.local_migration_files !== 32 || pairs.length !== 16
   || normalized.length !== 12 || pairs.length - normalized.length !== 4 || localOnly.length !== 16) {
-  fail("Migration reconciliation counts differ from the reviewed 51/39/35/26/16/12/4/16 manifest");
+  fail("Migration reconciliation counts differ from the reviewed 51/39/35/32/16/12/4/16 manifest");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
 
