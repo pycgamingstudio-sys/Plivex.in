@@ -10,6 +10,12 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_outcome') THEN
     CREATE TYPE public.payment_outcome AS ENUM ('applied','failed','tampered');
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'plan_tier') THEN
+    CREATE TYPE public.plan_tier AS ENUM ('basic','pro','free');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'subscription_status') THEN
+    CREATE TYPE public.subscription_status AS ENUM ('created','active','failed','tampered');
+  END IF;
 END
 $$;
 
@@ -31,8 +37,8 @@ CREATE TABLE public.subscriptions (
   workspace_id text,
   plan_id text NOT NULL DEFAULT 'basic_monthly',
   plan_name text,
-  tier text NOT NULL DEFAULT 'basic',
-  status text NOT NULL DEFAULT 'created',
+  tier public.plan_tier NOT NULL DEFAULT 'basic',
+  status public.subscription_status NOT NULL DEFAULT 'created',
   amount integer NOT NULL DEFAULT 0,
   currency text NOT NULL DEFAULT 'INR',
   gateway text NOT NULL DEFAULT 'payu',
@@ -161,7 +167,7 @@ BEGIN
   IF v->>'ok' <> 'true' OR v->>'fully_refunded' <> 'true' THEN
     RAISE EXCEPTION 'Full refund failed: %', v;
   END IF;
-  SELECT status INTO v_status FROM public.subscriptions
+  SELECT status::text INTO v_status FROM public.subscriptions
    WHERE id='10000000-0000-0000-0000-000000000002';
   IF v_status <> 'failed' THEN RAISE EXCEPTION 'Full refund did not close subscription'; END IF;
 
