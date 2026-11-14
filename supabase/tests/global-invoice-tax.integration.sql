@@ -144,6 +144,33 @@ BEGIN
 END
 $test$;
 
+-- A matching string is not sufficient: region codes and country prefix must be valid.
+UPDATE public.business_profile SET tax_jurisdiction_code='US-ZZ' WHERE workspace_id='workspace-global';
+DO $test$
+BEGIN
+  BEGIN
+    PERFORM public.save_invoice(
+      jsonb_build_object(
+        'client_name','US customer','business_name','US seller','issue_date','2026-11-14','currency','USD',
+        'tax_mode','split','tax_rate',0,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
+        'invoice_snapshot',jsonb_build_object(
+          'business',jsonb_build_object('name','Seller Ltd','address','1 Business Street'),
+          'globalTax',jsonb_build_object('countryCode','US','mode','manual','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','Example','placeOfSupplyConfirmed',true,'taxCategory','taxable service','taxCategoryConfirmed',true,'collectionObligationConfirmed',true,'destinationJurisdiction',jsonb_build_object('state','ZZ','county','Example County','city','Example City')),
+          'globalTaxCalculation',jsonb_build_object('ok',true,'status','manual_unverified','countryCode','US','currencyCode','USD','taxableMinor',10000,'taxMinor',500,'totalMinor',10500,
+            'components',jsonb_build_array(jsonb_build_object('id','state','name','State sales tax','rateBps',500,'amountMinor',500,'source','user-entered')))
+        )
+      ),
+      '[{"description":"US test service","quantity":1,"rate":100}]'::jsonb,
+      NULL
+    );
+    RAISE EXCEPTION 'US invalid jurisdiction unexpectedly accepted';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    NULL;
+  END;
+END
+$test$;
+
+UPDATE public.business_profile SET tax_jurisdiction_code='CA-ON' WHERE workspace_id='workspace-global';
 UPDATE public.business_profile SET country_code='CA',tax_registration_number='CA-ACCOUNT',tax_registration_type='GST/HST',tax_registration_status='registered',tax_registration_effective_from='2026-01-01',tax_jurisdiction_code='CA-ON' WHERE workspace_id='workspace-global';
 DO $test$
 DECLARE v public.invoices;

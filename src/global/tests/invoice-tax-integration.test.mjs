@@ -84,6 +84,29 @@ test("US/Canada automatic rate lookup fails closed without a verified jurisdicti
   assert.equal(result.code, "JURISDICTION_RULE_REQUIRED");
 });
 
+test("US and Canada manual jurisdiction codes must be valid and country-matched", () => {
+  const usInvalid = calculateInvoiceGlobalTax(invoice("USD", {
+    mode: "manual", collectionObligationConfirmed: true,
+    destinationJurisdiction: { state: "ZZ", county: "Example County", city: "Example City" },
+    components: [{ id: "state", name: "State tax", rateBps: 500 }],
+  }), profile("US", "USD", { registeredJurisdiction: "US-ZZ" }));
+  assert.equal(usInvalid.code, "INVALID_JURISDICTION");
+
+  const usWrongPrefix = calculateInvoiceGlobalTax(invoice("USD", {
+    mode: "manual", collectionObligationConfirmed: true,
+    destinationJurisdiction: { state: "CA", county: "Los Angeles", city: "Los Angeles" },
+    components: [{ id: "state", name: "State tax", rateBps: 500 }],
+  }), profile("US", "USD", { registeredJurisdiction: "CA-CA" }));
+  assert.equal(usWrongPrefix.code, "JURISDICTION_OR_NEXUS_REQUIRED");
+
+  const caInvalid = calculateInvoiceGlobalTax(invoice("CAD", {
+    mode: "manual", collectionObligationConfirmed: true,
+    destinationJurisdiction: { province: "XX" },
+    components: [{ id: "gst", name: "GST", rateBps: 500 }],
+  }), profile("CA", "CAD", { registeredJurisdiction: "CA-XX" }));
+  assert.equal(caInvalid.code, "INVALID_JURISDICTION");
+});
+
 test("registration, invoice date, currency and user confirmations fail closed", () => {
   assert.equal(calculateInvoiceGlobalTax(invoice("GBP"), profile("GB", "GBP", { registrationStatus: "pending" })).code, "REGISTRATION_UNVERIFIED");
   assert.equal(calculateInvoiceGlobalTax(invoice("GBP"), profile("GB", "GBP", { registrationEffectiveFrom: "2027-01-01" })).code, "REGISTRATION_NOT_EFFECTIVE");

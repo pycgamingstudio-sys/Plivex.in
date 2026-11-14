@@ -158,12 +158,14 @@ BEGIN
           _snapshot->'globalTax'->'destinationJurisdiction'->>(CASE WHEN _global_country='US' THEN 'state' ELSE 'province' END), ''
         ));
         _registered_region := upper(coalesce(_business.tax_jurisdiction_code,''));
-        IF position('-' in _registered_region) > 0 THEN
-          _registered_region := split_part(_registered_region,'-',2);
-        END IF;
-        IF _destination_region = '' OR _registered_region <> _destination_region
+        IF _destination_region = ''
+          OR array_length(string_to_array(_registered_region,'-'),1) <> 2
+          OR split_part(_registered_region,'-',1) <> _global_country
+          OR split_part(_registered_region,'-',2) <> _destination_region
+          OR (_global_country='US' AND _destination_region NOT IN ('AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'))
+          OR (_global_country='CA' AND _destination_region NOT IN ('AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT'))
           OR coalesce((_snapshot->'globalTax'->>'collectionObligationConfirmed')::boolean,false) IS NOT TRUE THEN
-          RAISE EXCEPTION 'US/Canada jurisdiction or collection obligation is not confirmed' USING ERRCODE = '22023';
+          RAISE EXCEPTION 'US/Canada jurisdiction or collection obligation is invalid or not confirmed' USING ERRCODE = '22023';
         END IF;
         IF _global_country='US' AND (
           nullif(trim(_snapshot->'globalTax'->'destinationJurisdiction'->>'county'),'') IS NULL

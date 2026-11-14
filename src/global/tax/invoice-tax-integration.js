@@ -13,6 +13,8 @@ export function resolveInvoiceCurrencyForWorkspace(countryCode, preferredCurrenc
 }
 
 const MINOR_UNITS = Object.freeze({ INR: 2, USD: 2, GBP: 2, AED: 2, CAD: 2, AUD: 2, SGD: 2 });
+const US_JURISDICTIONS = new Set(["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC"]);
+const CA_JURISDICTIONS = new Set(["AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","QC","SK","YT"]);
 const fail = (code, message) => ({ ok: false, status: "needs_review", code, message });
 const validDate = (value) => {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -103,14 +105,21 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
         ? ["state", "county", "city"]
         : ["province"];
       const destinationRegion = String(jurisdiction[countryCode === "US" ? "state" : "province"] || "").trim().toUpperCase();
-      const registeredRegion = String(workspaceProfile?.registeredJurisdiction || "").trim().toUpperCase().split("-").pop();
+      const registeredParts = String(workspaceProfile?.registeredJurisdiction || "").trim().toUpperCase().split("-");
+      const registeredRegion = registeredParts[1] || "";
+      const allowedRegions = countryCode === "US" ? US_JURISDICTIONS : CA_JURISDICTIONS;
       if (required.some((key) => !String(jurisdiction[key] || "").trim())
-        || !destinationRegion || registeredRegion !== destinationRegion
+        || !destinationRegion
         || config.collectionObligationConfirmed !== true
-        || !String(workspaceProfile?.registeredJurisdiction || "").trim()) {
+        || registeredParts.length !== 2
+        || registeredParts[0] !== countryCode
+        || registeredRegion !== destinationRegion) {
         return fail("JURISDICTION_OR_NEXUS_REQUIRED", countryCode === "US"
           ? "Enter state, county and city, confirm the destination jurisdiction and your collection obligation, and save your registered jurisdiction."
           : "Enter the destination province, confirm your collection obligation and save your registered province.");
+      }
+      if (!allowedRegions.has(destinationRegion)) {
+        return fail("INVALID_JURISDICTION", "Enter a valid US state or Canadian province/territory code.");
       }
     }
     const result = calculateManualTax({
