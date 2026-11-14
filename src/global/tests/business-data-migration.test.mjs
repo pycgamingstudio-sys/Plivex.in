@@ -8,7 +8,7 @@ const migration = await readFile(
 );
 
 test("Global business data foundation is additive and tenant-scoped", () => {
-  for (const table of ["clients","products","stock_levels","invoices","invoice_items","invoice_payments","expenses"]) {
+  for (const table of ["clients","products","stock_levels","stock_movements","invoices","invoice_items","invoice_payments","expenses"]) {
     assert.match(migration, new RegExp("create table if not exists global\\." + table));
     assert.match(migration, new RegExp("'" + table + "'"));
   }
