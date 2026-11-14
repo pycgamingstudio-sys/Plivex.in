@@ -65,25 +65,53 @@ SQL
 echo "PASS: concurrent workspace renewals were serialized without losing paid duration"
 
 # Two independent sessions race refunds against one paid order. The first
-# refund (600/1000 minor units) holds the subscription row lock while the
-# second (500/1000) waits. After the first commits, the second must be rejected
-# because cumulative successful refunds would exceed the original payment.
-psql -v ON_ERROR_STOP=1 -d "$db" > /tmp/plivex-refund-first.log 2>&1 <<'SQL' &
+# session acquires the subscription row lock before signaling readiness. The
+# second session is not considered started until PostgreSQL reports that its
+# refund RPC is actually waiting on that lock; only then is the first released.
+race_dir="$(mktemp -d)"
+ready_file="$race_dir/first-lock-acquired"
+release_file="$race_dir/release-first"
+cleanup_refund_race() {
+  touch "$release_file"
+  if [ -n "${refund_first_pid:-}" ]; then wait "$refund_first_pid" 2>/dev/null || true; fi
+  if [ -n "${refund_second_pid:-}" ]; then wait "$refund_second_pid" 2>/dev/null || true; fi
+  rm -rf "$race_dir"
+}
+trap cleanup_refund_race EXIT
+
+PGAPPNAME=plivex-refund-first psql -v ON_ERROR_STOP=1 -d "$db" > /tmp/plivex-refund-first.log 2>&1 <<SQL &
 SET ROLE service_role;
 BEGIN;
+SELECT id FROM public.subscriptions
+ WHERE txnid='ORDER-REFUND-PARALLEL'
+ FOR UPDATE;
 SELECT public.apply_cashfree_refund_event(
  (SELECT id FROM public.subscriptions WHERE txnid='ORDER-REFUND-PARALLEL'),
  'ORDER-REFUND-PARALLEL','CFPAY-REFUND-PARALLEL',
  'CFREFUND-PARALLEL-1',600,'USD','success','{"test":"concurrent-first"}'::jsonb
 );
-SELECT pg_sleep(2);
+\\! touch "$ready_file"
+\\! while [ ! -f "$release_file" ]; do sleep 0.05; done
 COMMIT;
 RESET ROLE;
 SQL
 refund_first_pid=$!
 
-sleep 0.25
-psql -v ON_ERROR_STOP=1 -d "$db" > /tmp/plivex-refund-second.log 2>&1 <<'SQL'
+ready_deadline=$((SECONDS + 15))
+until [ -f "$ready_file" ]; do
+  if ! kill -0 "$refund_first_pid" 2>/dev/null; then
+    cat /tmp/plivex-refund-first.log
+    echo "ERROR: first refund session exited before acquiring its lock"
+    exit 1
+  fi
+  if (( SECONDS >= ready_deadline )); then
+    echo "ERROR: timed out waiting for first refund session to acquire its lock"
+    exit 1
+  fi
+  sleep 0.05
+done
+
+PGAPPNAME=plivex-refund-second psql -v ON_ERROR_STOP=1 -d "$db" > /tmp/plivex-refund-second.log 2>&1 <<'SQL' &
 SET ROLE service_role;
 SELECT public.apply_cashfree_refund_event(
  (SELECT id FROM public.subscriptions WHERE txnid='ORDER-REFUND-PARALLEL'),
@@ -92,8 +120,34 @@ SELECT public.apply_cashfree_refund_event(
 );
 RESET ROLE;
 SQL
+refund_second_pid=$!
 
+# Observe the second backend blocked on PostgreSQL's lock manager. This proves
+# the race ordering instead of guessing with a fixed startup sleep.
+lock_deadline=$((SECONDS + 15))
+second_waiting=0
+while (( SECONDS < lock_deadline )); do
+  second_waiting="$(psql -Atq -d "$db" -c "SELECT count(*) FROM pg_stat_activity WHERE application_name='plivex-refund-second' AND wait_event_type='Lock' AND query LIKE '%CFREFUND-PARALLEL-2%';")"
+  if [ "$second_waiting" = "1" ]; then
+    break
+  fi
+  if ! kill -0 "$refund_second_pid" 2>/dev/null; then
+    cat /tmp/plivex-refund-second.log
+    echo "ERROR: second refund session exited before PostgreSQL observed its lock wait"
+    exit 1
+  fi
+  sleep 0.05
+done
+if [ "$second_waiting" != "1" ]; then
+  echo "ERROR: timed out waiting for second refund session to block on the subscription lock"
+  exit 1
+fi
+
+touch "$release_file"
 wait "$refund_first_pid"
+wait "$refund_second_pid"
+refund_first_pid=""
+refund_second_pid=""
 
 if ! grep -q 'refunded_minor_units.*600' /tmp/plivex-refund-first.log; then
   cat /tmp/plivex-refund-first.log
