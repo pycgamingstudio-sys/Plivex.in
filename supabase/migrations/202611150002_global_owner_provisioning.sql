@@ -94,7 +94,7 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'user_required');
   end if;
 
-  select lower(btrim(coalesce(nullif(p_email, ''), u.email)))
+  select lower(btrim(coalesce(nullif(btrim(p_email), ''), u.email)))
     into v_email
   from auth.users u
   where u.id = p_user_id;
@@ -132,7 +132,7 @@ begin
     on conflict (user_id) do update
       set email = excluded.email,
           full_name = case when excluded.full_name <> '' then excluded.full_name else global.user_profiles.full_name end,
-          default_workspace_id = coalesce(global.user_profiles.default_workspace_id, excluded.default_workspace_id),
+          default_workspace_id = excluded.default_workspace_id,
           updated_at = now();
 
     select * into v_workspace from global.workspaces where id = v_workspace_id;
