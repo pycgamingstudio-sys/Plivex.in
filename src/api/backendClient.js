@@ -133,7 +133,6 @@ async function invokeGlobalWorkspaceRecords(payload = {}) {
     for (const [from, to] of [["email", "email"], ["phone", "phone"], ["address", "address"]]) {
       if (values[from] !== undefined) profile[to] = values[from] || null;
     }
-    if (values.gstin) profile.tax_registration_number = values.gstin;
     for (const key of ["tax_registration_number", "tax_registration_type", "tax_registration_status", "tax_registration_effective_from", "tax_jurisdiction_code"]) {
       if (values[key] !== undefined) profile[key] = values[key] || null;
     }
