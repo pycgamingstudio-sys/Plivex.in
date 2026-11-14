@@ -4,7 +4,7 @@
 -- Previous versions wrote a subscription aggregate to every Cashfree payment log.
 -- Clear those copied values, then rebuild only records with an exact ledger link.
 -- NOT VALID preserves any legacy ambiguous rows, while enforcing linkage on all new/updated rows.
-DO $reconcile_migration$$
+DO $
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
@@ -240,7 +240,7 @@ GRANT EXECUTE ON FUNCTION public.reconcile_cashfree_refund_payment_log(uuid)
 
 -- Deterministically resolvable legacy rows are linked through the audited,
 -- narrowly-scoped reconciliation function. Ambiguous/unmatched rows remain NULL.
-DO $
+DO $reconcile$
 DECLARE v_refund_id uuid;
 BEGIN
   FOR v_refund_id IN
