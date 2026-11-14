@@ -187,7 +187,10 @@ VALUES
   ('20000000-0000-0000-0000-000000000023','ws-a','cashfree','PLXCF-HIST-AMBIG-000000000014',10000,'INR','applied','cashfree',
    '10000000-0000-0000-0000-000000000014','714001',NULL,NULL),
   ('20000000-0000-0000-0000-000000000098','ws-a','cashfree','PLXCF-HIST-AMBIG-000000000014',10000,'INR','applied','cashfree',
-   '10000000-0000-0000-0000-000000000014','714001',NULL,NULL);
+   '10000000-0000-0000-0000-000000000014','714001',NULL,NULL),
+   -- Propagated hold marker only: no historical amount evidence.
+   ('20000000-0000-0000-0000-000000000031','ws-a','cashfree','PLXCF-HIST-AMBIG-000000000014',10000,'INR','applied','cashfree',
+    '10000000-0000-0000-0000-000000000014','714098','reconciliation_required',NULL);
 
 -- The real schema declares payment_logs.gateway NOT NULL; prove the NULL
 -- gateway fixture is rejected rather than weakening the production-shaped test schema.
@@ -237,6 +240,32 @@ VALUES
 
 \ir ../migrations/20261114000001_cashfree_refund_payment_log_linkage.sql
 \ir ../migrations/20261114000001_cashfree_refund_payment_log_linkage.sql
+
+-- Migration replay must not mistake a NULL-amount propagated hold marker
+-- for historical refund evidence; preserve the genuine 5,000 historical amount.
+DO $h05_marker_snapshot$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.cashfree_refund_cleanup_exceptions
+             WHERE payment_log_id='20000000-0000-0000-0000-000000000031'
+               AND reason='cashfree_ledger_missing') THEN
+    RAISE EXCEPTION 'H-05: propagated NULL-amount marker created a false missing-ledger exception';
+  END IF;
+  IF (SELECT refund_status FROM public.payment_logs
+      WHERE id='20000000-0000-0000-0000-000000000031') IS DISTINCT FROM 'reconciliation_required'
+     OR (SELECT refund_amount_minor_units FROM public.payment_logs
+         WHERE id='20000000-0000-0000-0000-000000000031') IS NOT NULL THEN
+    RAISE EXCEPTION 'H-05: unresolved historical refund did not preserve propagated marker-only state';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.cashfree_refund_cleanup_exceptions
+                 WHERE payment_log_id='20000000-0000-0000-0000-000000000030'
+                   AND reason='cashfree_ledger_missing'
+                   AND prior_refund_status='reconciliation_required'
+                   AND prior_refund_amount_minor_units=5000
+                   AND resolved_at IS NULL) THEN
+    RAISE EXCEPTION 'H-05: genuine 5,000 historical refund evidence was not retained';
+  END IF;
+END
+$h05_marker_snapshot$;
 
 -- The historical ₹5,000 total is not complete/reconstructable from a ₹2,000
 -- linked successful ledger. Both migration apply and replay must preserve it.
