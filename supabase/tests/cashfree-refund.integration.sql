@@ -226,7 +226,7 @@ BEGIN
   IF v_total <> 5000 OR v_status <> 'reconciliation_required' THEN
     RAISE EXCEPTION 'Incomplete historical ledger overwrote/failed to hold ₹5,000 total: %, %',v_total,v_status;
   END IF;
-  IF v_sub_status <> 'active' OR v_sub_payment_status IS NOT NULL OR v_sub_refund_status IS NOT NULL THEN
+  IF v_sub_status <> 'active' OR v_sub_payment_status IS DISTINCT FROM 'success' OR v_sub_refund_status IS NOT NULL THEN
     RAISE EXCEPTION 'Incomplete historical ledger changed subscription accounting state: %, %, %',v_sub_status,v_sub_payment_status,v_sub_refund_status;
   END IF;
   IF NOT EXISTS (
