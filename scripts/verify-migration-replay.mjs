@@ -13,8 +13,8 @@ const normalized = pairs.filter((x) => x.normalized_sql_match === true);
 const localOnly = manifest.local_only_files || [];
 
 if (manifest.remote_ledger_entries !== 47 || history.length !== 39 || missing.length !== 35
-  || manifest.local_migration_files !== 29 || pairs.length !== 12
-  || normalized.length !== 8 || pairs.length - normalized.length !== 4 || localOnly.length !== 17) {
+  || manifest.local_migration_files !== 30 || pairs.length !== 12
+  || normalized.length !== 8 || pairs.length - normalized.length !== 4 || localOnly.length !== 18) {
   fail("Migration reconciliation counts differ from the reviewed 47/39/35/25/12/8/4/13 manifest");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
@@ -44,8 +44,8 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 64 || new Set(candidatePlan.map((x) => x.path)).size !== 64) {
-  fail("Candidate replay plan must contain 35 recovered historical and all 29 current local migrations");
+if (candidatePlan.length !== 65 || new Set(candidatePlan.map((x) => x.path)).size !== 64) {
+  fail("Candidate replay plan must contain 35 recovered historical and all 30 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -113,13 +113,14 @@ function assertRls(port, includeGlobal) {
   if (unsafe) fail("Required public tables missing or without RLS: " + unsafe);
 }
 function assertGlobalFoundation(port) {
-  const missing = query(port, "plivex_migration_replay", "SELECT string_agg(t.name, ',') FROM (VALUES ('workspaces'),('user_profiles'),('workspace_members'),('business_profiles')) AS t(name) WHERE to_regclass('global.' || t.name) IS NULL OR NOT COALESCE((SELECT c.relrowsecurity FROM pg_class c WHERE c.oid = to_regclass('global.' || t.name)), false);");
+  const missing = query(port, "plivex_migration_replay", "SELECT string_agg(t.name, ',') FROM (VALUES ('workspaces'),('user_profiles'),('workspace_members'),('business_profiles'),('clients'),('products'),('stock_levels'),('invoices'),('invoice_items'),('invoice_payments'),('expenses')) AS t(name) WHERE to_regclass('global.' || t.name) IS NULL OR NOT COALESCE((SELECT c.relrowsecurity FROM pg_class c WHERE c.oid = to_regclass('global.' || t.name)), false);");
   if (missing) fail("Global foundation tables missing or RLS disabled: " + missing);
   const usage = query(port, "plivex_migration_replay", "SELECT has_schema_privilege('authenticated','global','USAGE')::text || '|' || has_schema_privilege('anon','global','USAGE')::text;");
   if (usage !== "true|false") fail("Global schema grants are not least-privilege: " + usage);
   console.log("PASS Global foundation table/RLS/grant catalog assertions");
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-isolation-foundation.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-owner-provisioning.integration.sql")]);
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-business-data.integration.sql")]);
 }
 function applyForcedMigrationRollback(port, db, migrationPath) {
   const migration = readFileSync(migrationPath, "utf8")
@@ -141,6 +142,7 @@ function assertGlobalMigrationRollback(port) {
     psql(port, db, ["-f", resolve(root, "supabase/tests/migration-replay-bootstrap.sql")]);
     const foundationPath = resolve(root, "supabase/migrations/202611150001_global_isolation_foundation.sql");
     const provisioningPath = resolve(root, "supabase/migrations/202611150002_global_owner_provisioning.sql");
+    const businessDataPath = resolve(root, "supabase/migrations/202611150003_global_business_data_foundation.sql");
 
     const foundationRollback = applyForcedMigrationRollback(port, db, foundationPath);
     if (foundationRollback.status === 0) fail("Global foundation migration rollback probe unexpectedly committed");
@@ -154,7 +156,16 @@ function assertGlobalMigrationRollback(port) {
     if (provisioningRollback.status === 0) fail("Global owner-provisioning migration rollback probe unexpectedly committed");
     const residue = query(port, db, "SELECT (to_regprocedure('public.global_get_auth_context(uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_provision_owner_workspace(uuid,text,text,text,text,text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_update_user_profile(uuid,text,text,text)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='user_profiles' AND column_name='phone')::text");
     if (residue !== "false|false|false|false") fail("Global owner-provisioning rollback left functions or columns behind: " + residue);
-    console.log("PASS actual DDL rollback for Global isolation foundation and owner provisioning migrations");
+
+    // Apply the two prerequisites, then force a failure after all business tables,
+    // policies, indexes and triggers have been created.
+    psql(port, db, ["-f", foundationPath]);
+    psql(port, db, ["-f", provisioningPath]);
+    const businessRollback = applyForcedMigrationRollback(port, db, businessDataPath);
+    if (businessRollback.status === 0) fail("Global business-data migration rollback probe unexpectedly committed");
+    const businessResidue = query(port, db, "SELECT string_agg(t.name, ',') FROM (VALUES ('clients'),('products'),('stock_levels'),('invoices'),('invoice_items'),('invoice_payments'),('expenses')) AS t(name) WHERE to_regclass('global.' || t.name) IS NOT NULL");
+    if (businessResidue) fail("Global business-data rollback left tables behind: " + businessResidue);
+    console.log("PASS actual DDL rollback for all three Global foundation migrations");
   } finally {
     const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], {
       cwd: root, env: envFor(port, "postgres"), encoding: "utf8",
@@ -232,5 +243,5 @@ assertCandidateIndia(candidatePort);
 assertGlobalFoundation(candidatePort);
 assertRollback(candidatePort);
 assertGlobalMigrationRollback(candidatePort);
-console.log("PASS global-dev candidate replay 35 recovered + 29 local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
+console.log("PASS global-dev candidate replay 35 recovered + 30 local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
 console.log("PASS archive hashes, version ordering, replay, Global workspace isolation, migration rollback, RLS and India data-integrity checks.");
