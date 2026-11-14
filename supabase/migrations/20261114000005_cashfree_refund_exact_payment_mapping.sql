@@ -152,11 +152,26 @@ BEGIN
     AND provider_refund_id <> p_provider_refund_id;
   v_subscription_total := v_subscription_prior + CASE WHEN v_status = 'success' THEN p_amount_minor ELSE 0 END;
 
+  -- Never aggregate minor units across different currencies. A mixed-currency
+  -- payment history for one subscription is inconsistent and must be reconciled.
+  IF EXISTS (
+    SELECT 1 FROM public.payment_logs
+    WHERE subscription_id = p_subscription_id
+      AND provider = 'cashfree'
+      AND gateway = 'cashfree'
+      AND status = 'success'
+      AND outcome::text = 'applied'
+      AND upper(COALESCE(currency,'')) <> upper(p_currency)
+  ) THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'refund_order_mismatch');
+  END IF;
+
   SELECT COALESCE(sum(amount_minor_units),0)::bigint INTO v_subscription_original
   FROM public.payment_logs
   WHERE subscription_id = p_subscription_id
     AND provider = 'cashfree'
     AND gateway = 'cashfree'
+    AND upper(COALESCE(currency,'')) = upper(p_currency)
     AND status = 'success'
     AND outcome::text = 'applied';
   IF v_subscription_original <= 0 OR v_subscription_total > v_subscription_original THEN
