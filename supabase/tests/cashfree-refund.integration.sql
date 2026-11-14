@@ -97,7 +97,7 @@ VALUES
   ('10000000-0000-0000-0000-000000000002','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','b@example.test','ws-b','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-FULL-00000000000000000002'),
   ('10000000-0000-0000-0000-000000000003','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-REPLAY-000000000000000003'),
   ('10000000-0000-0000-0000-000000000004','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-CURRENCY-0000000000000004'),
-  ('10000000-0000-0000-0000-000000000015','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-OVER-00000000000000000005'),
+  ('10000000-0000-0000-0000-000000000005','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-OVER-00000000000000000005'),
   ('10000000-0000-0000-0000-000000000006','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-CUMULATIVE-000000000000006'),
   ('10000000-0000-0000-0000-000000000007','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-TRANSITION-000000000000007'),
   ('10000000-0000-0000-0000-000000000008','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','basic_monthly','Basic','basic','active',100,10000,'INR','cashfree','cashfree','PLXCF-SERVICE-000000000000000008'),
@@ -121,7 +121,7 @@ VALUES
   ('20000000-0000-0000-0000-000000000002','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','b@example.test','ws-b','cashfree','PLXCF-FULL-00000000000000000002','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000002','SUCCESS','700002','{"payment":{"cf_payment_id":700002}}'),
   ('20000000-0000-0000-0000-000000000003','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-REPLAY-000000000000000003','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000003','SUCCESS','700003','{"payment":{"cf_payment_id":700003}}'),
   ('20000000-0000-0000-0000-000000000004','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-CURRENCY-0000000000000004','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000004','SUCCESS','700004','{"payment":{"cf_payment_id":700004}}'),
-  ('20000000-0000-0000-0000-000000000021','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-OVER-00000000000000000005','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000005','SUCCESS','700005','{"payment":{"cf_payment_id":700005}}'),
+  ('20000000-0000-0000-0000-000000000005','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-OVER-00000000000000000005','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000005','SUCCESS','700005','{"payment":{"cf_payment_id":700005}}'),
   ('20000000-0000-0000-0000-000000000006','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-CUMULATIVE-000000000000006','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000006','SUCCESS','700006','{"payment":{"cf_payment_id":700006}}'),
   ('20000000-0000-0000-0000-000000000007','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-TRANSITION-000000000000007','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000007','SUCCESS','700007','{"payment":{"cf_payment_id":700007}}'),
   ('20000000-0000-0000-0000-000000000008','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','a@example.test','ws-a','cashfree','PLXCF-SERVICE-000000000000000008','basic_monthly','Basic','basic',10000,'INR','applied',true,'cashfree','success','10000000-0000-0000-0000-000000000008','SUCCESS','700008','{"payment":{"cf_payment_id":700008}}'),
@@ -484,30 +484,30 @@ BEGIN
   SELECT amount_minor_units,status INTO v_old_amount,v_old_status
   FROM public.payment_refunds WHERE id='30000000-0000-0000-0000-000000000001';
   SELECT status::text,payment_status,refund_status INTO v_status,v_payment_status,v_refund_status
-  FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000005';
+  FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000015';
   SELECT refund_status,refund_amount_minor_units INTO v_log_status,v_log_total
-  FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000005';
-  SELECT count(*) INTO v_count FROM public.payment_refunds WHERE subscription_id='10000000-0000-0000-0000-000000000005';
+  FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000021';
+  SELECT count(*) INTO v_count FROM public.payment_refunds WHERE subscription_id='10000000-0000-0000-0000-000000000015';
 
   v := public.apply_cashfree_refund_event(
-    '10000000-0000-0000-0000-000000000005','RF-HIST-NEW-10K',10000,'INR','success',
-    '{"data":{"refund":{"order_id":"PLXCF-OVER-00000000000000000005","cf_payment_id":700005}}}'::jsonb
+    '10000000-0000-0000-0000-000000000015','RF-HIST-NEW-10K',10000,'INR','success',
+    '{"data":{"refund":{"order_id":"PLXCF-HIST-UNLINKED-000000000015","cf_payment_id":715001}}}'::jsonb
   );
   IF v->>'reason' <> 'historical_refund_reconciliation_required' THEN
     RAISE EXCEPTION 'Historical unlinked refund did not block new refund: %', v;
   END IF;
-  IF (SELECT count(*) FROM public.payment_refunds WHERE subscription_id='10000000-0000-0000-0000-000000000005') <> v_count
+  IF (SELECT count(*) FROM public.payment_refunds WHERE subscription_id='10000000-0000-0000-0000-000000000015') <> v_count
      OR (SELECT amount_minor_units FROM public.payment_refunds WHERE id='30000000-0000-0000-0000-000000000001') <> v_old_amount
      OR (SELECT status FROM public.payment_refunds WHERE id='30000000-0000-0000-0000-000000000001') <> v_old_status THEN
     RAISE EXCEPTION 'Rejected historical-conflict refund changed refund ledger rows';
   END IF;
-  IF (SELECT status::text FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000005') <> v_status
-     OR (SELECT payment_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000005') IS DISTINCT FROM v_payment_status
-     OR (SELECT refund_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000005') IS DISTINCT FROM v_refund_status THEN
+  IF (SELECT status::text FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000015') <> v_status
+     OR (SELECT payment_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000015') IS DISTINCT FROM v_payment_status
+     OR (SELECT refund_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000015') IS DISTINCT FROM v_refund_status THEN
     RAISE EXCEPTION 'Rejected historical-conflict refund changed subscription accounting state';
   END IF;
-  IF (SELECT refund_status FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000005') IS DISTINCT FROM v_log_status
-     OR (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000005') IS DISTINCT FROM v_log_total THEN
+  IF (SELECT refund_status FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000021') IS DISTINCT FROM v_log_status
+     OR (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000021') IS DISTINCT FROM v_log_total THEN
     RAISE EXCEPTION 'Rejected historical-conflict refund changed payment-log totals/status';
   END IF;
 END
