@@ -71,13 +71,23 @@ function resetDb(port) {
   // selected as pg_cron's database. Do not drop it: pg_cron holds a connection.
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/migration-replay-bootstrap.sql")]);
 }
-function replay(port, plan) {
+function replay(port, plan, applyRemoteCompatibilityBridge = false) {
   let seeded = false;
+  let compatibilityBridgeApplied = false;
   for (const entry of plan) {
     console.log("APPLY", entry.version, entry.kind, entry.path);
     psql(port, "plivex_migration_replay", ["-f", resolve(root, entry.path)]);
     if (entry.version === "20261025030833") {
       psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/migration-replay-preexisting-functions.sql")]);
+    }
+    if (applyRemoteCompatibilityBridge && entry.version === "20261027143138") {
+      // The read-only production snapshot already has Pro-first current_plan
+      // ordering, while the archived 20261025030902 source does not. Reapply
+      // the local-only compatibility migration in this disposable replay to
+      // reconstruct the observed function state without altering the archive.
+      console.log("APPLY COMPATIBILITY BRIDGE 202610280004 (disposable database only)");
+      psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/migrations/202610280004_fix_overlapping_subscription_tier_priority.sql")]);
+      compatibilityBridgeApplied = true;
     }
     if (entry.version === "20261112071603") {
       psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/migration-replay-seed-india.sql")]);
@@ -85,6 +95,9 @@ function replay(port, plan) {
     }
   }
   if (!seeded) fail("India sentinel was not seeded after the historical base schema");
+  if (applyRemoteCompatibilityBridge && !compatibilityBridgeApplied) {
+    fail("Remote compatibility bridge was not applied at the expected migration boundary");
+  }
 }
 function assertRls(port, includeGlobal) {
   const required = ["profiles","subscriptions","payment_logs","plan_limits","plan_features","usage_counters","assistant_action_batches","invoice_share_links"];
@@ -139,7 +152,7 @@ function assertRollback(port) {
   const before = query(port, "plivex_migration_replay", "SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relkind='r'");
   const sql = "BEGIN; CREATE TABLE public.__stage4_rollback_probe(id integer PRIMARY KEY); INSERT INTO public.__stage4_rollback_probe VALUES (1); DO $rollback$ BEGIN RAISE EXCEPTION 'intentional rollback probe'; END $rollback$; COMMIT;";
   const failed = spawnSync("psql", ["-X","-v","ON_ERROR_STOP=1","-d","plivex_migration_replay"], {
-    cwd: root, env: envFor(Number(process.env.CANDIDATE_PGPORT || 5434), "plivex_migration_replay"), input: sql, encoding: "utf8",
+    cwd: root, env: envFor(port, "plivex_migration_replay"), input: sql, encoding: "utf8",
   });
   if (failed.status === 0) fail("Intentional rollback probe unexpectedly succeeded");
   const exists = query(port, "plivex_migration_replay", "SELECT to_regclass('public.__stage4_rollback_probe') IS NOT NULL");
@@ -157,10 +170,10 @@ const remotePort = Number(process.env.REMOTE_PGPORT || 5433);
 const candidatePort = Number(process.env.CANDIDATE_PGPORT || 5434);
 console.log("Migration reconciliation: 47 remote, 39 archived, 8 normalized local matches, 4 divergent, 58 candidate replay entries.");
 resetDb(remotePort);
-replay(remotePort, remotePlan);
+replay(remotePort, remotePlan, true);
 assertRls(remotePort, false);
 assertRemoteIndia(remotePort);
-console.log("PASS remote history replay 47/47; summary=" + summary(remotePort, true));
+console.log("PASS remote history 47/47 plus documented local-only compatibility bridge; summary=" + summary(remotePort, true));
 
 resetDb(candidatePort);
 replay(candidatePort, candidatePlan);
