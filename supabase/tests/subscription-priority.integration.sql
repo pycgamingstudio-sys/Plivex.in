@@ -21,7 +21,7 @@ BEGIN
  SELECT s.tier INTO v_plan FROM public.subscriptions s
  WHERE s.workspace_id = p_workspace_id AND s.status::text = 'active'
    AND s.expires_at > clock_timestamp() AND s.started_at <= clock_timestamp()
- order by case s.tier::text when 'pro' then 2 when 'basic' then 1 else 0 end desc, s.expires_at desc, s.created_at desc
+ order by s.expires_at desc,s.created_at desc
  LIMIT 1;
  RETURN coalesce(v_plan, 'free');
 END
@@ -38,18 +38,31 @@ BEGIN
     and s.status::text = 'active'
     and s.expires_at > clock_timestamp()
     and s.started_at <= clock_timestamp()
-    and s.tier::text = v_plan;
+    and s.tier::text in ('basic','pro');
  RETURN jsonb_build_object(
    'plan', v_plan,
    'expiresAt', v_expires,
-   'startedAt', case when v_plan='free' then null else (select min(s.started_at) from public.subscriptions s where s.workspace_id=p_workspace_id and s.status::text='active' and s.expires_at > clock_timestamp() and s.tier::text = v_plan) end,
+   'startedAt', case when v_plan='free' then null else (select min(s.started_at) from public.subscriptions s where s.workspace_id=p_workspace_id and s.status::text='active' and s.expires_at > clock_timestamp() and s.tier::text in ('basic','pro')) end,
    'fixtureMarker', true
  );
 END
 $function$;
 
--- PostgreSQL 17.12 actual rendered definition for historical outcome A.
-\echo 'PG17 CURRENT_PLAN — HISTORICAL OUTCOME A'
+-- Reproduce the recorded remote source followed by the local compatibility migration.
+-- This exercises the no-space ORDER BY variant found in the recovered ledger source.
+\ir ../migrations/202610280004_fix_overlapping_subscription_tier_priority.sql
+\ir ../recovered_remote_migrations/20261028030245_prioritize_effective_subscription.sql
+DO $ BEGIN
+ IF position('order by CASE s.tier::text WHEN ''pro'' THEN 2' IN pg_get_functiondef('public.current_plan(text)'::regprocedure)) = 0 THEN
+   RAISE EXCEPTION '202610280004 did not produce the canonical current_plan ordering';
+ END IF;
+ IF position('select s.expires_at into v_expires' IN lower(pg_get_functiondef('public.get_access_status(text)'::regprocedure))) = 0
+   OR position('select s.started_at from public.subscriptions s' IN lower(pg_get_functiondef('public.get_access_status(text)'::regprocedure))) = 0 THEN
+   RAISE EXCEPTION '202610280004/20261028030245 did not converge get_access_status';
+ END IF;
+END $;
+\echo 'PASS local 202610280004 + remote 20261028030245 compatibility sequence'
+\echo 'PG17 CURRENT_PLAN — CONVERGED OUTCOME A'
 SELECT pg_get_functiondef('public.current_plan(text)'::regprocedure);
 \echo 'PG17 GET_ACCESS_STATUS — HISTORICAL OUTCOME A'
 SELECT pg_get_functiondef('public.get_access_status(text)'::regprocedure);
