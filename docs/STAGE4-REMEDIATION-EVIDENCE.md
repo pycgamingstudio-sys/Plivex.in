@@ -5,7 +5,7 @@ Branch: `global-dev`
 
 ## Current Stage 4 remediation result
 
-<badge>Verification passed on the tested candidate</badge>
+**Verification passed on the tested candidate**
 
 The subscription-priority migration conflict has been remediated on `global-dev` without editing archived remote SQL or weakening fail-closed guards.
 
