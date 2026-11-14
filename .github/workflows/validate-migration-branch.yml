@@ -70,7 +70,7 @@ jobs:
           set -euo pipefail
           pids=()
           for i in 1 2 3 4 5 6; do
-            psql -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1 -Atc "SELECT public.apply_cashfree_refund_event('10000000-0000-0000-0000-000000000009','CONC-$i',2000,'INR','success','{}'::jsonb);" > "$RUNNER_TEMP/refund-$i.json" &
+            psql -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1 -Atc "SELECT public.apply_cashfree_refund_event('10000000-0000-0000-0000-000000000009','CONC-$i',2000,'INR','success',jsonb_build_object('data',jsonb_build_object('refund',jsonb_build_object('order_id','PLXCF-CONCURRENT-000000000000000009','cf_payment_id',700009))));" > "$RUNNER_TEMP/refund-$i.json" &
             pids+=("$!")
           done
           for pid in "${pids[@]}"; do wait "$pid"; done
