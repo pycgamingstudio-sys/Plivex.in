@@ -55,3 +55,50 @@ jobs:
         run: npm run build
       - name: Verify public build configuration
         run: npm run verify:build-env
+
+
+  global-isolation-replay:
+    name: Disposable Global isolation and migration replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start isolated Supabase PostgreSQL replay databases
+        shell: bash
+        run: |
+          set -euo pipefail
+          for spec in "plivex-global-remote:5433" "plivex-global-candidate:5434"; do
+            name="${spec%%:*}"
+            port="${spec##*:}"
+            docker run --detach --name "$name" --publish "$port:5432" \
+              --env POSTGRES_USER=supabase_admin --env POSTGRES_PASSWORD=postgres --env POSTGRES_DB=plivex_migration_replay \
+              supabase/postgres:17.6.1.136 \
+              postgres -c config_file=/etc/postgresql/postgresql.conf -c shared_preload_libraries=pg_cron,pg_net -c cron.database_name=plivex_migration_replay
+            ready=0
+            for attempt in $(seq 1 60); do
+              if docker exec -u postgres "$name" pg_isready -U supabase_admin -d plivex_migration_replay >/dev/null 2>&1; then ready=1; break; fi
+              sleep 2
+            done
+            if [ "$ready" != "1" ]; then docker logs "$name"; exit 1; fi
+            for ext in pgcrypto pg_cron pg_net; do
+              docker exec -u postgres "$name" psql -U supabase_admin -d plivex_migration_replay -Atc "SELECT name FROM pg_available_extensions WHERE name='$ext'" | grep -qx "$ext"
+            done
+          done
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Run candidate replay, Global isolation tests and actual rollback
+        env:
+          PGUSER: supabase_admin
+          PGPASSWORD: postgres
+          REMOTE_PGPORT: "5433"
+          CANDIDATE_PGPORT: "5434"
+        run: node scripts/verify-migration-replay.mjs
+
+      - name: Always stop disposable databases
+        if: always()
+        run: |
+          docker rm --force plivex-global-remote plivex-global-candidate || true
