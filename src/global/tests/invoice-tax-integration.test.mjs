@@ -47,7 +47,7 @@ test("US manual invoice requires state, county, city and collection-obligation c
     mode: "manual",
     components: [{ id: "state", name: "State", rateBps: 500 }],
   }), profile("US", "USD"));
-  assert.equal(missing.code, "JURISDICTION_OR_NEXUS_REQUIRED");
+  assert.equal(missing.code, "DESTINATION_JURISDICTION_REQUIRED");
 
   const result = calculateInvoiceGlobalTax(invoice("USD", {
     mode: "manual",
@@ -97,7 +97,7 @@ test("US and Canada manual jurisdiction codes must be valid and country-matched"
     destinationJurisdiction: { state: "CA", county: "Los Angeles", city: "Los Angeles" },
     components: [{ id: "state", name: "State tax", rateBps: 500 }],
   }), profile("US", "USD", { registeredJurisdiction: "CA-CA" }));
-  assert.equal(usWrongPrefix.code, "JURISDICTION_OR_NEXUS_REQUIRED");
+  assert.equal(usWrongPrefix.code, "INVALID_JURISDICTION");
 
   const caInvalid = calculateInvoiceGlobalTax(invoice("CAD", {
     mode: "manual", collectionObligationAttested: true,
@@ -143,7 +143,7 @@ test("manual calculation rejects unsupported zero-rated, exempt and reduced trea
       destinationJurisdiction: { state: "CA", county: "Los Angeles", city: "Los Angeles" },
       components: [{ id: "state", name: "State tax", rateBps: 500 }],
     }), profile("US", "USD"));
-    assert.equal(result.code, "UNSUPPORTED_TAX_TREATMENT", taxCategory);
+    assert.equal(result.code, taxCategory ? "UNSUPPORTED_TAX_TREATMENT" : "TAX_CATEGORY_REQUIRED", taxCategory);
   }
 });
 
