@@ -41,26 +41,8 @@ BEGIN
 
   -- Historical get_access_status source produced by the preceding local
   -- 202610270002 migration. Flexible whitespace does not relax the predicates.
-  v_old_pattern := $pattern$
-[[:space:]]*select max\(s\.expires_at\) into v_expires[[:space:]]+
-from public\.subscriptions s[[:space:]]+
-where s\.workspace_id = p_workspace_id[[:space:]]+
-and s\.status::text = 'active'[[:space:]]+
-and s\.expires_at > clock_timestamp\(\)[[:space:]]+
-and s\.started_at <= clock_timestamp\(\)[[:space:]]+
-and s\.tier::text in \('basic','pro'\);
-$pattern$;
-  v_final_pattern := $pattern$
-[[:space:]]*select s\.expires_at into v_expires[[:space:]]+
-from public\.subscriptions s[[:space:]]+
-where s\.workspace_id = p_workspace_id[[:space:]]+
-and s\.status::text = 'active'[[:space:]]+
-and s\.expires_at > clock_timestamp\(\)[[:space:]]+
-and s\.started_at <= clock_timestamp\(\)[[:space:]]+
-and s\.tier::text in \('basic','pro'\)[[:space:]]+
-order by CASE s\.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC,[[:space:]]*s\.expires_at desc,[[:space:]]*s\.created_at desc[[:space:]]+
-limit 1;
-$pattern$;
+  v_old_pattern := $pattern$[[:space:]]*select max\(s\.expires_at\) into v_expires[[:space:]]+from public\.subscriptions s[[:space:]]+where s\.workspace_id = p_workspace_id[[:space:]]+and s\.status::text = 'active'[[:space:]]+and s\.expires_at > clock_timestamp\(\)[[:space:]]+and s\.started_at <= clock_timestamp\(\)[[:space:]]+and s\.tier::text in \('basic','pro'\);$pattern$;
+  v_final_pattern := $pattern$[[:space:]]*select s\.expires_at into v_expires[[:space:]]+from public\.subscriptions s[[:space:]]+where s\.workspace_id = p_workspace_id[[:space:]]+and s\.status::text = 'active'[[:space:]]+and s\.expires_at > clock_timestamp\(\)[[:space:]]+and s\.started_at <= clock_timestamp\(\)[[:space:]]+and s\.tier::text in \('basic','pro'\)[[:space:]]+order by CASE s\.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC,[[:space:]]*s\.expires_at desc,[[:space:]]*s\.created_at desc[[:space:]]+limit 1;$pattern$;
   v_new := $replacement$select s.expires_at into v_expires
   from public.subscriptions s
   where s.workspace_id = p_workspace_id
@@ -85,25 +67,8 @@ $pattern$;
   END IF;
 
   -- startedAt must describe the same effective subscription as expiresAt.
-  v_old_pattern := $pattern$
-else[[:space:]]+\(select[[:space:]]+min\(s\.started_at\)[[:space:]]+
-from public\.subscriptions s[[:space:]]+
-where s\.workspace_id=p_workspace_id[[:space:]]+
-and s\.status::text='active'[[:space:]]+
-and s\.expires_at > clock_timestamp\(\)[[:space:]]+
-and s\.tier::text in \('basic','pro'\)\)[[:space:]]+end,
-$pattern$;
-  v_final_pattern := $pattern$
-else[[:space:]]+\(select[[:space:]]+s\.started_at[[:space:]]+
-from public\.subscriptions s[[:space:]]+
-where s\.workspace_id=p_workspace_id[[:space:]]+
-and s\.status::text='active'[[:space:]]+
-and s\.expires_at > clock_timestamp\(\)[[:space:]]+
-and s\.started_at <= clock_timestamp\(\)[[:space:]]+
-and s\.tier::text in \('basic','pro'\)[[:space:]]+
-order by CASE s\.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC,[[:space:]]*s\.expires_at desc,[[:space:]]*s\.created_at desc[[:space:]]+
-limit 1\)[[:space:]]+end,
-$pattern$;
+  v_old_pattern := $pattern$else[[:space:]]+\(select[[:space:]]+min\(s\.started_at\)[[:space:]]+from public\.subscriptions s[[:space:]]+where s\.workspace_id=p_workspace_id[[:space:]]+and s\.status::text='active'[[:space:]]+and s\.expires_at > clock_timestamp\(\)[[:space:]]+and s\.tier::text in \('basic','pro'\)\)[[:space:]]+end,$pattern$;
+  v_final_pattern := $pattern$else[[:space:]]+\(select[[:space:]]+s\.started_at[[:space:]]+from public\.subscriptions s[[:space:]]+where s\.workspace_id=p_workspace_id[[:space:]]+and s\.status::text='active'[[:space:]]+and s\.expires_at > clock_timestamp\(\)[[:space:]]+and s\.started_at <= clock_timestamp\(\)[[:space:]]+and s\.tier::text in \('basic','pro'\)[[:space:]]+order by CASE s\.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC,[[:space:]]*s\.expires_at desc,[[:space:]]*s\.created_at desc[[:space:]]+limit 1\)[[:space:]]+end,$pattern$;
   v_new := $replacement$else (select s.started_at from public.subscriptions s where s.workspace_id=p_workspace_id and s.status::text='active' and s.expires_at > clock_timestamp() and s.started_at <= clock_timestamp() and s.tier::text in ('basic','pro') order by CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at desc, s.created_at desc limit 1) end,$replacement$;
 
   SELECT count(*) INTO v_old_count
