@@ -13,7 +13,21 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: plivex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d plivex_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,16 +46,33 @@ jobs:
       - name: Check Supabase Edge Functions
         run: |
           deno check supabase/functions/_shared/team.ts supabase/functions/_shared/email.ts
-          deno check supabase/functions/_shared/cashfree.ts supabase/functions/cashfree-webhook/index.ts supabase/functions/cashfree-webhook/refund.ts
+          deno check supabase/functions/_shared/cashfree.ts supabase/functions/create-cashfree-order/index.ts supabase/functions/cashfree-webhook/index.ts supabase/functions/cashfree-webhook/refund.ts supabase/functions/cashfree-return/index.ts
           deno check supabase/functions/ensure-owner-role/index.ts supabase/functions/send-team-invite/index.ts supabase/functions/send-payment-reminder/index.ts supabase/functions/verify-invite-code/index.ts
           deno check supabase/functions/manage-workspace-member/index.ts supabase/functions/get-workspace-team/index.ts
           deno check supabase/functions/ping-presence/index.ts supabase/functions/track-staff-action/index.ts supabase/functions/get-team-presence/index.ts
           deno check supabase/functions/get-access-status/index.ts
-          deno check supabase/functions/cashfree-return/index.ts supabase/functions/cashfree-webhook/index.ts
           deno check supabase/functions/workspace-records/index.ts supabase/functions/list-invoices/index.ts
           deno check supabase/functions/save-invoice/index.ts supabase/functions/set-invoice-status/index.ts
       - name: Cashfree refund regression tests
         run: deno test supabase/functions/cashfree-webhook/refund.test.ts
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Apply refund migration and run PostgreSQL integration tests
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1 -f supabase/tests/cashfree-refund.integration.sql
+      - name: Verify concurrent partial refunds are atomic
+        env:
+          PGPASSWORD: postgres
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in 1 2 3 4 5 6; do
+            psql -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1 -Atc "SELECT public.apply_cashfree_refund_event('10000000-0000-0000-0000-000000000009','CONC-$i',2000,'INR','success','{}'::jsonb);" > "$RUNNER_TEMP/refund-$i.json" &
+          done
+          wait
+          psql -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1 -c "DO \$\$ BEGIN IF (SELECT count(*) FROM public.payment_refunds WHERE provider_refund_id LIKE 'CONC-%' AND status='success') <> 5 THEN RAISE EXCEPTION 'Concurrent refund success count was not exactly five'; END IF; IF (SELECT sum(amount_minor_units) FROM public.payment_refunds WHERE provider_refund_id LIKE 'CONC-%' AND status='success') <> 10000 THEN RAISE EXCEPTION 'Concurrent refunds exceeded original payment'; END IF; END \$\$;"
       - name: Lint
         run: npm run lint
       - name: Membership tests
