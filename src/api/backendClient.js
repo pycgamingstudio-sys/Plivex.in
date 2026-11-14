@@ -7,6 +7,9 @@
 //  - Business endpoints                -> POST <API base>/api/public/<kebab-name>
 //    with the Supabase access token in the Authorization header.
 import { createClient } from '@supabase/supabase-js';
+import { resolveEditionId } from '@/global/core/edition-contract.js';
+
+export const APP_EDITION = resolveEditionId(import.meta.env.VITE_APP_EDITION);
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -114,6 +117,9 @@ const functions = {
     // operations intentionally retain the legacy fallback until their contracts
     // and runtime tests are complete.
     const functionName = kebab(String(name || ""));
+    if (APP_EDITION === "global" && functionName !== "global-ensure-owner") {
+      throw new ApiError("This Global feature is not enabled yet. Your India workspace is kept separate.", 503, { operation: name });
+    }
     const migratedFunctions = new Set([
       "add-client", "ensure-owner-role", "send-team-invite", "verify-invite-code",
       "get-workspace-team", "manage-workspace-member", "ping-presence",
@@ -153,6 +159,19 @@ const authError = (error, fallback) => {
 
 const auth = {
   async me() {
+    if (APP_EDITION === "global") {
+      const { data: globalData, error: globalError } = await supabase.functions.invoke("global-auth-context", { body: {} });
+      if (globalError) {
+        let message = globalError.message || "Could not load your Global account.";
+        try {
+          const body = await globalError.context?.clone?.().json();
+          if (typeof body?.error === "string") message = body.error;
+        } catch { /* retain SDK message */ }
+        throw new ApiError(message, globalError.status || 400, { operation: "global-auth-context" });
+      }
+      if (!globalData?.user?.id) throw new ApiError("Your Global account could not be loaded.", 401);
+      return globalData.user;
+    }
     const { data } = await supabase.auth.getSession();
     const session = data?.session;
     if (!session) throw new ApiError('Not signed in', 401);
@@ -209,6 +228,16 @@ const auth = {
     const patch = {};
     if (values.full_name !== undefined) patch.full_name = values.full_name;
     if (values.profilePicture !== undefined) patch.profile_picture = values.profilePicture;
+    if (APP_EDITION === "global") {
+      const body = {};
+      if (values.full_name !== undefined) body.full_name = values.full_name;
+      if (values.profilePicture !== undefined) body.avatar_url = values.profilePicture;
+      if (values.phone !== undefined) body.phone = values.phone;
+      if (Object.keys(body).length === 0) return null;
+      const { error } = await supabase.functions.invoke("global-update-profile", { body });
+      if (error) throw new ApiError(error.message || "Global profile update failed", error.status || 400);
+      return null;
+    }
     if (Object.keys(patch).length === 0 && values.phone === undefined) return null;
     if (Object.keys(patch).length > 0) {
       const { error } = await supabase.from('profiles').update(patch).eq('id', uid);
