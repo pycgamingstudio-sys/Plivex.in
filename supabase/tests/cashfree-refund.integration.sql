@@ -299,7 +299,7 @@ INSERT INTO public.payment_refunds
    amount_minor_units,currency,status,raw)
 VALUES
   ('30000000-0000-0000-0000-000000000020','10000000-0000-0000-0000-000000000016',NULL,
-   'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','ws-e','cashfree','RF-HIST-PARTIAL-2K',2000,'INR','success',
+   'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','ws-e','cashfree','RF-HIST-PARTIAL-EXACT-2K',2000,'INR','success',
    '{"data":{"refund":{"order_id":"PLXCF-HIST-PARTIAL-000000000016","cf_payment_id":716001}}}');
 ALTER TABLE public.payment_refunds
   ADD CONSTRAINT payment_refunds_payment_log_required
