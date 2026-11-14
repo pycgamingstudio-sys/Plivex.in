@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 
-import { backend as db, supabase } from '@/api/backendClient';
+import { backend as db, supabase, APP_EDITION } from '@/api/backendClient';
 import { hydrateWorkspaceData, resetWorkspaceCache } from '@/lib/stores';
 import { clearSessionCache } from '@/lib/sessionCache';
 import { setTenantId } from '@/lib/stores';
@@ -89,6 +89,43 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingAuth(true);
       let currentUser = await db.auth.me();
 
+      // Global identity and workspace authorization are read only from Global RPCs.
+      // Never consult India public.profiles, invites, or workspace-record endpoints.
+      if (APP_EDITION === "global") {
+        const pendingGlobalInvite = getPendingInviteCode();
+        if (pendingGlobalInvite) {
+          throw new Error("Global workspace invitations are not available yet. Remove the invite link and sign in with your own Global account.");
+        }
+        if (!currentUser?.workspace_id || !currentUser?.role) {
+          let signupRegion = {};
+          try {
+            const rawRegion = window.localStorage.getItem("plivex.signup.region");
+            const parsedRegion = rawRegion ? JSON.parse(rawRegion) : null;
+            if (parsedRegion && typeof parsedRegion.countryCode === "string" && typeof parsedRegion.localeCode === "string") {
+              signupRegion = { countryCode: parsedRegion.countryCode, localeCode: parsedRegion.localeCode };
+            }
+          } catch { /* the Edge Function validates Auth metadata and safe defaults */ }
+          const provisioned = await db.functions.invoke("globalEnsureOwner", signupRegion);
+          if (!provisioned?.data?.ok) {
+            throw new Error(provisioned?.data?.error || "Your Global workspace could not be initialized.");
+          }
+          try { window.localStorage.removeItem("plivex.signup.region"); } catch {}
+          currentUser = await db.auth.me();
+        }
+        if (!currentUser?.workspace_id || !currentUser?.role) {
+          throw new Error("Your Global workspace membership could not be verified.");
+        }
+        setTenantId(`global:${currentUser.id}`, { migrateLegacy: false });
+        resetWorkspaceCache();
+        setUser(currentUser);
+        signedInRef.current = true;
+        setIsAuthenticated(true);
+        setAuthError(null);
+        setIsLoadingAuth(false);
+        setAuthChecked(true);
+        return;
+      }
+
       // 1) Invited members join the inviter's workspace first. If the invite is
       //    still pending and fails, never fall through to creating a separate owner workspace.
       let hadInvite = false;
@@ -148,7 +185,7 @@ export const AuthProvider = ({ children }) => {
   const logout = (shouldRedirect = true) => {
     clearSessionCache();
     resetWorkspaceCache();
-    setTenantId(null);
+    setTenantId(null, { migrateLegacy: APP_EDITION !== 'global' });
     setUser(null);
     setIsAuthenticated(false);
     if (shouldRedirect) {
