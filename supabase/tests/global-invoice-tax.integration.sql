@@ -117,6 +117,74 @@ BEGIN
 END
 $test$;
 
+-- Server RPC coverage for the other source-backed standard-rate countries.
+DO $test$
+DECLARE
+  v public.invoices;
+  r record;
+BEGIN
+  FOR r IN
+    SELECT * FROM (VALUES
+      ('AE','AED',500,'AE-VAT-STANDARD-2026-11','https://mof.gov.ae/en/public-finance/tax/value-added-tax-vat/','VAT'),
+      ('AU','AUD',1000,'AU-GST-STANDARD-2026-11','https://www.ato.gov.au/Business/GST/','GST'),
+      ('SG','SGD',900,'SG-GST-STANDARD-2026-11','https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/basics-of-gst/current-gst-rates','GST')
+    ) AS rules(country_code,currency_code,rate_bps,rule_id,source_url,registration_type)
+  LOOP
+    UPDATE public.business_profile
+    SET country_code=r.country_code,tax_registration_number='REG-'||r.country_code,
+        tax_registration_type=r.registration_type,tax_registration_status='registered',
+        tax_registration_effective_from='2026-01-01',tax_jurisdiction_code=NULL
+    WHERE workspace_id='workspace-global';
+
+    v := public.save_invoice(
+      jsonb_build_object(
+        'client_name','Global customer','business_name','Global seller','issue_date','2026-11-14','currency',r.currency_code,
+        'tax_mode','split','tax_rate',0,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
+        'invoice_snapshot',jsonb_build_object(
+          'business',jsonb_build_object('name','Seller Ltd','address','1 Business Street'),
+          'globalTax',jsonb_build_object('countryCode',r.country_code,'mode','automatic','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','Domestic supply','placeOfSupplyConfirmed',true,'taxCategory','standard-rated','taxCategoryConfirmed',true),
+          'globalTaxCalculation',jsonb_build_object('ok',true,'status','calculated','countryCode',r.country_code,'currencyCode',r.currency_code,'taxableMinor',10000,'taxMinor',r.rate_bps,'totalMinor',10000+r.rate_bps,
+            'components',jsonb_build_array(jsonb_build_object('id',r.rule_id,'name',r.registration_type,'rateBps',r.rate_bps,'amountMinor',r.rate_bps)),
+            'ruleSnapshot',jsonb_build_object('id',r.rule_id,'version','2026.11','source',r.source_url,'effectiveFrom','2026-01-01'))
+        )
+      ),
+      '[{"description":"Global taxable service","quantity":1,"rate":100}]'::jsonb,
+      NULL
+    );
+    IF v.tax_value <> r.rate_bps::numeric / 100 OR v.total <> 100 + r.rate_bps::numeric / 100 THEN
+      RAISE EXCEPTION 'Server tax RPC failed for country %: tax %, total %',r.country_code,v.tax_value,v.total;
+    END IF;
+  END LOOP;
+END
+$test$;
+
+-- The RPC must reject a client-tampered tax snapshot even when the country/rule are valid.
+UPDATE public.business_profile SET country_code='GB',tax_registration_number='GB123456789',tax_registration_type='VAT',tax_registration_status='registered',tax_registration_effective_from='2026-01-01',tax_jurisdiction_code=NULL WHERE workspace_id='workspace-global';
+DO $test$
+BEGIN
+  BEGIN
+    PERFORM public.save_invoice(
+      jsonb_build_object(
+        'client_name','UK customer','business_name','UK seller','issue_date','2026-11-14','currency','GBP',
+        'tax_mode','split','tax_rate',0,'discount_type','percent','discount',0,'status','Pending','is_draft',false,
+        'invoice_snapshot',jsonb_build_object(
+          'business',jsonb_build_object('name','Seller Ltd','address','1 Business Street'),
+          'globalTax',jsonb_build_object('countryCode','GB','mode','automatic','priceMode','exclusive','registrationConfirmed',true,'placeOfSupply','United Kingdom','placeOfSupplyConfirmed',true,'taxCategory','standard-rated','taxCategoryConfirmed',true),
+          'globalTaxCalculation',jsonb_build_object('ok',true,'status','calculated','countryCode','GB','currencyCode','GBP','taxableMinor',10000,'taxMinor',1999,'totalMinor',11999,
+            'components',jsonb_build_array(jsonb_build_object('id','GB-VAT-STANDARD-2026-11','name','VAT','rateBps',2000,'amountMinor',2000)),
+            'ruleSnapshot',jsonb_build_object('id','GB-VAT-STANDARD-2026-11','version','2026.11','source','https://www.gov.uk/vat-rates','effectiveFrom','2026-01-01'))
+        )
+      ),
+      '[{"description":"Tampered service","quantity":1,"rate":100}]'::jsonb,
+      NULL
+    );
+    RAISE EXCEPTION 'Tampered global tax snapshot unexpectedly accepted';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    NULL;
+  END;
+END
+$test$;
+
 UPDATE public.business_profile SET country_code='US',tax_registration_number='US-PERMIT',tax_registration_type='Sales tax',tax_jurisdiction_code='US-CA' WHERE workspace_id='workspace-global';
 DO $test$
 DECLARE v public.invoices;
