@@ -66,6 +66,15 @@ test("INR formatter and amount-in-words preserve Indian currency defaults", () =
   assert.equal(amountInWords(100), "One Hundred Rupees Only");
 });
 
+test("India HSN/SAC item classification is retained for all invoice design print/PDF layouts", async () => {
+  const designs = await read("../../components/invoice/designs.jsx");
+  assert.match(designs, /function itemClassificationLabel\(invoice, item\)/);
+  assert.match(designs, /item\?\.hsnSac/);
+  assert.equal((designs.match(/itemClassificationLabel\(invoice, item\)/g) || []).length >= 5, true,
+    "shared/inline item renderers must show HSN/SAC across all five designs");
+  assert.match(designs, /GlobalTaxInvoiceHeader invoice=\{model\.invoice\}/);
+});
+
 test("invoice RPC source contract covers create, edit, totals, GST, status, and atomic stock writes", async () => {
   const sql = await read("../../../supabase/migrations/202610270001_h1_invoice_rpcs.sql");
   assert.match(sql, /CREATE OR REPLACE FUNCTION public\.save_invoice/);
