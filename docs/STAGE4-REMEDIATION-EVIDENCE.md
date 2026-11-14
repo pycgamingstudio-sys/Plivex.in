@@ -2,98 +2,131 @@
 
 Repository: `pycgamingstudio-sys/Plivex.in`  
 Branch: `global-dev`  
-Previous Stage 4 candidate: `2e0e43e22b6b051c65ee5272cfe0a0d6f270110a`
+Current candidate at time of this report: `7d67171aeeae039544610f20390319f91b95fb5e`  
+Previous Stage 4 remediation candidate: `3cfd73601bd5b7acb455e732118ea42c834e95f2`
 
-## M-3 — read-only migration ledger reconciliation
+## Exact-SHA CI evidence
 
-The production migration ledger was queried read-only using only:
+All runs below checked out the exact candidate SHA `7d67171aeeae039544610f20390319f91b95fb5e`.
+
+| Workflow | Run ID | Result |
+|---|---:|---|
+| Global Foundation CI | 43547155661 | SUCCESS |
+| PostgreSQL Subscription Integration | 43547155682 | SUCCESS |
+| Stage 4 Remediation Verification | 43547155627 | FAILURE — M-3 replay guard conflict |
+
+Relevant executed test evidence from the PostgreSQL integration run:
+
+- Cashfree subscription handler suite: 12 passed, 0 failed.
+- Cashfree shared tests: 8 passed, 0 failed.
+- Refund + shared Cashfree tests: 13 passed, 0 failed.
+- Actual handler/PostgREST integration: 1 passed, 0 failed.
+- ESLint, TypeScript, Deno Cashfree checks, production build, and public build-environment verification completed successfully.
+
+The dedicated Stage 4 workflow's separate Auth job passed: job ID `132301030026`, actual disposable GoTrue `auth.getUser()`, Cashfree handler cancel/resume, and persisted PostgREST/PostgreSQL state. It passed 1 test, 0 failed.
+
+The dedicated migration replay job failed: job ID `132301029697`. The failure is detailed below. No replay, rollback, or India data-integrity pass is claimed.
+
+## M-1 — Authentication tests
+
+Addressed and verified on the exact candidate SHA:
+
+- Missing Bearer token → 401.
+- Invalid/expired token returned by `auth.getUser()` → 401.
+- Null user without an Auth error → 401.
+- Invalid authentication does not reach profile/subscription lookup or mutate state.
+- Origin, method, role, workspace, and Cashfree-only provider restrictions remain covered.
+
+The handler suite executed 12 tests, 0 failures. The new separate Auth integration job uses an isolated GoTrue service and does not stub `auth.getUser()`.
+
+## M-2 — Handler-to-PostgREST/PostgreSQL and real Auth
+
+Accepted with the prior limitation now addressed in a disposable integration lane.
+
+- The actual exported Cashfree subscription handler is invoked.
+- GoTrue creates and authenticates a disposable test user.
+- The handler validates the actual GoTrue access token with `auth.getUser()`.
+- Profile lookup and subscription reads/updates pass through PostgREST to disposable PostgreSQL.
+- Cancel and resume are checked against persisted database state.
+- An invalid token is rejected and must not mutate subscription state.
+
+This is a real disposable GoTrue + PostgREST integration, not a hosted production Supabase or deployed Edge Function test. No production Auth or database endpoint was used.
+
+## M-3 — Remote migration reconciliation and replay
+
+Read-only production ledger query:
 
 `SELECT version, name, statements FROM supabase_migrations.schema_migrations ORDER BY version;`
 
-The query returned 47 rows. No production schema, migration ledger, data, permission, RLS policy, or deployment was modified.
+The query returned 47 remote ledger entries. No production schema, migration ledger, data, permission, RLS policy, or deployment was modified.
 
-Reconciliation captured in `supabase/recovered_remote_migrations/README.md` and `manifest.json`:
+Reconciliation counts:
 
 - 47 remote ledger entries.
-- 23 local migration files on `global-dev`.
+- 23 current local migration files.
 - 0 exact version-string matches.
-- 12 remote entries share a basename with a local migration.
-- 8/12 same-basename pairs have normalized SQL bodies matching.
-- 4/12 same-basename pairs differ; exact remote statement bodies are archived separately.
-- 39 historical SQL sources were recovered from the ledger: 35 missing by basename plus 4 divergent remote versions.
-- 11 local-only migration files remain local and are not represented in the remote ledger.
+- 12 same-basename remote/local pairs.
+- 8/12 normalized SQL body matches.
+- 4/12 divergent same-basename pairs.
+- 39 recovered historical SQL sources: 35 missing-by-basename plus 4 divergent remote versions.
+- 11 local-only migration files not represented in the remote ledger.
 
-The archive is intentionally outside `supabase/migrations`, so Supabase CLI will not auto-apply it.
+All 39 archived SQL files were independently fetched from the exact candidate; each GitHub blob SHA matched its manifest SHA.
 
-### Replay and data-integrity limitation
+### Actual disposable replay result
 
-A complete ordered replay of all 47 historical statements against a disposable Supabase-compatible platform, including full rollback and data-integrity verification, has **not** yet been established. Several historical statements depend on Supabase-managed Auth, Storage, Vault, pg_cron, and pg_net objects. A vanilla PostgreSQL fixture is not equivalent to a disposable Supabase platform.
+The new Stage 4 replay workflow successfully started two isolated Supabase PostgreSQL containers and applied the replay bootstrap. The remote-history replay then failed at:
 
-There is also a material India-edition decision: the remote `20261113040332_basic_plan_lead_management` statement enables Basic lead-pipeline access in the shared `plan_features` catalogue, while the local same-basename migration is intentionally a no-op to avoid changing India entitlements. Do not replay that remote SQL blindly. Chat 4 must decide whether the global entitlement should be represented with an edition discriminator or remain disabled in the shared catalogue.
+`20261028030245_prioritize_effective_subscription.sql`
 
-Existing selected CI migration fixtures still test rollback, reapplication, and billing data integrity for migrations 007–010; these are not a full historical replay.
+Actual PostgreSQL error:
+
+`Unexpected current_plan ordering; refusing to modify`
+
+The archived earlier function definition in `20261025030902_preserve_running_trials_and_access_status.sql` uses the order fragment `order by s.expires_at desc,s.created_at desc`. The later remote migration's guard expects either a differently spaced old fragment or its canonical Pro-first CASE expression. The recorded preceding SQL does not produce either exact string in a clean replay. Its subsequent `get_access_status` guard also expects query fragments not established by the preceding archived function source.
+
+A read-only production `pg_get_functiondef` query confirms that the current live `current_plan` and `get_access_status` definitions already contain Pro-first effective-subscription ordering. That is evidence of the current post-migration state; it does not establish the exact historical precondition at the time migration `20261028030245` ran.
+
+A second ordering concern exists in the local-only `202610280004_fix_overlapping_subscription_tier_priority.sql`: it uses a different lowercase CASE and `get_access_status` transformation. The later local `202611130004_converge_effective_subscription_priority.sql` explicitly converges known variants. The candidate replay lane was not reached, so no claim is made that the combined remote/local sequence replays cleanly.
+
+The replay harness also recovered the pre-existing `public.workspace_cycle_start(text,timestamptz)` definition through a read-only production function-definition query. That fixture was necessary because remote migration `20261025092518` revokes privileges from the function but its CREATE statement is absent from the 47-row ledger. This fixture is used only in disposable replay databases.
+
+**M-3 remains a release blocker.** Do not bypass the guard, silently rewrite archived remote SQL, reorder migrations, or infer historical function bodies from current production state. Chat 4 must decide the safe reconciliation for the `20261028030245` / local-only `202610280004` function-definition divergence before a full replay can be claimed.
+
+The replay did not reach the later India entitlement migration or final rollback/data-integrity assertions. Those results remain unverified.
+
+### India Basic entitlement divergence
+
+The archived remote `20261113040332_basic_plan_lead_management` SQL enables Basic lead-pipeline access in the shared `plan_features` / `plan_limits` catalogue. The local same-basename migration is intentionally a no-op to avoid changing India entitlements. Do not replay the archived remote SQL blindly. Chat 4 must decide whether a safe edition-aware entitlement design is required.
 
 ## M-4 — Cashfree Sandbox
 
-No Cashfree Sandbox order/payment/webhook/refund lifecycle was executed in this remediation. No verified Sandbox merchant activation or Sandbox API credentials were supplied in the authorized development context, and no connected Cashfree Sandbox credential/transaction tool is available here.
+Status: **externally blocked; no Sandbox lifecycle execution claimed.**
 
-Exact blocked items:
-- Sandbox client ID and secret / merchant sandbox activation.
-- Sandbox webhook endpoint configuration and signing secret.
-- Provider-side order, payment, refund and replay evidence.
+Required prerequisites:
+- Cashfree Sandbox merchant activation.
+- Sandbox App ID and Secret Key.
+- Sandbox webhook endpoint configuration.
+- Sandbox webhook signing secret.
+- Provider-side test order/payment/refund/replay evidence.
 
-No Live credentials were requested or used. No Live transaction or refund was performed. Resume only after the merchant supplies/activates Sandbox configuration through the approved secret-management channel; never paste credentials into chat or commit them.
+A complete lifecycle plan is in `docs/STAGE4-CASHFREE-SANDBOX-TEST-PLAN.md`. Execute it only after legitimate Sandbox access is configured through approved secret management. Never paste credentials into chat or commit them. No Cashfree Live transaction or refund was used.
 
-## PayU India compatibility
+## Payment scope and India regression
 
-Existing disposable PostgreSQL billing fixture verifies legacy INR PayU yearly subscription metadata and access dates survive the additive Cashfree billing migrations. The handler unit suite also protects PayU subscriptions from Cashfree cancellation. The new handler/PostgreSQL fixture adds a PayU row in the same workspace and checks it remains unchanged after the Cashfree handler flow, once that integration test passes.
+Cashfree is the Global website payment provider. PayU lifecycle work is excluded from Stage 4.
 
-This is compatibility evidence for stored legacy records and Cashfree isolation. It does not prove the real PayU provider order, callback, renewal, cancellation, or refund lifecycle. No PayU production behavior was changed.
+India protection is limited to regression checks for stored INR/PayU subscription and payment records and verification that Cashfree-only operations do not mutate unrelated legacy rows. The disposable handler/PostgreSQL integration checks that a same-workspace legacy PayU row remains unchanged after Cashfree cancel/resume/status operations. No India production behavior was changed.
 
 ## Branch protection recommendation (not applied)
 
-Recommended settings for `global-dev` before release:
-1. Require pull requests before merge and at least one independent approval.
-2. Dismiss stale approvals after new commits; require conversation resolution.
-3. Require both CI workflows to pass, selecting the exact check contexts from the final candidate's GitHub check suite rather than guessing context names.
-4. Require branches to be up to date before merge.
-5. Block force pushes and branch deletion.
-6. Restrict direct pushes to maintainers; keep `main` protected separately.
+Recommendation is documented in `docs/GLOBAL-DEV-BRANCH-PROTECTION-RECOMMENDATION.md`.
 
-Repository settings were not changed. No branch-protection API write was made.
+Repository metadata at this report:
+- `global-dev` protection: disabled.
+- `main` remains at `b3fb11647ca436d28c6b4dccac733c94ad605f21`.
+- No repository settings or branch protection rules were changed.
 
 ## Safety boundary
 
-No main/production code, production Supabase schema/data/ledger/RLS/grants, production Edge Functions, Cloudflare production, Cashfree Live, or India production behavior was modified. This document is evidence and recommendations only.
-
-
-## Stage 4 final remediation automation prepared
-
-A dedicated workflow, `.github/workflows/stage4-remediation-verification.yml`, is present on `global-dev` only. It is designed to execute two isolated verification lanes:
-
-1. Exact remote-history replay: 39 recovered SQL sources plus 8 normalized local equivalents, ordered as the 47 remote ledger versions.
-2. Current global-dev candidate replay: 35 remote historical sources missing by basename plus all 23 current local migrations, ordered by their local migration filenames.
-
-The candidate replay seeds disposable India INR/PayU legacy rows after the historical base schema and checks that additive Cashfree billing migrations preserve gateway/provider IDs, status, tier, access dates, and INR values while backfilling minor/major units. It also checks that the local Basic lead-management no-op preserves the shared India Basic entitlement.
-
-The replay database uses the official Supabase PostgreSQL image with pg_cron/pg_net. Auth and Storage schema objects are compatibility fixtures; Vault secret creation is a local test stub. This is not a hosted Supabase environment and makes no connection to production. The separate Auth integration lane uses a disposable GoTrue service and PostgREST.
-
-The dedicated workflow is executing on the current candidate; its final CI run and all replay/rollback assertions remain pending until completion. No test is described as passed before that run.
-
-## Cashfree Sandbox lifecycle test plan (prepared, not executed)
-
-Preconditions: Cashfree confirms Sandbox merchant activation and provides Sandbox client credentials, webhook endpoint registration, and a webhook signing secret through the approved secret-management channel. No credentials should be pasted into chat or committed.
-
-1. Create INR and enabled international-currency Sandbox orders; verify order amount, currency, plan, billing period, workspace, and idempotency key.
-2. Complete a successful Sandbox payment; verify the signed webhook, provider order/payment IDs, amount/currency match, and exactly-once subscription activation.
-3. Replay the same successful webhook and deliver events out of order; verify idempotency and no duplicate payment-log or subscription transition.
-4. Exercise failed, pending, expired, and mismatched-amount/currency events; verify they do not activate access.
-5. Exercise full and partial Sandbox refunds, duplicate refund events, invalid signatures, unknown order IDs, and provider failures; verify refund state and ledger consistency.
-6. Verify cancel/resume/status behavior against a Sandbox Cashfree subscription and ensure a Cashfree action cannot mutate unrelated legacy India rows.
-7. Capture provider event IDs, sanitized request/response evidence, database before/after assertions, and CI logs. Never use Live credentials, Live transactions, or Live refunds as a substitute.
-
-Current M-4 status remains externally blocked; this plan is not evidence that any Sandbox lifecycle step has run.
-
-## Payment scope clarification
-
-Cashfree is the Global website payment provider. PayU lifecycle integration/testing is excluded from Stage 4. The only India compatibility checks retained are regression protection for existing stored INR subscription/payment records and confirmation that Cashfree-only operations do not mutate unrelated legacy records.
+All commits and test fixtures remain on `global-dev`. No merge, production deployment, production migration, live permission/RLS change, Cloudflare production change, Cashfree Live payment/refund, or India production change was performed. The only production database access in this remediation was read-only SQL to inspect the migration ledger and function definitions.
