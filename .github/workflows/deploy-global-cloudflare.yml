@@ -1,6 +1,8 @@
 name: Deploy Plivex Global to isolated Cloudflare Worker
 
 on:
+  push:
+    branches: [global-dev]
   workflow_dispatch:
 
 permissions:
