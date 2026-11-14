@@ -41,12 +41,14 @@ export async function handleCashfreeRefundEvent(
     !refundId ||
     !cfPaymentId ||
     !refundOrderId ||
-    !["SUCCESS", "PENDING", "FAILED", "CANCELLED"].includes(refundStatus) ||
+    !["SUCCESS", "PENDING", "FAILED", "CANCELLED", "ONHOLD"].includes(refundStatus) ||
     refundMinor === null ||
     refundMinor <= 0
   ) return json({ error: "Invalid or incomplete refund mapping" }, 400);
 
-  const normalizedStatus = refundStatus === "CANCELLED" ? "failed" : refundStatus.toLowerCase();
+  const normalizedStatus = refundStatus === "CANCELLED"
+    ? "failed"
+    : refundStatus === "ONHOLD" ? "pending" : refundStatus.toLowerCase();
   const { data: result, error } = await applyRefund({
     p_subscription_id: order.id,
     p_provider_refund_id: refundId,
