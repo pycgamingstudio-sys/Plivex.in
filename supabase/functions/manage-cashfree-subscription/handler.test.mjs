@@ -118,3 +118,58 @@ Deno.test("Cashfree cancellation endpoint never changes an India PayU subscripti
     throw new Error("Cashfree cancellation modified or accepted a PayU subscription");
   }
 });
+
+Deno.test("endpoint rejects requests without a bearer token", async () => {
+  const h = harness();
+  const response = await h.handler(new Request("https://plivex.in/functions/v1/manage-cashfree-subscription", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: "https://plivex.in" },
+    body: JSON.stringify({ action: "cancel" }),
+  }));
+  if (response.status !== 401) throw new Error("Missing bearer token was not rejected");
+});
+
+Deno.test("endpoint rejects an unapproved browser origin", async () => {
+  const h = harness();
+  const response = await h.handler(new Request("https://plivex.in/functions/v1/manage-cashfree-subscription", {
+    method: "POST",
+    headers: { Authorization: "Bearer test-token", "Content-Type": "application/json", Origin: "https://attacker.example" },
+    body: JSON.stringify({ action: "cancel" }),
+  }));
+  if (response.status !== 403) throw new Error("Unapproved origin was not rejected");
+});
+
+Deno.test("endpoint rejects non-POST methods", async () => {
+  const h = harness();
+  const response = await h.handler(new Request("https://plivex.in/functions/v1/manage-cashfree-subscription", {
+    method: "GET",
+    headers: { Authorization: "Bearer test-token", Origin: "https://plivex.in" },
+  }));
+  if (response.status !== 405) throw new Error("Non-POST method was not rejected");
+});
+
+Deno.test("endpoint rejects unsupported actions without changing subscription state", async () => {
+  const h = harness();
+  const response = await h.handler(new Request("https://plivex.in/functions/v1/manage-cashfree-subscription", {
+    method: "POST",
+    headers: { Authorization: "Bearer test-token", "Content-Type": "application/json", Origin: "https://plivex.in" },
+    body: JSON.stringify({ action: "delete" }),
+  }));
+  if (response.status !== 400 || h.state.cancel !== false || h.state.requestedAt !== null) {
+    throw new Error("Unsupported action was accepted or changed subscription state");
+  }
+});
+
+Deno.test("status action reports current cancellation state without writing", async () => {
+  const h = harness({ initialCancel: true });
+  const before = { ...h.state };
+  const response = await h.request("status");
+  const body = await response.json();
+  if (response.status !== 200 || body.available !== true || body.cancelAtPeriodEnd !== true) {
+    throw new Error("Status action did not report the current subscription state");
+  }
+  if (h.state.cancel !== before.cancel || h.state.requestedAt !== before.requestedAt || h.state.updatedAt !== before.updatedAt) {
+    throw new Error("Status action unexpectedly mutated subscription state");
+  }
+});
+
