@@ -5,7 +5,7 @@ import { calculateVerifiedTaxRule } from "../tax/verified-rule-evaluator.js";
 const rule = {
   id: "CA-ON-2026-01", version: "2026.1", countryCode: "CA", currencyCode: "CAD",
   treatment: "standard", verified: true, jurisdictionId: "CA-ON",
-  effectiveFrom: "2026-01-01", source: "https://www.canada.ca/en/revenue-agency.html",
+  effectiveFrom: "2026-01-01", reviewedOn: "2026-11-14", source: "https://www.canada.ca/en/revenue-agency.html",
   components: [
     { id: "GST", name: "GST", rateBps: 500 },
     { id: "PST", name: "PST", rateBps: 800 },
