@@ -15,3 +15,7 @@ verify_jwt = true
 
 [functions.manage-cashfree-subscription]
 verify_jwt = true
+
+# Global business records use their own schema and validate membership in the handler.
+[functions.global-business-records]
+verify_jwt = true
