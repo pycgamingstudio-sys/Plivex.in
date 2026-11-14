@@ -115,6 +115,9 @@ test("quotation persistence mapper retains India quotation fields and status", a
   assert.match(stores, /taxRate: num\(r\.tax_rate\)/);
   assert.match(stores, /status: i\.status === "sent" \? "sent" : "draft"/);
   assert.match(stores, /items: Array\.isArray\(i\.items\) \? i\.items : \[\]/);
+  assert.match(stores, /snapshotItems = Array.isArray\(r.invoice_snapshot\?\.items\)/);
+  assert.match(stores, /hsnSac: str\(item\?\.hsnSac\)/);
+  assert.match(stores, /items: restoredItems/);
   assert.match(stores, /workspaceRecords", \{ table: key, action: "create"/);
 });
 

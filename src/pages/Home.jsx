@@ -208,8 +208,9 @@ function InvoiceEditor({ invoice, setInvoice, workspaceTaxProfile, globalTaxCalc
                 <span className="pt-3 font-mono-ui text-[10px] text-muted-foreground shrink-0">{String(index + 1).padStart(2, "0")}</span>
                 <div className="min-w-0 flex-1 w-full">
                   <Field label="" error={errors[`item.${item.id}.description`]}>
-                    <HSNAutocomplete value={item.description} onChange={(v) => { updateItem(item.id, "description", v); onClearError(`item.${item.id}.description`); }} onSelect={(s) => { updateItem(item.id, "description", s.description); updateItem(item.id, "gstRate", s.gst_rate); onToast(`HSN ${s.hsn_code} · ${s.gst_rate}% applied`); }} placeholder="Item name — type to search HSN" className={withErrorClass(itemDescInputClass, errors[`item.${item.id}.description`])} style={{ flex: "1 1 auto", minHeight: "42px", width: "100%" }} />
+                    <HSNAutocomplete value={item.description} onChange={(v) => { updateItem(item.id, "description", v); onClearError(`item.${item.id}.description`); }} onSelect={(s) => { updateItem(item.id, "description", s.description); updateItem(item.id, "gstRate", s.gst_rate); updateItem(item.id, "hsnSac", s.hsn_code); onToast(`HSN ${s.hsn_code} · ${s.gst_rate}% applied`); }} placeholder="Item name — type to search HSN" className={withErrorClass(itemDescInputClass, errors[`item.${item.id}.description`])} style={{ flex: "1 1 auto", minHeight: "42px", width: "100%" }} />
                   </Field>
+                  {item.hsnSac && <p className="mt-1 text-[10px] text-muted-foreground">HSN/SAC: {item.hsnSac}</p>}
                 </div>
               </div>
               <div className="flex items-center gap-2 w-full">
