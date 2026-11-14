@@ -32,6 +32,10 @@ test("Global tenant tables enforce RLS and least-privilege provisioning", () => 
 });
 
 test("Global workspace data has constrained country, locale and currency identifiers", () => {
-  assert.match(migration, /country_code text not null check \(country_code ~ '\^\[A-Z\]\{2\}\$'\)/);
-  assert.match(migration, /currency_code text not null check \(currency_code ~ '\^\[A-Z\]\{3\}\$'\)/);
+  assert.ok(migration.includes("country_code text not null check (country_code ~ '^[A-Z]{2}
+});
+)"));
+  assert.ok(migration.includes("currency_code text not null check (currency_code ~ '^[A-Z]{3}
+});
+)"));
 });
