@@ -76,6 +76,9 @@ function replay(port, plan) {
   for (const entry of plan) {
     console.log("APPLY", entry.version, entry.kind, entry.path);
     psql(port, "plivex_migration_replay", ["-f", resolve(root, entry.path)]);
+    if (entry.version === "20261025030833") {
+      psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/migration-replay-preexisting-functions.sql")]);
+    }
     if (entry.version === "20261112071603") {
       psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/migration-replay-seed-india.sql")]);
       seeded = true;
