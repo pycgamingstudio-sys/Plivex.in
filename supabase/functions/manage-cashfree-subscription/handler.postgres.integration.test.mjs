@@ -81,7 +81,19 @@ async function createHandler() {
 }
 
 Deno.test("actual subscription handler reads and updates disposable PostgreSQL through PostgREST", async () => {
-  const { handler, admin, request } = await createHandler();
+  const { handler, admin, userToken, request } = await createHandler();
+
+  const profileProbe = await fetch(URL + "/profiles?select=workspace_id,role&id=eq." + USER_ID, {
+    headers: { Authorization: "Bearer " + userToken, apikey: ANON_KEY },
+  });
+  const profileProbeBody = await profileProbe.text();
+  if (!profileProbe.ok) {
+    throw new Error("Disposable PostgREST profile probe failed: " + profileProbe.status + " " + profileProbeBody);
+  }
+  const parsedProfile = JSON.parse(profileProbeBody);
+  if (parsedProfile.length !== 1 || parsedProfile[0].workspace_id !== WORKSPACE_ID || parsedProfile[0].role !== "admin") {
+    throw new Error("Disposable PostgREST profile probe returned unexpected data: " + profileProbeBody);
+  }
 
   const cancelResponse = await request("cancel");
   const cancelBody = await cancelResponse.json();
