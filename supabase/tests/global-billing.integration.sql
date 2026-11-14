@@ -668,7 +668,8 @@ $multi_payment_refunds$;
 
 -- Reusing a refund ID against a valid sibling payment must be rejected and
 -- must not move the existing refund ledger row or mutate the sibling totals.
-SET ROLE service_role;
+-- This fixture runs as the disposable database owner so it can inspect both
+-- payment-log rows after exercising the service-only RPC.
 DO $sibling_refund_id_reuse$
 DECLARE
  v_result jsonb;
@@ -700,7 +701,6 @@ BEGIN
  END IF;
 END
 $sibling_refund_id_reuse$;
-RESET ROLE;
 
 DO $missing_payment_mapping$
 DECLARE v_result jsonb;
