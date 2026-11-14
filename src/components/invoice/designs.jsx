@@ -277,7 +277,7 @@ function MinimalDesign({ invoice, subtotal, discount, discountValue, taxValue, t
           const rate = Number(item.rate) || 0;
           return (
             <div key={item.id} className="grid grid-cols-[1fr_45px_94px_100px] gap-3 border-b border-[#f1f0f4] py-5 text-[13px]">
-              <span>{item.description || "Untitled service"}</span>
+              <span className="font-medium">{item.description || "Untitled service"}<small className="mt-1 block text-[13px] font-normal text-[#8b889b]">{itemClassificationLabel(invoice, item)}</small></span>
               <span className="text-center font-mono-ui text-[13px] text-[#77758a]">{item.quantity}</span>
               <span className="text-right font-mono-ui text-[13px] text-[#77758a]">{money(rate, invoice.currency)}</span>
               <span className="text-right font-mono-ui text-[13px]">{money(quantity * rate, invoice.currency)}</span>
