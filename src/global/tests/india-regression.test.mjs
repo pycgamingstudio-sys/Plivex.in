@@ -74,10 +74,10 @@ test("India HSN/SAC item classification is retained for all invoice design print
     "shared/inline item renderers must show HSN/SAC across all five designs");
   assert.match(designs, /GlobalTaxInvoiceHeader invoice=\{model\.invoice\}/);
   const home = await read("../../pages/Home.jsx");
-  assert.match(home, /updateItem\(item\.id, "hsnSac", s\.hsn_code\)/);
-  assert.match(home, /HSN\\/SAC: \\{item\\.hsnSac\\}/);
+  assert.ok(home.includes('updateItem(item.id, "hsnSac", s.hsn_code)'));
+  assert.ok(home.includes("HSN/SAC: {item.hsnSac}"));
   const stores = await read("../../lib/stores.js");
-  assert.match(stores, /invoice_snapshot: inv && typeof inv === "object" \\? \\{ \\.\\.\\.inv/);
+  assert.ok(stores.includes('invoice_snapshot: inv && typeof inv === "object" ? { ...inv'));
 });
 
 test("invoice RPC source contract covers create, edit, totals, GST, status, and atomic stock writes", async () => {
