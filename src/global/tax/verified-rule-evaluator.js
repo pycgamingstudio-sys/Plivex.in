@@ -91,7 +91,8 @@ export function calculateVerifiedTaxRule(input) {
   }
 
   const rateBps = rule.components.reduce((sum, component) => sum + component.rateBps, 0);
-  if (rateBps > 10000 || !Number.isSafeInteger(input.amountMinor * rateBps)\n    || !Number.isSafeInteger(input.amountMinor * 10000)) return fail("RATE_OR_AMOUNT_OUT_OF_RANGE", "Combined rate or amount exceeds supported limits.");
+  if (rateBps > 10000 || !Number.isSafeInteger(input.amountMinor * rateBps)
+    || !Number.isSafeInteger(input.amountMinor * 10000)) return fail("RATE_OR_AMOUNT_OUT_OF_RANGE", "Combined rate or amount exceeds supported limits.");
   const amount = input.amountMinor;
   const taxableMinor = input.priceMode === "exclusive" ? amount : roundDiv(amount * 10000, 10000 + rateBps);
   const totalMinor = input.priceMode === "exclusive" ? amount + roundDiv(amount * rateBps, 10000) : amount;
