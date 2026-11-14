@@ -89,6 +89,14 @@ function replay(port, plan, applyRemoteCompatibilityBridge = false) {
       psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/migrations/202610280004_fix_overlapping_subscription_tier_priority.sql")]);
       compatibilityBridgeApplied = true;
     }
+    if (plan === candidatePlan && entry.version === "202611130003") {
+      const startedAt = query(port, "plivex_migration_replay", `
+        SELECT substring(pg_get_functiondef('public.get_access_status(text)'::regprocedure)
+          FROM position('startedAt' IN pg_get_functiondef('public.get_access_status(text)'::regprocedure))
+          FOR 900);
+      `);
+      console.log("PRE-CONVERGENCE startedAt expression:", startedAt);
+    }
     if (entry.version === "20261112071603") {
       psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/migration-replay-seed-india.sql")]);
       seeded = true;
