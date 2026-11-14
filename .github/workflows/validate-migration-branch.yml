@@ -31,13 +31,16 @@ jobs:
           deno-version: v2.x
       - name: Check Supabase Edge Functions
         run: |
-          deno check supabase/functions/_shared/team.ts supabase/functions/_shared/payu.ts supabase/functions/_shared/email.ts
+          deno check supabase/functions/_shared/team.ts supabase/functions/_shared/email.ts
+          deno check supabase/functions/_shared/cashfree.ts supabase/functions/cashfree-webhook/index.ts supabase/functions/cashfree-webhook/refund.ts
           deno check supabase/functions/ensure-owner-role/index.ts supabase/functions/send-team-invite/index.ts supabase/functions/send-payment-reminder/index.ts supabase/functions/verify-invite-code/index.ts
           deno check supabase/functions/manage-workspace-member/index.ts supabase/functions/get-workspace-team/index.ts
           deno check supabase/functions/ping-presence/index.ts supabase/functions/track-staff-action/index.ts supabase/functions/get-team-presence/index.ts
           deno check supabase/functions/get-access-status/index.ts supabase/functions/create-payu-order/index.ts supabase/functions/verify-payu-payment/index.ts
           deno check supabase/functions/workspace-records/index.ts supabase/functions/list-invoices/index.ts
           deno check supabase/functions/save-invoice/index.ts supabase/functions/set-invoice-status/index.ts
+      - name: Cashfree refund regression tests
+        run: deno test supabase/functions/cashfree-webhook/refund.test.ts
       - name: Lint
         run: npm run lint
       - name: Membership tests
