@@ -3,7 +3,7 @@
   "captured_at": "2026-11-14",
   "source": "read-only SELECT from supabase_migrations.schema_migrations (version,name,statements)",
   "remote_ledger_entries": 47,
-  "local_migration_files": 28,
+  "local_migration_files": 29,
   "exact_version_matches": 0,
   "basename_matches": [
     {
@@ -319,7 +319,8 @@
     "20261114000002_global_workspace_tax_registration_profile.sql",
     "20261114000003_global_invoice_tax_calculation.sql",
     "20261114000004_global_tax_snapshot_hardening.sql",
-    "202611150001_global_isolation_foundation.sql"
+    "202611150001_global_isolation_foundation.sql",
+    "202611150002_global_owner_provisioning.sql"
   ],
   "notes": [
     "Recovered SQL is copied from the production migration ledger statements column.",
@@ -329,7 +330,7 @@
     "Eight of twelve same-basename local files are normalized-SQL matches to the remote ledger source; four differ and their exact remote variants are separately archived. The basic_plan_lead_management remote source changes the shared plan_features catalogue, while the local same-basename file is intentionally a no-op to avoid changing India entitlements; do not replay that remote source blindly.",
     "20261114000005_cashfree_refund_exact_payment_mapping.sql is a new Global-only forward migration; it replaces the legacy subscription-wide Cashfree refund RPC with exact order/payment-log mapping and is included in the candidate replay.",
     "The three Global tax migrations dated 20261114000002 through 20261114000004 and the exact Cashfree refund mapping migration 20261114000005 are current local-only migrations and are included in the disposable candidate replay.",
-    "202611150001_global_isolation_foundation.sql is a new additive Global-only migration included in the disposable 63-entry candidate replay. It must not be applied to the shared production project without separate approval."
+    "202611150002_global_owner_provisioning.sql adds service_role-only RPC wrappers for Global auth context, idempotent owner workspace provisioning, and Global profile updates. It is included in the disposable 64-entry candidate replay; business data remains in the global schema."
   ],
   "recovered_historical_sources": [
     {
