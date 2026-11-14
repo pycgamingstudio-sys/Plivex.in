@@ -813,18 +813,33 @@ SELECT public.apply_cashfree_refund_event(
 );
 RESET ROLE;
 
--- Prepare a historically ambiguous refund for a deterministic lock-order race.
--- The two duplicate payment attempts are removed only after all ambiguity assertions.
-DELETE FROM public.payment_logs
-WHERE id IN ('20000000-0000-0000-0000-000000000023',
-             '20000000-0000-0000-0000-000000000098');
+-- Preserve the duplicate historical attempts used by the ambiguity test.
+-- Retarget only this unlinked refund's raw provider payment ID to a new exact
+-- payment-log fixture so the concurrent reconciliation/webhook race has one
+-- deterministic match without deleting rows referenced by audit exceptions.
+UPDATE public.payment_refunds
+SET raw = jsonb_set(raw, '{data,refund,cf_payment_id}', '"714099"'::jsonb, false)
+WHERE id='30000000-0000-0000-0000-000000000003';
+
+INSERT INTO public.payment_logs
+  (id,workspace_id,gateway,txnid,amount,currency,outcome,provider,subscription_id,provider_payment_id)
+VALUES
+  ('20000000-0000-0000-0000-000000000029','ws-a','cashfree',
+   'PLXCF-HIST-AMBIG-000000000014',10000,'INR','applied','cashfree',
+   '10000000-0000-0000-0000-000000000014','714099');
 
 DO $prepare_reconcile_webhook_race$
 BEGIN
   IF (SELECT count(*) FROM public.payment_logs
       WHERE subscription_id='10000000-0000-0000-0000-000000000014'
         AND provider='cashfree' AND gateway='cashfree'
-        AND provider_payment_id='714001') <> 1 THEN
+        AND provider_payment_id='714001') <> 3 THEN
+    RAISE EXCEPTION 'Ambiguous historical payment attempts were not preserved';
+  END IF;
+  IF (SELECT count(*) FROM public.payment_logs
+      WHERE subscription_id='10000000-0000-0000-0000-000000000014'
+        AND provider='cashfree' AND gateway='cashfree'
+        AND provider_payment_id='714099') <> 1 THEN
     RAISE EXCEPTION 'Concurrency fixture does not have exactly one verified payment match';
   END IF;
   IF (SELECT payment_log_id FROM public.payment_refunds
