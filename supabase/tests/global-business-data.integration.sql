@@ -3,7 +3,8 @@
 INSERT INTO auth.users (id,email,raw_user_meta_data,raw_app_meta_data)
 VALUES
  ('66666666-6666-4666-8666-666666666666','global-data-a@example.test','{}'::jsonb,'{}'::jsonb),
- ('77777777-7777-4777-8777-777777777777','global-data-b@example.test','{}'::jsonb,'{}'::jsonb)
+ ('77777777-7777-4777-8777-777777777777','global-data-b@example.test','{}'::jsonb,'{}'::jsonb),
+ ('88888888-8888-4888-8888-888888888888','global-data-manager@example.test','{}'::jsonb,'{}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
 SET ROLE service_role;
@@ -14,7 +15,12 @@ VALUES
 INSERT INTO global.workspace_members(workspace_id,user_id,role,status)
 VALUES
  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','66666666-6666-4666-8666-666666666666','owner','active'),
- ('dddddddd-dddd-4ddd-8ddd-dddddddddddd','77777777-7777-4777-8777-777777777777','owner','active');
+ ('dddddddd-dddd-4ddd-8ddd-dddddddddddd','77777777-7777-4777-8777-777777777777','owner','active'),
+ ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','88888888-8888-4888-8888-888888888888','manager','active');
+INSERT INTO global.business_profiles(workspace_id,legal_name,display_name,country_code,locale_code,currency_code)
+VALUES
+ ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','Workspace A Ltd','Workspace A','GB','en-GB','GBP'),
+ ('dddddddd-dddd-4ddd-8ddd-dddddddddddd','Workspace B Inc','Workspace B','US','en-US','USD');
 INSERT INTO global.clients(id,workspace_id,name,created_by)
 VALUES
  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','cccccccc-cccc-4ccc-8ccc-cccccccccccc','Client A','66666666-6666-4666-8666-666666666666'),
@@ -69,14 +75,15 @@ DECLARE
   table_name text;
   visible_count bigint;
 BEGIN
-  FOREACH table_name IN ARRAY ARRAY['clients','products','stock_levels','stock_movements','invoices','invoice_items','invoice_payments','expenses'] LOOP
+  FOREACH table_name IN ARRAY ARRAY['clients','products','stock_levels','stock_movements','invoices','invoice_items','invoice_payments','expenses','business_profiles'] LOOP
     EXECUTE format('SELECT count(*) FROM global.%I', table_name) INTO visible_count;
     IF visible_count <> 1 THEN RAISE EXCEPTION 'Workspace A expected one % row, saw %', table_name, visible_count; END IF;
   END LOOP;
   IF NOT EXISTS (SELECT 1 FROM global.clients WHERE name='Client A')
      OR EXISTS (SELECT 1 FROM global.clients WHERE name='Client B')
      OR EXISTS (SELECT 1 FROM global.invoices WHERE invoice_number='B-001')
-     OR EXISTS (SELECT 1 FROM global.expenses WHERE category='Travel') THEN
+     OR EXISTS (SELECT 1 FROM global.expenses WHERE category='Travel')
+     OR EXISTS (SELECT 1 FROM global.business_profiles WHERE display_name='Workspace B') THEN
     RAISE EXCEPTION 'Workspace A can see Workspace B business data';
   END IF;
 END
@@ -91,7 +98,9 @@ BEGIN
      OR (SELECT count(*) FROM global.invoices) <> 1
      OR (SELECT count(*) FROM global.products) <> 1
      OR (SELECT count(*) FROM global.stock_movements) <> 1
-     OR (SELECT count(*) FROM global.expenses) <> 1 THEN
+     OR (SELECT count(*) FROM global.expenses) <> 1
+     OR (SELECT count(*) FROM global.business_profiles) <> 1
+     OR NOT EXISTS (SELECT 1 FROM global.business_profiles WHERE display_name='Workspace B') THEN
     RAISE EXCEPTION 'Workspace B business-data isolation failed';
   END IF;
 END
@@ -180,6 +189,28 @@ BEGIN
   );
   IF result->>'ok' <> 'false' OR result->>'reason' <> 'read_only' THEN
     RAISE EXCEPTION 'Global service RPC allowed a non-atomic invoice write';
+  END IF;
+
+  result := public.global_business_records(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'business_profiles','update','cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    '{"tax_registration_number":"GB123456789","tax_registration_type":"VAT","tax_registration_status":"registered","tax_registration_effective_from":"2026-01-01","tax_jurisdiction_code":"GB"}'::jsonb,10
+  );
+  IF result->>'ok' <> 'true'
+     OR result->'record'->>'tax_registration_number' <> 'GB123456789'
+     OR result->'record'->>'tax_registration_effective_from' <> '2026-01-01' THEN
+    RAISE EXCEPTION 'Global owner could not update the business tax profile';
+  END IF;
+
+  result := public.global_business_records(
+    '88888888-8888-4888-8888-888888888888',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'business_profiles','update','cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    '{"display_name":"Manager Must Not Update"}'::jsonb,10
+  );
+  IF result->>'ok' <> 'false' OR result->>'reason' <> 'forbidden' THEN
+    RAISE EXCEPTION 'Global manager unexpectedly updated business profile';
   END IF;
 END
 $global_records_rpc$;
