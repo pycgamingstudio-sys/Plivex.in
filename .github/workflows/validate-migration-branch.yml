@@ -62,6 +62,19 @@ jobs:
           PGPASSWORD: postgres
         run: |
           psql -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1 -f supabase/tests/cashfree-refund.integration.sql
+      - name: Verify concurrent historical reconciliation and webhook retry use one lock order
+        env:
+          PGPASSWORD: postgres
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1 -Atc "SELECT public.reconcile_cashfree_refund_payment_log('30000000-0000-0000-0000-000000000003');" > "$RUNNER_TEMP/reconcile-race.json" &
+          reconcile_pid=$!
+          psql -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1 -Atc "SELECT public.apply_cashfree_refund_event('10000000-0000-0000-0000-000000000014','RF-HIST-AMBIGUOUS',500,'INR','success',jsonb_build_object('data',jsonb_build_object('refund',jsonb_build_object('order_id','PLXCF-HIST-AMBIG-000000000014','cf_payment_id',714001))));" > "$RUNNER_TEMP/webhook-race.json" &
+          webhook_pid=$!
+          wait "$reconcile_pid"
+          wait "$webhook_pid"
+          psql -h 127.0.0.1 -U postgres -d plivex_test -v ON_ERROR_STOP=1 -c "DO \$\$ BEGIN IF (SELECT payment_log_id FROM public.payment_refunds WHERE id='30000000-0000-0000-0000-000000000003') <> '20000000-0000-0000-0000-000000000022'::uuid THEN RAISE EXCEPTION 'Concurrent reconciliation/webhook mapping is not the exact payment log'; END IF; IF (SELECT count(*) FROM public.payment_refunds WHERE provider='cashfree' AND provider_refund_id='RF-HIST-AMBIGUOUS') <> 1 THEN RAISE EXCEPTION 'Concurrent retry duplicated refund ledger row'; END IF; IF (SELECT refund_amount_minor_units FROM public.payment_logs WHERE id='20000000-0000-0000-0000-000000000022') <> 500 THEN RAISE EXCEPTION 'Concurrent refund total is not exactly 500'; END IF; IF (SELECT refund_status FROM public.subscriptions WHERE id='10000000-0000-0000-0000-000000000014') <> 'partially_refunded' THEN RAISE EXCEPTION 'Concurrent subscription aggregate is inconsistent'; END IF; END \$\$;"
       - name: Verify concurrent partial refunds are atomic
         env:
           PGPASSWORD: postgres
