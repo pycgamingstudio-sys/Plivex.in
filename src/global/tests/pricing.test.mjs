@@ -13,9 +13,9 @@ test("all seven supported countries have explicit local currencies and prices", 
   }
 });
 
-test("Cashfree currency allowlist does not overstate AED availability", () => {
+test("Cashfree is deferred for all Global countries until provider approval", () => {
   assert.deepEqual(CASHFREE_CURRENCIES, ["INR","USD","GBP","CAD","AUD","SGD"]);
-  assert.equal(getBillingForCountry("AE").paymentEnabled, false);
+  for (const country of COUNTRY_REGISTRY) assert.equal(getBillingForCountry(country.code).paymentEnabled, false);
   assert.equal(getBillingForCountry("US").currency, "USD");
 });
 
