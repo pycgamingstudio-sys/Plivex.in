@@ -182,7 +182,7 @@ test("manual treatment uses an explicit allowlist and rejects unknown labels", (
   for (const taxCategory of ["", "unknown", "special scheme", "reverse charge", "taxable service", "exempt", "standard"]) {
     const result = calculateInvoiceGlobalTax(invoice("GBP", { mode: "manual", taxCategory,
       components: [{ id: "vat", name: "VAT", rateBps: 2000 }] }), profile("GB", "GBP"));
-    assert.equal(result.code, "UNSUPPORTED_TAX_TREATMENT", taxCategory);
+    assert.equal(result.code, taxCategory ? "UNSUPPORTED_TAX_TREATMENT" : "TAX_CATEGORY_REQUIRED", taxCategory);
   }
   const supported = calculateInvoiceGlobalTax(invoice("GBP", { mode: "manual", taxCategory: "standard-rated",
     components: [{ id: "vat", name: "VAT", rateBps: 2000 }] }), profile("GB", "GBP"));
