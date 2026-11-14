@@ -112,4 +112,87 @@ END
 $least_privilege$;
 RESET ROLE;
 
+-- Private service-role RPC rechecks workspace membership and keeps global schema unexposed.
+SET ROLE service_role;
+DO $global_records_rpc$
+DECLARE
+  result jsonb;
+  created_id uuid;
+BEGIN
+  result := public.global_business_records(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'clients','list',null,'{}'::jsonb,10
+  );
+  IF result->>'ok' <> 'true' OR jsonb_array_length(result->'records') <> 1
+     OR result->'records'->0->>'name' <> 'Client A' THEN
+    RAISE EXCEPTION 'Global service RPC list did not enforce workspace A';
+  END IF;
+
+  result := public.global_business_records(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'clients','create',null,'{"name":"RPC Client"}'::jsonb,10
+  );
+  IF result->>'ok' <> 'true' OR result->'record'->>'created_by' <> '66666666-6666-4666-8666-666666666666' THEN
+    RAISE EXCEPTION 'Global service RPC create failed or used the wrong creator';
+  END IF;
+  created_id := (result->'record'->>'id')::uuid;
+
+  result := public.global_business_records(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'clients','update',created_id,'{"name":"RPC Client Updated"}'::jsonb,10
+  );
+  IF result->>'ok' <> 'true' OR result->'record'->>'name' <> 'RPC Client Updated' THEN
+    RAISE EXCEPTION 'Global service RPC update failed';
+  END IF;
+
+  result := public.global_business_records(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'clients','delete',created_id,'{}'::jsonb,10
+  );
+  IF result->>'ok' <> 'true' THEN RAISE EXCEPTION 'Global service RPC delete failed'; END IF;
+
+  result := public.global_business_records(
+    '66666666-6666-4666-8666-666666666666',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    'clients','list',null,'{}'::jsonb,10
+  );
+  IF result->>'ok' <> 'false' OR result->>'reason' <> 'access_denied' THEN
+    RAISE EXCEPTION 'Global service RPC allowed a user to cross workspaces';
+  END IF;
+
+  result := public.global_business_records(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'expenses','create',null,'{"category":"Test","amount_minor":100,"currency_code":"USD"}'::jsonb,10
+  );
+  IF result->>'ok' <> 'false' OR result->>'reason' <> 'invalid_currency' THEN
+    RAISE EXCEPTION 'Global service RPC accepted a foreign workspace currency';
+  END IF;
+
+  result := public.global_business_records(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'invoices','create',null,'{}'::jsonb,10
+  );
+  IF result->>'ok' <> 'false' OR result->>'reason' <> 'read_only' THEN
+    RAISE EXCEPTION 'Global service RPC allowed a non-atomic invoice write';
+  END IF;
+END
+$global_records_rpc$;
+RESET ROLE;
+
+DO $global_rpc_privileges$
+BEGIN
+  IF has_function_privilege('anon','public.global_business_records(uuid,uuid,text,text,uuid,jsonb,integer)','EXECUTE')
+     OR has_function_privilege('authenticated','public.global_business_records(uuid,uuid,text,text,uuid,jsonb,integer)','EXECUTE')
+     OR NOT has_function_privilege('service_role','public.global_business_records(uuid,uuid,text,text,uuid,jsonb,integer)','EXECUTE') THEN
+    RAISE EXCEPTION 'Global records RPC execute grants are not service-role-only';
+  END IF;
+END
+$global_rpc_privileges$;
+
 SELECT 'PASS: Global business tables, two-workspace RLS isolation, anon denial and server-only writes' AS result;
