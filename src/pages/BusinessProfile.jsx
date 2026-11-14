@@ -24,7 +24,7 @@ export default function BusinessProfile() {
         <div className="space-y-4 rounded-xl border bg-card p-5">
           <Field label="Business name"><input className={inputCls} value={profile.name} onChange={(e) => set("name", e.target.value)} placeholder="Your Business Name" /></Field>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={APP_EDITION === "global" ? "Tax registration number" : "GSTIN"}><input className={inputCls} value={profile.gstin} onChange={(e) => set("gstin", e.target.value)} placeholder="22AAAAA0000A1Z5" /></Field>
+            {APP_EDITION !== "global" && <Field label="GSTIN"><input className={inputCls} value={profile.gstin} onChange={(e) => set("gstin", e.target.value)} placeholder="22AAAAA0000A1Z5" /></Field>}
             <Field label="Email"><input className={inputCls} value={profile.email} onChange={(e) => set("email", e.target.value)} placeholder="you@studio.in" /></Field>
             <Field label="Phone"><input className={inputCls} value={profile.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+91" /></Field>
             {APP_EDITION !== "global" && <Field label="UPI ID / VPA"><input className={inputCls} value={profile.upiId || ""} onChange={(e) => set("upiId", e.target.value)} placeholder="store@upi" /></Field>}
