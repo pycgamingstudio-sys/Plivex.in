@@ -23,7 +23,7 @@ UPDATE public.subscriptions
 SET payment_status = CASE
   WHEN status::text = 'active' THEN 'success'
   WHEN status::text = 'failed' THEN 'failed'
-  WHEN payment_status IS NULL THEN 'created'
+  WHEN status::text = 'created' THEN 'created'
   ELSE payment_status
 END
 WHERE lower(COALESCE(gateway,'')) = 'cashfree' OR lower(COALESCE(provider,'')) = 'cashfree';
