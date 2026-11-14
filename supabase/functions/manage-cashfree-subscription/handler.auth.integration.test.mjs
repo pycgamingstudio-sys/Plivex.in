@@ -30,6 +30,7 @@ async function makeKeys() {
 Deno.test("real Supabase Auth user verification reaches the actual Cashfree handler and PostgREST", async () => {
   const keys = await makeKeys();
   const admin = createClient(URL, keys.service, { auth: { persistSession: false, autoRefreshToken: false } });
+  const loginClient = createClient(URL, keys.anon, { auth: { persistSession: false, autoRefreshToken: false } });
   const email = "stage4-auth-" + crypto.randomUUID() + "@example.test";
   const password = "Stage4-" + crypto.randomUUID() + "-Aa9!";
   const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
@@ -50,7 +51,7 @@ Deno.test("real Supabase Auth user verification reaches the actual Cashfree hand
   });
   if (subscriptionInsert.error) throw new Error("Could not create Auth integration subscription: " + subscriptionInsert.error.message);
 
-  const signedIn = await admin.auth.signInWithPassword({ email, password });
+  const signedIn = await loginClient.auth.signInWithPassword({ email, password });
   if (signedIn.error || !signedIn.data.session?.access_token) throw new Error("GoTrue sign-in failed: " + (signedIn.error?.message || "missing session"));
   const accessToken = signedIn.data.session.access_token;
 
