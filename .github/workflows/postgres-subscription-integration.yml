@@ -248,6 +248,38 @@ jobs:
         run: deno test supabase/functions/manage-cashfree-subscription/handler.test.mjs
       - name: Test Cashfree webhook refund-event handler and order ID validation
         run: deno test supabase/functions/_shared/cashfree.test.ts supabase/functions/cashfree-webhook/refund.test.ts
+      - name: Prepare isolated handler/PostgreSQL integration database
+        run: |
+          createdb plivex_handler_test
+          psql -d plivex_handler_test -v ON_ERROR_STOP=1 -f supabase/tests/cashfree-handler-postgres.setup.sql
+      - name: Start disposable PostgREST for real handler integration
+        env:
+          TEST_JWT_SECRET: plivex-disposable-ci-jwt-secret-only-never-production-00000000000000000000000000000000
+        run: |
+          docker run --detach --rm --name plivex-postgrest --network host \
+            --env PGRST_DB_URI=postgres://postgres:postgres@127.0.0.1:5432/plivex_handler_test \
+            --env PGRST_DB_SCHEMAS=public \
+            --env PGRST_DB_ANON_ROLE=anon \
+            --env PGRST_JWT_SECRET="$TEST_JWT_SECRET" \
+            postgrest/postgrest:v12.2.3
+          ready=0
+          for attempt in $(seq 1 30); do
+            code="$(curl -sS -o /tmp/plivex-postgrest-openapi.json -w '%{http_code}' http://127.0.0.1:3000/ || true)"
+            if [ "$code" = "200" ]; then ready=1; break; fi
+            sleep 2
+          done
+          if [ "$ready" != "1" ]; then
+            docker logs plivex-postgrest
+            exit 1
+          fi
+      - name: Run actual Edge handler to disposable PostgreSQL integration test
+        env:
+          TEST_JWT_SECRET: plivex-disposable-ci-jwt-secret-only-never-production-00000000000000000000000000000000
+          TEST_SUPABASE_URL: http://127.0.0.1:3000
+        run: deno test --allow-env --allow-net supabase/functions/manage-cashfree-subscription/handler.postgres.integration.test.mjs
+      - name: Stop disposable PostgREST
+        if: always()
+        run: docker stop plivex-postgrest || true
       - name: Production build
         run: npm run build
       - name: Verify public build configuration
