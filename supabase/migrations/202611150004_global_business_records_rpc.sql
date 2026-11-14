@@ -32,10 +32,10 @@ begin
   if p_values is null or jsonb_typeof(p_values) <> 'object' then
     return jsonb_build_object('ok', false, 'reason', 'invalid_values');
   end if;
-  if p_table not in ('clients','products','expenses','stock_levels','stock_movements','invoices','invoice_items','invoice_payments') then
+  if p_table is null or p_table not in ('clients','products','expenses','stock_levels','stock_movements','invoices','invoice_items','invoice_payments') then
     return jsonb_build_object('ok', false, 'reason', 'unsupported_table');
   end if;
-  if p_action not in ('list','create','update','delete') then
+  if p_action is null or p_action not in ('list','create','update','delete') then
     return jsonb_build_object('ok', false, 'reason', 'unsupported_action');
   end if;
 
@@ -97,6 +97,11 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'forbidden');
   end if;
 
+  if p_action in ('create','update') and p_table in ('products','expenses')
+    and p_values ? 'currency_code' and p_values->>'currency_code' <> v_currency then
+    return jsonb_build_object('ok', false, 'reason', 'invalid_currency');
+  end if;
+
   if p_action = 'create' then
     case p_table
       when 'clients' then
@@ -107,7 +112,7 @@ begin
           p_values->>'tax_registration_number',coalesce(p_values->'billing_address','{}'::jsonb),
           coalesce(p_values->'shipping_address','{}'::jsonb),p_values->>'notes',
           coalesce(p_values->>'status','active'),p_user_id
-        ) returning to_jsonb(global.clients.*) into v_record;
+        ) returning to_jsonb(clients) into v_record;
       when 'products' then
         insert into global.products(
           workspace_id,name,sku,description,unit,sale_price_minor,purchase_cost_minor,currency_code,tax_code,is_active,created_by
@@ -118,7 +123,7 @@ begin
           coalesce(nullif(p_values->>'purchase_cost_minor','')::bigint,0),
           coalesce(p_values->>'currency_code',v_currency),p_values->>'tax_code',
           coalesce((p_values->>'is_active')::boolean,true),p_user_id
-        ) returning to_jsonb(global.products.*) into v_record;
+        ) returning to_jsonb(products) into v_record;
       when 'expenses' then
         insert into global.expenses(
           workspace_id,category,vendor,amount_minor,currency_code,expense_date,payment_method,reference,notes,attachment_url,created_by
@@ -127,7 +132,7 @@ begin
           (p_values->>'amount_minor')::bigint,coalesce(p_values->>'currency_code',v_currency),
           coalesce(nullif(p_values->>'expense_date','')::date,current_date),
           p_values->>'payment_method',p_values->>'reference',p_values->>'notes',p_values->>'attachment_url',p_user_id
-        ) returning to_jsonb(global.expenses.*) into v_record;
+        ) returning to_jsonb(expenses) into v_record;
     end case;
     return jsonb_build_object('ok', true, 'record', v_record, 'currency_code', v_currency);
   end if;
@@ -181,12 +186,14 @@ begin
     return jsonb_build_object('ok', true, 'record', v_record, 'currency_code', v_currency);
   end if;
 
-  delete from global.clients where p_table='clients' and id=p_record_id and workspace_id=p_workspace_id returning id into v_id;
-  if p_table='products' then
-    delete from global.products where id=p_record_id and workspace_id=p_workspace_id returning id into v_id;
-  elsif p_table='expenses' then
-    delete from global.expenses where id=p_record_id and workspace_id=p_workspace_id returning id into v_id;
-  end if;
+  case p_table
+    when 'clients' then
+      delete from global.clients where id=p_record_id and workspace_id=p_workspace_id returning id into v_id;
+    when 'products' then
+      delete from global.products where id=p_record_id and workspace_id=p_workspace_id returning id into v_id;
+    when 'expenses' then
+      delete from global.expenses where id=p_record_id and workspace_id=p_workspace_id returning id into v_id;
+  end case;
   if v_id is null then return jsonb_build_object('ok', false, 'reason', 'not_found'); end if;
   return jsonb_build_object('ok', true, 'id', v_id);
 end;
