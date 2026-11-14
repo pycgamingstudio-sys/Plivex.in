@@ -136,17 +136,16 @@ const profileToDb = (p) => ({ name: str(p?.name), email: str(p?.email), phone: s
 const invoiceToUi = (r) => {
   const items = Array.isArray(r.invoice_items) ? r.invoice_items : [];
   const snapshotItems = Array.isArray(r.invoice_snapshot?.items) ? r.invoice_snapshot.items : [];
-  const restoredItems = snapshotItems.length ? snapshotItems.map((item, index) => ({
+  const restoredItems = items.length ? items.map((it, index) => ({
+    description: str(it.description), quantity: num(it.quantity), rate: num(it.rate),
+    gstRate: it.gst_rate === null || it.gst_rate === undefined ? undefined : num(it.gst_rate),
+    ...(str(snapshotItems[index]?.hsnSac) ? { hsnSac: str(snapshotItems[index].hsnSac) } : {}),
+  })) : snapshotItems.map((item, index) => ({
     id: str(item?.id) || ("item-" + (index + 1)),
-    description: str(item?.description),
-    quantity: num(item?.quantity),
-    rate: num(item?.rate),
+    description: str(item?.description), quantity: num(item?.quantity), rate: num(item?.rate),
     gstRate: item?.gstRate === undefined && item?.gst_rate === undefined
       ? undefined : num(item.gstRate ?? item.gst_rate),
     ...(str(item?.hsnSac) ? { hsnSac: str(item.hsnSac) } : {}),
-  })) : items.map((it) => ({
-    description: str(it.description), quantity: num(it.quantity), rate: num(it.rate),
-    gstRate: it.gst_rate === null || it.gst_rate === undefined ? undefined : num(it.gst_rate),
   }));
   return {
     id: r.id, number: str(r.number), clientName: str(r.client_name), clientEmail: str(r.client_email), businessName: str(r.business_name),
