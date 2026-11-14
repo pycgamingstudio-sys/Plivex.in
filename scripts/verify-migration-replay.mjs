@@ -121,22 +121,44 @@ function assertGlobalFoundation(port) {
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-isolation-foundation.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-owner-provisioning.integration.sql")]);
 }
+function applyForcedMigrationRollback(port, db, migrationPath) {
+  const migration = readFileSync(migrationPath, "utf8")
+    .replace(/(^|\\n)begin;\\s*/i, "$1")
+    .replace(/\\ncommit;\\s*$/i, "");
+  const forcedRollback = "BEGIN;\\n" + migration +
+    "\\nDO $global_rollback$ BEGIN RAISE EXCEPTION 'intentional Global migration rollback verification'; END $global_rollback$;\\n";
+  return spawnSync("psql", ["-X","-v","ON_ERROR_STOP=1","-d",db], {
+    cwd: root, env: envFor(port, db), input: forcedRollback, encoding: "utf8",
+  });
+}
 function assertGlobalMigrationRollback(port) {
   const db = "plivex_global_rollback";
-  const create = spawnSync("createdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], { cwd: root, env: envFor(port, "postgres"), encoding: "utf8" });
+  const create = spawnSync("createdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], {
+    cwd: root, env: envFor(port, "postgres"), encoding: "utf8",
+  });
   if (create.status !== 0) fail("Could not create isolated Global migration rollback database: " + (create.stderr || ""));
   try {
     psql(port, db, ["-f", resolve(root, "supabase/tests/migration-replay-bootstrap.sql")]);
-    const migrationPath = resolve(root, "supabase/migrations/202611150001_global_isolation_foundation.sql");
-    const migration = readFileSync(migrationPath, "utf8").replace(/(^|\n)begin;\s*/i, "$1").replace(/\ncommit;\s*$/i, "");
-    const forcedRollback = "BEGIN;\n" + migration + "\nDO $global_rollback$ BEGIN RAISE EXCEPTION 'intentional Global migration rollback verification'; END $global_rollback$;\n";
-    const applied = spawnSync("psql", ["-X","-v","ON_ERROR_STOP=1","-d",db], { cwd: root, env: envFor(port, db), input: forcedRollback, encoding: "utf8" });
-    if (applied.status === 0) fail("Global migration rollback probe unexpectedly committed");
-    const residue = query(port, db, "SELECT to_regnamespace('global') IS NOT NULL");
-    if (residue !== "f") fail("Global migration rollback left the global schema behind");
-    console.log("PASS actual Global foundation DDL rollback in isolated database");
+    const foundationPath = resolve(root, "supabase/migrations/202611150001_global_isolation_foundation.sql");
+    const provisioningPath = resolve(root, "supabase/migrations/202611150002_global_owner_provisioning.sql");
+
+    const foundationRollback = applyForcedMigrationRollback(port, db, foundationPath);
+    if (foundationRollback.status === 0) fail("Global foundation migration rollback probe unexpectedly committed");
+    if (query(port, db, "SELECT to_regnamespace('global') IS NOT NULL") !== "f") {
+      fail("Global foundation rollback left the global schema behind");
+    }
+
+    // Reapply the foundation, then force a failure inside the owner-provisioning migration.
+    psql(port, db, ["-f", foundationPath]);
+    const provisioningRollback = applyForcedMigrationRollback(port, db, provisioningPath);
+    if (provisioningRollback.status === 0) fail("Global owner-provisioning migration rollback probe unexpectedly committed");
+    const residue = query(port, db, "SELECT (to_regprocedure('public.global_get_auth_context(uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_provision_owner_workspace(uuid,text,text,text,text,text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_update_user_profile(uuid,text,text,text)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='user_profiles' AND column_name='phone')::text");
+    if (residue !== "f|f|f|f") fail("Global owner-provisioning rollback left functions or columns behind: " + residue);
+    console.log("PASS actual DDL rollback for Global isolation foundation and owner provisioning migrations");
   } finally {
-    const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], { cwd: root, env: envFor(port, "postgres"), encoding: "utf8" });
+    const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], {
+      cwd: root, env: envFor(port, "postgres"), encoding: "utf8",
+    });
     if (drop.status !== 0) console.error("WARN: disposable rollback database cleanup failed:", drop.stderr || "");
   }
 }
