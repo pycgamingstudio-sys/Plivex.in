@@ -110,9 +110,9 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
         const response = await db.functions.invoke("workspaceRecords", { table: "business_profile", action: "get" });
         if (response?.error) throw response.error;
         const record = response?.data?.record;
-        const country = getCountryByCode(record?.country_code || user?.country_code);
+        const country = getCountryByCode(user?.country_code || record?.country_code);
         if (!active) return;
-        const activeLocale = record?.locale_code || user?.locale_code;
+        const activeLocale = user?.locale_code || record?.locale_code || country?.locales?.[0];
         if (country && country.locales.includes(activeLocale)) {
           setSavedCountry(country.code);
           setSavedLocale(activeLocale);
@@ -211,12 +211,8 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
           });
           if (!countrySave?.data?.ok) throw new Error("Workspace language could not be saved.");
         } else {
-          const regionSave = await db.functions.invoke("workspaceRecords", {
-            table: "business_profile",
-            action: "upsert",
-            values: { country_code: savedCountry, locale_code: locale },
-          });
-          if (regionSave?.error || !regionSave?.data?.record) throw regionSave?.error || new Error("Workspace language could not be saved.");
+          const regionSave = await db.functions.invoke("updateWorkspaceLocale", { localeCode: locale });
+          if (regionSave?.error || !regionSave?.data?.ok) throw regionSave?.error || new Error("Workspace language could not be saved.");
         }
         setSavedLocale(locale);
       }
