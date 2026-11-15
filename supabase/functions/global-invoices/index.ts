@@ -46,6 +46,7 @@ Deno.serve(async (req: Request) => {
       if (body.client_id !== null && body.client_id !== undefined && (typeof body.client_id !== "string" || !UUID.test(body.client_id))) {
         return globalJson({ error: "Choose a valid client." }, 400, origin);
       }
+      if (typeof body.idempotency_key !== "string" || !UUID.test(body.idempotency_key)) return globalJson({ error: "A valid invoice request id is required." }, 400, origin);
       if (typeof body.currency_code !== "string" || !/^[A-Z]{3}$/.test(body.currency_code)) {
         return globalJson({ error: "A valid workspace currency is required." }, 400, origin);
       }
@@ -86,6 +87,7 @@ Deno.serve(async (req: Request) => {
         p_due_date: body.due_date || null,
         p_notes: typeof body.notes === "string" ? body.notes.trim() || null : null,
         p_items: items,
+        p_idempotency_key: body.idempotency_key,
       });
       if (error) {
         console.error("Global draft invoice RPC failed", { code: error.code });
@@ -97,6 +99,7 @@ Deno.serve(async (req: Request) => {
           access_denied: "You do not have access to this Global workspace.",
           forbidden: "Your workspace role cannot create invoices.",
           invalid_currency: "Invoice currency must match the workspace currency.",
+          idempotency_conflict: "This request ID was already used for a different draft invoice.",
           invalid_dates: "Invoice dates are invalid.",
           invalid_items: "Invoice lines are invalid.",
           invalid_item_values: "An invoice line has invalid values.",
