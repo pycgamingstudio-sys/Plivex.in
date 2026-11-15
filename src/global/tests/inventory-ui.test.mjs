@@ -6,7 +6,8 @@ const source = await readFile(new URL("../GlobalApp.jsx", import.meta.url), "utf
 
 test("Global inventory UI invokes the audited stock movement endpoint", () => {
   assert.match(source, /global-stock-movements/);
-  assert.match(source, /idempotency_key:\s*crypto\.randomUUID\(\)/);
+  assert.match(source, /const requestId = movementRequest\?\.signature === signature \? movementRequest\.id : crypto\.randomUUID\(\)/);
+  assert.match(source, /idempotency_key: requestId/);
   assert.match(source, /movement_type:\s*movementType/);
   assert.match(source, /quantity_delta:\s*quantityDelta/);
   assert.match(source, /workspace_id:\s*account\.workspace_id/);
