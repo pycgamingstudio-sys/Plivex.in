@@ -19,7 +19,7 @@ async function loadAccessStatus() {
     // Global billing is intentionally disabled until its own subscription tables and provider are approved.
     return {
       plan: "free", tier: "free",
-      limits: { invoices_monthly: 0, clients: 0, stock: 0 },
+      limits: { invoices_monthly: -1, clients: -1, stock: -1 },
       usage: { invoices_monthly: 0, clients: 0, stock: 0 },
       features: { download_pdf: true, save: true },
       startedAt: "", expiresAt: null,
