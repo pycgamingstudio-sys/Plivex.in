@@ -45,6 +45,8 @@ export default function GlobalApp() {
   const [form, setForm] = useState({});
   const [notice, setNotice] = useState("");
   const [movementRequest, setMovementRequest] = useState(null);
+  const [paymentRequest, setPaymentRequest] = useState(null);
+  const [draftRequest, setDraftRequest] = useState(null);
   const [error, setError] = useState("");
 
 
@@ -67,7 +69,7 @@ export default function GlobalApp() {
 
   const loadRecords = useCallback(async (activeTab = tab) => {
     if (!account?.workspace_id) return;
-    const tables = activeTab === "overview" ? ["clients", "products", "expenses", "invoices", "stock_levels"] : [TABLES[activeTab]];
+    const tables = activeTab === "overview" ? ["clients", "products", "expenses", "invoices", "stock_levels"] : activeTab === "invoices" ? ["invoices", "clients", "products"] : [TABLES[activeTab]];
     const results = await Promise.all(tables.map(async (table) => [table, await invoke(table)]));
     setRecords((current) => ({ ...current, ...Object.fromEntries(results.map(([table, result]) => [table, result.records || []])) }));
   }, [account?.workspace_id, invoke, tab]);
@@ -192,6 +194,85 @@ export default function GlobalApp() {
     } finally { setBusy(false); }
   };
 
+  const submitInvoiceDraft = async (event) => {
+    event.preventDefault();
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const digits = currencyDigits(account?.currency_code || "USD");
+      const quantity = Number(form.invoiceQuantity || 1);
+      const unitPriceMinor = Math.round(Number(form.invoiceUnitPrice || 0) * (10 ** digits));
+      const discountMinor = Math.round(Number(form.invoiceDiscount || 0) * (10 ** digits));
+      if (!Number.isFinite(quantity) || quantity <= 0 || quantity > 1000000) throw new Error("Enter a valid invoice quantity.");
+      if (!Number.isSafeInteger(unitPriceMinor) || unitPriceMinor < 0) throw new Error("Enter a valid unit price.");
+      if (!Number.isSafeInteger(discountMinor) || discountMinor < 0 || discountMinor > Math.round(quantity * unitPriceMinor)) throw new Error("The line discount cannot exceed the line amount.");
+      if (!String(form.invoiceDescription || "").trim()) throw new Error("Enter an item description.");
+      const payload = {
+        action: "create_draft",
+        workspace_id: account.workspace_id,
+        client_id: form.invoiceClientId || null,
+        currency_code: account.currency_code,
+        issue_date: form.invoiceIssueDate || localDate(),
+        due_date: form.invoiceDueDate || null,
+        notes: form.invoiceNotes?.trim() || null,
+        items: [{
+          product_id: form.invoiceProductId || null,
+          description: form.invoiceDescription.trim(),
+          quantity,
+          unit_price_minor: unitPriceMinor,
+          discount_minor: discountMinor,
+        }],
+      };
+      const signature = JSON.stringify(payload);
+      const requestId = draftRequest?.signature === signature ? draftRequest.id : crypto.randomUUID();
+      setDraftRequest({ signature, id: requestId });
+      const { data, error: invoiceError } = await supabase.functions.invoke("global-invoices", {
+        body: { ...payload, idempotency_key: requestId },
+      });
+      if (invoiceError) throw new Error(await errorMessage(invoiceError, "Could not save the draft invoice."));
+      if (!data?.ok || data.invoice?.status !== "draft") throw new Error("Invoice service returned an invalid draft response.");
+      setForm({});
+      setDraftRequest(null);
+      setNotice("Draft saved. Tax has not been calculated; this draft cannot be issued as a tax invoice.");
+      await loadRecords("invoices");
+    } catch (saveError) { setError(saveError.message || "Could not save the draft invoice."); }
+    finally { setBusy(false); }
+  };
+
+  const submitInvoicePayment = async (event) => {
+    event.preventDefault();
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const digits = currencyDigits(account?.currency_code || "USD");
+      const amountMinor = Math.round(Number(form.paymentAmount || 0) * (10 ** digits));
+      if (!form.paymentInvoiceId) throw new Error("Choose an issued invoice.");
+      if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) throw new Error("Enter a valid payment amount.");
+      const payload = {
+        action: "record_payment",
+        workspace_id: account.workspace_id,
+        invoice_id: form.paymentInvoiceId,
+        amount_minor: amountMinor,
+        currency_code: account.currency_code,
+        payment_date: form.paymentDate || localDate(),
+        method: form.paymentMethod?.trim() || null,
+        reference: form.paymentReference?.trim() || null,
+        notes: form.paymentNotes?.trim() || null,
+      };
+      const signature = JSON.stringify(payload);
+      const requestId = paymentRequest?.signature === signature ? paymentRequest.id : crypto.randomUUID();
+      setPaymentRequest({ signature, id: requestId });
+      const { data, error: paymentError } = await supabase.functions.invoke("global-invoices", {
+        body: { ...payload, idempotency_key: requestId },
+      });
+      if (paymentError) throw new Error(await errorMessage(paymentError, "Could not record the payment."));
+      if (!data?.ok) throw new Error("Payment ledger returned an invalid response.");
+      setForm((current) => ({ ...current, paymentAmount: "", paymentReference: "", paymentNotes: "" }));
+      setPaymentRequest(null);
+      setNotice(data.duplicate ? "This payment was already recorded; no duplicate was added." : "External payment recorded in the invoice ledger.");
+      await loadRecords("invoices");
+    } catch (saveError) { setError(saveError.message || "Could not record the payment."); }
+    finally { setBusy(false); }
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setSession(null); setAccount(null); setRecords({});
@@ -263,11 +344,11 @@ export default function GlobalApp() {
             <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               {[["Clients", counts.clients], ["Products", counts.products], ["Expenses", counts.expenses], ["Invoices", counts.invoices], ["Stock items", counts.stock]].map(([label, value]) => <div key={label} className="rounded-xl border border-slate-200 bg-white p-5"><div className="text-sm text-slate-500">{label}</div><div className="mt-2 text-3xl font-bold">{value}</div></div>)}
             </div>
-            <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Client, product and expense records can be managed. Inventory receipts, sales, returns and adjustments are enabled. Invoice creation and payment collection are not enabled yet; existing invoices remain view-only.</div>
+            <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Client, product, expense and inventory records can be managed. Invoice drafts can be saved, but tax finalization and online payment collection are not enabled. External payments can be recorded only against issued invoices.</div>
           </>
         ) : (
           <section className="mt-6">
-            <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold">{NAV.find((item) => item.id === tab)?.label}</h1><p className="mt-1 text-sm text-slate-500">{tab === "invoices" ? "Read-only until invoice and payment workflows are enabled." : tab === "inventory" ? "Record stock receipts, sales, returns and adjustments for active products." : "Records are scoped to your active workspace."}</p></div><button onClick={() => loadRecords(tab).catch((loadError) => setError(loadError.message))} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Refresh</button></div>
+            <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold">{NAV.find((item) => item.id === tab)?.label}</h1><p className="mt-1 text-sm text-slate-500">{tab === "invoices" ? "Save draft invoices and record external payments for issued invoices." : tab === "inventory" ? "Record stock receipts, sales, returns and adjustments for active products." : "Records are scoped to your active workspace."}</p></div><button onClick={() => loadRecords(tab).catch((loadError) => setError(loadError.message))} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Refresh</button></div>
             {tab === "inventory" && (
               <form onSubmit={submitStockMovement} className="mt-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
                 <select required aria-label="Product" className="rounded-lg border border-slate-300 p-3" value={form.productId || ""} onChange={(e) => setForm({ ...form, productId: e.target.value })}>
@@ -282,6 +363,44 @@ export default function GlobalApp() {
                 <button disabled={busy || !(records.products || []).length} className="rounded-lg bg-violet-700 px-4 py-3 font-semibold text-white disabled:opacity-60">{busy ? "Saving…" : "Record movement"}</button>
                 {form.movementType === "sale" && <p className="text-xs text-slate-500 sm:col-span-2 lg:col-span-5">Sales decrease stock automatically. Adjustments accept a positive or negative quantity.</p>}
               </form>
+            )}
+            {tab === "invoices" && (
+              <>
+                <form onSubmit={submitInvoiceDraft} className="mt-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <select aria-label="Invoice client" className="rounded-lg border border-slate-300 p-3" value={form.invoiceClientId || ""} onChange={(e) => setForm({ ...form, invoiceClientId: e.target.value })}>
+                    <option value="">No client selected</option>
+                    {(records.clients || []).filter((client) => client.status !== "archived").map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+                  </select>
+                  <select aria-label="Invoice product" className="rounded-lg border border-slate-300 p-3" value={form.invoiceProductId || ""} onChange={(e) => { const product = (records.products || []).find((item) => item.id === e.target.value); setForm({ ...form, invoiceProductId: e.target.value, invoiceDescription: product?.name || form.invoiceDescription, invoiceUnitPrice: product ? String(Number(product.sale_price_minor || 0) / (10 ** currencyDigits(account.currency_code))) : form.invoiceUnitPrice }); }}>
+                    <option value="">Custom line item</option>
+                    {(records.products || []).filter((product) => product.is_active !== false).map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+                  </select>
+                  <input required maxLength={500} placeholder="Item description" aria-label="Item description" className="rounded-lg border border-slate-300 p-3" value={form.invoiceDescription || ""} onChange={(e) => setForm({ ...form, invoiceDescription: e.target.value })} />
+                  <input required type="number" min="0.0001" step="0.0001" placeholder="Quantity" aria-label="Quantity" className="rounded-lg border border-slate-300 p-3" value={form.invoiceQuantity || "1"} onChange={(e) => setForm({ ...form, invoiceQuantity: e.target.value })} />
+                  <input required type="number" min="0" step="0.01" placeholder={`Unit price (${currency})`} aria-label="Unit price" className="rounded-lg border border-slate-300 p-3" value={form.invoiceUnitPrice || ""} onChange={(e) => setForm({ ...form, invoiceUnitPrice: e.target.value })} />
+                  <input type="number" min="0" step="0.01" placeholder={`Line discount (${currency})`} aria-label="Line discount" className="rounded-lg border border-slate-300 p-3" value={form.invoiceDiscount || "0"} onChange={(e) => setForm({ ...form, invoiceDiscount: e.target.value })} />
+                  <input required type="date" aria-label="Invoice date" className="rounded-lg border border-slate-300 p-3" value={form.invoiceIssueDate || localDate()} onChange={(e) => setForm({ ...form, invoiceIssueDate: e.target.value })} />
+                  <input type="date" aria-label="Due date" className="rounded-lg border border-slate-300 p-3" value={form.invoiceDueDate || ""} onChange={(e) => setForm({ ...form, invoiceDueDate: e.target.value })} />
+                  <input maxLength={4000} placeholder="Notes (optional)" aria-label="Invoice notes" className="rounded-lg border border-slate-300 p-3 sm:col-span-2" value={form.invoiceNotes || ""} onChange={(e) => setForm({ ...form, invoiceNotes: e.target.value })} />
+                  <button disabled={busy} className="rounded-lg bg-violet-700 px-4 py-3 font-semibold text-white disabled:opacity-60">{busy ? "Saving…" : "Save draft"}</button>
+                  <p className="text-xs text-amber-700 sm:col-span-2 lg:col-span-4">Draft only: tax is not calculated, and this document cannot be issued or represented as a compliant tax invoice.</p>
+                </form>
+                {(records.invoices || []).some((invoice) => ["issued", "partially_paid", "overdue"].includes(invoice.status)) && (
+                  <form onSubmit={submitInvoicePayment} className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <select required aria-label="Issued invoice" className="rounded-lg border border-slate-300 p-3" value={form.paymentInvoiceId || ""} onChange={(e) => setForm({ ...form, paymentInvoiceId: e.target.value })}>
+                      <option value="">Choose issued invoice</option>
+                      {(records.invoices || []).filter((invoice) => ["issued", "partially_paid", "overdue"].includes(invoice.status)).map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.invoice_number} · {money(invoice.total_minor - invoice.amount_paid_minor, invoice.currency_code)} due</option>)}
+                    </select>
+                    <input required type="number" min="0.01" step="0.01" placeholder={`Amount (${currency})`} aria-label="Payment amount" className="rounded-lg border border-slate-300 p-3" value={form.paymentAmount || ""} onChange={(e) => setForm({ ...form, paymentAmount: e.target.value })} />
+                    <input type="date" aria-label="Payment date" className="rounded-lg border border-slate-300 p-3" value={form.paymentDate || localDate()} onChange={(e) => setForm({ ...form, paymentDate: e.target.value })} />
+                    <input maxLength={80} placeholder="Method (e.g. bank transfer)" aria-label="Payment method" className="rounded-lg border border-slate-300 p-3" value={form.paymentMethod || ""} onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })} />
+                    <input maxLength={160} placeholder="Reference (optional)" aria-label="Payment reference" className="rounded-lg border border-slate-300 p-3" value={form.paymentReference || ""} onChange={(e) => setForm({ ...form, paymentReference: e.target.value })} />
+                    <input maxLength={1000} placeholder="Notes (optional)" aria-label="Payment notes" className="rounded-lg border border-slate-300 p-3" value={form.paymentNotes || ""} onChange={(e) => setForm({ ...form, paymentNotes: e.target.value })} />
+                    <button disabled={busy} className="rounded-lg bg-slate-800 px-4 py-3 font-semibold text-white disabled:opacity-60">{busy ? "Saving…" : "Record external payment"}</button>
+                    <p className="text-xs text-slate-500 sm:col-span-2 lg:col-span-4">This records a payment received outside Plivex. It does not collect money or start a Cashfree transaction.</p>
+                  </form>
+                )}
+              </>
             )}
             {["clients", "products", "expenses"].includes(tab) && (
               <form onSubmit={submitRecord} className="mt-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
