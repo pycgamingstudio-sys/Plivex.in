@@ -15,7 +15,7 @@ const localOnly = manifest.local_only_files || [];
 if (manifest.remote_ledger_entries !== 52 || history.length !== 39 || missing.length !== 35
   || manifest.local_migration_files !== 33 || pairs.length !== 17
   || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 16) {
-  fail("Migration reconciliation counts differ from the reviewed 52/39/35/32/17/13/4/15 manifest");
+  fail("Migration reconciliation counts differ from the reviewed 52/39/35/33/17/13/4/16 manifest");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
 
@@ -33,7 +33,7 @@ const remotePlan = [
   ...history.map((x) => ({ version: x.version, path: x.path, kind: "remote-archive" })),
   ...normalized.map((x) => ({ version: x.remote_version, path: x.local_path, kind: "normalized-local-match" })),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (remotePlan.length !== 52 || new Set(remotePlan.map((x) => x.version)).size !== 52) fail("Remote replay plan is not 51 unique versions");
+if (remotePlan.length !== 52 || new Set(remotePlan.map((x) => x.version)).size !== 52) fail("Remote replay plan is not 52 unique versions");
 
 const localPaths = [...pairs.map((x) => x.local_path), ...localOnly.map((x) => "supabase/migrations/" + x)];
 const candidatePlan = [
@@ -44,7 +44,7 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 68 || new Set(candidatePlan.map((x) => x.path)).size !== 67) {
+if (candidatePlan.length !== 68 || new Set(candidatePlan.map((x) => x.path)).size !== 68) {
   fail("Candidate replay plan must contain 35 recovered historical and all 33 current local migrations");
 }
 
@@ -259,7 +259,7 @@ function summary(port, remote) {
 
 const remotePort = Number(process.env.REMOTE_PGPORT || 5433);
 const candidatePort = Number(process.env.CANDIDATE_PGPORT || 5434);
-console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 67 candidate replay entries.");
+console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 68 candidate replay entries.");
 resetDb(remotePort);
 replay(remotePort, remotePlan, true);
 assertRls(remotePort, false);
