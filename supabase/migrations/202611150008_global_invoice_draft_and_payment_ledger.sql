@@ -221,6 +221,7 @@ begin
   if upper(p_currency_code)<>v_invoice.currency_code then
     return jsonb_build_object('ok',false,'reason','invalid_currency');
   end if;
+  if p_payment_date < v_invoice.issue_date then return jsonb_build_object('ok',false,'reason','invalid_payment'); end if;
   v_remaining := v_invoice.total_minor-v_invoice.amount_paid_minor;
   if p_amount_minor>v_remaining then return jsonb_build_object('ok',false,'reason','overpayment','remaining_minor',v_remaining); end if;
 
