@@ -10,6 +10,7 @@ import {
   normalizeTaxCountryCode,
 } from "../tax/tax-rule-registry.js";
 import { getCountryStandardRateRule } from "../tax/standard-rate-rules.js";
+import { calculateGlobalTax } from "../tax/global-tax-engine.js";
 
 test("tax engine and catalogue expose explicit semantic versions", () => {
   assert.equal(TAX_ENGINE_VERSION, "1.0.0");
@@ -85,4 +86,23 @@ test("existing standard-rate adapter preserves the evaluator contract", () => {
   assert.equal(result.countryCode, "GB");
   assert.equal(result.components[0].rateBps, 2000);
   assert.equal(result.components[0].source, result.source);
+});
+
+test("global tax calculation preserves engine and catalogue provenance in its invoice snapshot", () => {
+  const result = calculateGlobalTax({
+    countryCode: "GB", currencyCode: "GBP", currencyMinorUnits: 2, amountMinor: 10000,
+    invoiceDate: "2026-11-15",
+    sellerRegistration: {
+      verified: false, attestedByUser: true, status: "registered",
+      registrationNumber: "GB-REG-123", effectiveFrom: "2026-01-01",
+    },
+    placeOfSupplyVerified: true, placeOfSupply: "GB",
+    taxCategoryVerified: true, taxCategory: "standard-rated",
+    treatment: "standard", priceMode: "exclusive",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.engineVersion, TAX_ENGINE_VERSION);
+  assert.equal(result.ruleSnapshot.catalogVersion, TAX_RULE_CATALOG_VERSION);
+  assert.equal(result.ruleSnapshot.sourceAuthority, "UK HM Revenue & Customs");
+  assert.equal(result.ruleSnapshot.coverage, "standard-rate-only");
 });
