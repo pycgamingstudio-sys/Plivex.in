@@ -48,3 +48,13 @@ test("regional account activity and reports use workspace locale metadata", asyn
   assert.match(reports, /formatCurrency/);
   assert.match(reports, /formatWorkspaceDate/);
 });
+
+
+test("India-only tools are not rendered for Global workspaces, including missing country context", async () => {
+  const source = await read("../../App.jsx");
+  assert.match(source, /APP_EDITION === "global" && user\?\.country_code !== "IN"/);
+  for (const feature of ["Shared invoice links", "Usage reports", "Quick templates", "Payment logs", "Service catalog", "Team management"]) {
+    assert.ok(source.includes(`feature="${feature}"`), `missing Global gate for ${feature}`);
+  }
+  assert.match(source, /Open Global invoices/);
+});
