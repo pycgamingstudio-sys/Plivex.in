@@ -310,6 +310,7 @@ BEGIN
   new_workspace_id := result->>'workspace_id';
   IF new_workspace_id = 'd8888888-8888-4888-8888-888888888888'
      OR EXISTS (SELECT 1 FROM global.workspaces WHERE id='d8888888-8888-4888-8888-888888888888')
+     OR EXISTS (SELECT 1 FROM global.workspace_members WHERE workspace_id='d8888888-8888-4888-8888-888888888888')
      OR EXISTS (SELECT 1 FROM global.clients WHERE workspace_id='d8888888-8888-4888-8888-888888888888') THEN
     RAISE EXCEPTION 'Global to Global reused the old workspace or retained old business records';
   END IF;
