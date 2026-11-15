@@ -98,6 +98,15 @@ jobs:
           CANDIDATE_PGPORT: "5434"
         run: node scripts/verify-migration-replay.mjs
 
+      - name: Verify Global trigger helper privileges in disposable candidate database
+        env:
+          PGUSER: supabase_admin
+          PGPASSWORD: postgres
+          PGPORT: "5434"
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -d plivex_migration_replay -f supabase/migrations/202611150006_global_trigger_function_privileges.sql
+          psql -X -v ON_ERROR_STOP=1 -d plivex_migration_replay -f supabase/tests/global-trigger-privileges.integration.sql
+
       - name: Always stop disposable databases
         if: always()
         run: |
