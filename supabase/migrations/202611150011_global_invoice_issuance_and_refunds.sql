@@ -126,6 +126,21 @@ create trigger global_invoice_items_immutability_guard
   before insert or update or delete on global.invoice_items
   for each row execute function global.guard_issued_invoice_items();
 
+-- Payment entries are an append-only audit ledger too.
+create or replace function global.guard_invoice_payment_append_only()
+returns trigger
+language plpgsql
+set search_path = pg_catalog
+as $function$
+begin
+  raise exception using errcode = '55000', message = 'Invoice payment ledger rows are append-only';
+end;
+$function$;
+drop trigger if exists global_invoice_payments_append_only on global.invoice_payments;
+create trigger global_invoice_payments_append_only
+  before update or delete on global.invoice_payments
+  for each row execute function global.guard_invoice_payment_append_only();
+
 create or replace function public.global_issue_invoice(
   p_user_id uuid,
   p_workspace_id uuid,
