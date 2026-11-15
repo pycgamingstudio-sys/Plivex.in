@@ -19,8 +19,13 @@ async function resolveSignedInEdition(currentUser) {
 
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError) throw authError;
+  // The server-maintained workspace profile is authoritative. Auth user_metadata
+  // is user-editable and is only a legacy signup fallback, never the source of truth.
+  const profileCountry = currentUser?.country_code;
   const metadataCountry = authData?.user?.user_metadata?.signup_country_code;
-  let countryCode = typeof metadataCountry === 'string' ? metadataCountry.trim().toUpperCase() : '';
+  let countryCode = typeof profileCountry === 'string' && profileCountry.trim()
+    ? profileCountry.trim().toUpperCase()
+    : typeof metadataCountry === 'string' ? metadataCountry.trim().toUpperCase() : '';
   if (!countryCode) {
     try {
       const pendingRegion = JSON.parse(window.localStorage.getItem('plivex.signup.region') || 'null');
@@ -43,7 +48,7 @@ async function resolveSignedInEdition(currentUser) {
     if (!globalError && globalContext?.user?.id === currentUser?.id) {
       globalUser = globalContext.user;
       countryCode = globalUser.country_code || countryCode;
-    } else if (hasWorkspaceMembership) {
+    } else if (hasWorkspaceMembership || (profileCountry && profileCountry.toUpperCase() !== 'IN')) {
       throw new Error('Your Global workspace could not be verified. Your existing data has not been changed.');
     }
     // A new account with no workspace is allowed through to the explicit
