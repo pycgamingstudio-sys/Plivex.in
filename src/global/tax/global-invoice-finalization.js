@@ -12,6 +12,7 @@ const E_INVOICE = Object.freeze({
   AU: Object.freeze({ countryCode:"AU", status:"network_available_in_ecosystem", network:"Peppol eInvoicing", submission:"disabled", note:"Peppol exists in the Australian ecosystem, but Plivex has no registered access-point integration configured.", source:"https://www.ato.gov.au/businesses-and-organisations/preparing-lodging-and-paying/einvoicing" }),
   SG: Object.freeze({ countryCode:"SG", status:"phased_requirement_provider_required", network:"InvoiceNow (Peppol)", submission:"disabled", note:"GST InvoiceNow obligations are phased by registration/cohort and implementation date. No InvoiceNow-ready access point is configured.", source:"https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/gst-invoicenow-requirement" }),
 });
+const COUNTRY_CURRENCY = Object.freeze({ IN:"INR", US:"USD", GB:"GBP", AE:"AED", CA:"CAD", AU:"AUD", SG:"SGD" });
 const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const validDate = (value) => {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -28,7 +29,7 @@ const deepFreeze = (value) => {
 };
 export function getEInvoiceReadiness(countryCode) {
   const code = typeof countryCode === "string" ? countryCode.trim().toUpperCase() : "";
-  const capability = E_INVOICE[code];
+  const capability = Object.hasOwn(E_INVOICE, code) ? E_INVOICE[code] : null;
   if (!capability) return { ok:false, status:"not_configured", code:"EINVOICE_COUNTRY_NOT_CONFIGURED" };
   return { ok:true, ...capability, transmissionEnabled:false };
 }
@@ -37,11 +38,13 @@ export function createGlobalInvoiceTaxSnapshot(input) {
   if (!isRecord(input)) return fail("SNAPSHOT_INPUT_REQUIRED", "Invoice tax snapshot input is required.");
   const countryCode = typeof input.countryCode === "string" ? input.countryCode.trim().toUpperCase() : "";
   if (!COUNTRIES.includes(countryCode)) return fail("SNAPSHOT_COUNTRY_UNSUPPORTED", "A supported workspace country is required.");
+  if (countryCode === "IN") return fail("INDIA_LEGACY_PATH_REQUIRED", "India must retain its existing GST invoice and snapshot path.");
   if (!validDate(input.invoiceDate)) return fail("SNAPSHOT_INVOICE_DATE_INVALID", "A valid invoice date is required.");
   const result = input.taxResult;
   if (!isRecord(result) || result.ok !== true || result.status !== "calculated" || result.countryCode !== countryCode) {
     return fail("TAX_RESULT_NOT_ISSUABLE", "Only a successful, country-matched calculated tax result can be snapshotted. Manual estimates and review results remain drafts.");
   }
+  if (result.currencyCode !== COUNTRY_CURRENCY[countryCode] || result.currencyMinorUnits !== 2) return fail("SNAPSHOT_CURRENCY_INVALID", "Tax snapshot currency and precision must match the workspace country.");
   const rule = result.ruleSnapshot;
   if (!isRecord(rule) || !String(rule.id || "").trim() || !String(rule.version || "").trim()
     || !/^https:\/\//.test(String(rule.source || "")) || !validDate(rule.effectiveFrom)
