@@ -29,8 +29,17 @@ jobs:
               supabase/postgres:17.6.1.136 \
               postgres -c config_file=/etc/postgresql/postgresql.conf -c shared_preload_libraries=pg_cron,pg_net -c cron.database_name=plivex_migration_replay
             ready=0
-            for attempt in $(seq 1 60); do
-              if docker exec -u postgres "$name" pg_isready -U supabase_admin -d plivex_migration_replay >/dev/null 2>&1; then ready=1; break; fi
+            # The Supabase Postgres image runs a temporary init server before
+            # starting the final configured server. pg_isready can briefly pass
+            # during that transition, so require repeated successful SQL probes.
+            for attempt in $(seq 1 90); do
+              if docker exec -u postgres "$name" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d plivex_migration_replay -Atqc 'SELECT 1' 2>/dev/null | grep -qx '1'; then
+                sleep 2
+                if docker exec -u postgres "$name" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d plivex_migration_replay -Atqc 'SELECT 1' 2>/dev/null | grep -qx '1'; then
+                  ready=1
+                  break
+                fi
+              fi
               sleep 2
             done
             if [ "$ready" != "1" ]; then
