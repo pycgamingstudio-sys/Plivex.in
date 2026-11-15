@@ -57,8 +57,8 @@ test("Unified same-domain worker preserves India at root and serves Global under
   assert.match(globalApp, /href="\/global\/"|href=\{?"\/global\/"?\}/);
 });
 
-test("Global and India email callbacks preserve their same-origin edition path", () => {
-  const backend = read("../../api/backendClient.js");
+test("Global and India email callbacks preserve their same-origin edition path", async () => {
+  const backend = await read("../../api/backendClient.js");
   assert.match(backend, /resolveRuntimeEdition\(import\.meta\.env\.VITE_APP_EDITION/);
   assert.match(backend, /APP_EDITION === "global" \? "\/global\/" : "\/"/);
 });
