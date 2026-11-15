@@ -36,14 +36,19 @@ async function resolveSignedInEdition(currentUser) {
   // Global workspace yet. Do not call the membership-only context RPC before
   // onboarding; it is created by GlobalCountryOnboarding after explicit choice.
   const hasWorkspaceMembership = Boolean(currentUser?.workspace_id && currentUser?.role);
-  if (countryCode !== 'IN' && hasWorkspaceMembership) {
+  if (countryCode !== 'IN') {
+    // Query Global membership for every non-India identity. The India profile
+    // adapter cannot see a Global-only workspace, so currentUser may have no
+    // workspace_id even after Global provisioning has completed.
     const { data: globalContext, error: globalError } = await supabase.functions.invoke('global-auth-context', { body: {} });
     if (!globalError && globalContext?.user?.id === currentUser?.id) {
       globalUser = globalContext.user;
       countryCode = globalUser.country_code || countryCode;
-    } else {
+    } else if (hasWorkspaceMembership) {
       throw new Error('Your Global workspace could not be verified. Your existing data has not been changed.');
     }
+    // A new account with no workspace is allowed through to the explicit
+    // country onboarding screen; that screen provisions the Global workspace.
   }
 
   // An older account without country metadata is India unless a Global membership
