@@ -76,7 +76,7 @@ function PublicShell({ title, subtitle, children }) {
 }
 
 const FEATURES = [
-  { icon: Receipt, title: "Invoices & quotations", desc: "Create GST and non-GST invoices, prepare quotations, and download clean PDFs." },
+  { icon: Receipt, title: "Invoices & quotations", desc: "Create professional invoices and quotations. Tax fields and invoice issuance depend on the selected country and verified capabilities." },
   { icon: Users, title: "Clients & leads", desc: "Keep client records and follow leads from one workspace." },
   { icon: Wallet, title: "Expenses & payments", desc: "Record expenses and track payment status alongside billing." },
   { icon: Package, title: "Stock management", desc: "Maintain stock records and monitor low-stock items." },
@@ -85,7 +85,7 @@ const FEATURES = [
 ];
 
 export function AboutPage() {
-  return <PublicShell title="About Plivex" subtitle="Meet the people and purpose behind Plivex, a billing and business management platform for Indian small businesses.">
+  return <PublicShell title="About Plivex" subtitle="Meet the people and purpose behind Plivex, a billing and business management platform for small businesses in supported markets.">
     <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-8">
       <div className="mb-6 flex flex-col items-start gap-4 rounded-2xl bg-violet-50 p-5 sm:flex-row sm:items-center">
         <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Developer of Plivex" width="88" height="88" loading="eager" className="h-20 w-20 rounded-full border-4 border-white object-cover shadow-sm sm:h-22 sm:w-22" />
@@ -94,7 +94,7 @@ export function AboutPage() {
       <section aria-labelledby="ownership-heading" className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
         <p className="text-xs font-bold uppercase tracking-wider text-violet-700">Business ownership</p>
         <h2 id="ownership-heading" className="mt-1 text-xl font-bold text-slate-900">Meet the owner of Plivex</h2>
-        <p className="mt-3 text-sm leading-6 text-slate-600">Plivex is owned by Virendra Sharma. The idea behind Plivex is simple: make everyday billing and business organisation easier for Indian small businesses, with practical tools that bring invoices, customers, expenses and stock together.</p>
+        <p className="mt-3 text-sm leading-6 text-slate-600">Plivex is owned by Virendra Sharma. The idea behind Plivex is simple: make everyday billing and business organisation easier for small businesses, with practical tools that bring invoices, customers, expenses and stock together.</p>
         <p className="mt-2 text-sm leading-6 text-slate-600">Yashvant Sharma leads the product's development as Developer, working to turn that purpose into a straightforward, useful platform. We value clear communication, dependable service and continuous improvement based on real business needs.</p>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <a href="mailto:virendra.sharma99978@gmail.com" className="rounded-xl border border-slate-200 p-4 transition hover:border-violet-300 hover:bg-violet-50/50">
