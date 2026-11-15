@@ -45,6 +45,8 @@ export function validateProductTaxClassification(input) {
   if (input.reviewedByBusiness !== true || input.reviewedOn == null || !/^\d{4}-\d{2}-\d{2}$/.test(input.reviewedOn)) {
     return {ok:false,code:"BUSINESS_CLASSIFICATION_REVIEW_REQUIRED",allowedTreatments:allowed};
   }
+  const date = new Date(input.reviewedOn + "T00:00:00.000Z");
+  if (!Number.isFinite(date.valueOf()) || date.toISOString().slice(0,10) !== input.reviewedOn) return {ok:false,code:"CLASSIFICATION_REVIEW_DATE_INVALID"};
   const fields = getRequiredClassificationFields(countryCode);
   const missingFields = fields.filter(field => input[field] === undefined || input[field] === null || input[field] === "");
   if (missingFields.length) return {ok:false,code:"CLASSIFICATION_FIELDS_MISSING",missingFields};
