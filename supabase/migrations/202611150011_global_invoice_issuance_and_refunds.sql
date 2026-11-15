@@ -142,6 +142,7 @@ declare
   v_role text;
   v_workspace global.workspaces%rowtype;
   v_profile global.business_profiles%rowtype;
+  v_client global.clients%rowtype;
   v_invoice global.invoices%rowtype;
   v_existing global.invoices%rowtype;
   v_item global.invoice_items%rowtype;
@@ -187,6 +188,10 @@ begin
   for update;
   if v_invoice.id is null then return jsonb_build_object('ok',false,'reason','invoice_not_found'); end if;
   if v_invoice.status <> 'draft' then return jsonb_build_object('ok',false,'reason','invoice_not_draft'); end if;
+  if v_invoice.client_id is not null then
+    select * into v_client from global.clients
+    where id=v_invoice.client_id and workspace_id=p_workspace_id;
+  end if;
 
   -- First release deliberately enables only GB standard-rated VAT.
   if v_workspace.country_code <> 'GB' or v_workspace.currency_code <> 'GBP'
@@ -208,7 +213,7 @@ begin
     or lower(coalesce(p_tax_context->>'tax_category','')) <> 'standard-rated'
     or coalesce(p_tax_context->>'mode','') <> 'automatic'
     or coalesce(p_tax_context->>'price_mode','') not in ('exclusive','inclusive')
-    or nullif(btrim(p_tax_context->>'place_of_supply'),'') is null then
+    or lower(btrim(coalesce(p_tax_context->>'place_of_supply',''))) <> 'united kingdom' then
     return jsonb_build_object('ok',false,'reason','tax_evidence_incomplete');
   end if;
   if v_invoice.currency_code <> 'GBP' or v_invoice.subtotal_minor < v_invoice.discount_minor then
@@ -275,6 +280,11 @@ begin
       'tax_registration_status',v_profile.tax_registration_status,
       'tax_registration_effective_from',v_profile.tax_registration_effective_from
     ),
+    'buyer',case when v_client.id is null then jsonb_build_object('name','Customer') else jsonb_build_object(
+      'name',v_client.name,'email',v_client.email,'phone',v_client.phone,
+      'tax_registration_number',v_client.tax_registration_number,
+      'billing_address',v_client.billing_address,'shipping_address',v_client.shipping_address
+    ) end,
     'calculation',jsonb_build_object(
       'taxable_minor',v_taxable,
       'tax_minor',v_tax,
