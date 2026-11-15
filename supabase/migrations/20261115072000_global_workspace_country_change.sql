@@ -48,6 +48,12 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'invalid_identity');
   end if;
 
+  -- India uses the separate India data plane. A Global workspace must not
+  -- switch editions until a dedicated cross-schema data migration exists.
+  if p_country_code = 'IN' then
+    return jsonb_build_object('ok', false, 'reason', 'india_workspace_migration_required');
+  end if;
+
   v_expected_currency := case p_country_code
     when 'IN' then 'INR'
     when 'US' then 'USD'
