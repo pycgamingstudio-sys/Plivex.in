@@ -94,11 +94,12 @@ Deno.serve(async (req: Request) => {
         legacy_global_membership_requires_review: "An older inactive Global membership needs support review. No data was deleted.",
         conflicting_workspace_memberships: "Your account has conflicting India and Global workspace links. No data was deleted; support must verify the account first.",
         profile_edition_mismatch: "Your profile country does not match its India workspace. No data was deleted; support must verify the account first.",
+        active_global_workspace_not_selected: "Your Global workspace selection could not be verified. No data was deleted; reopen the selected workspace or contact support.",
         same_country: "Your selected country is already active. Change only the language setting instead.",
       };
       const status = data.reason === "workspace_owner_required" ? 403
         : data.reason === "cooldown_active" ? 429
-        : data.reason === "active_owner_workspace_required" || data.reason === "legacy_global_membership_requires_review" || data.reason === "conflicting_workspace_memberships" || data.reason === "profile_edition_mismatch" ? 409
+        : data.reason === "active_owner_workspace_required" || data.reason === "legacy_global_membership_requires_review" || data.reason === "conflicting_workspace_memberships" || data.reason === "profile_edition_mismatch" || data.reason === "active_global_workspace_not_selected" ? 409
         : 400;
       return jsonResponse({
         error: data.reason === "cooldown_active"
