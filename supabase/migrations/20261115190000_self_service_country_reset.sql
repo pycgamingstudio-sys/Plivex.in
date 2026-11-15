@@ -117,6 +117,9 @@ begin
   for update;
 
   if v_global_membership.id is not null then
+    if v_profile.workspace_id is not null then
+      return jsonb_build_object('ok', false, 'reason', 'conflicting_workspace_memberships');
+    end if;
     if v_global_membership.role <> 'owner' then
       return jsonb_build_object('ok', false, 'reason', 'workspace_owner_required');
     end if;
