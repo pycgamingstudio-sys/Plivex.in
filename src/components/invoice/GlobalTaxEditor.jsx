@@ -51,12 +51,12 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary/70">Global tax</p>
           <h3 className="mt-1 text-sm font-bold">{format?.title || "Tax invoice"} · {countryCode}</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Country-specific tax fields. Registration details are business-supplied and are not independently verified by Plivex.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Country-specific tax preview. Registration details are business-supplied and are not independently verified by Plivex.</p>
         </div>
         <span className="rounded-full bg-muted px-2 py-1 text-[10px] font-semibold">{currency}</span>
       </div>
 
-      <div className="mt-3 rounded-lg bg-muted/40 p-3 text-[11px] text-muted-foreground">
+      <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-[11px] text-amber-950"><strong>Draft-only:</strong> this calculation is a preview. Global invoices are saved as drafts; tax is not yet committed to an issued invoice and cannot be used to collect payment.</div>\n      <div className="mt-3 rounded-lg bg-muted/40 p-3 text-[11px] text-muted-foreground">
         <p><strong>Saved registration:</strong> {workspaceProfile?.registrationNumber || "Not provided"} · {workspaceProfile?.registrationStatus || "unregistered"}</p>
         <p className="mt-1">Effective from: {workspaceProfile?.registrationEffectiveFrom || "Not provided"} · Registered jurisdiction: {workspaceProfile?.registeredJurisdiction || "Not provided"}</p>
       </div>
