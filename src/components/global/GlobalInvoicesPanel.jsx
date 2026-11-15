@@ -68,6 +68,14 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     onRefresh?.();
   }, [account.email, account.workspace_id, countryCode, invoke, onRefresh]);
 
+  useEffect(() => {
+    setTaxContext({
+      countryCode, mode:"automatic", priceMode:"exclusive", placeOfSupply:"",
+      placeOfSupplyConfirmed:false, taxCategory:"standard-rated", taxCategoryConfirmed:false,
+      registrationConfirmed:false, collectionObligationAttested:false, components:[],
+    });
+  }, [countryCode, selectedId]);
+
   useEffect(() => { refresh().catch((e) => setError(e.message || "Could not load Global invoices.")); }, [refresh]);
 
   const selected = invoices.find((invoice) => invoice.id === selectedId) || null;
