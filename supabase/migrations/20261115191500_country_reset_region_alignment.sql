@@ -198,6 +198,9 @@ begin
     v_from_currency := v_global_workspace.currency_code;
     v_old_workspace_id := v_global_workspace.id::text;
   elsif v_profile.id is not null and v_profile.workspace_id is not null then
+    if coalesce(v_profile.country_code, 'IN') <> 'IN' then
+      return jsonb_build_object('ok', false, 'reason', 'profile_edition_mismatch');
+    end if;
     if v_profile.role <> 'admin' then
       return jsonb_build_object('ok', false, 'reason', 'workspace_owner_required');
     end if;
