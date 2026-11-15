@@ -74,6 +74,7 @@ Status: implementation in progress. This document records the initial source aud
 
 - Added a single immutable presentation profile for IN, US, GB, AE, CA, AU and SG. It supplies regional business-registration labels, address labels, document terminology, default locale and time-zone policy; it is not a tax-law rules engine.
 - Added explicit-locale date and currency formatting. Date-only values retain their calendar day across time zones. Global invoice previews/PDFs and public invoice copies use saved workspace locale metadata.
+- Public About/Features copy now distinguishes India-only features from staged Global capabilities instead of presenting Indian GST features as universal.
 - Global invoice PDFs use the selected country's tax name and registration label (for example Sales tax / sales-tax permit in the US, GST/HST/PST/QST in Canada, VAT in the UK/UAE, GST in Australia/Singapore). Public invoice copies no longer hard-code GSTIN for non-India workspaces.
 - Account activity and reports use workspace regional formatting where the data source is available.
 - Unsupported India-only tools (shared invoice-link manager, local usage reports, quick templates, local payment logs, service catalog and team management) fail closed for Global workspaces with a clear route back to Global invoices. This avoids showing India GST/INR defaults or disconnected local-only data as if it were Global functionality.
