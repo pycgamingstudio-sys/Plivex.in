@@ -11,7 +11,6 @@ END
 $roles$;
 
 CREATE SCHEMA IF NOT EXISTS auth;
-CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY);
 GRANT USAGE ON SCHEMA auth TO authenticated;
 
 CREATE TYPE public.app_role AS ENUM ('admin', 'manager', 'employee', 'storekeeper', 'accountant');
@@ -76,11 +75,6 @@ CREATE POLICY "bp update" ON public.business_profile
   WITH CHECK (has_ws_role(workspace_id, ARRAY['admin']::public.app_role[]));
 GRANT SELECT, INSERT, UPDATE ON public.business_profile TO authenticated;
 
-INSERT INTO auth.users (id) VALUES
-  ('00000000-0000-0000-0000-000000000001'),
-  ('00000000-0000-0000-0000-000000000002'),
-  ('00000000-0000-0000-0000-000000000003')
-ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.profiles (id, workspace_id, role) VALUES
   ('00000000-0000-0000-0000-000000000001', 'workspace-a', 'admin'),
   ('00000000-0000-0000-0000-000000000002', 'workspace-a', 'employee'),
