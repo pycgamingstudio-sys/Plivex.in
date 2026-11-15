@@ -13,7 +13,7 @@ export default function GlobalCountryOnboarding() {
   const handleContinue = async (event) => {
     event.preventDefault();
     setError("");
-    if (!country) {
+    if (!country || country.code === "IN") {
       setError("Please choose your business country.");
       return;
     }
@@ -71,7 +71,7 @@ export default function GlobalCountryOnboarding() {
               className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm"
             >
               <option value="">Select your country</option>
-              {COUNTRY_REGISTRY.map((entry) => (
+              {COUNTRY_REGISTRY.filter((entry) => entry.code !== "IN").map((entry) => (
                 <option key={entry.code} value={entry.code}>{entry.name}</option>
               ))}
             </select>
