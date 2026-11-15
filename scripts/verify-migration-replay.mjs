@@ -117,7 +117,10 @@ function assertGlobalFoundation(port) {
   if (missing) fail("Global foundation tables missing or RLS disabled: " + missing);
   const usage = query(port, "plivex_migration_replay", "SELECT has_schema_privilege('authenticated','global','USAGE')::text || '|' || has_schema_privilege('anon','global','USAGE')::text;");
   if (usage !== "true|false") fail("Global schema grants are not least-privilege: " + usage);
-  console.log("PASS Global foundation table/RLS/grant catalog assertions");
+  const inventoryCatalog = query(port, "plivex_migration_replay", "SELECT (to_regprocedure('public.global_record_stock_movement(uuid,uuid,uuid,text,numeric,text,uuid)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='stock_movements' AND column_name='idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_products_create_stock_level' AND NOT tgisinternal)::text");
+  if (inventoryCatalog !== "true|true|true") fail("Global inventory RPC, idempotency column or product stock trigger missing: " + inventoryCatalog);
+  if (query(port, "plivex_migration_replay", "SELECT has_function_privilege('authenticated','public.global_record_stock_movement(uuid,uuid,uuid,text,numeric,text,uuid)','EXECUTE')::text || '|' || has_function_privilege('service_role','public.global_record_stock_movement(uuid,uuid,uuid,text,numeric,text,uuid)','EXECUTE')::text") !== "false|true") fail("Global inventory RPC is not service-role-only");
+  console.log("PASS Global foundation table/RLS/grant and inventory RPC catalog assertions");
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-isolation-foundation.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-owner-provisioning.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-business-data.integration.sql")]);
@@ -183,7 +186,16 @@ function assertGlobalMigrationRollback(port) {
     if (profileRollback.status === 0) fail("Global business-profile migration rollback probe unexpectedly committed");
     const profileResidue = query(port, db, "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='business_profiles' AND column_name='tax_registration_effective_from')::text || '|' || (pg_get_functiondef('public.global_business_records(uuid,uuid,text,text,uuid,jsonb,integer)'::regprocedure) LIKE '%when ''business_profiles''%')::text");
     if (profileResidue !== "false|false") fail("Global business-profile rollback left its column or RPC changes behind: " + profileResidue);
-    console.log("PASS actual DDL rollback for all five Global foundation migrations");
+    // The inventory extension must roll back its idempotency column, trigger and RPC atomically.
+    psql(port, db, ["-f", businessProfilePath]);
+    const triggerPrivilegesPath = resolve(root, "supabase/migrations/202611150006_global_trigger_function_privileges.sql");
+    psql(port, db, ["-f", triggerPrivilegesPath]);
+    const inventoryPath = resolve(root, "supabase/migrations/202611150007_global_inventory_movement_rpc.sql");
+    const inventoryRollback = applyForcedMigrationRollback(port, db, inventoryPath);
+    if (inventoryRollback.status === 0) fail("Global inventory migration rollback probe unexpectedly committed");
+    const inventoryResidue = query(port, db, "SELECT (to_regprocedure('public.global_record_stock_movement(uuid,uuid,uuid,text,numeric,text,uuid)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='stock_movements' AND column_name='idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_products_create_stock_level' AND NOT tgisinternal)::text");
+    if (inventoryResidue !== "false|false|false") fail("Global inventory rollback left its function, column or trigger behind: " + inventoryResidue);
+    console.log("PASS actual DDL rollback for all five Global foundation migrations and inventory extension");
   } finally {
     const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], {
       cwd: root, env: envFor(port, "postgres"), encoding: "utf8",
