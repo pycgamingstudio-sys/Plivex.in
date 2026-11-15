@@ -1,5 +1,5 @@
 /**
- * Country identity registry for the isolated Global edition.
+ * Country and phone identity registry for the unified Plivex application.
  *
  * "identity-only" describes country selection and locale metadata, not tax jurisdiction.
  * Billing prices and provider currency availability are configured separately.
@@ -8,13 +8,13 @@
  */
 
 const entries = [
-  { code: "IN", name: "India", currencyCode: "INR", locales: ["en-IN", "hi-IN"] },
-  { code: "US", name: "United States", currencyCode: "USD", locales: ["en-US", "es-US"] },
-  { code: "GB", name: "United Kingdom", currencyCode: "GBP", locales: ["en-GB"] },
-  { code: "AE", name: "United Arab Emirates", currencyCode: "AED", locales: ["en-AE", "ar-AE"] },
-  { code: "CA", name: "Canada", currencyCode: "CAD", locales: ["en-CA", "fr-CA"] },
-  { code: "AU", name: "Australia", currencyCode: "AUD", locales: ["en-AU"] },
-  { code: "SG", name: "Singapore", currencyCode: "SGD", locales: ["en-SG", "zh-SG", "ms-SG", "ta-SG"] },
+  { code: "IN", name: "India", currencyCode: "INR", phoneCode: "+91", locales: ["en-IN", "hi-IN"] },
+  { code: "US", name: "United States", currencyCode: "USD", phoneCode: "+1", locales: ["en-US", "es-US"] },
+  { code: "GB", name: "United Kingdom", currencyCode: "GBP", phoneCode: "+44", locales: ["en-GB"] },
+  { code: "AE", name: "United Arab Emirates", currencyCode: "AED", phoneCode: "+971", locales: ["en-AE", "ar-AE"] },
+  { code: "CA", name: "Canada", currencyCode: "CAD", phoneCode: "+1", locales: ["en-CA", "fr-CA"] },
+  { code: "AU", name: "Australia", currencyCode: "AUD", phoneCode: "+61", locales: ["en-AU"] },
+  { code: "SG", name: "Singapore", currencyCode: "SGD", phoneCode: "+65", locales: ["en-SG", "zh-SG", "ms-SG", "ta-SG"] },
 ];
 
 export const COUNTRY_REGISTRY = Object.freeze(

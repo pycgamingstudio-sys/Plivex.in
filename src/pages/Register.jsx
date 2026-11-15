@@ -17,9 +17,8 @@ import { getPendingInviteCode, rememberPendingInviteCode, authPageLink } from "@
 import { COUNTRY_REGISTRY, getCountryByCode, getCountryFlag } from "@/global/countries/country-registry.js";
 
 function getInitialSignupCountry() {
-  // Start with the established India path; users explicitly choose another
-  // business country when creating a non-India workspace.
-  return "IN";
+  // Require every new owner to explicitly select the business country.
+  return "";
 }
 
 function passwordRequirementError(password) {
@@ -37,7 +36,7 @@ export default function Register() {
   const [emailSent, setEmailSent] = useState(false);
   const [inviteCode, setInviteCode] = useState(getPendingInviteCode);
   const [countryCode, setCountryCode] = useState(getInitialSignupCountry);
-  const [localeCode, setLocaleCode] = useState(() => getCountryByCode(getInitialSignupCountry())?.locales?.[0] || "en-IN");
+  const [localeCode, setLocaleCode] = useState(() => getCountryByCode(getInitialSignupCountry())?.locales?.[0] || "");
   const localeOptions = getCountryByCode(countryCode)?.locales || [];
 
   // Smart role invite links: /register?invite_token=XXXXXX (or ?invite_code=) auto-maps
@@ -64,6 +63,10 @@ export default function Register() {
     }
     const code = getPendingInviteCode(inviteCode);
     if (APP_EDITION === "global" && code) { setError("Global workspace invitations are not available yet. Create or use your own Global account."); return; }
+    if (!code && APP_EDITION !== "global" && (!getCountryByCode(countryCode) || !getCountryByCode(countryCode).locales.includes(localeCode))) {
+      setError("Please select your business country and language before creating an account.");
+      return;
+    }
     if (code && code.includes("-")) {
       try { parseAndValidateInviteCode(code); } catch (err) {
         setError(err.message || "Invalid invite code");
@@ -149,24 +152,25 @@ export default function Register() {
         <div className="grid gap-3 rounded-xl border border-border bg-muted/20 p-3 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="signup-country">Business country</Label>
-            <select id="signup-country" value={countryCode} onChange={(event) => {
+            <select id="signup-country" required value={countryCode} onChange={(event) => {
             const nextCountry = getCountryByCode(event.target.value);
-            setCountryCode(nextCountry?.code || "IN");
-            setLocaleCode(nextCountry?.locales?.[0] || "en-IN");
+            setCountryCode(nextCountry?.code || "");
+            setLocaleCode(nextCountry?.locales?.[0] || "");
             }} className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm">
+            <option value="">Select your business country</option>
             {COUNTRY_REGISTRY.map((country) => <option key={country.code} value={country.code}>{getCountryFlag(country.code)}  {country.name} · {country.currencyCode}</option>)}
             </select>
           </div>
           <div className="space-y-2">
             <Label htmlFor="signup-locale">Language and number format</Label>
-            <select id="signup-locale" value={localeCode} onChange={(event) => setLocaleCode(event.target.value)} className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm">
+            <select id="signup-locale" required value={localeCode} onChange={(event) => setLocaleCode(event.target.value)} className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm">
             {localeOptions.map((locale) => <option key={locale} value={locale}>{locale}</option>)}
             </select>
           </div>
           <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">This saves your business country and display locale. It does not determine tax residency or legal compliance.</p>
         </div>
       )}
-      <GoogleSignInButton inviteCode={inviteCode} countryCode={countryCode} localeCode={localeCode} businessName={businessName.trim()} returnTo={safeReturnTo()} onError={setError} disabled={loading || (APP_EDITION === "global" && Boolean(getPendingInviteCode(inviteCode)))} className="mb-6" />
+      <GoogleSignInButton inviteCode={inviteCode} countryCode={countryCode} localeCode={localeCode} businessName={businessName.trim()} returnTo={safeReturnTo()} onError={setError} disabled={loading || (!inviteCode && APP_EDITION !== "global" && !countryCode) || (APP_EDITION === "global" && Boolean(getPendingInviteCode(inviteCode)))} className="mb-6" />
 
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
