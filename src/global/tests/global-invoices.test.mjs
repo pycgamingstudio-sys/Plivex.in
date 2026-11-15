@@ -35,6 +35,8 @@ test("Global invoice UI never claims an uncalculated draft is a tax invoice", ()
   assert.match(app, /Tax has not been calculated/);
   assert.match(app, /cannot be issued as a tax invoice/);
   assert.match(app, /Draft only: tax is not calculated/);
+  assert.match(app, /draftRequest\?\.signature === signature \? draftRequest\.id : crypto\.randomUUID\(\)/);
+  assert.match(edge, /p_idempotency_key: body\.idempotency_key/);
 });
 
 test("Global invoice migration is covered by disposable replay, rollback and Deno checks", () => {
