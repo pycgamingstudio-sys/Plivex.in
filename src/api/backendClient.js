@@ -192,6 +192,26 @@ async function invokeGlobalWorkspaceRecords(payload = {}) {
   return { data: { ...data, records, record, items: records } };
 }
 
+// Global invoice and inventory mutations always take workspace identity from the
+// authenticated server context; caller-supplied workspace IDs are never trusted.
+async function invokeGlobalLedger(functionName, payload = {}) {
+  const { data: context, error: contextError } = await supabase.functions.invoke("global-auth-context", { body: {} });
+  if (contextError) throw new ApiError(contextError.message || "Could not verify your Global workspace.", contextError.status || 400, { operation: "global-auth-context" });
+  const workspaceId = context?.user?.workspace_id;
+  if (!workspaceId) throw new ApiError("Your Global workspace is not ready.", 409, { operation: functionName });
+  const body = { ...payload, workspace_id: workspaceId };
+  const { data, error } = await supabase.functions.invoke(functionName, { body });
+  if (error) {
+    let message = error.message || "Global transaction request failed.";
+    try {
+      const response = await error.context?.clone?.json();
+      if (typeof response?.error === "string") message = response.error;
+    } catch { /* retain SDK message */ }
+    throw new ApiError(message, error.status || 400, { operation: functionName });
+  }
+  return { data };
+}
+
 // Features whose backend is not built yet. They fail with a clear message instead of a crash.
 const NOT_READY = {};
 
@@ -203,14 +223,15 @@ const functions = {
     // and runtime tests are complete.
     const functionName = kebab(String(name || ""));
     if (APP_EDITION === "global" && functionName === "workspace-records") return invokeGlobalWorkspaceRecords(payload);
-    if (APP_EDITION === "global" && !["global-ensure-owner", "global-business-records"].includes(functionName)) {
+    if (APP_EDITION === "global" && ["global-invoices", "global-stock-movements"].includes(functionName)) return invokeGlobalLedger(functionName, payload);
+    if (APP_EDITION === "global" && !["global-ensure-owner", "global-business-records", "global-invoices", "global-stock-movements"].includes(functionName)) {
       throw new ApiError("This Global feature is not enabled yet. Your India workspace is kept separate.", 503, { operation: name });
     }
     const migratedFunctions = new Set([
       "add-client", "ensure-owner-role", "send-team-invite", "verify-invite-code",
       "get-workspace-team", "manage-workspace-member", "ping-presence",
       "track-staff-action", "get-team-presence", "get-access-status", "create-payu-order",
-      "global-ensure-owner", "global-business-records", "workspace-records", "manage-cashfree-subscription", "list-invoices", "save-invoice", "set-invoice-status", "send-payment-reminder", "set-invoice-reminder", "confirm-payment-reminder", "update-invoice-client-email",
+      "global-ensure-owner", "global-business-records", "global-invoices", "global-stock-movements", "workspace-records", "manage-cashfree-subscription", "list-invoices", "save-invoice", "set-invoice-status", "send-payment-reminder", "set-invoice-reminder", "confirm-payment-reminder", "update-invoice-client-email",
     ]);
     const adapter = adapters[name] || {};
     const requestPayload = adapter.request ? adapter.request(payload) : payload;

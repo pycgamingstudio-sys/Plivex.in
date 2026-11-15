@@ -58,7 +58,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 const initialInvoice = {
   business: { name: "", email: "", phone: "", gstin: "", address: "" },
   client: { name: "", company: "", email: "", phone: "", gstin: "", address: "" },
-  number: "", issueDate: "", dueDate: "", currency: "INR",
+  number: "", issueDate: "", dueDate: "", currency: "INR", globalDraftRequestId: crypto.randomUUID(),
   items: [
     { id: "item-1", description: "", quantity: "", rate: "", gstRate: 18 },
   ],
@@ -189,7 +189,7 @@ function InvoiceEditor({ invoice, setInvoice, workspaceTaxProfile, globalTaxCalc
         <DesignPicker value={design} onChange={(id) => setInvoice((old) => ({ ...old, design: id }))} canPremium={canAccess("premium_designs")} onLocked={onLocked} />
       </SectionCard>
       <SectionCard icon={BriefcaseBusiness} eyebrow="From" title="Your business" action={<span className="flex items-center gap-1 text-[10px] text-emerald-600"><BadgeCheck className="h-3 w-3" />Ready to send</span>}>
-        <div className="grid gap-3 sm:grid-cols-2"><Field label="Your Business Name" error={errors.businessName}><input required data-testid="input-business-name" className={withErrorClass(inputClass, errors.businessName)} value={invoice.business.name} onChange={(e) => setBusiness("name", e.target.value)} placeholder="Your Business Name (required)" /></Field><Field label="GSTIN" hint="Optional"><input data-testid="input-gstin" className={inputClass} value={invoice.business.gstin} onChange={(e) => setBusiness("gstin", e.target.value)} placeholder="22AAAAA0000A1Z5" /></Field><Field label="Email"><input data-testid="input-business-email" type="email" className={inputClass} value={invoice.business.email} onChange={(e) => setBusiness("email", e.target.value)} placeholder="you@studio.in" /></Field><Field label="Phone"><input data-testid="input-business-phone" className={inputClass} value={invoice.business.phone} onChange={(e) => setBusiness("phone", e.target.value)} placeholder="+91" /></Field></div>
+        <div className="grid gap-3 sm:grid-cols-2"><Field label="Your Business Name" error={errors.businessName}><input required data-testid="input-business-name" className={withErrorClass(inputClass, errors.businessName)} value={invoice.business.name} onChange={(e) => setBusiness("name", e.target.value)} placeholder="Your Business Name (required)" /></Field><Field label={workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN" ? "Tax registration number" : "GSTIN"} hint="Optional"><input data-testid="input-gstin" className={inputClass} value={invoice.business.gstin} onChange={(e) => setBusiness("gstin", e.target.value)} placeholder={workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN" ? "Enter local tax registration number" : "22AAAAA0000A1Z5"} /></Field><Field label="Email"><input data-testid="input-business-email" type="email" className={inputClass} value={invoice.business.email} onChange={(e) => setBusiness("email", e.target.value)} placeholder="you@studio.in" /></Field><Field label="Phone"><input data-testid="input-business-phone" className={inputClass} value={invoice.business.phone} onChange={(e) => setBusiness("phone", e.target.value)} placeholder="+91" /></Field></div>
         <Field label="Business address"><textarea data-testid="input-business-address" className={`${inputClass} min-h-[68px]`} value={invoice.business.address} onChange={(e) => setBusiness("address", e.target.value)} placeholder="Enter address (optional)" /></Field>
         <div className="mt-4 flex flex-wrap items-center gap-2.5 border-t pt-4">{canAccess("custom_logo") ? (<label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"><ImagePlus className="h-3.5 w-3.5" />{invoice.logo ? "Replace logo" : "Add logo"}<input data-testid="input-logo-upload" type="file" accept="image/png,image/jpeg" className="hidden" onChange={(e) => uploadImage(e, "logo")} /></label>) : (<button type="button" onClick={onLocked} className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"><LockKeyhole className="h-3.5 w-3.5" />{invoice.logo ? "Replace logo" : "Add logo"}<span className="rounded bg-primary/15 px-1.5 py-0.5 font-mono-ui text-[9px] font-bold uppercase text-primary">Pro</span></button>)}<button data-testid="button-draw-signature" onClick={onSignature} className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"><Pencil className="h-3.5 w-3.5" />{invoice.signature ? "Edit signature" : "Draw signature"}</button><label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"><ImagePlus className="h-3.5 w-3.5" />Upload signature<input data-testid="input-signature-upload" type="file" accept="image/png,image/jpeg" className="hidden" onChange={(e) => uploadImage(e, "signature")} /></label><span className="text-[10px] text-muted-foreground">Optional · shown on the final page</span></div>
       </SectionCard>
@@ -347,7 +347,7 @@ export function InvoicePreview({ invoice, design }) {
   return (
     <div className="p-2 sm:p-4">
       <ScaledPreview>
-      <div data-testid="invoice-preview" className="print-invoice w-[794px] overflow-hidden bg-white text-[#28263a] shadow-[0_18px_60px_rgba(34,31,62,0.12)]">
+      <div data-testid="invoice-preview" className="relative print-invoice w-[794px] overflow-hidden bg-white text-[#28263a] shadow-[0_18px_60px_rgba(34,31,62,0.12)]">\n        {invoice.documentStatus === "draft" && <div className="absolute right-6 top-5 z-10 rounded border-2 border-amber-600 px-3 py-1 text-[11px] font-black tracking-widest text-amber-700">DRAFT · NOT A TAX INVOICE</div>}
         <InvoiceDesign
           design={design}
           invoice={invoice}
@@ -605,7 +605,14 @@ export default function Home() {
       : Math.max(0, total - invoice.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.rate) || 0), 0));
     const savedInvoice = await saveInvoiceToServer({ ...invoiceForPreview, total, taxValue });
     await refreshAccessStatus();
-    trackStaffAction({ label: `Invoice ${savedInvoice.number || invoice.number || "INV"} generated for ${invoice.client.name || "client"}`, type: "invoice", revenue: total });
+    const isGlobalDraft = workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN";
+    trackStaffAction({
+      label: isGlobalDraft
+        ? `Draft invoice ${savedInvoice.number || "DRAFT"} saved for ${invoice.client.name || "client"}`
+        : `Invoice ${savedInvoice.number || invoice.number || "INV"} generated for ${invoice.client.name || "client"}`,
+      type: isGlobalDraft ? "invoice-draft" : "invoice",
+      ...(isGlobalDraft ? {} : { revenue: total }),
+    });
     return savedInvoice;
   };
   const recordActivity = (label, type = "action") => pushItem(KEYS.activity, { id: genId("act"), type, label, date: new Date().toISOString() });
@@ -676,8 +683,20 @@ export default function Home() {
     try {
       notify("Download pending — preparing your invoice PDF…", "info", 0);
       notify("Preparing invoice PDF… please wait.", "info", 0);
-      // PDF rendering is CPU-bound while invoice persistence is network-bound.
-      // Run both together to avoid adding their wait times sequentially.
+      const isGlobalDraft = workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN";
+      if (isGlobalDraft) {
+        const saved = await recordInvoice();
+        setInvoice((current) => ({ ...current, id: saved.id, number: saved.number, globalDraftRequestId: saved.idempotencyKey || current.globalDraftRequestId, documentStatus: "draft" }));
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const pdf = await renderPdfDocument();
+        if (!pdf) return;
+        const draftFilename = `Plivex_DRAFT_${String(saved.number || "invoice").replace(/[^a-zA-Z0-9]+/g, "-")}.pdf`;
+        pdf.save(draftFilename);
+        recordActivity("Global draft invoice exported");
+        notify("Draft PDF downloaded. It is not an issued tax invoice; tax and payment collection are not finalized.");
+        return;
+      }
+      // India retains its existing save, stock and invoice-sharing workflow.
       const [, pdf] = await Promise.all([recordInvoice(), renderPdfDocument()]);
       if (!pdf) return;
       notify("PDF ready — starting download…", "info", 0);
@@ -716,7 +735,7 @@ export default function Home() {
       ? (loadState(KEYS.settings, { currency: "INR" })?.currency || "INR")
       : "INR";
     const defaultCurrency = resolveInvoiceCurrencyForWorkspace(workspaceTaxProfile?.countryCode, preferredCurrency);
-    setInvoice(applyBusinessProfile({ ...initialInvoice, currency: defaultCurrency, items: [{ ...initialInvoice.items[0], id: `item-${Date.now()}` }] }));
+    setInvoice(applyBusinessProfile({ ...initialInvoice, globalDraftRequestId: crypto.randomUUID(), currency: defaultCurrency, items: [{ ...initialInvoice.items[0], id: `item-${Date.now()}` }] }));
     setErrors({});
     setMobileMenuOpen(false);
     setMobileTab("edit");
@@ -740,6 +759,7 @@ export default function Home() {
     }
   };
   const handleWhatsApp = () => {
+    if (workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN") { notify("Global invoices are draft-only in this release. Sharing and payment collection will be enabled after invoice issuance is verified.", "info"); return; }
     if (!canAccess("whatsapp_share")) { openPaywall("WhatsApp sharing is available on Pro."); return; }
     if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
     if (!requireValid()) {
@@ -755,6 +775,7 @@ export default function Home() {
     }
   };
   const sendWhatsApp = async (phone) => {
+    if (workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN") { notify("Global invoices are draft-only in this release. Sharing and payment collection will be enabled after invoice issuance is verified.", "info"); return; }
     if (!canAccess("whatsapp_share")) { openPaywall("WhatsApp sharing is available on Pro."); return; }
     if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
     if (!requireValid()) { notify("Please complete all required invoice details before sharing on WhatsApp", "error"); return; }
@@ -838,6 +859,7 @@ export default function Home() {
     }
   };
   const shareViaEmailOrSms = async (channel) => {
+    if (workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN") { notify("Global invoices are draft-only in this release. Email/SMS sharing and payment collection are disabled until invoice issuance is verified.", "info"); return; }
     if (!canAccess("whatsapp_share")) { openPaywall("Gmail and SMS invoice sharing are available on Pro."); return; }
     if (manualShareBusy || whatsappSending || pdfDownloading) return;
     if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
