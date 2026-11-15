@@ -7,7 +7,7 @@ import { FileDown, Printer, ShieldCheck, AlertCircle } from "lucide-react";
 
 const resolveLocale=(invoice)=>{
  const business=invoice?.invoice_snapshot?.business||{};
- const requested=business.locale||business.countryLocale;
+ const requested=business.locale||business.countryLocale||invoice?.invoice_snapshot?.globalTaxProfileSnapshot?.localeCode||invoice?.invoice_snapshot?.globalTax?.localeCode;
  if(requested){try{return new Intl.Locale(requested).toString()}catch{}}
  try{return getCurrencyLocale(invoice?.currency||"INR")}catch{return "en-IN"}
 };
