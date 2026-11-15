@@ -423,7 +423,7 @@ export async function saveInvoiceToServer(inv) {
     if (!items.length || items.some((item) => !item.description || !Number.isFinite(item.quantity) || item.quantity <= 0)) {
       throw new Error("Add valid invoice lines before saving this Global draft.");
     }
-    const response = await api.functions.invoke("globalInvoices", {
+    const idempotencyKey = typeof inv.globalDraftRequestId === "string" && /^[0-9a-f-]{36}$/i.test(inv.globalDraftRequestId)\n      ? inv.globalDraftRequestId\n      : crypto.randomUUID();\n    const response = await api.functions.invoke("globalInvoices", {
       action: "create_draft",
       client_id: null,
       currency_code: currency,
@@ -431,11 +431,11 @@ export async function saveInvoiceToServer(inv) {
       due_date: dateOrNull(inv.dueDate),
       notes: [inv.notes, inv.terms].filter(Boolean).join("\\n\\n").slice(0, 4000),
       items,
-      idempotency_key: inv.globalDraftRequestId || crypto.randomUUID(),
+      idempotency_key: idempotencyKey,
     });
     const saved = response?.data?.invoice;
     if (!saved?.id) throw new Error("The Global draft invoice could not be saved.");
-    const result = { id: saved.id, number: saved.invoice_number, status: "draft", currency, idempotencyKey: inv.globalDraftRequestId || undefined };
+    const result = { id: saved.id, number: saved.invoice_number, status: "draft", currency, idempotencyKey };
     _savedSignatures.set(sig, result);
     return result;
   }
