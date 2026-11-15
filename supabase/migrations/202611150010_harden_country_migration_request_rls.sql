@@ -40,6 +40,28 @@ create unique index if not exists workspace_country_change_one_pending_idx
 create index if not exists workspace_country_change_requests_workspace_time_idx
   on public.workspace_country_change_requests(workspace_id, requested_at desc);
 
+do $constraint$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.workspace_country_change_requests'::regclass
+      and conname = 'workspace_country_change_target_locale_check'
+  ) then
+    alter table public.workspace_country_change_requests
+      add constraint workspace_country_change_target_locale_check
+      check (
+        (to_country_code = 'IN' and to_locale_code in ('en-IN','hi-IN'))
+        or (to_country_code = 'US' and to_locale_code in ('en-US','es-US'))
+        or (to_country_code = 'GB' and to_locale_code = 'en-GB')
+        or (to_country_code = 'AE' and to_locale_code in ('en-AE','ar-AE'))
+        or (to_country_code = 'CA' and to_locale_code in ('en-CA','fr-CA'))
+        or (to_country_code = 'AU' and to_locale_code = 'en-AU')
+        or (to_country_code = 'SG' and to_locale_code in ('en-SG','zh-SG','ms-SG','ta-SG'))
+      );
+  end if;
+end
+$constraint$;
+
 alter table public.workspace_country_change_requests enable row level security;
 revoke all on public.workspace_country_change_requests from public, anon, authenticated;
 grant select, insert on public.workspace_country_change_requests to authenticated;
