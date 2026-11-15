@@ -70,3 +70,15 @@ test("public marketing copy distinguishes Global availability from India-only fe
   assert.match(about, /Global UI: English/);
   assert.match(about, /Global capabilities are being introduced in stages/);
 });
+
+
+test("public legal copy describes country-dependent tax workflows rather than GST-only service", async () => {
+  const privacy = await read("../../pages/PrivacyPolicy.jsx");
+  const terms = await read("../../pages/TermsOfService.jsx");
+  assert.match(privacy, /country-specific tax registration details/);
+  assert.match(privacy, /Feature availability depends on your workspace country/);
+  assert.match(terms, /selected workspace country/);
+  assert.match(terms, /not legal, accounting, or tax advice/);
+  assert.doesNotMatch(privacy, /automated GST calculation/);
+  assert.doesNotMatch(terms, /accurate GSTIN/);
+});
