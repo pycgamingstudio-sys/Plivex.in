@@ -404,9 +404,23 @@ const PRICING_PLANS = [
     locked: [] },
 ];
 
-function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEmail }) {
+function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEmail, countryCode = "IN", currencyCode = "INR" }) {
+  const isGlobalPricing = countryCode !== "IN";
   const isVirendraAccount = String(userEmail || "").trim().toLowerCase() === "virendra.sharma99978@gmail.com";
-  const displayPlans = PRICING_PLANS.map((plan) => isVirendraAccount && plan.id === "basic_monthly" ? { ...plan, price: 25, amount: 2500, badge: "SPECIAL PRICE" } : plan);
+  const displayPlans = countryCode === "US"
+    ? [
+        { ...PRICING_PLANS[0], price: 5.99, amount: 599, badge: null, included: ["USD workspace base currency", "Invoices and quotations", "Client and product records", "Inventory and expense tracking", "Regional number and date formats"], locked: ["Additional invoice currencies", "Automated tax calculations without verified jurisdiction rules"] },
+        { ...PRICING_PLANS[1], price: 9.99, amount: 999, badge: "MOST POPULAR", included: ["Everything in Basic", "Advanced CRM and business reports", "Expanded invoice and inventory limits", "Additional currencies when enabled", "Priority support"], locked: [] },
+      ]
+    : isGlobalPricing
+      ? []
+      : PRICING_PLANS.map((plan) => isVirendraAccount && plan.id === "basic_monthly" ? { ...plan, price: 25, amount: 2500, badge: "SPECIAL PRICE" } : plan);
+  const priceLabel = (price) => new Intl.NumberFormat(countryCode === "US" ? "en-US" : "en-IN", {
+    style: "currency",
+    currency: currencyCode,
+    minimumFractionDigits: currencyCode === "INR" ? 0 : 2,
+    maximumFractionDigits: currencyCode === "INR" ? 0 : 2,
+  }).format(price);
   const activePlan = currentPlan?.planId ? PRICING_PLANS.find((plan) => plan.id === currentPlan.planId) : null;
   return (
     <div className="app-chrome fixed inset-0 z-50 flex items-start justify-center bg-[#1f1c35]/55 p-4 backdrop-blur-md sm:items-center">
@@ -425,6 +439,8 @@ function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEm
           {currentPlan?.active && (
             <CurrentPlanCard planName={currentPlan.planName} benefits={activePlan?.included || []} startedAt={currentPlan.startedAt} expiresAt={currentPlan.expiresAt} />
           )}
+          {countryCode === "US" && <p className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-950">USD plan prices are displayed for the United States, but USD checkout is not enabled yet. Cashfree multi-currency activation is still pending, so purchase is temporarily unavailable.</p>}
+          {isGlobalPricing && displayPlans.length === 0 && <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Subscription pricing in {currencyCode} is not configured yet. Your workspace home currency and country-based invoice defaults remain available.</p>}
           <div className="grid gap-3 sm:grid-cols-2">
             {displayPlans.map((plan) => (
               <div key={plan.id} className={`relative flex flex-col rounded-2xl border p-4 ${plan.accent ? "border-primary bg-primary/[.05]" : "border-border bg-background/40"}`}>
@@ -444,7 +460,7 @@ function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEm
         <div className="border-t px-6 py-4">
           <button data-testid="button-close-pricing-text" onClick={onClose} className="w-full text-center text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground">Close</button>
         </div>
-        <div className="flex items-center justify-center gap-1 border-t px-6 py-3 text-[10px] text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" />Secure checkout via Cashfree</div>
+        <div className="flex items-center justify-center gap-1 border-t px-6 py-3 text-[10px] text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" />{isGlobalPricing ? "International checkout is not active yet" : "Secure checkout via Cashfree"}</div>
       </div>
     </div>
   );
