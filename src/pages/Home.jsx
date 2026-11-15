@@ -337,6 +337,10 @@ function ScaledPreview({ children }) {
 }
 
 export function InvoicePreview({ invoice, design }) {
+  const invoiceCountry = invoice.globalTaxProfileSnapshot?.countryCode || "IN";
+  const invoiceLocale = invoice.globalTaxProfileSnapshot?.localeCode || getCountryExperience(invoiceCountry)?.defaultLocale || "en-IN";
+  const invoiceMoney = (value, currency) => formatMoney(value, currency, invoiceLocale);
+  const invoiceDateLabel = (value, locale) => dateLabel(value, locale || invoiceLocale);
   const subtotal = useMemo(() => invoice.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.rate) || 0), 0), [invoice.items]);
   const discount = Number(invoice.discount) || 0;
   const discountValue = invoice.discountType === "percent" ? subtotal * Math.max(0, discount) / 100 : Math.max(0, discount);
@@ -368,8 +372,8 @@ export function InvoicePreview({ invoice, design }) {
           total={renderedTotal}
           upiValid={upiValid}
           qrUrl={qrUrl}
-          money={money}
-          dateLabel={dateLabel}
+          money={invoiceMoney}
+          dateLabel={invoiceDateLabel}
           amountInWords={amountInWords}
         />
       </div>
