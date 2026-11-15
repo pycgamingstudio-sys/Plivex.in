@@ -30,6 +30,31 @@ before insert or update of workspace_id, country_code, locale_code
 on public.profiles
 for each row execute function public.set_india_profile_region_defaults();
 
+create or replace function public.protect_profile_region_fields()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, public
+as $function$
+begin
+  -- Country/locale are security-sensitive edition routing fields. Browser roles
+  -- cannot change them directly; only trusted server-side RPCs may do so.
+  if current_user not in ('postgres','service_role','supabase_admin')
+     and coalesce(auth.role(), '') <> 'service_role' then
+    new.country_code := old.country_code;
+    new.locale_code := old.locale_code;
+  end if;
+  return new;
+end;
+$function$;
+
+drop trigger if exists profiles_protect_region_fields on public.profiles;
+create trigger profiles_protect_region_fields
+before update of country_code, locale_code
+on public.profiles
+for each row execute function public.protect_profile_region_fields();
+
+revoke all on function public.protect_profile_region_fields() from public, anon, authenticated;
+
 create or replace function public.update_india_workspace_locale(
   p_user_id uuid,
   p_locale_code text
