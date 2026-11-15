@@ -13,6 +13,15 @@ ON CONFLICT (id) DO NOTHING;
 SET ROLE service_role;
 SELECT set_config('request.jwt.claim.role','service_role',false);
 SELECT set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',false);
+DO $fixture_auth$
+BEGIN
+  IF auth.role() <> 'service_role'
+     OR auth.uid() <> '11111111-1111-4111-8111-111111111111'
+     OR public.current_workspace_id() <> 'workspace-india-regression' THEN
+    RAISE EXCEPTION 'Disposable fixture JWT context was not established correctly';
+  END IF;
+END
+$fixture_auth$;
 
 -- Seed the already-created India regression identity with a realistic owned workspace.
 INSERT INTO public.workspace_members(
