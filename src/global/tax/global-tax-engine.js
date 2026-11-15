@@ -1,5 +1,6 @@
 import { calculateVerifiedTaxRule } from "./verified-rule-evaluator.js";
 import { getCountryStandardRateRule } from "./standard-rate-rules.js";
+import { getGlobalTaxCapability } from "./global-tax-capabilities.js";
 
 /**
  * Country router for the seven selectable Global workspaces.
@@ -11,11 +12,12 @@ export function calculateGlobalTax(input) {
     return { ok: false, status: "needs_review", code: "INVALID_INPUT", message: "Tax calculation input is required." };
   }
   const countryCode = String(input.countryCode || "").trim().toUpperCase();
-  if (countryCode === "IN") {
+  const capability = getGlobalTaxCapability(countryCode);
+  if (capability.status === "india_legacy") {
     return { ok: false, status: "needs_review", code: "INDIA_LEGACY_ADAPTER_REQUIRED", message: "Use the existing India GST invoice calculation and reporting path." };
   }
-  if (!["US", "GB", "AE", "CA", "AU", "SG"].includes(countryCode)) {
-    return { ok: false, status: "needs_review", code: "UNSUPPORTED_COUNTRY", message: "Country is not enabled in Plivex Global." };
+  if (capability.status === "not_configured") {
+    return { ok: false, status: "needs_review", code: "UNSUPPORTED_COUNTRY", message: "This country is not configured for Global tax calculation. Drafts may be saved, but tax calculation and issuance remain disabled." };
   }
   const rule = input.rule || getCountryStandardRateRule(countryCode);
   if ((countryCode === "US" || countryCode === "CA") && !input.rule) {
