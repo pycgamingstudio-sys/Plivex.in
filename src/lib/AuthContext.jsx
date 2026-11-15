@@ -89,9 +89,22 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingAuth(true);
       let currentUser = await db.auth.me();
 
+      // New unified accounts must choose a country before either workspace is opened.
+      if (APP_EDITION === "unified" && currentUser?.edition === "pending") {
+        resetWorkspaceCache();
+        setTenantId(null, { migrateLegacy: false });
+        setUser(currentUser);
+        signedInRef.current = true;
+        setIsAuthenticated(true);
+        setAuthError(null);
+        setIsLoadingAuth(false);
+        setAuthChecked(true);
+        return;
+      }
+
       // Global identity and workspace authorization are read only from Global RPCs.
       // Never consult India public.profiles, invites, or workspace-record endpoints.
-      if (APP_EDITION === "global") {
+      if (APP_EDITION === "global" || currentUser?.edition === "global") {
         const pendingGlobalInvite = getPendingInviteCode();
         if (pendingGlobalInvite) {
           throw new Error("Global workspace invitations are not available yet. Remove the invite link and sign in with your own Global account.");
@@ -178,7 +191,7 @@ export const AuthProvider = ({ children }) => {
   const logout = (shouldRedirect = true) => {
     clearSessionCache();
     resetWorkspaceCache();
-    setTenantId(null, { migrateLegacy: APP_EDITION !== 'global' });
+    setTenantId(null, { migrateLegacy: APP_EDITION !== 'global' && user?.edition !== "global" });
     setUser(null);
     setIsAuthenticated(false);
     if (shouldRedirect) {
