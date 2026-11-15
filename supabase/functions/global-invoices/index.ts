@@ -256,6 +256,30 @@ Deno.serve(async (req: Request) => {
       return globalJson(data, 200, origin);
     }
 
+    if (body.action === "list_reconciliation") {
+      const requestedLimit = body.limit === undefined ? 100 : body.limit;
+      if (!Number.isInteger(requestedLimit) || requestedLimit < 1 || requestedLimit > 200) {
+        return globalJson({ error: "Reconciliation limit must be between 1 and 200." }, 400, origin);
+      }
+      const { data, error } = await auth.admin.rpc("global_list_invoice_reconciliation", {
+        p_user_id: auth.user.id,
+        p_workspace_id: workspaceId,
+        p_limit: requestedLimit,
+      });
+      if (error) {
+        console.error("Global invoice reconciliation RPC failed", { code: error.code });
+        return globalJson({ error: "Invoice reconciliation service is not ready. Please try again later." }, 503, origin);
+      }
+      if (!data?.ok) {
+        const reason = String(data?.reason || "request_failed");
+        return globalJson({
+          error: reason === "access_denied" ? "You do not have access to this Global workspace." : "Could not load invoice reconciliation.",
+          reason,
+        }, reason === "access_denied" ? 403 : 400, origin);
+      }
+      return globalJson(data, 200, origin);
+    }
+
     return globalJson({ error: "Unsupported invoice action." }, 400, origin);
   } catch (error) {
     console.error("global-invoices failed", error);
