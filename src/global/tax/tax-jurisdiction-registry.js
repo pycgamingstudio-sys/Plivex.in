@@ -32,8 +32,8 @@ const CA_REGIONS = [
 ].map(([code,name,gstHstBps,pstQstBps,system]) => Object.freeze({
   id:`CA-${code}`, code, name, countryCode:"CA", level:"province_territory",
   components:Object.freeze([
-    Object.freeze({ id:gstHstBps>=1300?`${code}-HST`:"GST", name:gstHstBps>=1300?"HST":"GST", rateBps:gstHstBps }),
-    ...(pstQstBps ? [Object.freeze({ id:code==="QC"?"QST":"PST", name:code==="QC"?"QST":"PST", rateBps:pstQstBps })] : []),
+    Object.freeze({ id:gstHstBps>=1300?`${code}-HST`:"GST", name:gstHstBps>=1300?"HST":"GST", ratePercent:gstHstBps/100 }),
+    ...(pstQstBps ? [Object.freeze({ id:code==="QC"?"QST":"PST", name:code==="QC"?"QST":"PST", ratePercent:pstQstBps/100 })] : []),
   ]),
   system,
   source:"https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html",
