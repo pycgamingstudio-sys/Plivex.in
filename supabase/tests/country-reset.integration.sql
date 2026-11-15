@@ -97,6 +97,9 @@ BEGIN
     RAISE EXCEPTION '30-day cooldown did not prevent a rapid second country reset: %', result;
   END IF;
 
+  UPDATE public.profiles
+  SET workspace_id = null, country_code = 'US', locale_code = 'en-US'
+  WHERE id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   INSERT INTO global.user_profiles(user_id,email,full_name,default_workspace_id)
   VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','country-reset-employee@example.test','Workspace Employee',new_workspace_id::uuid);
   INSERT INTO global.workspace_members(workspace_id,user_id,role,status)
