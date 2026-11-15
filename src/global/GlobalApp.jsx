@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/api/backendClient";
 import GlobalCountryOnboarding from "@/components/global/GlobalCountryOnboarding";
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
 const COUNTRY_OPTIONS = [
   { code: "US", label: "United States", locale: "en-US", currency: "USD" },
@@ -186,7 +187,15 @@ export default function GlobalApp() {
           <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h1 className="text-2xl font-bold">{mode === "register" ? "Create your account" : "Welcome to Plivex"}</h1>
             <p className="mt-2 text-sm text-slate-500">International business workspace for clients, products and expenses.</p>
-            <form className="mt-6 space-y-4" onSubmit={submitAuth}>
+            <div className="mt-6">
+              <GoogleSignInButton onError={setError} disabled={busy} />
+              <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
+                <span className="h-px flex-1 bg-slate-200" />
+                <span>or continue with email</span>
+                <span className="h-px flex-1 bg-slate-200" />
+              </div>
+            </div>
+            <form className="space-y-4" onSubmit={submitAuth}>
               {mode === "register" && <label className="block text-sm font-medium">Business country
                 <select required className="mt-1 w-full rounded-lg border border-slate-300 p-3" value={countryCode} onChange={(event) => setCountryCode(event.target.value)}>
                   <option value="">Select your business country</option>
