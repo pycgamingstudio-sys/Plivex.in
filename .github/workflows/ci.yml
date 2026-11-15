@@ -15,3 +15,7 @@ jobs:
       - run: npm run test:membership
       - run: npm run test:global
       - run: npm run build
+      - name: Build the unified single-app edition
+        run: VITE_APP_EDITION=unified npm run build
+      - name: Verify unified build configuration
+        run: VITE_APP_EDITION=unified npm run verify:build-env

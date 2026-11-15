@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-const edition = process.env.VITE_APP_EDITION === "global" ? "global" : "india";
+const requestedEdition = process.env.VITE_APP_EDITION || "india";
+const edition = requestedEdition === "global" ? "global" : "india";
+const buildEdition = requestedEdition === "unified" ? "unified" : edition;
 const configPath = edition === "global" ? "wrangler.global.jsonc" : "wrangler.jsonc";
 const config = JSON.parse(readFileSync(configPath, "utf8"));
 const vars = config.vars || {};
@@ -30,4 +32,9 @@ if (edition === "global") {
 assert.ok(!bundle.includes("http://invalid.local"), "Build contains the invalid Supabase URL fallback");
 assert.ok(!bundle.includes("missing-key"), "Build contains the missing Supabase key fallback");
 
-console.log(`PASS: ${edition} built assets match the selected public Worker configuration (values redacted)`);
+if (buildEdition === "unified") {
+  assert.ok(bundle.includes("global-auth-context"), "Unified build must include runtime Global workspace resolution");
+  assert.ok(bundle.includes("india"), "Unified build must retain the India workspace path");
+}
+
+console.log(`PASS: ${buildEdition} app assets match the ${edition} Worker configuration (values redacted)`);

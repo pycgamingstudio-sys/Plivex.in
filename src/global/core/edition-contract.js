@@ -12,6 +12,8 @@ export const EDITION_IDS = Object.freeze({
 
 export const DEFAULT_EDITION_ID = EDITION_IDS.INDIA;
 
+export const UNIFIED_EDITION_ID = "unified";
+
 // A workspace country, not a URL path or separate deployment, selects regional behavior.
 const INDIA_COUNTRY_CODE = "IN";
 const ISO_COUNTRY_CODE = /^[A-Z]{2}$/;

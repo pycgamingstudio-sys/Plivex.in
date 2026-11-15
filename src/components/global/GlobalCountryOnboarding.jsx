@@ -13,7 +13,7 @@ export default function GlobalCountryOnboarding() {
   const handleContinue = async (event) => {
     event.preventDefault();
     setError("");
-    if (!country) {
+    if (!country || country.code === "IN") {
       setError("Please choose your business country.");
       return;
     }
@@ -38,6 +38,7 @@ export default function GlobalCountryOnboarding() {
       if (!response?.data?.ok) {
         throw new Error(response?.data?.error || "Your workspace could not be initialized.");
       }
+      try { window.localStorage.removeItem("plivex.signup.region"); } catch { /* best effort */ }
       window.location.reload();
     } catch (submitError) {
       setError(submitError?.message || "Could not save your business country. Please try again.");
@@ -49,7 +50,7 @@ export default function GlobalCountryOnboarding() {
     <main className="min-h-screen bg-background px-4 py-10 flex items-center justify-center">
       <section className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
         <div className="mb-6">
-          <p className="text-sm font-semibold text-primary">Plivex Global</p>
+          <p className="text-sm font-semibold text-primary">Plivex</p>
           <h1 className="mt-2 text-2xl font-bold tracking-tight">Where is your business based?</h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             Choose your business country to set the workspace currency and regional preferences.
@@ -71,7 +72,7 @@ export default function GlobalCountryOnboarding() {
               className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm"
             >
               <option value="">Select your country</option>
-              {COUNTRY_REGISTRY.map((entry) => (
+              {COUNTRY_REGISTRY.filter((entry) => entry.code !== "IN").map((entry) => (
                 <option key={entry.code} value={entry.code}>{entry.name}</option>
               ))}
             </select>

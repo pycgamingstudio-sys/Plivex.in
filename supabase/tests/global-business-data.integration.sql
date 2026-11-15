@@ -4,7 +4,8 @@ INSERT INTO auth.users (id,email,raw_user_meta_data,raw_app_meta_data)
 VALUES
  ('66666666-6666-4666-8666-666666666666','global-data-a@example.test','{}'::jsonb,'{}'::jsonb),
  ('77777777-7777-4777-8777-777777777777','global-data-b@example.test','{}'::jsonb,'{}'::jsonb),
- ('88888888-8888-4888-8888-888888888888','global-data-manager@example.test','{}'::jsonb,'{}'::jsonb)
+ ('88888888-8888-4888-8888-888888888888','global-data-manager@example.test','{}'::jsonb,'{}'::jsonb),
+ ('b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2','global-data-accountant@example.test','{}'::jsonb,'{}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
 SET ROLE service_role;
@@ -16,7 +17,8 @@ INSERT INTO global.workspace_members(workspace_id,user_id,role,status)
 VALUES
  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','66666666-6666-4666-8666-666666666666','owner','active'),
  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd','77777777-7777-4777-8777-777777777777','owner','active'),
- ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','88888888-8888-4888-8888-888888888888','manager','active');
+ ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','88888888-8888-4888-8888-888888888888','manager','active') ,
+ ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2','accountant','active');
 INSERT INTO global.business_profiles(workspace_id,legal_name,display_name,country_code,locale_code,currency_code)
 VALUES
  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','Workspace A Ltd','Workspace A','GB','en-GB','GBP'),
@@ -32,7 +34,8 @@ VALUES
 INSERT INTO global.stock_levels(workspace_id,product_id,quantity)
 VALUES
  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','11111111-aaaa-4111-8111-111111111111',12),
- ('dddddddd-dddd-4ddd-8ddd-dddddddddddd','22222222-bbbb-4222-8222-222222222222',27);
+ ('dddddddd-dddd-4ddd-8ddd-dddddddddddd','22222222-bbbb-4222-8222-222222222222',27)
+ON CONFLICT (workspace_id,product_id) DO UPDATE SET quantity=EXCLUDED.quantity;
 INSERT INTO global.stock_movements(workspace_id,product_id,movement_type,quantity_delta,created_by)
 VALUES
  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','11111111-aaaa-4111-8111-111111111111','receipt',12,'66666666-6666-4666-8666-666666666666'),
@@ -216,8 +219,112 @@ END
 $global_records_rpc$;
 RESET ROLE;
 
+-- Atomic inventory movement, idempotency, role enforcement and stock-level trigger.
+SET ROLE service_role;
+DO $global_inventory_movement$
+DECLARE
+  result jsonb;
+  duplicate_result jsonb;
+  product_result jsonb;
+  movement_key uuid := 'c3c3c3c3-c3c3-43c3-83c3-c3c3c3c3c3c3';
+  new_product_id uuid;
+BEGIN
+  result := public.global_record_stock_movement(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    '11111111-aaaa-4111-8111-111111111111',
+    'receipt',5,'CI receipt',movement_key
+  );
+  IF result->>'ok' <> 'true' OR (result->>'quantity')::numeric <> 17 THEN
+    RAISE EXCEPTION 'Global stock receipt did not update the balance atomically: %', result;
+  END IF;
+
+  duplicate_result := public.global_record_stock_movement(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    '11111111-aaaa-4111-8111-111111111111',
+    'receipt',5,'CI receipt',movement_key
+  );
+  IF duplicate_result->>'ok' <> 'true' OR duplicate_result->>'duplicate' <> 'true'
+     OR (duplicate_result->>'quantity')::numeric <> 17 THEN
+    RAISE EXCEPTION 'Repeated stock request was not idempotent: %', duplicate_result;
+  END IF;
+
+  result := public.global_record_stock_movement(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    '11111111-aaaa-4111-8111-111111111111',
+    'sale',-4,'CI sale','d4d4d4d4-d4d4-44d4-84d4-d4d4d4d4d4d4'
+  );
+  IF result->>'ok' <> 'true' OR (result->>'quantity')::numeric <> 13 THEN
+    RAISE EXCEPTION 'Global stock sale did not reduce the balance: %', result;
+  END IF;
+
+  result := public.global_record_stock_movement(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    '11111111-aaaa-4111-8111-111111111111',
+    'sale',-99,'Insufficient test','e5e5e5e5-e5e5-45e5-85e5-e5e5e5e5e5e5'
+  );
+  IF result->>'ok' <> 'false' OR result->>'reason' <> 'insufficient_stock'
+     OR (SELECT quantity FROM global.stock_levels WHERE workspace_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc' AND product_id='11111111-aaaa-4111-8111-111111111111') <> 13 THEN
+    RAISE EXCEPTION 'Stock movement allowed a negative balance or changed stock after rejection: %', result;
+  END IF;
+
+  result := public.global_record_stock_movement(
+    '88888888-8888-4888-8888-888888888888',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    '11111111-aaaa-4111-8111-111111111111',
+    'receipt',2,'Manager receipt','f6f6f6f6-f6f6-46f6-86f6-f6f6f6f6f6f6'
+  );
+  IF result->>'ok' <> 'true' THEN
+    RAISE EXCEPTION 'Manager could not record stock: %', result;
+  END IF;
+
+  result := public.global_record_stock_movement(
+    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    '11111111-aaaa-4111-8111-111111111111',
+    'receipt',1,'Accountant should be denied','a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a7a7'
+  );
+  IF result->>'ok' <> 'false' OR result->>'reason' <> 'forbidden' THEN
+    RAISE EXCEPTION 'Accountant unexpectedly received stock movement permission: %', result;
+  END IF;
+
+  result := public.global_record_stock_movement(
+    '66666666-6666-4666-8666-666666666666',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    '11111111-aaaa-4111-8111-111111111111',
+    'receipt',1,'Cross workspace','b8b8b8b8-b8b8-48b8-88b8-b8b8b8b8b8b8'
+  );
+  IF result->>'ok' <> 'false' OR result->>'reason' <> 'access_denied' THEN
+    RAISE EXCEPTION 'Stock movement crossed workspace boundaries: %', result;
+  END IF;
+
+  product_result := public.global_business_records(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'products','create',null,
+    '{"name":"Trigger Stock Product","currency_code":"GBP"}'::jsonb,10
+  );
+  IF product_result->>'ok' <> 'true' THEN
+    RAISE EXCEPTION 'Global product create failed: %', product_result;
+  END IF;
+  new_product_id := (product_result->'record'->>'id')::uuid;
+  IF NOT EXISTS (SELECT 1 FROM global.stock_levels WHERE workspace_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc' AND product_id=new_product_id AND quantity=0) THEN
+    RAISE EXCEPTION 'New Global product did not receive its zero-balance stock row';
+  END IF;
+END
+$global_inventory_movement$;
+RESET ROLE;
+
 DO $global_rpc_privileges$
 BEGIN
+  IF has_function_privilege('anon','public.global_record_stock_movement(uuid,uuid,uuid,text,numeric,text,uuid)','EXECUTE')
+     OR has_function_privilege('authenticated','public.global_record_stock_movement(uuid,uuid,uuid,text,numeric,text,uuid)','EXECUTE')
+     OR NOT has_function_privilege('service_role','public.global_record_stock_movement(uuid,uuid,uuid,text,numeric,text,uuid)','EXECUTE') THEN
+    RAISE EXCEPTION 'Global stock movement RPC execute grants are not service-role-only';
+  END IF;
   IF has_function_privilege('anon','public.global_business_records(uuid,uuid,text,text,uuid,jsonb,integer)','EXECUTE')
      OR has_function_privilege('authenticated','public.global_business_records(uuid,uuid,text,text,uuid,jsonb,integer)','EXECUTE')
      OR NOT has_function_privilege('service_role','public.global_business_records(uuid,uuid,text,text,uuid,jsonb,integer)','EXECUTE') THEN

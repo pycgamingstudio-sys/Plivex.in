@@ -1,6 +1,8 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 
-import { backend as db, supabase, APP_EDITION } from '@/api/backendClient';
+import { backend as db, supabase, APP_EDITION, isUnifiedBuild, setRuntimeEdition } from '@/api/backendClient';
+import { resolveWorkspaceEdition } from '@/global/core/edition-contract.js';
+import { listSelectableCountries } from '@/global/countries/country-registry.js';
 import { hydrateWorkspaceData, resetWorkspaceCache } from '@/lib/stores';
 import { clearSessionCache } from '@/lib/sessionCache';
 import { setTenantId } from '@/lib/stores';
@@ -8,6 +10,47 @@ import { setTenantId } from '@/lib/stores';
 import { getPendingInviteCode, rememberPendingInviteCode, clearPendingInviteCode, authPageLink } from '@/components/auth/workspaceInvite';
 
 const AuthContext = createContext();
+
+// A single Supabase login is resolved to its workspace's country after sign-in.
+// Existing India accounts with no country stamp remain India; non-India accounts
+// must resolve to an explicitly supported country before Global handlers are used.
+async function resolveSignedInEdition(currentUser) {
+  if (!isUnifiedBuild) return currentUser;
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  const metadataCountry = authData?.user?.user_metadata?.signup_country_code;
+  let countryCode = typeof metadataCountry === 'string' ? metadataCountry.trim().toUpperCase() : '';
+  if (!countryCode) {
+    try {
+      const pendingRegion = JSON.parse(window.localStorage.getItem('plivex.signup.region') || 'null');
+      if (typeof pendingRegion?.countryCode === 'string') countryCode = pendingRegion.countryCode.trim().toUpperCase();
+    } catch { /* ignore malformed or stale signup preferences */ }
+  }
+
+  // Existing India workspaces predate country stamping and remain on India.
+  if (currentUser?.workspace_id && !countryCode) countryCode = 'IN';
+
+  let globalUser = null;
+  if (countryCode !== 'IN') {
+    const { data: globalContext, error: globalError } = await supabase.functions.invoke('global-auth-context', { body: {} });
+    if (!globalError && globalContext?.user?.id === currentUser?.id) {
+      globalUser = globalContext.user;
+      countryCode = globalUser.country_code || countryCode;
+    } else if (countryCode) {
+      throw new Error('Your Global workspace could not be verified. Your existing data has not been changed.');
+    }
+  }
+
+  // An older account without country metadata is India unless a Global membership
+  // explicitly proves otherwise. No country is inferred from IP or browser locale.
+  if (!countryCode) countryCode = 'IN';
+  const supportedCodes = listSelectableCountries().map((country) => country.code);
+  const edition = resolveWorkspaceEdition(countryCode, supportedCodes);
+  if (!edition) throw new Error('This business country is not supported yet. Your account data has not been changed.');
+  setRuntimeEdition(edition);
+  return edition === 'global' && globalUser ? { ...currentUser, ...globalUser } : currentUser;
+}
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -87,7 +130,9 @@ export const AuthProvider = ({ children }) => {
   const runCheckUserAuth = async () => {
     try {
       setIsLoadingAuth(true);
+      if (isUnifiedBuild) setRuntimeEdition('india');
       let currentUser = await db.auth.me();
+      if (isUnifiedBuild) currentUser = await resolveSignedInEdition(currentUser);
 
       // Global identity and workspace authorization are read only from Global RPCs.
       // Never consult India public.profiles, invites, or workspace-record endpoints.
@@ -176,9 +221,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = (shouldRedirect = true) => {
+    const wasGlobalWorkspace = APP_EDITION === 'global';
+    if (isUnifiedBuild) setRuntimeEdition('india');
     clearSessionCache();
     resetWorkspaceCache();
-    setTenantId(null, { migrateLegacy: APP_EDITION !== 'global' });
+    setTenantId(null, { migrateLegacy: !wasGlobalWorkspace });
     setUser(null);
     setIsAuthenticated(false);
     if (shouldRedirect) {
