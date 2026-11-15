@@ -339,7 +339,8 @@ declare
 begin
   if p_user_id is null or p_workspace_id is null or p_invoice_id is null or p_idempotency_key is null
     or p_amount_minor is null or p_amount_minor<=0 or p_refund_date is null
-    or p_currency_code is null or p_currency_code !~ '^[A-Z]{3}
+    or p_currency_code is null or length(p_currency_code) <> 3 or p_currency_code !~ '^[A-Z]{3}'
+    or coalesce(length(p_method),0)>80 or coalesce(length(p_reference),0)>160
     return jsonb_build_object('ok',false,'reason','invalid_refund');
   end if;
   select role into v_role from global.workspace_members
