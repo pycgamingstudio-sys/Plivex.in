@@ -3,18 +3,21 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [backend, handler, shared, rpc, settings, businessProfile] = await Promise.all([
+const [backend, handler, shared, rpc, settings, businessProfile, resetRpc, resetHandler, authContext] = await Promise.all([
   read("../../api/backendClient.js"),
   read("../../../supabase/functions/global-business-records/index.ts"),
   read("../../../supabase/functions/_shared/global.ts"),
   read("../../../supabase/migrations/202611150005_global_business_profile_records.sql"),
   read("../../components/global/WorkspaceCountrySettings.jsx"),
   read("../../pages/BusinessProfile.jsx"),
+  read("../../../supabase/migrations/20261115190000_self_service_country_reset.sql"),
+  read("../../../supabase/functions/reset-workspace-country/index.ts"),
+  read("../../lib/AuthContext.jsx"),
 ]);
 
 test("Global app can invoke only the dedicated Global business records function", () => {
-  assert.match(backend, /!\["global-ensure-owner", "global-business-records", "global-invoices", "global-stock-movements", "global-update-workspace-country"\]\.includes\(functionName\)/);
-  assert.match(backend, /"global-business-records", "global-invoices", "global-stock-movements", "workspace-records"/);
+  assert.match(backend, /!\["global-ensure-owner", "global-business-records", "global-invoices", "global-stock-movements", "global-update-workspace-country", "reset-workspace-country"\]\.includes\(functionName\)/);
+  assert.match(backend, /"global-business-records", "global-invoices", "global-stock-movements", "reset-workspace-country", "workspace-records"/);
   assert.match(handler, /\.rpc\("global_business_records"/);
 });
 
@@ -70,11 +73,28 @@ test("Global business tax profile stores the effective registration date in the 
 });
 
 
-test("Global tax registration settings preserve the onboarded country", () => {
-  assert.match(settings, /lockCountry = false/);
-  assert.match(settings, /request_workspace_country_change/);
-  assert.match(settings, /identityChanged/);
-  assert.match(settings, /Country change request submitted for review/);
-  assert.match(settings, /lockCountry = false/);
+test("Country changes require explicit confirmation while locale-only edits preserve the workspace", () => {
+  assert.match(settings, /showResetConfirm/);
+  assert.match(settings, /Type DELETE to confirm/);
+  assert.match(settings, /Confirm & permanently delete/);
+  assert.match(settings, /resetWorkspaceCountry/);
+  assert.match(settings, /globalUpdateWorkspaceCountry/);
+  assert.doesNotMatch(settings, /request_workspace_country_change/);
   assert.match(businessProfile, /WorkspaceCountrySettings lockCountry=\{APP_EDITION === "global"\}/);
+});
+
+test("Country reset is authenticated, owner-scoped, cooldown-limited and atomic", () => {
+  assert.match(resetHandler, /authenticate\(req\)/);
+  assert.match(resetHandler, /confirmationPhrase !== "DELETE_MY_BUSINESS_DATA"/);
+  assert.match(resetHandler, /reset_workspace_country_atomic/);
+  assert.match(resetRpc, /pg_advisory_xact_lock/);
+  assert.match(resetRpc, /interval '30 days'/);
+  assert.match(resetRpc, /workspace_owner_required/);
+  assert.match(resetRpc, /update public\.subscriptions/);
+  assert.match(resetRpc, /update public\.payment_logs/);
+  assert.match(resetRpc, /private\.country_reset_events/);
+  assert.match(resetRpc, /revoke all on function public\.reset_workspace_country_atomic.*from public, anon, authenticated/s);
+  assert.match(resetRpc, /grant execute on function public\.reset_workspace_country_atomic.*to service_role/s);
+  assert.match(authContext, /const profileCountry = currentUser\?\.country_code/);
+  assert.match(authContext, /profileCountry.*metadataCountry/s);
 });
