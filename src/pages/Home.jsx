@@ -859,6 +859,7 @@ export default function Home() {
     }
   };
   const shareViaEmailOrSms = async (channel) => {
+    if (workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN") { notify("Global invoices are draft-only in this release. Email/SMS sharing and payment collection are disabled until invoice issuance is verified.", "info"); return; }
     if (!canAccess("whatsapp_share")) { openPaywall("Gmail and SMS invoice sharing are available on Pro."); return; }
     if (manualShareBusy || whatsappSending || pdfDownloading) return;
     if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
