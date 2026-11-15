@@ -24,3 +24,27 @@ test("Global help center does not show India GST or India-only phone support", a
   assert.match(source, /Review tax before issuing/);
   assert.match(source, /APP_EDITION !== "global" && <a href="tel:9758455218"/);
 });
+
+
+test("public Global invoice uses the selected country's registration label", async () => {
+  const source = await read("../../pages/PublicInvoicePage.jsx");
+  assert.match(source, /getCountryExperience\(countryCode\)/);
+  assert.match(source, /registrationLabel\}: \{business\.gstin\}/);
+  assert.doesNotMatch(source, /GSTIN: \{business\.gstin\}/);
+});
+
+test("Global invoice PDF uses country tax and registration terminology", async () => {
+  const source = await read("../../components/global/GlobalInvoicesPanel.jsx");
+  assert.match(source, /experience\?\.business\.taxName/);
+  assert.match(source, /experience\?\.business\.registrationLabel/);
+  assert.doesNotMatch(source, /new Intl\.NumberFormat\(undefined/);
+});
+
+test("regional account activity and reports use workspace locale metadata", async () => {
+  const activity = await read("../../pages/AccountActivity.jsx");
+  const reports = await read("../../pages/UsageReports.jsx");
+  assert.match(activity, /user\?\.locale_code/);
+  assert.match(activity, /formatWorkspaceDateTime/);
+  assert.match(reports, /formatCurrency/);
+  assert.match(reports, /formatWorkspaceDate/);
+});
