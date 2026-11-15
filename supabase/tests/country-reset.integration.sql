@@ -159,8 +159,8 @@ VALUES ('c7777777-7777-4777-8777-777777777777','Old Global Client','77777777-777
 INSERT INTO public.profiles(id,email,full_name,role,workspace_id,country_code,locale_code)
 VALUES ('77777777-7777-4777-8777-777777777777','country-reset-global-india@example.test','Global to India','admin',null,'GB','en-GB')
 ON CONFLICT (id) DO UPDATE SET workspace_id=null,country_code='GB',locale_code='en-GB';
-INSERT INTO public.subscriptions(id,user_id,user_email,workspace_id,plan_id,plan_name,tier,status,amount,currency,gateway)
-VALUES ('c7777777-7777-4777-8777-777777777778','77777777-7777-4777-8777-777777777777','country-reset-global-india@example.test','c7777777-7777-4777-8777-777777777777','basic_yearly','Basic Yearly','basic','active',1299,'INR','payu');
+INSERT INTO public.subscriptions(id,user_id,user_email,workspace_id,plan_id,plan_name,tier,status,amount,currency,gateway,started_at,expires_at)
+VALUES ('c7777777-7777-4777-8777-777777777778','77777777-7777-4777-8777-777777777777','country-reset-global-india@example.test','c7777777-7777-4777-8777-777777777777','basic_yearly','Basic Yearly','basic','active',1299,'INR','payu',now(),now()+interval '1 year');
 INSERT INTO public.payment_logs(user_id,user_email,workspace_id,gateway,plan_id,plan_name,tier,amount,currency,outcome,source)
 VALUES ('77777777-7777-4777-8777-777777777777','country-reset-global-india@example.test','c7777777-7777-4777-8777-777777777777','payu','basic_yearly','Basic Yearly','basic',129900,'INR','applied','country-reset-global-india');
 
