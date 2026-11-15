@@ -12,6 +12,8 @@ export const EDITION_IDS = Object.freeze({
 
 export const DEFAULT_EDITION_ID = EDITION_IDS.INDIA;
 
+export const UNIFIED_EDITION_ID = "unified";
+
 const ALLOWED_EDITION_IDS = new Set(Object.values(EDITION_IDS));
 
 /**
@@ -27,6 +29,16 @@ export function resolveEditionId(value) {
   return ALLOWED_EDITION_IDS.has(normalized)
     ? normalized
     : DEFAULT_EDITION_ID;
+}
+
+/** Resolve the edition for a unified same-origin build without changing legacy builds. */
+export function resolveRuntimeEdition(buildEdition, pathname = "/") {
+  if (buildEdition === UNIFIED_EDITION_ID) {
+    return typeof pathname === "string" && /^\\/global(?:\\/|$)/.test(pathname)
+      ? EDITION_IDS.GLOBAL
+      : EDITION_IDS.INDIA;
+  }
+  return resolveEditionId(buildEdition);
 }
 
 /** True only when the input is an exact, supported edition identifier. */
