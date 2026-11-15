@@ -169,7 +169,8 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       const snap = invoice.invoice_snapshot || {};
       const seller = snap.seller || {};
       const buyer = snap.buyer || {};
-      doc.setFontSize(20); doc.text("PLIVEX · TAX INVOICE", 16, 20);
+      doc.setFontSize(20); doc.text(invoice.status === "draft" ? "PLIVEX · DRAFT INVOICE" : "PLIVEX · TAX INVOICE", 16, 20);
+      if (invoice.status === "draft") { doc.setFontSize(9); doc.text("DRAFT — NOT ISSUED", 16, 25); }
       doc.setFontSize(10);
       doc.text(`Invoice: ${invoice.invoice_number}`,16,31);
       doc.text(`Issue date: ${invoice.issue_date}`,16,37);
@@ -203,9 +204,11 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
 
   const shareInvoice = (invoice, channel) => {
     const client=clients.find((c)=>c.id===invoice.client_id);
+    const buyer=invoice.invoice_snapshot?.buyer || {};
+    const recipient=buyer.email || client?.email || "";
     const message=`Invoice ${invoice.invoice_number} · ${money(invoice.total_minor,invoice.currency_code)} · Status: ${invoice.status}. Download the PDF from Plivex and attach it before sending.`;
     if (channel === "whatsapp") window.open("https://wa.me/?text="+encodeURIComponent(message),"_blank","noopener,noreferrer");
-    else window.location.href="mailto:"+(client?.email || "")+"?subject="+encodeURIComponent("Invoice "+invoice.invoice_number)+"&body="+encodeURIComponent(message);
+    else window.location.href="mailto:"+recipient+"?subject="+encodeURIComponent("Invoice "+invoice.invoice_number)+"&body="+encodeURIComponent(message);
   };
 
   const recordPayment = async (event) => {
@@ -298,7 +301,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
           {selected ? <>
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <h2 className="font-semibold">{selected.invoice_number}</h2>
-              <p className="mt-1 text-sm text-slate-500">{selectedClient?.name || "Customer"} · {selected.status}</p>
+              <p className="mt-1 text-sm text-slate-500">{selected.invoice_snapshot?.buyer?.name || selectedClient?.name || "Customer"} · {selected.status}</p>
               <div className="mt-3 space-y-1 text-sm"><p>Subtotal: {money(selected.subtotal_minor,currency)}</p><p>Discount: {money(selected.discount_minor,currency)}</p><p>Tax: {money(selected.tax_minor,currency)}</p><p className="font-bold">Total: {money(selected.total_minor,currency)}</p></div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button className={secondary} onClick={()=>downloadPdf(selected)}>Download PDF</button>
