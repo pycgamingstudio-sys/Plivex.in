@@ -3,6 +3,7 @@
   "name": "plivex-in",
   "compatibility_date": "2026-10-24",
   "vars": {
+    "VITE_APP_EDITION": "unified",
     "VITE_ASSISTANT_API_BASE_URL": "https://lovable-biz-track.lovable.app",
     "VITE_API_BASE_URL": "https://member-sync-flow.lovable.app",
     "VITE_SUPABASE_URL": "https://sqzpaiibmfsvarrkwkvb.supabase.co",
@@ -10,6 +11,7 @@
   },
   "previews": {
     "vars": {
+      "VITE_APP_EDITION": "unified",
       "VITE_ASSISTANT_API_BASE_URL": "https://lovable-biz-track.lovable.app",
       "VITE_API_BASE_URL": "https://member-sync-flow.lovable.app",
       "VITE_SUPABASE_URL": "https://sqzpaiibmfsvarrkwkvb.supabase.co",

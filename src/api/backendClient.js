@@ -7,9 +7,9 @@
 //  - Business endpoints                -> POST <API base>/api/public/<kebab-name>
 //    with the Supabase access token in the Authorization header.
 import { createClient } from '@supabase/supabase-js';
-import { resolveEditionId } from '@/global/core/edition-contract.js';
+import { resolveRuntimeEdition } from '@/global/core/edition-contract.js';
 
-export const APP_EDITION = resolveEditionId(import.meta.env.VITE_APP_EDITION);
+export const APP_EDITION = resolveRuntimeEdition(import.meta.env.VITE_APP_EDITION, typeof window !== "undefined" ? window.location.pathname : "/");
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -274,7 +274,7 @@ const auth = {
   async register({ email, password, countryCode = "IN", localeCode = "en-IN" }) {
     const { data, error } = await supabase.auth.signUp({
       email, password,
-      options: { emailRedirectTo: `${window.location.origin}/`, data: APP_EDITION === "global" ? {} : { signup_country_code: countryCode, signup_locale_code: localeCode } },
+      options: { emailRedirectTo: `${window.location.origin}${APP_EDITION === "global" ? "/global/" : "/"}`, data: APP_EDITION === "global" ? {} : { signup_country_code: countryCode, signup_locale_code: localeCode } },
     });
     if (error) throw authError(error, 'Registration failed');
     // Supabase hides "already registered" by returning a user with no identities.
@@ -284,11 +284,11 @@ const auth = {
     return data;
   },
   async resendConfirmation(email) {
-    const { error } = await supabase.auth.resend({ type: 'signup', email, options: { emailRedirectTo: `${window.location.origin}/` } });
+    const { error } = await supabase.auth.resend({ type: 'signup', email, options: { emailRedirectTo: `${window.location.origin}${APP_EDITION === "global" ? "/global/" : "/"}` } });
     if (error) throw authError(error, 'Failed to resend email');
   },
   async resetPasswordRequest(email) {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` });
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}${APP_EDITION === "global" ? "/global" : ""}/reset-password` });
     if (error) throw authError(error, 'Could not send reset email');
   },
   async updatePassword(newPassword) {

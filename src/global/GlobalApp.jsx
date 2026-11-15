@@ -108,7 +108,7 @@ export default function GlobalApp() {
           email: email.trim(),
           password,
           options: {
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: `${window.location.origin}/global/`,
           },
         });
         if (signUpError) throw signUpError;
@@ -205,7 +205,7 @@ export default function GlobalApp() {
     return (
       <main className="min-h-screen bg-[#F8F7FC] px-4 py-10 text-slate-900">
         <div className="mx-auto max-w-md">
-          <a href="/" className="text-2xl font-black tracking-tight text-violet-700">Plivex <span className="text-slate-500">Global</span></a>
+          <a href="/global/" className="text-2xl font-black tracking-tight text-violet-700">Plivex <span className="text-slate-500">Global</span></a>
           <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h1 className="text-2xl font-bold">{mode === "register" ? "Create your account" : "Welcome to Plivex"}</h1>
             <p className="mt-2 text-sm text-slate-500">International business workspace for clients, products and expenses.</p>
