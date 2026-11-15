@@ -13,6 +13,7 @@ DECLARE
   v_us_draft jsonb;
   v_us_issue jsonb;
   v_invoice_id uuid;
+  v_payment_id uuid;
   v_invoice global.invoices%rowtype;
   v_line global.invoice_items%rowtype;
   v_rejected boolean;
@@ -108,6 +109,15 @@ BEGIN
   IF v_payment->>'ok'<>'true' OR v_payment->'invoice'->>'status'<>'partially_paid' THEN
     RAISE EXCEPTION 'Global issued invoice payment ledger failed: %',v_payment;
   END IF;
+
+  SELECT id INTO v_payment_id FROM global.invoice_payments
+  WHERE invoice_id=v_invoice_id ORDER BY created_at DESC LIMIT 1;
+  v_rejected := false;
+  BEGIN
+    UPDATE global.invoice_payments SET method='tampered' WHERE id=v_payment_id;
+  EXCEPTION WHEN SQLSTATE '55000' THEN v_rejected := true;
+  END;
+  IF NOT v_rejected THEN RAISE EXCEPTION 'Global payment ledger row was mutable'; END IF;
 
   v_refund := public.global_record_invoice_refund(
     '66666666-6666-4666-8666-666666666666',
