@@ -43,6 +43,8 @@ test("only calculated, source-backed, effective tax results can be frozen", () =
 });
 
 test("manual estimates, wrong country, missing provenance and invalid dates fail closed", () => {
+  assert.equal(makeSnapshot({ countryCode: "IN" }).code, "INDIA_LEGACY_PATH_REQUIRED");
+  assert.equal(makeSnapshot({ taxResult: { ...result, currencyCode: "USD" } }).code, "SNAPSHOT_CURRENCY_INVALID");
   assert.equal(makeSnapshot({ taxResult: { ...result, status: "manual_unverified" } }).code, "TAX_RESULT_NOT_ISSUABLE");
   assert.equal(makeSnapshot({ taxResult: { ...result, countryCode: "AE" } }).code, "TAX_RESULT_NOT_ISSUABLE");
   assert.equal(makeSnapshot({ taxResult: { ...result, ruleSnapshot: null } }).code, "RULE_PROVENANCE_REQUIRED");
