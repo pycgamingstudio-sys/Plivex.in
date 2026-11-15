@@ -32,10 +32,8 @@ create table if not exists private.country_reset_events (
 
 alter table private.country_reset_state enable row level security;
 alter table private.country_reset_events enable row level security;
-revoke all on schema private from public, anon, authenticated;
-revoke all on all tables in schema private from public, anon, authenticated;
-grant usage on schema private to service_role;
-grant all on all tables in schema private to service_role;
+revoke all on private.country_reset_state from public, anon, authenticated;
+revoke all on private.country_reset_events from public, anon, authenticated;
 
 -- Preserve historical country-change audit rows when their old workspace is deleted.
 alter table global.workspace_country_change_events
