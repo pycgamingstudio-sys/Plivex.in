@@ -36,3 +36,8 @@ test("Global workspace country and currency identifiers are constrained", () => 
   assert.ok(migration.includes("country_code ~ '^[A-Z]{2}$'"));
   assert.ok(migration.includes("currency_code ~ '^[A-Z]{3}$'"));
 });
+
+test("Global timestamp trigger helper is not executable by API roles", () => {
+  const hardening = migration.replace(/--.*$/gm, "");
+  assert.match(hardening, /revoke all on function global\.set_updated_at\(\) from public, anon, authenticated/i);
+});
