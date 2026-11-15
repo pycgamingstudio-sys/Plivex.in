@@ -2,10 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+const read = (path) => readFileSync(path, "utf8");
 
 test("public site uses the single canonical Plivex domain", () => {
-  const html = read("../../../index.html");
+  const html = read("index.html");
   assert.match(html, /<link rel="canonical" href="https:\/\/plivex\.in\/"\s*\/>/);
   assert.doesNotMatch(html, /https:\/\/www\.plivex\.in/);
 
@@ -18,9 +18,9 @@ test("public site uses the single canonical Plivex domain", () => {
 });
 
 test("public attribution distinguishes the owner from the developer", () => {
-  const about = read("../../../src/pages/PublicInfoPages.jsx");
-  const section = read("../../../src/components/landing/AboutSection.jsx");
-  const html = read("../../../index.html");
+  const about = read("src/pages/PublicInfoPages.jsx");
+  const section = read("src/components/landing/AboutSection.jsx");
+  const html = read("index.html");
 
   assert.match(about, /Plivex is owned by Virendra Sharma/);
   assert.match(about, /Yashvant Sharma leads the product's development as Developer/);
@@ -30,15 +30,15 @@ test("public attribution distinguishes the owner from the developer", () => {
 });
 
 test("landing page labels Global functionality as a staged rollout", () => {
-  const landing = read("../../../src/pages/GuestDashboard.jsx");
+  const landing = read("src/pages/GuestDashboard.jsx");
   assert.match(landing, /India GST workflows are available today; Global capabilities are being introduced in stages/);
   assert.match(landing, /Create your free account/);
   assert.match(landing, /DEMO/);
 });
 
 test("production Worker is configured to build the unified single-app edition", () => {
-  const config = JSON.parse(read("../../../wrangler.jsonc"));
-  const workflow = read("../../../.github/workflows/deploy-cloudflare.yml");
+  const config = JSON.parse(read("wrangler.jsonc"));
+  const workflow = read(".github/workflows/deploy-cloudflare.yml");
   assert.equal(config.vars.VITE_APP_EDITION, "unified");
   assert.equal(config.previews.vars.VITE_APP_EDITION, "unified");
   assert.match(workflow, /VITE_APP_EDITION=unified npm run build/);
