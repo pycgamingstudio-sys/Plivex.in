@@ -65,7 +65,7 @@ export default function GuestDashboard() {
             <Link to="/contact-us" className="text-sm font-semibold text-slate-600 hover:text-[#6D28D9]">Contact</Link>
           </nav>
           <div className="flex items-center gap-2">
-            <LanguageSwitcher className="hidden sm:inline-flex" />
+            <LanguageSwitcher className="hidden sm:inline-flex" showHindi={false} />
             <button onClick={() => setAuthAction("")} className="rounded-xl border border-[#E5E7EB] px-3 py-2 text-[12px] font-bold text-slate-700 hover:bg-slate-50">Sign in</button>
             <Link to="/register" className="rounded-xl bg-[#6D28D9] px-3 py-2 text-[12px] font-bold text-white hover:bg-[#7C3AED]">Get started</Link>
           </div>
@@ -104,8 +104,8 @@ export default function GuestDashboard() {
         </div>
 
         <div className="fade-up fade-up-delay-1 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <DemoCard icon={TrendingUp} label="Total Invoiced" value="1.94 lakh" sub="42 invoices" gradient="from-[#6D28D9] to-[#7C3AED]" />
-          <DemoCard icon={CheckCircle2} label="Paid" value="1.21 lakh" sub="28 invoices" gradient="from-[#059669] to-[#10B981]" />
+          <DemoCard icon={TrendingUp} label="Total Invoiced" value="194.3k" sub="42 invoices" gradient="from-[#6D28D9] to-[#7C3AED]" />
+          <DemoCard icon={CheckCircle2} label="Paid" value="121.9k" sub="28 invoices" gradient="from-[#059669] to-[#10B981]" />
           <DemoCard icon={Clock} label="Pending" value="72.43k" sub="14 invoices" gradient="from-[#D97706] to-[#F59E0B]" />
           <DemoCard icon={Boxes} label="Stock Items" value="128" sub="6 low-stock alerts" gradient="from-[#2563EB] to-[#3B82F6]" />
         </div>
