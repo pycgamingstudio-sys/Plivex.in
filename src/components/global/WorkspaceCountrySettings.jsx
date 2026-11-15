@@ -15,6 +15,8 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [requestReason, setRequestReason] = useState("");
+  const [pendingRequest, setPendingRequest] = useState(null);
   const [taxProfile, setTaxProfile] = useState({ number: "", type: "", status: "unregistered", effectiveFrom: "", jurisdiction: "" });
   const [savedTaxProfile, setSavedTaxProfile] = useState({ number: "", type: "", status: "unregistered", effectiveFrom: "", jurisdiction: "" });
 
@@ -26,6 +28,14 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
         const response = await db.functions.invoke("workspaceRecords", { table: "business_profile", action: "get" });
         if (response?.error) throw response.error;
         const record = response?.data?.record;
+        if (!lockCountry) {
+          const pending = await db.from("workspace_country_change_requests")
+            .select("id,from_country_code,from_locale_code,to_country_code,to_locale_code,status,requested_at")
+            .eq("workspace_id", user.workspace_id)
+            .eq("status", "pending_review")
+            .maybeSingle();
+          if (!pending.error && active) setPendingRequest(pending.data || null);
+        }
         const country = getCountryByCode(record?.country_code);
         if (!active) return;
         if (country && country.locales.includes(record?.locale_code)) {
@@ -80,11 +90,41 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
     setMessage("");
     setError("");
     try {
+      const identityChanged = !lockCountry
+        && Boolean(savedCountry)
+        && (selectedCountry.code !== savedCountry || locale !== savedLocale);
+      if (identityChanged) {
+        if (pendingRequest) throw new Error("A country change request is already pending review.");
+        const request = await db.rpc("request_workspace_country_change", {
+          p_target_country_code: selectedCountry.code,
+          p_target_locale_code: locale,
+          p_reason: requestReason.trim() || null,
+        });
+        if (request.error || !request.data?.ok) throw request.error || new Error("Country change request failed");
+        setPendingRequest({
+          id: request.data.request_id,
+          from_country_code: savedCountry,
+          from_locale_code: savedLocale,
+          to_country_code: selectedCountry.code,
+          to_locale_code: locale,
+          status: "pending_review",
+        });
+        setCountryCode(savedCountry);
+        setLocale(savedLocale);
+      } else if (!lockCountry && !savedCountry) {
+        const initial = await db.functions.invoke("workspaceRecords", {
+          table: "business_profile",
+          action: "upsert",
+          values: { country_code: selectedCountry.code, locale_code: locale },
+        });
+        if (initial?.error || !initial?.data?.record) throw initial?.error || new Error("Initial country setup failed");
+        setSavedCountry(selectedCountry.code);
+        setSavedLocale(locale);
+      }
       const response = await db.functions.invoke("workspaceRecords", {
         table: "business_profile",
         action: "upsert",
         values: {
-          ...(lockCountry ? {} : { country_code: selectedCountry.code, locale_code: locale }),
           tax_registration_number: taxProfile.number.trim() || null,
           tax_registration_type: taxProfile.type.trim() || null,
           tax_registration_status: taxProfile.status,
@@ -92,11 +132,11 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
           tax_jurisdiction_code: taxProfile.jurisdiction.trim() || null,
         },
       });
-      if (response?.error || !response?.data?.record) throw response?.error || new Error("Save failed");
-      setSavedCountry(selectedCountry.code);
-      setSavedLocale(locale);
+      if (response?.error || !response?.data?.record) throw response?.error || new Error("Tax profile save failed");
       setSavedTaxProfile({ ...taxProfile });
-      setMessage("Workspace country and tax profile saved.");
+      setMessage(identityChanged
+        ? "Country change request submitted for review. Your current country and existing records have not changed."
+        : "Workspace country and tax profile saved.");
     } catch {
       setError("Country was not saved. Check your workspace permission and try again.");
     } finally {
@@ -113,7 +153,7 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
         <Globe2 className="h-4 w-4 text-primary" />
         <h2 id="workspace-country-title" className="text-sm font-bold">Workspace country & regional format</h2>
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">{lockCountry ? "Your Global business country and currency were set during onboarding. You can manage the business tax registration details below." : "Choose where this business is based. This controls workspace currency defaults and country-specific invoice formats. Tax registration and transaction details remain business-supplied; Plivex does not independently verify tax obligations or registration."}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{lockCountry ? "Your Global business country and currency were set during onboarding. You can manage the business tax registration details below." : "Country changes are handled through a review request. The current country remains active until a separately reviewed migration is approved; historical invoices and payment records are never rewritten."}</p>
       {loading ? <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading workspace setting…</div> : (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="text-xs font-semibold">Business country
@@ -128,6 +168,18 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
               {localeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </label>
+        </div>
+      )}
+      {!lockCountry && savedCountry && (countryCode !== savedCountry || locale !== savedLocale) && (
+        <label className="mt-3 block text-xs font-semibold">Reason for country change (optional)
+          <textarea maxLength={500} value={requestReason} onChange={(event) => setRequestReason(event.target.value)} className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm" placeholder="Explain why the business country or regional identity needs to change" />
+        </label>
+      )}
+      {pendingRequest && (
+        <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">
+          <p className="font-semibold">Country change awaiting review</p>
+          <p className="mt-1">{pendingRequest.from_country_code || "Not set"} → {pendingRequest.to_country_code} · {pendingRequest.status}</p>
+          <p className="mt-1">Your active workspace country is unchanged. No invoices, payments, balances or tax snapshots have been modified.</p>
         </div>
       )}
       <div className="mt-5 border-t pt-4">
@@ -164,7 +216,7 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
       </div>}
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button type="button" onClick={save} disabled={loading || saving || !hasChanges || !selectedCountry || !locale} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50">
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}{lockCountry ? "Save tax registration" : "Confirm and save country"}
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}{lockCountry ? "Save tax registration" : savedCountry && (countryCode !== savedCountry || locale !== savedLocale) ? "Request country migration review" : "Save workspace settings"}
         </button>
         {savedCountry && <span className="text-xs text-muted-foreground">Saved: {getCountryByCode(savedCountry)?.name} · {savedLocale}</span>}
       </div>
