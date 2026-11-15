@@ -184,7 +184,7 @@ export const AuthProvider = ({ children }) => {
             const rawRegion = window.localStorage.getItem('plivex.signup.region');
             const parsedRegion = rawRegion ? JSON.parse(rawRegion) : null;
             if (parsedRegion && typeof parsedRegion.countryCode === 'string' && typeof parsedRegion.localeCode === 'string') {
-              signupRegion = { countryCode: parsedRegion.countryCode, localeCode: parsedRegion.localeCode };
+              signupRegion = { countryCode: parsedRegion.countryCode, localeCode: parsedRegion.localeCode, businessName: typeof parsedRegion.businessName === "string" ? parsedRegion.businessName.slice(0, 160) : "" };
             }
           } catch { /* ignore stale or malformed local signup preference */ }
           const r = await db.functions.invoke('ensureOwnerRole', signupRegion);
