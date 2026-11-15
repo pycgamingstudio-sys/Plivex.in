@@ -605,7 +605,14 @@ export default function Home() {
       : Math.max(0, total - invoice.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.rate) || 0), 0));
     const savedInvoice = await saveInvoiceToServer({ ...invoiceForPreview, total, taxValue });
     await refreshAccessStatus();
-    trackStaffAction({ label: `Invoice ${savedInvoice.number || invoice.number || "INV"} generated for ${invoice.client.name || "client"}`, type: "invoice", revenue: total });
+    const isGlobalDraft = workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN";
+    trackStaffAction({
+      label: isGlobalDraft
+        ? `Draft invoice ${savedInvoice.number || "DRAFT"} saved for ${invoice.client.name || "client"}`
+        : `Invoice ${savedInvoice.number || invoice.number || "INV"} generated for ${invoice.client.name || "client"}`,
+      type: isGlobalDraft ? "invoice-draft" : "invoice",
+      ...(isGlobalDraft ? {} : { revenue: total }),
+    });
     return savedInvoice;
   };
   const recordActivity = (label, type = "action") => pushItem(KEYS.activity, { id: genId("act"), type, label, date: new Date().toISOString() });
@@ -676,8 +683,20 @@ export default function Home() {
     try {
       notify("Download pending — preparing your invoice PDF…", "info", 0);
       notify("Preparing invoice PDF… please wait.", "info", 0);
-      // PDF rendering is CPU-bound while invoice persistence is network-bound.
-      // Run both together to avoid adding their wait times sequentially.
+      const isGlobalDraft = workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN";
+      if (isGlobalDraft) {
+        const saved = await recordInvoice();
+        setInvoice((current) => ({ ...current, number: saved.number, documentStatus: "draft" }));
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const pdf = await renderPdfDocument();
+        if (!pdf) return;
+        const draftFilename = `Plivex_DRAFT_${String(saved.number || "invoice").replace(/[^a-zA-Z0-9]+/g, "-")}.pdf`;
+        pdf.save(draftFilename);
+        recordActivity("Global draft invoice exported");
+        notify("Draft PDF downloaded. It is not an issued tax invoice; tax and payment collection are not finalized.");
+        return;
+      }
+      // India retains its existing save, stock and invoice-sharing workflow.
       const [, pdf] = await Promise.all([recordInvoice(), renderPdfDocument()]);
       if (!pdf) return;
       notify("PDF ready — starting download…", "info", 0);
@@ -740,6 +759,7 @@ export default function Home() {
     }
   };
   const handleWhatsApp = () => {
+    if (workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN") { notify("Global invoices are draft-only in this release. Sharing and payment collection will be enabled after invoice issuance is verified.", "info"); return; }
     if (!canAccess("whatsapp_share")) { openPaywall("WhatsApp sharing is available on Pro."); return; }
     if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
     if (!requireValid()) {
@@ -755,6 +775,7 @@ export default function Home() {
     }
   };
   const sendWhatsApp = async (phone) => {
+    if (workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN") { notify("Global invoices are draft-only in this release. Sharing and payment collection will be enabled after invoice issuance is verified.", "info"); return; }
     if (!canAccess("whatsapp_share")) { openPaywall("WhatsApp sharing is available on Pro."); return; }
     if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
     if (!requireValid()) { notify("Please complete all required invoice details before sharing on WhatsApp", "error"); return; }
