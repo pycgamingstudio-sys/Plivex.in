@@ -362,11 +362,18 @@ begin
   -- any error raises and PostgreSQL rolls back every deletion and insertion.
 
   if v_global_membership.id is not null then
-    -- Delete restrictive children first; workspace-owned rows then cascade.
+    -- Issued invoices and append-only ledgers may be deleted only inside this
+    -- owner-verified service-role reset transaction.
+    perform set_config('plivex.workspace_country_reset', 'on', true);
+    if to_regclass('global.invoice_refunds') is not null then
+      execute 'delete from global.invoice_refunds where workspace_id = $1'
+        using v_global_workspace.id;
+    end if;
     delete from global.invoice_payments where workspace_id = v_global_workspace.id;
     delete from global.stock_movements where workspace_id = v_global_workspace.id;
     delete from global.invoice_items where workspace_id = v_global_workspace.id;
     delete from global.invoices where workspace_id = v_global_workspace.id;
+    perform set_config('plivex.workspace_country_reset', 'off', true);
     delete from global.clients where workspace_id = v_global_workspace.id;
     delete from global.expenses where workspace_id = v_global_workspace.id;
     delete from global.products where workspace_id = v_global_workspace.id;
