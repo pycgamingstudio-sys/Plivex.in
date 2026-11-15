@@ -179,7 +179,7 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
           <label className="text-xs font-semibold">Business country
             <select className="mt-1 w-full rounded-lg border bg-background px-3 py-2.5 text-sm" value={countryCode} onChange={(event) => onCountryChange(event.target.value)} disabled={lockCountry}>
               <option value="">Select a country</option>
-              {COUNTRY_REGISTRY.map((country) => <option key={country.code} value={country.code}>{country.name} ({country.currencyCode})</option>)}
+              {COUNTRY_REGISTRY.filter((country) => !isGlobalWorkspace || country.code !== "IN").map((country) => <option key={country.code} value={country.code}>{country.name} ({country.currencyCode})</option>)}
             </select>
           </label>
           <label className="text-xs font-semibold">Number and currency locale
