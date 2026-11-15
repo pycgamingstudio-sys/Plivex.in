@@ -14,7 +14,7 @@ const [backend, handler, shared, rpc, settings, businessProfile] = await Promise
 
 test("Global app can invoke only the dedicated Global business records function", () => {
   assert.match(backend, /!\["global-ensure-owner", "global-business-records", "global-invoices", "global-stock-movements"\]\.includes\(functionName\)/);
-  assert.match(backend, /"global-business-records", "workspace-records"/);
+  assert.match(backend, /"global-business-records", "global-invoices", "global-stock-movements", "workspace-records"/);
   assert.match(handler, /\.rpc\("global_business_records"/);
 });
 
