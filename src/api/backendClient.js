@@ -347,7 +347,6 @@ const auth = {
       return pendingUser();
     }
 
-    const uid = authUser.id;
     const { data: profile } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
     return {
       id: uid,
