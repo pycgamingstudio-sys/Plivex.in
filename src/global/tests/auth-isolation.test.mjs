@@ -22,9 +22,10 @@ test("Global backend defaults fail closed and blocks India endpoint fallback", (
 });
 
 test("Global auth hydrates workspace data only through the isolated Global adapter", () => {
-  assert.match(authContext, /APP_EDITION === "global"/);
+  assert.match(authContext, /currentUser\\?\\.edition === "global"/);
   assert.doesNotMatch(authContext, /globalEnsureOwner/);
   assert.match(app, /GlobalCountryOnboarding/);
+  assert.match(app, /UnifiedCountryOnboarding/);
   assert.match(onboarding, /globalEnsureOwner/);
   assert.match(authContext, /global:\$\{currentUser\.id\}/);
   assert.match(authContext, /Global workspace invitations are not available yet/);
