@@ -8,6 +8,7 @@ alter table global.invoices
     check (amount_refunded_minor >= 0 and amount_refunded_minor <= amount_paid_minor),
   add column if not exists issuance_idempotency_key uuid;
 
+alter table global.invoices drop constraint if exists invoices_status_check;
 alter table global.invoices drop constraint if exists global_invoices_status_check;
 alter table global.invoices add constraint global_invoices_status_check
   check (status in ('draft','issued','partially_paid','paid','overdue','cancelled','partially_refunded','refunded'));
@@ -338,7 +339,146 @@ declare
 begin
   if p_user_id is null or p_workspace_id is null or p_invoice_id is null or p_idempotency_key is null
     or p_amount_minor is null or p_amount_minor<=0 or p_refund_date is null
-    or p_currency_code !~ '^[A-Z]{3}$'
+    or p_currency_code is null or p_currency_code !~ '^[A-Z]{3} or coalesce(length(p_reference),0)>160
+    or coalesce(length(p_reason),0)>500 then
+    return jsonb_build_object('ok',false,'reason','invalid_refund');
+  end if;
+  select role into v_role from global.workspace_members
+  where workspace_id=p_workspace_id and user_id=p_user_id and status='active'
+  limit 1;
+  if v_role is null then return jsonb_build_object('ok',false,'reason','access_denied'); end if;
+  if v_role not in ('owner','admin','accountant') then return jsonb_build_object('ok',false,'reason','forbidden'); end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text || ':refund:' || p_idempotency_key::text,0));
+  select * into v_existing from global.invoice_refunds
+  where workspace_id=p_workspace_id and idempotency_key=p_idempotency_key
+  for update;
+  if found then
+    if v_existing.invoice_id<>p_invoice_id or v_existing.amount_minor<>p_amount_minor
+      or v_existing.currency_code<>p_currency_code or v_existing.refund_date<>p_refund_date
+      or coalesce(v_existing.method,'')<>coalesce(nullif(btrim(p_method),''),'')
+      or coalesce(v_existing.reference,'')<>coalesce(nullif(btrim(p_reference),''),'')
+      or coalesce(v_existing.reason,'')<>coalesce(nullif(btrim(p_reason),''),'') then
+      return jsonb_build_object('ok',false,'reason','idempotency_conflict');
+    end if;
+    select * into v_invoice from global.invoices where id=p_invoice_id and workspace_id=p_workspace_id;
+    return jsonb_build_object('ok',true,'duplicate',true,'refund',to_jsonb(v_existing),'invoice',to_jsonb(v_invoice));
+  end if;
+
+  select * into v_invoice from global.invoices
+  where id=p_invoice_id and workspace_id=p_workspace_id for update;
+  if v_invoice.id is null then return jsonb_build_object('ok',false,'reason','invoice_not_found'); end if;
+  if v_invoice.status not in ('issued','partially_paid','paid','partially_refunded','refunded') then
+    return jsonb_build_object('ok',false,'reason','invoice_not_refundable');
+  end if;
+  if upper(p_currency_code)<>v_invoice.currency_code or p_refund_date<v_invoice.issue_date then
+    return jsonb_build_object('ok',false,'reason','invalid_refund');
+  end if;
+  v_available := v_invoice.amount_paid_minor-v_invoice.amount_refunded_minor;
+  if p_amount_minor>v_available then
+    return jsonb_build_object('ok',false,'reason','refund_exceeds_net_payments','available_minor',v_available);
+  end if;
+
+  insert into global.invoice_refunds(
+    workspace_id,invoice_id,amount_minor,currency_code,refund_date,method,reference,reason,recorded_by,idempotency_key
+  ) values (
+    p_workspace_id,p_invoice_id,p_amount_minor,v_invoice.currency_code,p_refund_date,
+    nullif(btrim(p_method),''),nullif(btrim(p_reference),''),nullif(btrim(p_reason),''),p_user_id,p_idempotency_key
+  ) returning * into v_refund;
+
+  v_net_refunded := v_invoice.amount_refunded_minor+p_amount_minor;
+  v_status := case when v_net_refunded=v_invoice.amount_paid_minor then 'refunded' else 'partially_refunded' end;
+  update global.invoices set amount_refunded_minor=v_net_refunded,status=v_status,updated_at=now()
+  where id=p_invoice_id and workspace_id=p_workspace_id returning * into v_invoice;
+
+  return jsonb_build_object('ok',true,'duplicate',false,'refund',to_jsonb(v_refund),'invoice',to_jsonb(v_invoice));
+end;
+$function$;
+
+-- Reconciliation is a read-only, member-scoped projection over the ledgers.
+create or replace view global.invoice_reconciliation
+with (security_invoker = true) as
+select i.workspace_id,i.id as invoice_id,i.invoice_number,i.currency_code,i.status,
+  i.total_minor,i.amount_paid_minor as gross_payments_minor,
+  i.amount_refunded_minor as refunds_minor,
+  i.amount_paid_minor-i.amount_refunded_minor as net_received_minor,
+  i.total_minor-(i.amount_paid_minor-i.amount_refunded_minor) as outstanding_minor,
+  coalesce(p.payment_count,0) as payment_count,
+  coalesce(r.refund_count,0) as refund_count
+from global.invoices i
+left join (
+  select workspace_id,invoice_id,count(*) as payment_count
+  from global.invoice_payments group by workspace_id,invoice_id
+) p on p.workspace_id=i.workspace_id and p.invoice_id=i.id
+left join (
+  select workspace_id,invoice_id,count(*) as refund_count
+  from global.invoice_refunds group by workspace_id,invoice_id
+) r on r.workspace_id=i.workspace_id and r.invoice_id=i.id;
+
+grant select on global.invoice_reconciliation to authenticated, service_role;
+
+revoke all on function public.global_issue_invoice(uuid,uuid,uuid,jsonb,uuid) from public,anon,authenticated;
+revoke all on function public.global_record_invoice_refund(uuid,uuid,uuid,bigint,text,date,text,text,text,uuid) from public,anon,authenticated;
+grant execute on function public.global_issue_invoice(uuid,uuid,uuid,jsonb,uuid) to service_role;
+grant execute on function public.global_record_invoice_refund(uuid,uuid,uuid,bigint,text,date,text,text,text,uuid) to service_role;
+
+comment on table global.invoice_refunds is 'Append-only Global invoice refund ledger; amount_refunded_minor tracks successful recorded refunds.';
+comment on view global.invoice_reconciliation is 'Member-scoped Global invoice payment/refund reconciliation; net received is gross payments less refunds.';
+
+-- Refund rows are an append-only audit ledger.
+create or replace function global.guard_invoice_refund_append_only()
+returns trigger
+language plpgsql
+set search_path = pg_catalog
+as $function$
+begin
+  raise exception using errcode = '55000', message = 'Invoice refund ledger rows are append-only';
+end;
+$function$;
+drop trigger if exists global_invoice_refunds_append_only on global.invoice_refunds;
+create trigger global_invoice_refunds_append_only
+  before update or delete on global.invoice_refunds
+  for each row execute function global.guard_invoice_refund_append_only();
+
+create or replace function public.global_list_invoice_reconciliation(
+  p_user_id uuid,
+  p_workspace_id uuid,
+  p_limit integer default 100
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog, global
+as $function$
+declare
+  v_role text;
+  v_records jsonb;
+  v_limit integer := greatest(1,least(coalesce(p_limit,100),200));
+begin
+  if p_user_id is null or p_workspace_id is null then
+    return jsonb_build_object('ok',false,'reason','invalid_identity');
+  end if;
+  select role into v_role from global.workspace_members
+  where workspace_id=p_workspace_id and user_id=p_user_id and status='active'
+  limit 1;
+  if v_role is null then return jsonb_build_object('ok',false,'reason','access_denied'); end if;
+  select coalesce(jsonb_agg(to_jsonb(t) order by t.invoice_id),'[]'::jsonb)
+  into v_records
+  from (
+    select * from global.invoice_reconciliation
+    where workspace_id=p_workspace_id
+    order by invoice_id desc
+    limit v_limit
+  ) t;
+  return jsonb_build_object('ok',true,'records',v_records);
+end;
+$function$;
+
+revoke all on function public.global_list_invoice_reconciliation(uuid,uuid,integer) from public,anon,authenticated;
+grant execute on function public.global_list_invoice_reconciliation(uuid,uuid,integer) to service_role;
+
+commit;
+
     or coalesce(length(p_method),0)>80 or coalesce(length(p_reference),0)>160
     or coalesce(length(p_reason),0)>500 then
     return jsonb_build_object('ok',false,'reason','invalid_refund');
