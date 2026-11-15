@@ -58,7 +58,7 @@ export default function GlobalApp() {
   const country = COUNTRY_OPTIONS.find((item) => item.code === countryCode) || null;
 
   const invoke = useCallback(async (table, action = "list", values = undefined) => {
-    if (!account?.workspace_id) throw new Error("Your Global workspace is not ready.");
+    if (!account?.workspace_id) throw new Error("Your workspace is not ready.");
     const body = { workspace_id: account.workspace_id, table, action, limit: 100 };
     if (values !== undefined) body.values = values;
     const { data, error: invokeError } = await supabase.functions.invoke("global-business-records", { body });
@@ -69,8 +69,8 @@ export default function GlobalApp() {
   const loadContext = useCallback(async (activeSession) => {
     if (!activeSession) { setAccount(null); setRecords({}); return; }
     let { data, error: contextError } = await supabase.functions.invoke("global-auth-context", { body: {} });
-    if (contextError) throw new Error(await errorMessage(contextError, "Could not load your Global account."));
-    if (!data?.user?.id) throw new Error("Your Global account could not be verified.");
+    if (contextError) throw new Error(await errorMessage(contextError, "Could not load your account."));
+    if (!data?.user?.id) throw new Error("Your account could not be verified.");
     setAccount(data.user);
   }, []);
 
@@ -163,7 +163,7 @@ export default function GlobalApp() {
       }
       await invoke(TABLES[tab], "create", values);
       setForm({});
-      setNotice("Saved to your Global workspace.");
+      setNotice("Saved to your workspace.");
       await loadRecords(tab);
     } catch (saveError) { setError(saveError.message || "Could not save this record."); }
     finally { setBusy(false); }
@@ -174,7 +174,7 @@ export default function GlobalApp() {
     setSession(null); setAccount(null); setRecords({});
   };
 
-  if (loading) return <div className="min-h-screen grid place-items-center bg-[#F8F7FC] text-slate-600">Loading Plivex Global…</div>;
+  if (loading) return <div className="min-h-screen grid place-items-center bg-[#F8F7FC] text-slate-600">Loading Plivex…</div>;
 
   if (session && account && !account.workspace_id) return <GlobalCountryOnboarding />;
 
@@ -184,7 +184,7 @@ export default function GlobalApp() {
         <div className="mx-auto max-w-md">
           <a href="/" className="text-2xl font-black tracking-tight text-violet-700">Plivex <span className="text-slate-500">Global</span></a>
           <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h1 className="text-2xl font-bold">{mode === "register" ? "Create your Global account" : "Welcome to Plivex Global"}</h1>
+            <h1 className="text-2xl font-bold">{mode === "register" ? "Create your account" : "Welcome to Plivex"}</h1>
             <p className="mt-2 text-sm text-slate-500">International business workspace for clients, products and expenses.</p>
             <form className="mt-6 space-y-4" onSubmit={submitAuth}>
               {mode === "register" && <label className="block text-sm font-medium">Business country
@@ -203,12 +203,12 @@ export default function GlobalApp() {
               <button disabled={busy} className="w-full rounded-lg bg-violet-700 p-3 font-semibold text-white disabled:opacity-60">{busy ? "Please wait…" : mode === "register" ? "Create account" : "Sign in"}</button>
             </form>
             <button className="mt-4 text-sm font-semibold text-violet-700" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); setNotice(""); }}>
-              {mode === "register" ? "Already registered? Sign in" : "New to Plivex Global? Create account"}
+              {mode === "register" ? "Already registered? Sign in" : "New to Plivex? Create account"}
             </button>
             {notice && <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
             {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
           </section>
-          <p className="mt-6 text-center text-xs text-slate-500">Plivex Global · Separate from Plivex India</p>
+          <p className="mt-6 text-center text-xs text-slate-500">Plivex · Separate from Plivex India</p>
         </div>
       </main>
     );
@@ -235,15 +235,15 @@ export default function GlobalApp() {
         {notice && <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
         {tab === "overview" ? (
           <>
-            <div className="mt-6"><h1 className="text-2xl font-bold">Business overview</h1><p className="mt-1 text-sm text-slate-500">Your Global workspace data, kept separate from India edition records.</p></div>
+            <div className="mt-6"><h1 className="text-2xl font-bold">Business overview</h1><p className="mt-1 text-sm text-slate-500">Your business workspace data.</p></div>
             <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               {[["Clients", counts.clients], ["Products", counts.products], ["Expenses", counts.expenses], ["Invoices", counts.invoices], ["Stock items", counts.stock]].map(([label, value]) => <div key={label} className="rounded-xl border border-slate-200 bg-white p-5"><div className="text-sm text-slate-500">{label}</div><div className="mt-2 text-3xl font-bold">{value}</div></div>)}
             </div>
-            <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Global early-access workspace: client, product and expense records can be managed. Invoice creation, payment collection and stock movements are not enabled yet; existing invoice and stock records are view-only.</div>
+            <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Client, product and expense records can be managed. Invoice creation, payment collection and stock movements are not enabled yet; existing invoice and stock records are view-only.</div>
           </>
         ) : (
           <section className="mt-6">
-            <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold">{NAV.find((item) => item.id === tab)?.label}</h1><p className="mt-1 text-sm text-slate-500">{tab === "inventory" || tab === "invoices" ? "Read-only until audited transaction workflows are enabled." : "Records are scoped to your active Global workspace."}</p></div><button onClick={() => loadRecords(tab).catch((loadError) => setError(loadError.message))} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Refresh</button></div>
+            <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold">{NAV.find((item) => item.id === tab)?.label}</h1><p className="mt-1 text-sm text-slate-500">{tab === "inventory" || tab === "invoices" ? "Read-only until audited transaction workflows are enabled." : "Records are scoped to your active workspace."}</p></div><button onClick={() => loadRecords(tab).catch((loadError) => setError(loadError.message))} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Refresh</button></div>
             {["clients", "products", "expenses"].includes(tab) && (
               <form onSubmit={submitRecord} className="mt-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
                 {tab === "clients" && <><input required placeholder="Client name" className="rounded-lg border border-slate-300 p-3" value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /><input type="email" placeholder="Email (optional)" className="rounded-lg border border-slate-300 p-3" value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /><input placeholder="Phone (optional)" className="rounded-lg border border-slate-300 p-3" value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></>}

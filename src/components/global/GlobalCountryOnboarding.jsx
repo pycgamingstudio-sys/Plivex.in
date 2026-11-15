@@ -49,7 +49,7 @@ export default function GlobalCountryOnboarding() {
     <main className="min-h-screen bg-background px-4 py-10 flex items-center justify-center">
       <section className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
         <div className="mb-6">
-          <p className="text-sm font-semibold text-primary">Plivex Global</p>
+          <p className="text-sm font-semibold text-primary">Plivex</p>
           <h1 className="mt-2 text-2xl font-bold tracking-tight">Where is your business based?</h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             Choose your business country to set the workspace currency and regional preferences.
