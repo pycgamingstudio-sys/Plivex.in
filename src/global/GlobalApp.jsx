@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/api/backendClient";
+import GlobalCountryOnboarding from "@/components/global/GlobalCountryOnboarding";
 
 const COUNTRY_OPTIONS = [
   { code: "US", label: "United States", locale: "en-US", currency: "USD" },
@@ -69,13 +70,7 @@ export default function GlobalApp() {
     if (!activeSession) { setAccount(null); setRecords({}); return; }
     let { data, error: contextError } = await supabase.functions.invoke("global-auth-context", { body: {} });
     if (contextError) throw new Error(await errorMessage(contextError, "Could not load your Global account."));
-    if (!data?.user?.workspace_id) {
-      const provision = await supabase.functions.invoke("global-ensure-owner", { body: {} });
-      if (provision.error) throw new Error(await errorMessage(provision.error, "Could not initialize your Global workspace."));
-      ({ data, error: contextError } = await supabase.functions.invoke("global-auth-context", { body: {} }));
-      if (contextError) throw new Error(await errorMessage(contextError, "Could not reload your Global account."));
-    }
-    if (!data?.user?.workspace_id) throw new Error("Your Global workspace membership could not be verified.");
+    if (!data?.user?.id) throw new Error("Your Global account could not be verified.");
     setAccount(data.user);
   }, []);
 
@@ -179,6 +174,8 @@ export default function GlobalApp() {
   };
 
   if (loading) return <div className="min-h-screen grid place-items-center bg-[#F8F7FC] text-slate-600">Loading Plivex Global…</div>;
+
+  if (session && account && !account.workspace_id) return <GlobalCountryOnboarding />;
 
   if (!session || !account) {
     return (
