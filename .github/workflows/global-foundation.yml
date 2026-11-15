@@ -1,0 +1,121 @@
+name: Global Foundation CI
+
+on:
+  push:
+    branches: [global-dev]
+  pull_request:
+    branches: [global-dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: global-foundation-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Test isolated Global foundation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run existing India team regression tests
+        run: npm run test:membership
+
+      - name: Run Global foundation and country selection tests
+        run: npm run test:global
+
+      - name: Type-check assistant Edge Functions with Deno
+        run: deno check supabase/functions/assistant-chat/index.ts supabase/functions/assistant-confirm/index.ts supabase/functions/_shared/global.ts supabase/functions/global-auth-context/index.ts supabase/functions/global-ensure-owner/index.ts supabase/functions/global-update-profile/index.ts supabase/functions/global-business-records/index.ts
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run TypeScript checks
+        run: npm run typecheck
+
+      - name: Build application
+        run: npm run build
+      - name: Verify public build configuration
+        run: npm run verify:build-env
+
+
+  global-isolation-replay:
+    name: Disposable Global isolation and migration replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start isolated Supabase PostgreSQL replay databases
+        shell: bash
+        run: |
+          set -euo pipefail
+          for spec in "plivex-global-remote:5433" "plivex-global-candidate:5434"; do
+            name="${spec%%:*}"
+            port="${spec##*:}"
+            docker run --detach --name "$name" --publish "$port:5432" \
+              --env POSTGRES_USER=supabase_admin --env POSTGRES_PASSWORD=postgres --env POSTGRES_DB=plivex_migration_replay \
+              supabase/postgres:17.6.1.136 \
+              postgres -c config_file=/etc/postgresql/postgresql.conf -c shared_preload_libraries=pg_cron,pg_net -c cron.database_name=plivex_migration_replay
+            ready=0
+            # Wait for the final configured server, not the temporary initdb server.
+            for attempt in $(seq 1 90); do
+              if docker exec -u postgres "$name" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d plivex_migration_replay -Atqc 'SELECT 1' 2>/dev/null | grep -qx '1'; then
+                sleep 2
+                if docker exec -u postgres "$name" psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d plivex_migration_replay -Atqc 'SELECT 1' 2>/dev/null | grep -qx '1'; then
+                  ready=1
+                  break
+                fi
+              fi
+              sleep 2
+            done
+            if [ "$ready" != "1" ]; then docker logs "$name"; docker inspect "$name" --format '{{json .State}}' || true; exit 1; fi
+            for ext in pgcrypto pg_cron pg_net; do
+              docker exec -u postgres "$name" psql -U supabase_admin -d plivex_migration_replay -Atc "SELECT name FROM pg_available_extensions WHERE name='$ext'" | grep -qx "$ext"
+            done
+          done
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Run candidate replay, Global isolation tests and actual rollback
+        env:
+          PGUSER: supabase_admin
+          PGPASSWORD: postgres
+          REMOTE_PGPORT: "5433"
+          CANDIDATE_PGPORT: "5434"
+        run: node scripts/verify-migration-replay.mjs
+
+      - name: Verify Global trigger helper privileges in disposable candidate database
+        env:
+          PGHOST: 127.0.0.1
+          PGUSER: supabase_admin
+          PGPASSWORD: postgres
+          PGPORT: "5434"
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -d plivex_migration_replay -f supabase/migrations/202611150006_global_trigger_function_privileges.sql
+          psql -X -v ON_ERROR_STOP=1 -d plivex_migration_replay -f supabase/tests/global-trigger-privileges.integration.sql
+
+      - name: Always stop disposable databases
+        if: always()
+        run: |
+          docker rm --force plivex-global-remote plivex-global-candidate || true

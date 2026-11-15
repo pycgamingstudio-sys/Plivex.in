@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { createRoot } from "react-dom/client";
 import { InvoicePreview } from "./Home";
 import { History, Trash2, Eye, Download } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import PageShell from "@/components/PageShell";
-import { KEYS, loadList, removeItem, saveList } from "@/lib/stores";
+import { KEYS, loadList, removeItem, saveList, saveState } from "@/lib/stores";
 import { backend, supabase } from "@/api/backendClient";
 
 const sym = (c) => ({ INR: "₹", USD: "$", EUR: "€" }[c] || c);
@@ -14,6 +15,7 @@ const reminderStage = { before_due_2: "2 days before due", due_date: "Due date",
 const reminderStatus = { scheduled: "Scheduled", on_hold: "Queued for automatic sending", sending: "Sending", sent: "Sent", failed: "Retry scheduled", cancelled: "Cancelled" };
 
 export default function InvoiceHistory() {
+  const navigate = useNavigate();
   const [items, setItems] = useState(() => loadList(KEYS.history, { includeCancelled: true }));
   const [view, setView] = useState(null);
   const [filter, setFilter] = useState("all");
@@ -59,6 +61,20 @@ export default function InvoiceHistory() {
       setReminderMessage(error?.message || "Could not send reminder.");
       setReminderEvents((prev) => prev.map((item) => item.id === event.id ? { ...item, status: "failed" } : item));
     } finally { setSendingEventId(""); }
+  };
+  const editDraft = (item) => {
+    if (!item?.isDraft || !item.invoiceSnapshot || typeof item.invoiceSnapshot !== "object") return;
+    const snapshot = {
+      ...item.invoiceSnapshot,
+      id: item.id,
+      number: item.number || item.invoiceSnapshot.number || "",
+      issueDate: item.issueDate || item.invoiceSnapshot.issueDate || "",
+      dueDate: item.dueDate || item.invoiceSnapshot.dueDate || "",
+      currency: item.currency || item.invoiceSnapshot.currency || "INR",
+    };
+    saveState("invoicepulse-draft", snapshot);
+    setView(null);
+    navigate("/");
   };
   const updateItem = (id, patch, sync = true) => {
     const next = items.map((it) => (it.id === id ? { ...it, ...patch } : it));
@@ -247,14 +263,20 @@ export default function InvoiceHistory() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setView(null)}>
           <div className="w-full max-w-[420px] rounded-2xl border bg-card p-5 text-card-foreground shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between"><div><p className="font-mono-ui text-[10px] uppercase tracking-wider text-primary">{view.number || "INV-000"}</p><h3 className="mt-1 text-lg font-bold">{view.clientName || "Client"}</h3></div><button onClick={() => setView(null)} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary">✕</button></div>
+            {view.isDraft && view.invoiceSnapshot && <button onClick={() => editDraft(view)} className="mt-4 w-full rounded-lg bg-primary px-3 py-2.5 text-xs font-semibold text-primary-foreground">Edit draft</button>}
             <div className="mt-4 grid grid-cols-2 gap-3 text-[12px]">
               <div><p className="text-muted-foreground">Business</p><p className="font-semibold">{view.businessName || "—"}</p></div>
               <div><p className="text-muted-foreground">Issue date</p><p className="font-semibold">{dateLabel(view.issueDate)}</p></div>
               <div><p className="text-muted-foreground">Items</p><p className="font-semibold">{view.itemCount || 0}</p></div>
-              <div><p className="text-muted-foreground">Tax mode</p><p className="font-semibold">{view.taxMode === "split" ? "CGST + SGST" : "IGST"} ({view.taxRate || 0}%)</p></div>
-              <div><p className="text-muted-foreground">CGST</p><p className="font-semibold">{money(view.cgst, view.currency)}</p></div>
-              <div><p className="text-muted-foreground">SGST</p><p className="font-semibold">{money(view.sgst, view.currency)}</p></div>
-              <div><p className="text-muted-foreground">IGST</p><p className="font-semibold">{money(view.igst, view.currency)}</p></div>
+              {view.invoiceSnapshot?.globalTax?.countryCode && view.invoiceSnapshot.globalTax.countryCode !== "IN" ? <>
+                <div><p className="text-muted-foreground">Tax format</p><p className="font-semibold">{view.invoiceSnapshot.globalTax.countryCode} · {view.invoiceSnapshot.globalTaxCalculation?.status === "manual_unverified" ? "Manual / unverified" : view.invoiceSnapshot.globalTaxCalculation?.status || "Needs review"}</p></div>
+                <div><p className="text-muted-foreground">Tax amount</p><p className="font-semibold">{money(view.taxValue, view.currency)}</p></div>
+              </> : <>
+                <div><p className="text-muted-foreground">Tax mode</p><p className="font-semibold">{view.taxMode === "split" ? "CGST + SGST" : "IGST"} ({view.taxRate || 0}%)</p></div>
+                <div><p className="text-muted-foreground">CGST</p><p className="font-semibold">{money(view.cgst, view.currency)}</p></div>
+                <div><p className="text-muted-foreground">SGST</p><p className="font-semibold">{money(view.sgst, view.currency)}</p></div>
+                <div><p className="text-muted-foreground">IGST</p><p className="font-semibold">{money(view.igst, view.currency)}</p></div>
+              </>}
               <div><p className="text-muted-foreground">Total</p><p className="font-bold text-primary">{money(view.total, view.currency)}</p></div>
             </div>
             <section className="mt-5 border-t pt-4">

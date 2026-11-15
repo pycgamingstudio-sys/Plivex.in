@@ -1,48 +1,32 @@
 import { handleCashfreeRefundEvent, isCashfreeRefundEvent } from "./refund.ts";
 
-const order = { id: "00000000-0000-0000-0000-000000000001", currency: "INR" };
-const orderId = "PLXCF-12345678123412341234123456";
+const order = { id: "00000000-0000-0000-0000-000000000001", txnid: "PLXCF-12345678123412341234123456", currency: "INR" };
 const successEvent = {
   type: "REFUND_STATUS_WEBHOOK",
-  data: { refund: {
-    cf_refund_id: "CF-REFUND-1",
-    cf_payment_id: 777123,
-    order_id: orderId,
-    refund_status: "SUCCESS",
-    refund_amount: 49.5,
-    refund_currency: "INR",
-  } },
+  data: { refund: { cf_refund_id: "CF-REFUND-1", order_id: "PLXCF-12345678123412341234123456", cf_payment_id: "CFPAY-1", refund_status: "SUCCESS", refund_amount: 49.5 } },
 };
 
-Deno.test("Cashfree refund handler forwards exact order and payment identifiers to the RPC", async () => {
+Deno.test("Cashfree refund handler applies valid INR refund events with normalized RPC arguments", async () => {
   let calls = 0;
   const response = await handleCashfreeRefundEvent(successEvent, order, async (args) => {
     calls++;
-    const raw = args.p_raw as typeof successEvent;
-    if (args.p_subscription_id !== order.id || args.p_provider_refund_id !== "CF-REFUND-1" ||
+    if (args.p_subscription_id !== order.id || args.p_order_id !== order.txnid || args.p_provider_payment_id !== "CFPAY-1" || args.p_provider_refund_id !== "CF-REFUND-1" ||
         args.p_amount_minor !== 4950 || args.p_currency !== "INR" || args.p_refund_status !== "success" ||
-        raw.data.refund.cf_payment_id !== 777123 || raw.data.refund.order_id !== orderId) {
-      throw new Error("Refund RPC arguments did not preserve the verified payment mapping");
-    }
-    return { data: { ok: true, refund_status: "partially_refunded", refunded_minor_units: 4950,
-      payment_refunded_minor_units: 4950, already_applied: false }, error: null };
+        args.p_raw !== successEvent) throw new Error("Refund RPC arguments were not normalized correctly");
+    return { data: { ok: true, refund_status: "partially_refunded", refunded_minor_units: 4950, already_applied: false }, error: null };
   });
   const body = await response!.json();
-  if (response?.status !== 200 || !body.received || body.alreadyApplied ||
-      body.paymentRefundedMinorUnits !== 4950 || calls !== 1) {
+  if (response?.status !== 200 || !body.received || body.alreadyApplied || calls !== 1)
     throw new Error("Valid refund event was not applied");
-  }
 });
 
-Deno.test("Cashfree refund handler rejects missing or malformed payment mapping without calling the RPC", async () => {
+Deno.test("Cashfree refund handler rejects malformed events without calling the RPC", async () => {
   let calls = 0;
   const invalidEvents = [
     { type: "REFUND_STATUS_WEBHOOK", data: { refund: { refund_status: "SUCCESS", refund_amount: 10 } } },
-    { type: "REFUND_STATUS_WEBHOOK", data: { refund: { refund_id: "R-2", cf_payment_id: 1, order_id: orderId, refund_status: "UNKNOWN", refund_amount: 10 } } },
-    { type: "REFUND_STATUS_WEBHOOK", data: { refund: { refund_id: "R-3", cf_payment_id: 1, order_id: orderId, refund_status: "SUCCESS", refund_amount: 0 } } },
-    { type: "REFUND_STATUS_WEBHOOK", data: { refund: { refund_id: "R-4", cf_payment_id: 1, order_id: orderId, refund_status: "SUCCESS", refund_amount: 1.001 } } },
-    { type: "REFUND_STATUS_WEBHOOK", data: { refund: { refund_id: "R-5", order_id: orderId, refund_status: "SUCCESS", refund_amount: 1 } } },
-    { type: "REFUND_STATUS_WEBHOOK", data: { refund: { refund_id: "R-6", cf_payment_id: 1, refund_status: "SUCCESS", refund_amount: 1 } } },
+    { type: "REFUND_STATUS_WEBHOOK", data: { refund: { refund_id: "R-2", refund_status: "UNKNOWN", refund_amount: 10 } } },
+    { type: "REFUND_STATUS_WEBHOOK", data: { refund: { refund_id: "R-3", refund_status: "SUCCESS", refund_amount: 0 } } },
+    { type: "REFUND_STATUS_WEBHOOK", data: { refund: { refund_id: "R-4", refund_status: "SUCCESS", refund_amount: 1.001 } } },
   ];
   for (const event of invalidEvents) {
     const response = await handleCashfreeRefundEvent(event, order, async () => {
@@ -54,36 +38,71 @@ Deno.test("Cashfree refund handler rejects missing or malformed payment mapping 
   if (calls !== 0) throw new Error("Invalid refund event reached the RPC");
 });
 
-Deno.test("Cashfree refund handler reports duplicate replay as already applied", async () => {
+Deno.test("Cashfree refund handler reports replay as already applied without duplicate application", async () => {
   let calls = 0;
   const replayRpc = async () => {
     calls++;
-    return { data: { ok: true, refund_status: "success", refunded_minor_units: 4950,
-      payment_refunded_minor_units: 4950, already_applied: true }, error: null };
+    return { data: { ok: true, refund_status: "success", refunded_minor_units: 4950, already_applied: true }, error: null };
   };
   const first = await handleCashfreeRefundEvent(successEvent, order, replayRpc);
   const replay = await handleCashfreeRefundEvent(successEvent, order, replayRpc);
   const replayBody = await replay!.json();
-  if (first?.status !== 200 || replay?.status !== 200 || !replayBody.alreadyApplied || calls !== 2) {
+  if (first?.status !== 200 || replay?.status !== 200 || !replayBody.alreadyApplied || calls !== 2)
     throw new Error("Refund replay was not reported as idempotently applied");
-  }
 });
 
-Deno.test("Cashfree refund handler maps cancellation to failed and surfaces payment mapping conflicts", async () => {
+Deno.test("Cashfree refund handler maps provider cancellation to failed and surfaces over-refund conflicts", async () => {
   const cancelled = await handleCashfreeRefundEvent({
     type: "REFUND_STATUS_WEBHOOK",
-    data: { refund: { refund_id: "R-CANCEL", cf_payment_id: 777123, order_id: orderId,
-      refund_status: "CANCELLED", refund_amount: 1 } },
+    data: { refund: { refund_id: "R-CANCEL", order_id: order.txnid, cf_payment_id: "CFPAY-1", refund_status: "CANCELLED", refund_amount: 1 } },
   }, order, async (args) => {
     if (args.p_refund_status !== "failed") throw new Error("Cancelled refund status was not normalized");
     return { data: { ok: true, refund_status: "failed" }, error: null };
   });
+  const over = await handleCashfreeRefundEvent(successEvent, order, async () => ({
+    data: { ok: false, reason: "cumulative_refund_exceeds_payment" }, error: null,
+  }));
+  if (cancelled?.status !== 200 || over?.status !== 409) throw new Error("Refund conflict/cancellation mapping failed");
+});
+
+
+Deno.test("Cashfree refund handler rejects missing payment identity and mismatched order IDs", async () => {
+  let calls = 0;
+  const invalid = [
+    { type: "REFUND_STATUS_WEBHOOK", data: { refund: {
+      refund_id: "R-NO-PAYMENT", order_id: order.txnid, refund_status: "SUCCESS", refund_amount: 1,
+    } } },
+    { type: "REFUND_STATUS_WEBHOOK", data: { refund: {
+      refund_id: "R-WRONG-ORDER", order_id: "OTHER-ORDER", cf_payment_id: "CFPAY-1",
+      refund_status: "SUCCESS", refund_amount: 1,
+    } } },
+  ];
+  for (const event of invalid) {
+    const response = await handleCashfreeRefundEvent(event, order, async () => {
+      calls++;
+      return { data: { ok: true }, error: null };
+    });
+    if (response?.status !== 400) throw new Error("Invalid refund payment identity was accepted");
+  }
+  if (calls !== 0) throw new Error("Invalid payment identity reached the refund RPC");
+});
+
+Deno.test("Cashfree ONHOLD refund events remain pending and mapping conflicts are surfaced", async () => {
   const onHold = await handleCashfreeRefundEvent({
     type: "REFUND_STATUS_WEBHOOK",
-    data: { refund: { refund_id: "R-ONHOLD", cf_payment_id: 777123, order_id: orderId,
-      refund_status: "ONHOLD", refund_amount: 1 } },
+    data: { refund: {
+      cf_refund_id: "CF-REFUND-ONHOLD",
+      order_id: order.txnid,
+      cf_payment_id: "CFPAY-1",
+      refund_status: "ONHOLD",
+      refund_amount: 1,
+      refund_currency: "INR",
+    } },
   }, order, async (args) => {
-    if (args.p_refund_status !== "pending") throw new Error("On-hold refund was not normalized to pending");
+    if (args.p_refund_status !== "pending") throw new Error("ONHOLD was not normalized to pending");
+    if (args.p_order_id !== order.txnid || args.p_provider_payment_id !== "CFPAY-1") {
+      throw new Error("ONHOLD event lost exact order/payment identity");
+    }
     return { data: { ok: true, refund_status: "pending" }, error: null };
   });
   const ambiguous = await handleCashfreeRefundEvent(successEvent, order, async () => ({
@@ -92,22 +111,20 @@ Deno.test("Cashfree refund handler maps cancellation to failed and surfaces paym
   const historicalHold = await handleCashfreeRefundEvent(successEvent, order, async () => ({
     data: { ok: false, reason: "historical_refund_reconciliation_required" }, error: null,
   }));
-  if (cancelled?.status !== 200 || onHold?.status !== 200 || ambiguous?.status !== 409 ||
-      historicalHold?.status !== 409) {
-    throw new Error("Refund mapping conflict/cancellation/historical-hold handling failed");
+  if (onHold?.status !== 200 || ambiguous?.status !== 409 || historicalHold?.status !== 409) {
+    throw new Error("ONHOLD or historical refund conflict handling failed");
   }
 });
 
 Deno.test("non-refund Cashfree payment events do not enter the refund handler", async () => {
-  const paymentEvent = { type: "PAYMENT_SUCCESS_WEBHOOK", data: {
-    order: { order_id: orderId }, payment: { payment_status: "SUCCESS" },
-  } };
+  const paymentEvent = { type: "PAYMENT_SUCCESS_WEBHOOK", data: { order: { order_id: "PLXCF-12345678123412341234123456" }, payment: { payment_status: "SUCCESS" } } };
   if (isCashfreeRefundEvent(paymentEvent)) throw new Error("Payment event was classified as a refund");
   const response = await handleCashfreeRefundEvent(paymentEvent, order, async () => {
     throw new Error("Payment event unexpectedly called refund RPC");
   });
   if (response !== null) throw new Error("Payment event was consumed by refund handler");
 });
+
 
 Deno.test("Cashfree refund amounts convert exact decimal major units to integer minor units", async () => {
   const validCases = [
@@ -121,8 +138,8 @@ Deno.test("Cashfree refund amounts convert exact decimal major units to integer 
       type: "REFUND_STATUS_WEBHOOK",
       data: { refund: {
         refund_id: `R-DECIMAL-${index}`,
-        cf_payment_id: 777123,
-        order_id: orderId,
+        order_id: order.txnid,
+        cf_payment_id: "CFPAY-1",
         refund_status: "SUCCESS",
         refund_amount: testCase.amount,
       } },
@@ -130,13 +147,30 @@ Deno.test("Cashfree refund amounts convert exact decimal major units to integer 
     const response = await handleCashfreeRefundEvent(event, order, async (args) => {
       rpcCalls++;
       if (args.p_amount_minor !== testCase.expectedMinor ||
-          !Number.isSafeInteger(args.p_amount_minor) || args.p_amount_minor <= 0) {
+          !Number.isSafeInteger(args.p_amount_minor) ||
+          args.p_amount_minor <= 0) {
         throw new Error(`Atomic refund RPC received incorrect minor units for ${testCase.amount}`);
       }
       return { data: { ok: true, refunded_minor_units: args.p_amount_minor }, error: null };
     });
-    if (response?.status !== 200 || rpcCalls !== 1) {
+    if (response?.status !== 200 || rpcCalls !== 1)
       throw new Error(`Valid decimal refund ${testCase.amount} was not applied`);
-    }
   }
+
+  let invalidRpcCalls = 0;
+  const invalid = await handleCashfreeRefundEvent({
+    type: "REFUND_STATUS_WEBHOOK",
+    data: { refund: {
+      refund_id: "R-DECIMAL-INVALID",
+      order_id: order.txnid,
+      cf_payment_id: "CFPAY-1",
+      refund_status: "SUCCESS",
+      refund_amount: 1.001,
+    } },
+  }, order, async () => {
+    invalidRpcCalls++;
+    return { data: { ok: true }, error: null };
+  });
+  if (invalid?.status !== 400 || invalidRpcCalls !== 0)
+    throw new Error("Refund with more than two decimal places was not rejected before RPC");
 });

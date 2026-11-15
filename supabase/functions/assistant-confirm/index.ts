@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
 
 const ALLOWED_ORIGINS = new Set([
   "https://plivex.in",
@@ -36,24 +37,7 @@ function validateAction(action: unknown) {
   const type = text(candidate.type, 40);
   const raw = candidate.payload && typeof candidate.payload === "object" ? candidate.payload as Record<string, unknown> : {};
   if (type === "create_invoice") {
-    const client_name = text(raw.client_name,120);
-    const items = Array.isArray(raw.items) ? raw.items.slice(0,100).map((entry: any) => ({
-      description: text(entry?.description,500),
-      quantity: number(entry?.quantity,-1),
-      rate: number(entry?.rate,-1),
-      gst_rate: number(entry?.gst_rate,0),
-    })) : [];
-    if (!client_name || !items.length || items.some((item: any) => !item.description || !(item.quantity > 0) || !(item.rate >= 0) || item.gst_rate < 0 || item.gst_rate > 100)) return null;
-    const tax_mode = raw.tax_mode === "igst" ? "igst" : "split";
-    const discount_type = raw.discount_type === "flat" ? "flat" : "percent";
-    const discount = number(raw.discount,0), tax_rate = number(raw.tax_rate,0);
-    if (tax_rate < 0 || tax_rate > 100 || discount < 0 || (discount_type === "percent" && discount > 100)) return null;
-    return { type, payload: {
-      client_name, client_email: text(raw.client_email,180), business_name: text(raw.business_name,160),
-      issue_date: text(raw.issue_date,10), due_date: text(raw.due_date,10),
-      currency: "INR", tax_mode, tax_rate, discount_type, discount,
-      notes: text(raw.notes,1000), terms: text(raw.terms,1000), status: "Pending", is_draft: true, items,
-    } };
+    return validateInvoiceAction(action);
   }
   if (type === "create_expense") {
     const amount = number(raw.amount);

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
 
 const ALLOWED_ORIGINS = new Set([
   "https://plivex.in",
@@ -20,8 +21,9 @@ const number = (value: unknown, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 const allowedCategories = ["Rent", "Raw Materials", "Utilities", "Salary", "Logistics", "Software", "Marketing", "Other"];
+const SUPPORTED_CURRENCIES = new Set(["INR", "USD", "EUR", "GBP", "AED", "CAD", "AUD", "SGD"]);
 
-async function loadLiveContext(supabase: ReturnType<typeof createClient>, workspaceId: string) {
+async function loadLiveContext(supabase: any, workspaceId: string) {
   const results = await Promise.all([
     supabase.from("invoices").select("number,client_name,issue_date,due_date,status,subtotal,tax_value,total,is_draft,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("clients").select("name,company,email,phone,gstin,address,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
@@ -30,10 +32,10 @@ async function loadLiveContext(supabase: ReturnType<typeof createClient>, worksp
     supabase.from("quotations").select("number,client_name,date,total,status,tax_rate,items,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("leads").select("name,phone,requirement,value,stage,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("services").select("name,rate,gst_rate,description").eq("workspace_id", workspaceId).limit(500),
-    supabase.from("business_profile").select("name,email,phone,gstin,address,upi_id,logo_url").eq("workspace_id", workspaceId).maybeSingle(),
+    supabase.from("business_profile").select("name,email,phone,gstin,address,upi_id,logo_url,country_code,tax_registration_number,tax_registration_type,tax_registration_status,tax_registration_effective_from,tax_jurisdiction_code").eq("workspace_id", workspaceId).maybeSingle(),
   ]);
   const names = ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile"];
-  const rows = Object.fromEntries(names.map((name, i) => [name, results[i].data ?? (name === "business_profile" ? null : [])]));
+  const rows: Record<string, any> = Object.fromEntries(names.map((name, i) => [name, results[i].data ?? (name === "business_profile" ? null : [])]));
   const errors = names.filter((name, i) => results[i].error).map((name) => name);
   const invoices = rows.invoices || [];
   const clients = rows.clients || [];
@@ -41,10 +43,10 @@ async function loadLiveContext(supabase: ReturnType<typeof createClient>, worksp
   const expenses = rows.expenses || [];
   const quotations = rows.quotations || [];
   const leads = rows.leads || [];
-  const money = (items, field) => items.reduce((sum, item) => sum + number(item[field]), 0);
-  const reportableInvoices = invoices.filter((item) => String(item.status).toLowerCase() !== "cancelled" && !item.is_draft);
-  const paidInvoices = reportableInvoices.filter((item) => String(item.status).toLowerCase() === "paid");
-  const pendingInvoices = reportableInvoices.filter((item) => String(item.status).toLowerCase() === "pending");
+  const money = (items: any[], field: string) => items.reduce((sum: number, item: any) => sum + number(item[field]), 0);
+  const reportableInvoices = invoices.filter((item: any) => String(item.status).toLowerCase() !== "cancelled" && !item.is_draft);
+  const paidInvoices = reportableInvoices.filter((item: any) => String(item.status).toLowerCase() === "paid");
+  const pendingInvoices = reportableInvoices.filter((item: any) => String(item.status).toLowerCase() === "pending");
   const invoiceSummary = {
     loadedRecords: invoices.length,
     reportableCount: reportableInvoices.length,
@@ -60,7 +62,7 @@ async function loadLiveContext(supabase: ReturnType<typeof createClient>, worksp
     summaries: {
       invoices: invoiceSummary,
       clients: { loadedRecords: clients.length },
-      stock: { loadedRecords: stock.length, lowStockCount: stock.filter((item) => number(item.quantity) <= number(item.low_stock, 5)).length, totalUnits: money(stock, "quantity") },
+      stock: { loadedRecords: stock.length, lowStockCount: stock.filter((item: any) => number(item.quantity) <= number(item.low_stock, 5)).length, totalUnits: money(stock, "quantity") },
       expenses: { loadedRecords: expenses.length, totalAmount: money(expenses, "amount") },
       quotations: { loadedRecords: quotations.length, totalValue: money(quotations, "total") },
       leads: { loadedRecords: leads.length, totalPotentialValue: money(leads, "value") },
@@ -120,6 +122,10 @@ function parseInvoiceConversation(incoming: any[], businessProfile: any = null) 
   const combined = userTurns.join("\n");
   if (!/(?:invoice|inv[o]?ice|bill|billing|इ invoice|इनवॉइस|बिल)/i.test(combined) ||
       !/(?:bnao|banao|banana|banado|create|make|generate|prepare|बनाओ|बना दो)/i.test(combined)) return null;
+  const currencyMatch = combined.match(/\b(INR|USD|EUR|GBP|AED|CAD|AUD|SGD)\b/i);
+  const workspaceCountryCode = text(businessProfile?.country_code || "IN", 2).toUpperCase();
+  const countryCurrency: Record<string, string> = { IN: "INR", US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD" };
+  const currency = currencyMatch ? currencyMatch[1].toUpperCase() : (countryCurrency[workspaceCountryCode] || "INR");
   const client = captureField(combined, /client(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:mera|my|issue|due|date|item|product|price|rate|quantity|qty)\b|[,;\n]|$)/i);
   const business = captureField(combined, /(?:mera|my)\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:issue|due|date|item|product|price|rate|quantity|qty)\b|[,;\n]|$)/i);
   const item = captureField(combined, /(?:item|product)\s+(?:hai|is)\s+(.+?)(?=\s+(?:quantity|qty|price|rate|ki|ka|ke|and|aur)\b|[,;\n]|$)/i);
@@ -154,20 +160,39 @@ function parseInvoiceConversation(incoming: any[], businessProfile: any = null) 
   const invoiceSnapshot = {
     business: invoiceBusiness,
     client: { name: client, company: "", email: "", phone: "", gstin: "", address: "" },
-    number: "", issueDate, dueDate, currency: "INR",
-    items: [{ id: "ai-item-1", description: item, quantity, rate, gstRate: 0 }],
+    number: "", issueDate, dueDate, currency,
+    items: [{ id: "ai-item-1", description: item, quantity, rate: price, gstRate: 0 }],
     taxRate: 0, taxMode: "split", discountType: "percent", discount: 0,
     notes: "", terms: "", upiId: text(profile.upi_id, 180),
     logo: text(profile.logo_url, 2000), design: "classic",
+    ...(workspaceCountryCode !== "IN" ? {
+      globalTax: {
+        countryCode: workspaceCountryCode, mode: ["US", "CA"].includes(workspaceCountryCode) ? "manual" : "automatic",
+        priceMode: "exclusive", placeOfSupply: "", placeOfSupplyConfirmed: false,
+        taxCategory: "", taxCategoryConfirmed: false, registrationConfirmed: false,
+        collectionObligationConfirmed: false,
+        destinationJurisdiction: { state: "", county: "", city: "", province: "" },
+        components: [],
+      },
+      globalTaxProfileSnapshot: {
+        countryCode: workspaceCountryCode, registrationNumber: text(profile.tax_registration_number, 80),
+        registrationType: text(profile.tax_registration_type, 32),
+        registrationStatus: text(profile.tax_registration_status || "unregistered", 24),
+        registrationEffectiveFrom: text(profile.tax_registration_effective_from, 10),
+        registeredJurisdiction: text(profile.tax_jurisdiction_code, 32),
+      },
+    } : {}),
   };
   const action = { type: "create_invoice", payload: {
     client_name: client, business_name: invoiceBusiness.name,
     issue_date: issueDate, due_date: dueDate,
-    currency: "INR", tax_mode: "split", tax_rate: 0, discount_type: "percent", discount: 0,
+    currency, tax_mode: "split", tax_rate: 0, discount_type: "percent", discount: 0,
     is_draft: true, status: "Pending", invoice_snapshot: invoiceSnapshot,
     items: [{ description: item, quantity, rate: price, gst_rate: 0 }]
   }};
-  return { pending: false, action, reply: `Invoice draft ready: ${client} · ${item} × ${quantity} × ₹${price.toLocaleString("en-IN")} = ₹${(quantity * price).toLocaleString("en-IN")}. Review and confirm to save.` };
+  const amountLabel = currency === "INR" ? "₹" : currency + " ";
+  const amountLocale = currency === "INR" ? "en-IN" : undefined;
+  return { pending: false, action, reply: `Invoice draft ready: ${client} · ${item} × ${quantity} × ${amountLabel}${price.toLocaleString(amountLocale)} = ${amountLabel}${(quantity * price).toLocaleString(amountLocale)}. Review and confirm to save.` };
 }
 
 
@@ -230,30 +255,24 @@ function validateAction(action: any) {
   const type = text(action.type, 40);
   const p = action.payload && typeof action.payload === "object" ? action.payload : {};
   if (type === "create_invoice") {
-    const client_name = text(p.client_name, 120);
-    const items = Array.isArray(p.items) ? p.items.slice(0, 100).map((item: any) => ({
-      description: text(item?.description, 500),
-      quantity: number(item?.quantity, -1),
-      rate: number(item?.rate, -1),
-      gst_rate: number(item?.gst_rate, 0),
-    })) : [];
-    if (!client_name || !items.length || items.some((item: any) => !item.description || !(item.quantity > 0) || !(item.rate >= 0) || item.gst_rate < 0 || item.gst_rate > 100)) return null;
-    const tax_mode = p.tax_mode === "igst" ? "igst" : "split";
-    const discount_type = p.discount_type === "flat" ? "flat" : "percent";
-    const discount = number(p.discount, 0);
-    const tax_rate = number(p.tax_rate, 0);
-    if (tax_rate < 0 || tax_rate > 100 || discount < 0 || (discount_type === "percent" && discount > 100)) return null;
-    const payload = {
-      client_name, client_email: text(p.client_email, 180), business_name: text(p.business_name, 160),
-      issue_date: /^\d{4}-\d{2}-\d{2}$/.test(text(p.issue_date, 10)) ? text(p.issue_date, 10) : undefined,
-      due_date: /^\d{4}-\d{2}-\d{2}$/.test(text(p.due_date, 10)) ? text(p.due_date, 10) : undefined,
-      currency: "INR", tax_mode, tax_rate, discount_type, discount,
-      notes: text(p.notes, 1000), terms: text(p.terms, 1000), status: "Pending", is_draft: true, items,
+    const validated = validateInvoiceAction(action);
+    if (!validated) return null;
+    const { payload } = validated;
+    const subtotal = payload.items.reduce((sum: number, item: any) => sum + item.quantity * item.rate, 0);
+    const discountValue = payload.discount_type === "percent"
+      ? subtotal * payload.discount / 100
+      : Math.min(payload.discount, subtotal);
+    const tax = payload.items.reduce((sum: number, item: any) =>
+      sum + (item.quantity * item.rate) * (item.gst_rate || payload.tax_rate) / 100, 0);
+    const globalDraft = payload.invoice_snapshot?.globalTax?.countryCode && payload.invoice_snapshot.globalTax.countryCode !== "IN";
+    const amount = Math.max(0, subtotal - discountValue + (globalDraft ? 0 : tax));
+    const locale = payload.currency === "INR" ? "en-IN" : undefined;
+    return {
+      ...validated,
+      summary: "Prepare invoice draft for " + payload.client_name + " — " +
+        payload.items.length + " item(s), approx. " + payload.currency + " " +
+        amount.toLocaleString(locale) + (globalDraft ? " (global tax details must be reviewed before finalizing)" : " (GST and totals will be calculated by Plivex)"),
     };
-    const subtotal = items.reduce((sum: number, item: any) => sum + item.quantity * item.rate, 0);
-    const discountValue = discount_type === "percent" ? subtotal * discount / 100 : Math.min(discount, subtotal);
-    const tax = items.reduce((sum: number, item: any) => sum + (item.quantity * item.rate) * (item.gst_rate || tax_rate) / 100, 0);
-    return { type, payload, summary: "Prepare invoice draft for " + client_name + " — " + items.length + " item(s), approx. ₹" + Math.max(0, subtotal - discountValue + tax).toLocaleString("en-IN") + " (GST and totals will be calculated by Plivex)" };
   }
   if (type === "create_client") {
     const name = text(p.name, 120);
@@ -331,14 +350,14 @@ async function handleRequest(req: Request) {
         parts.push({ inline_data: { mime_type: imageMime, data: imageData } });
       }
       return { role: item?.role === "assistant" ? "model" : "user", parts };
-    }).filter((item) => item.parts.some((part) => Boolean(part.text?.trim()) || Boolean(part.inline_data)));
+    }).filter((item: any) => item.parts.some((part: any) => Boolean(part.text?.trim()) || Boolean(part.inline_data)));
     if (!messages.length || messages[messages.length - 1].role !== "user") return json({ error: "Please enter a message." }, 400);
 
     const latestUserText = [...incoming].reverse().find((item: { role?: string }) => item?.role !== "assistant")?.content || "";
     const isRecordCreationRequest = /\b(add|create|save|record|jod(?:o)?|bana(?:o|na)?|darj)\b/i.test(String(latestUserText));
     // Image analysis and record creation do not need a 500-row workspace snapshot.
     const hasReadQueryIntent = /(due|balance|ledger|pending|kitna|kitne|baki|baaki|outstanding|total|report|dikha|bata|show|list|how many|how much)/i.test(String(latestUserText));
-    const liveContext = image && !hasReadQueryIntent
+    const liveContext: any = image && !hasReadQueryIntent
       ? { business: null, summaries: {}, records: {}, limitNote: "Live workspace data was not needed for this receipt-only request." }
       : await loadLiveContext(supabase, profile.workspace_id);
     const systemInstruction = [
@@ -611,7 +630,15 @@ async function handleRequest(req: Request) {
       const profile = liveContext.business && typeof liveContext.business === "object" ? liveContext.business : {};
       const clientRecord = (liveContext.records?.clients || []).find((row: any) => String(row?.name || "").trim().toLowerCase() === String(payload.client_name || "").trim().toLowerCase()) || {};
       const items = Array.isArray(payload.items) ? payload.items.slice(0, 100) : [];
-      const invoiceSnapshot = payload.invoice_snapshot && typeof payload.invoice_snapshot === "object" ? payload.invoice_snapshot : {
+      const workspaceCountryCode = text(profile.country_code || "IN", 2).toUpperCase();
+      const countryCurrency: Record<string, string> = { IN: "INR", US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD" };
+      const explicitCurrency = String(currentUserText || "").match(/\\b(INR|USD|EUR|GBP|AED|CAD|AUD|SGD)\\b/i);
+      const requestedCurrency = explicitCurrency ? explicitCurrency[1].toUpperCase() : (countryCurrency[workspaceCountryCode] || text(payload.currency || payload.invoice_snapshot?.currency || "INR", 3).toUpperCase());
+      const isGlobalWorkspace = workspaceCountryCode !== "IN";
+      const rawGlobalTax = payload.invoice_snapshot?.globalTax && typeof payload.invoice_snapshot.globalTax === "object" ? payload.invoice_snapshot.globalTax : {};
+      const rawDestination = rawGlobalTax.destinationJurisdiction && typeof rawGlobalTax.destinationJurisdiction === "object" ? rawGlobalTax.destinationJurisdiction : {};
+      const invoiceSnapshot = {
+        ...(payload.invoice_snapshot && typeof payload.invoice_snapshot === "object" ? payload.invoice_snapshot : {}),
         business: {
           name: text(payload.business_name || profile.name, 160), email: text(profile.email, 180),
           phone: text(profile.phone, 40), gstin: text(profile.gstin, 30), address: text(profile.address, 400),
@@ -621,20 +648,54 @@ async function handleRequest(req: Request) {
           email: text(payload.client_email || clientRecord.email, 180), phone: text(clientRecord.phone, 40),
           gstin: text(clientRecord.gstin, 30), address: text(clientRecord.address, 400),
         },
-        number: "", issueDate: text(payload.issue_date, 10), dueDate: text(payload.due_date, 10),
-        currency: "INR",
+        number: text(payload.invoice_snapshot?.number, 80),
+        issueDate: text(payload.issue_date || payload.invoice_snapshot?.issueDate, 10),
+        dueDate: text(payload.due_date || payload.invoice_snapshot?.dueDate, 10),
+        currency: requestedCurrency,
         items: items.map((item: any, index: number) => ({
           id: "ai-item-" + (index + 1), description: text(item?.description, 500),
           quantity: number(item?.quantity, 0), rate: number(item?.rate, 0),
-          gstRate: number(item?.gst_rate, number(payload.tax_rate, 0)),
+          gstRate: isGlobalWorkspace ? 0 : number(item?.gst_rate, number(payload.tax_rate, 0)),
         })),
-        taxRate: number(payload.tax_rate, 0), taxMode: payload.tax_mode === "igst" ? "igst" : "split",
+        taxRate: isGlobalWorkspace ? 0 : number(payload.tax_rate, 0),
+        taxMode: isGlobalWorkspace ? "split" : (payload.tax_mode === "igst" ? "igst" : "split"),
         discountType: payload.discount_type === "flat" ? "flat" : "percent",
         discount: number(payload.discount, 0), notes: text(payload.notes, 1000), terms: text(payload.terms, 1000),
         upiId: text(profile.upi_id, 180), logo: text(profile.logo_url, 2000), design: "classic",
+        ...(isGlobalWorkspace ? {
+          globalTax: {
+            countryCode: workspaceCountryCode,
+            mode: ["US", "CA"].includes(workspaceCountryCode) ? "manual" : "automatic",
+            priceMode: rawGlobalTax.priceMode === "inclusive" ? "inclusive" : "exclusive",
+            placeOfSupply: text(rawGlobalTax.placeOfSupply, 180),
+            placeOfSupplyConfirmed: false,
+            taxCategory: text(rawGlobalTax.taxCategory, 120),
+            taxCategoryConfirmed: false,
+            registrationConfirmed: false,
+            collectionObligationConfirmed: false,
+            destinationJurisdiction: {
+              state: text(rawDestination.state, 80), county: text(rawDestination.county, 100),
+              city: text(rawDestination.city, 100), province: text(rawDestination.province, 100),
+            },
+            components: [],
+          },
+          globalTaxProfileSnapshot: {
+            countryCode: workspaceCountryCode,
+            registrationNumber: text(profile.tax_registration_number, 80),
+            registrationType: text(profile.tax_registration_type, 32),
+            registrationStatus: text(profile.tax_registration_status || "unregistered", 24),
+            registrationEffectiveFrom: text(profile.tax_registration_effective_from, 10),
+            registeredJurisdiction: text(profile.tax_jurisdiction_code, 32),
+          },
+        } : {}),
       };
       return { ...candidate, payload: {
-        ...payload, business_name: text(payload.business_name || profile.name, 160),
+        ...payload,
+        currency: requestedCurrency,
+        tax_mode: isGlobalWorkspace ? "split" : (payload.tax_mode === "igst" ? "igst" : "split"),
+        tax_rate: isGlobalWorkspace ? 0 : number(payload.tax_rate, 0),
+        items: isGlobalWorkspace ? items.map((item: any) => ({ ...item, gst_rate: 0 })) : items,
+        business_name: text(payload.business_name || profile.name, 160),
         invoice_snapshot: invoiceSnapshot,
       }};
     });

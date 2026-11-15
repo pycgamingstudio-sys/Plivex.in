@@ -1,4 +1,4 @@
-import { backend as db } from '@/api/backendClient';
+import { backend as db, APP_EDITION } from '@/api/backendClient';
 
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
@@ -27,8 +27,9 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await db.auth.loginViaEmailPassword(email, password);
       const code = getPendingInviteCode(inviteCode);
+      if (APP_EDITION === "global" && code) throw new Error("Global workspace invitations are not available yet. Sign in without an invite link.");
+      await db.auth.loginViaEmailPassword(email, password);
       if (code) {
         rememberPendingInviteCode(code);
         const response = await db.functions.invoke("verifyInviteCode", { code, email });
@@ -60,7 +61,7 @@ export default function Login() {
         </>
       }
     >
-      <GoogleSignInButton inviteCode={inviteCode} returnTo={returnTo} onError={setError} disabled={loading} className="mb-6" />
+      <GoogleSignInButton inviteCode={inviteCode} returnTo={returnTo} onError={setError} disabled={loading || (APP_EDITION === "global" && Boolean(getPendingInviteCode(inviteCode)))} className="mb-6" />
 
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
@@ -107,6 +108,7 @@ export default function Login() {
             />
           </div>
         </div>
+        {APP_EDITION !== "global" && (
         <div className="space-y-2">
           <Label htmlFor="inviteCode">Have a Workspace Invite Code? <span className="text-muted-foreground font-normal">(optional)</span></Label>
           <div className="relative">
@@ -114,6 +116,7 @@ export default function Login() {
             <Input id="inviteCode" type="text" placeholder="e.g. AB3X9K" value={inviteCode} onChange={(e) => setInviteCode(e.target.value.toUpperCase())} className="pl-10 h-12" />
           </div>
         </div>
+        )}
         <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
           {loading ? (
             <>

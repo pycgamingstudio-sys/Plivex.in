@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { isIsoCalendarDate } from "./validation.mjs";
 const ORIGINS = new Set(["https://plivex.in", "https://www.plivex.in", "https://plivex.netlify.app"]);
 const allowed = (o: string | null) => !o || ORIGINS.has(o) || /^https:\/\/(?:[a-z0-9-]+\.)?[a-z0-9-]+\.(?:pages|workers)\.dev$/.test(o);
 const cors = (o: string | null) => ({ "Access-Control-Allow-Origin": o && allowed(o) ? o : "https://plivex.in", "Vary": "Origin", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" });
@@ -10,7 +11,12 @@ const FIELDS: Record<string, string[]> = {
   services: ["name","rate","gst_rate","description"],
   leads: ["name","phone","requirement","value","stage"],
   quotations: ["number","client_name","date","total","status","tax_rate","items"],
-  business_profile: ["name","email","phone","gstin","address","logo_url","upi_id"],
+  business_profile: ["name","email","phone","gstin","address","logo_url","upi_id","country_code","locale_code","tax_registration_number","tax_registration_type","tax_registration_status","tax_registration_effective_from","tax_jurisdiction_code"],
+};
+const COUNTRY_LOCALES: Record<string, string[]> = {
+  IN: ["en-IN", "hi-IN"], US: ["en-US", "es-US"], GB: ["en-GB"],
+  AE: ["en-AE", "ar-AE"], CA: ["en-CA", "fr-CA"], AU: ["en-AU"],
+  SG: ["en-SG", "zh-SG", "ms-SG", "ta-SG"],
 };
 const isId = (v: unknown) => typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v);
 const pick = (value: unknown, fields: string[]) => {
@@ -45,6 +51,36 @@ Deno.serve(async (req: Request) => {
         return json({ record: data || null }, 200, origin);
       }
       if (action === "upsert") {
+        const incoming = body.values && typeof body.values === "object" && !Array.isArray(body.values) ? body.values : {};
+        if (Object.hasOwn(incoming, "country_code") || Object.hasOwn(incoming, "locale_code")) {
+          const countryCode = incoming.country_code;
+          const localeCode = incoming.locale_code;
+          if (typeof countryCode !== "string" || !Object.hasOwn(COUNTRY_LOCALES, countryCode)
+            || typeof localeCode !== "string" || !COUNTRY_LOCALES[countryCode].includes(localeCode)) {
+            return json({ error: "Choose a supported country and matching locale." }, 400, origin);
+          }
+        }
+        if (Object.hasOwn(incoming, "tax_registration_status")) {
+          const allowedStatuses = ["unregistered", "pending", "registered", "deregistered"];
+          if (typeof incoming.tax_registration_status !== "string" || !allowedStatuses.includes(incoming.tax_registration_status)) {
+            return json({ error: "Choose a valid tax registration status." }, 400, origin);
+          }
+          if (incoming.tax_registration_status === "registered"
+            && (typeof incoming.tax_registration_number !== "string" || !incoming.tax_registration_number.trim()
+              || typeof incoming.tax_registration_effective_from !== "string"
+              || !isIsoCalendarDate(incoming.tax_registration_effective_from))) {
+            return json({ error: "Registered businesses must provide a registration number and effective date." }, 400, origin);
+          }
+        }
+        if (Object.hasOwn(incoming, "tax_registration_number")
+          && (typeof incoming.tax_registration_number !== "string" || incoming.tax_registration_number.length > 80)) {
+          return json({ error: "Tax registration number must be 80 characters or fewer." }, 400, origin);
+        }
+        if (Object.hasOwn(incoming, "tax_jurisdiction_code")
+          && incoming.tax_jurisdiction_code !== null
+          && (typeof incoming.tax_jurisdiction_code !== "string" || incoming.tax_jurisdiction_code.length > 32)) {
+          return json({ error: "Tax jurisdiction code must be 32 characters or fewer." }, 400, origin);
+        }
         const values = { ...pick(body.values, fields), workspace_id: profile.workspace_id };
         const { data: existing, error: readError } = await db.from(table).select("id").eq("workspace_id", profile.workspace_id).maybeSingle();
         if (readError) return json({ error: "Could not load business profile." }, readError.code === "42501" ? 403 : 400, origin);

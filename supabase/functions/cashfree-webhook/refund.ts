@@ -2,6 +2,8 @@ import { majorToMinorUnits } from "../_shared/cashfree.ts";
 
 type RefundRpc = (args: {
   p_subscription_id: string;
+  p_order_id: string;
+  p_provider_payment_id: string;
   p_provider_refund_id: string;
   p_amount_minor: number;
   p_currency: string;
@@ -23,34 +25,36 @@ export function isCashfreeRefundEvent(event: any): boolean {
 
 export async function handleCashfreeRefundEvent(
   event: any,
-  order: { id: string; currency?: string | null },
+  order: { id: string; txnid?: string | null; currency?: string | null },
   applyRefund: RefundRpc,
 ): Promise<Response | null> {
   if (!isCashfreeRefundEvent(event)) return null;
   const refund = event?.data?.refund || {};
   const refundId = String(refund.cf_refund_id || refund.refund_id || "").trim();
-  const cfPaymentId = String(refund.cf_payment_id ?? "").trim();
   const refundOrderId = String(refund.order_id || event?.data?.order?.order_id || "").trim();
+  const providerPaymentId = String(refund.cf_payment_id || "").trim();
   const refundStatus = String(refund.refund_status || "").toUpperCase();
   const refundAmount = Number(refund.refund_amount ?? refund.amount);
+  // Convert the provider major-unit value using exact decimal arithmetic.
+  // Do not multiply by 100: binary floating-point can turn 0.29 into a
+  // non-integer minor-unit value and incorrectly reject a valid refund.
   const refundMinor = majorToMinorUnits(refundAmount);
-
-  // Both identifiers are required: order_id locates the subscription, while
-  // cf_payment_id identifies the exact successful payment attempt.
   if (
     !refundId ||
-    !cfPaymentId ||
     !refundOrderId ||
+    !providerPaymentId ||
+    !order.txnid ||
+    refundOrderId !== order.txnid ||
     !["SUCCESS", "PENDING", "FAILED", "CANCELLED", "ONHOLD"].includes(refundStatus) ||
     refundMinor === null ||
     refundMinor <= 0
-  ) return json({ error: "Invalid or incomplete refund mapping" }, 400);
+  ) return json({ error: "Invalid refund event" }, 400);
 
-  const normalizedStatus = refundStatus === "CANCELLED"
-    ? "failed"
-    : refundStatus === "ONHOLD" ? "pending" : refundStatus.toLowerCase();
+  const normalizedStatus = refundStatus === "CANCELLED" ? "failed" : refundStatus === "ONHOLD" ? "pending" : refundStatus.toLowerCase();
   const { data: result, error } = await applyRefund({
     p_subscription_id: order.id,
+    p_order_id: refundOrderId,
+    p_provider_payment_id: providerPaymentId,
     p_provider_refund_id: refundId,
     p_amount_minor: refundMinor,
     p_currency: String(refund.refund_currency || order.currency || "INR").toUpperCase(),
@@ -59,7 +63,7 @@ export async function handleCashfreeRefundEvent(
   });
   if (error) return json({ error: "Atomic refund reconciliation failed" }, 503);
   if (!result?.ok) {
-    const conflictReasons = [
+    const conflictReasons = new Set([
       "cumulative_refund_exceeds_payment",
       "cumulative_refund_exceeds_payment_log",
       "refund_amount_conflict",
@@ -68,12 +72,17 @@ export async function handleCashfreeRefundEvent(
       "payment_mapping_missing",
       "payment_mapping_not_found",
       "payment_mapping_ambiguous",
-      "refund_amount_invalid",
+      "payment_log_not_found",
+      "ambiguous_payment_log",
+      "historical_unlinked_refund",
       "historical_refund_reconciliation_required",
-    ];
+      "historical_refund_mapping_ambiguous",
+      "refund_amount_invalid",
+    ]);
+    const conflict = conflictReasons.has(result?.reason);
     return json(
       { error: "Refund could not be reconciled", reason: result?.reason || "refund_not_applied" },
-      conflictReasons.includes(result?.reason) ? 409 : 503,
+      conflict ? 409 : 503,
     );
   }
   return json({

@@ -1,4 +1,4 @@
-import { backend as db } from '@/api/backendClient';
+import { backend as db, APP_EDITION } from '@/api/backendClient';
 
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -14,6 +14,18 @@ import { safeReturnTo } from "@/lib/authReturnTo";
 import { parseAndValidateInviteCode } from "@/lib/workspace";
 import { clearSessionCache } from "@/lib/sessionCache";
 import { getPendingInviteCode, rememberPendingInviteCode, authPageLink } from "@/components/auth/workspaceInvite";
+import { COUNTRY_REGISTRY, getCountryByCode } from "@/global/countries/country-registry.js";
+
+function getInitialSignupCountry() {
+  try {
+    const locales = [navigator.language, ...(navigator.languages || [])].filter(Boolean);
+    for (const locale of locales) {
+      const region = new Intl.Locale(locale).region;
+      if (region && getCountryByCode(region)) return region;
+    }
+  } catch { /* use the safe default when locale detection is unavailable */ }
+  return "IN";
+}
 
 function passwordRequirementError(password) {
   if (password.length < 6) return "Password must be at least 6 characters.";
@@ -28,6 +40,9 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [inviteCode, setInviteCode] = useState(getPendingInviteCode);
+  const [countryCode, setCountryCode] = useState(getInitialSignupCountry);
+  const [localeCode, setLocaleCode] = useState(() => getCountryByCode(getInitialSignupCountry())?.locales?.[0] || "en-IN");
+  const localeOptions = getCountryByCode(countryCode)?.locales || [];
 
   // Smart role invite links: /register?invite_token=XXXXXX (or ?invite_code=) auto-maps
   // the new user into the parent workspace with their predefined staff role.
@@ -36,7 +51,7 @@ export default function Register() {
     // tokens / workspace state from a previous account so role & trial data never leak.
     const code = getPendingInviteCode();
     clearSessionCache();
-    if (code) { rememberPendingInviteCode(code); setInviteCode(code); }
+    if (code && APP_EDITION !== "global") { rememberPendingInviteCode(code); setInviteCode(code); }
   }, []);
 
   const handleSubmit = async (e) => {
@@ -52,6 +67,7 @@ export default function Register() {
       return;
     }
     const code = getPendingInviteCode(inviteCode);
+    if (APP_EDITION === "global" && code) { setError("Global workspace invitations are not available yet. Create or use your own Global account."); return; }
     if (code && code.includes("-")) {
       try { parseAndValidateInviteCode(code); } catch (err) {
         setError(err.message || "Invalid invite code");
@@ -63,7 +79,7 @@ export default function Register() {
       // Remember the invite so it is applied automatically after the user confirms
       // their email and signs in (an invited member must never become a separate owner).
       rememberPendingInviteCode(code);
-      await db.auth.register({ email, password });
+      await db.auth.register(APP_EDITION === "global" ? { email, password } : { email, password, countryCode, localeCode });
       setEmailSent(true);
     } catch (err) {
       setError(err.message || "Registration failed");
@@ -133,7 +149,28 @@ export default function Register() {
         </>
       }
     >
-      <GoogleSignInButton inviteCode={inviteCode} returnTo={safeReturnTo()} onError={setError} disabled={loading} className="mb-6" />
+      {APP_EDITION !== "global" && !inviteCode && (
+        <div className="grid gap-3 rounded-xl border border-border bg-muted/20 p-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="signup-country">Business country</Label>
+            <select id="signup-country" value={countryCode} onChange={(event) => {
+            const nextCountry = getCountryByCode(event.target.value);
+            setCountryCode(nextCountry?.code || "IN");
+            setLocaleCode(nextCountry?.locales?.[0] || "en-IN");
+            }} className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm">
+            {COUNTRY_REGISTRY.map((country) => <option key={country.code} value={country.code}>{country.name}</option>)}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="signup-locale">Language and number format</Label>
+            <select id="signup-locale" value={localeCode} onChange={(event) => setLocaleCode(event.target.value)} className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm">
+            {localeOptions.map((locale) => <option key={locale} value={locale}>{locale}</option>)}
+            </select>
+          </div>
+          <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">This saves your business country and display locale. It does not determine tax residency or legal compliance.</p>
+        </div>
+      )}
+      <GoogleSignInButton inviteCode={inviteCode} countryCode={countryCode} localeCode={localeCode} returnTo={safeReturnTo()} onError={setError} disabled={loading || (APP_EDITION === "global" && Boolean(getPendingInviteCode(inviteCode)))} className="mb-6" />
 
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
@@ -194,6 +231,7 @@ export default function Register() {
             />
           </div>
         </div>
+        {APP_EDITION !== "global" && (
         <div className="space-y-2">
           <Label htmlFor="inviteCode">Have a Workspace Invite Code? <span className="text-muted-foreground font-normal">(optional)</span></Label>
           <div className="relative">
@@ -201,6 +239,7 @@ export default function Register() {
             <Input id="inviteCode" type="text" placeholder="e.g. AB3X9K" value={inviteCode} onChange={(e) => setInviteCode(e.target.value.toUpperCase())} className="pl-10 h-12" />
           </div>
         </div>
+        )}
         <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
           {loading ? (
             <>
