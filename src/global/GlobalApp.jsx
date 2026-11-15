@@ -46,6 +46,7 @@ export default function GlobalApp() {
   const [notice, setNotice] = useState("");
   const [movementRequest, setMovementRequest] = useState(null);
   const [paymentRequest, setPaymentRequest] = useState(null);
+  const [draftRequest, setDraftRequest] = useState(null);
   const [error, setError] = useState("");
 
 
@@ -205,27 +206,32 @@ export default function GlobalApp() {
       if (!Number.isSafeInteger(unitPriceMinor) || unitPriceMinor < 0) throw new Error("Enter a valid unit price.");
       if (!Number.isSafeInteger(discountMinor) || discountMinor < 0 || discountMinor > Math.round(quantity * unitPriceMinor)) throw new Error("The line discount cannot exceed the line amount.");
       if (!String(form.invoiceDescription || "").trim()) throw new Error("Enter an item description.");
+      const payload = {
+        action: "create_draft",
+        workspace_id: account.workspace_id,
+        client_id: form.invoiceClientId || null,
+        currency_code: account.currency_code,
+        issue_date: form.invoiceIssueDate || localDate(),
+        due_date: form.invoiceDueDate || null,
+        notes: form.invoiceNotes?.trim() || null,
+        items: [{
+          product_id: form.invoiceProductId || null,
+          description: form.invoiceDescription.trim(),
+          quantity,
+          unit_price_minor: unitPriceMinor,
+          discount_minor: discountMinor,
+        }],
+      };
+      const signature = JSON.stringify(payload);
+      const requestId = draftRequest?.signature === signature ? draftRequest.id : crypto.randomUUID();
+      setDraftRequest({ signature, id: requestId });
       const { data, error: invoiceError } = await supabase.functions.invoke("global-invoices", {
-        body: {
-          action: "create_draft",
-          workspace_id: account.workspace_id,
-          client_id: form.invoiceClientId || null,
-          currency_code: account.currency_code,
-          issue_date: form.invoiceIssueDate || localDate(),
-          due_date: form.invoiceDueDate || null,
-          notes: form.invoiceNotes?.trim() || null,
-          items: [{
-            product_id: form.invoiceProductId || null,
-            description: form.invoiceDescription.trim(),
-            quantity,
-            unit_price_minor: unitPriceMinor,
-            discount_minor: discountMinor,
-          }],
-        },
+        body: { ...payload, idempotency_key: requestId },
       });
       if (invoiceError) throw new Error(await errorMessage(invoiceError, "Could not save the draft invoice."));
       if (!data?.ok || data.invoice?.status !== "draft") throw new Error("Invoice service returned an invalid draft response.");
       setForm({});
+      setDraftRequest(null);
       setNotice("Draft saved. Tax has not been calculated; this draft cannot be issued as a tax invoice.");
       await loadRecords("invoices");
     } catch (saveError) { setError(saveError.message || "Could not save the draft invoice."); }
