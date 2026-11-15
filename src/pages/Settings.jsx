@@ -1,6 +1,6 @@
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
-import { backend as db } from '@/api/backendClient';
+import { backend as db, APP_EDITION } from '@/api/backendClient';
 
 import { useEffect, useState } from "react";
 import { Settings as SettingsIcon, Check, Bell, Send, Loader2, ShieldCheck } from "lucide-react";
@@ -10,7 +10,6 @@ import { KEYS, useLocalState } from "@/lib/stores";
 import { inputCls } from "@/lib/ui";
 import DataImportExport from "@/components/DataImportExport";
 import WorkspaceCountrySettings from "@/components/global/WorkspaceCountrySettings";
-import { APP_EDITION } from "@/api/backendClient";
 
 const EMAIL_KEY = "invoicepulse:emailSettings";
 
@@ -32,7 +31,7 @@ export default function Settings() {
       <div className="mt-4 rounded-2xl border border-border bg-card p-4">
         <p className="text-sm font-semibold text-foreground">Language</p>
         <p className="mb-3 mt-1 text-xs text-muted-foreground">Choose the language of the app. You can change it any time in Settings.</p>
-        <LanguageSwitcher />
+        <LanguageSwitcher showHindi={APP_EDITION !== "global"} />
       </div>
       <div className="mt-4"><WorkspaceCountrySettings lockCountry={APP_EDITION === "global"} /></div>
       <div className="mt-4"><EmailSettingsCard /></div>
