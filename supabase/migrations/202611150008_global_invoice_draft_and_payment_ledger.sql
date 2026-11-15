@@ -30,6 +30,8 @@ declare
   v_invoice_id uuid;
   v_invoice_number text;
   v_subtotal bigint := 0;
+  v_discount bigint := 0;
+  v_total bigint := 0;
   v_line_subtotal bigint;
   v_line_discount bigint;
   v_line_total bigint;
@@ -96,12 +98,19 @@ begin
     ) then
       return jsonb_build_object('ok',false,'reason','product_not_found','item_index',v_index);
     end if;
+    if v_quantity*v_unit_price > 9000000000000000 then
+      return jsonb_build_object('ok',false,'reason','invalid_item_values','item_index',v_index);
+    end if;
     v_line_subtotal := round(v_quantity*v_unit_price)::bigint;
     if v_line_discount<0 or v_line_discount>v_line_subtotal then
       return jsonb_build_object('ok',false,'reason','invalid_item_discount','item_index',v_index);
     end if;
     v_line_total := v_line_subtotal-v_line_discount;
     v_subtotal := v_subtotal+v_line_subtotal;
+    v_discount := v_discount+v_line_discount;
+    if v_subtotal > 9000000000000000 or v_discount > v_subtotal then
+      return jsonb_build_object('ok',false,'reason','invoice_total_limit');
+    end if;
     v_items := v_items || jsonb_build_array(jsonb_build_object(
       'product_id',v_product_id,
       'description',v_description,
@@ -115,13 +124,14 @@ begin
     ));
   end loop;
 
+  v_total := v_subtotal-v_discount;
   v_invoice_number := 'DRAFT-' || to_char(current_date,'YYYYMMDD') || '-' || upper(substr(replace(gen_random_uuid()::text,'-',''),1,8));
   insert into global.invoices(
     workspace_id,client_id,invoice_number,status,currency_code,issue_date,due_date,
     subtotal_minor,discount_minor,tax_minor,total_minor,amount_paid_minor,notes,invoice_snapshot,created_by
   ) values (
     p_workspace_id,p_client_id,v_invoice_number,'draft',v_currency,p_issue_date,p_due_date,
-    v_subtotal,0,0,v_subtotal,0,p_notes,
+    v_subtotal,v_discount,0,v_total,0,p_notes,
     jsonb_build_object('tax_status','not_calculated','document_status','draft_only'),p_user_id
   ) returning id into v_invoice_id;
 
@@ -171,7 +181,7 @@ declare
 begin
   if p_user_id is null or p_workspace_id is null or p_invoice_id is null or p_idempotency_key is null
     or p_amount_minor is null or p_amount_minor<=0 or p_payment_date is null
-    or p_currency_code !~ '^[A-Z]{3}$' then
+    or p_currency_code is null or p_currency_code !~ '^[A-Z]{3}$' then
     return jsonb_build_object('ok',false,'reason','invalid_payment');
   end if;
   if coalesce(length(p_method),0)>80 or coalesce(length(p_reference),0)>160 or coalesce(length(p_notes),0)>1000 then
@@ -190,7 +200,11 @@ begin
   for update;
   if found then
     if v_existing.invoice_id<>p_invoice_id or v_existing.amount_minor<>p_amount_minor
-      or v_existing.currency_code<>upper(p_currency_code) then
+      or v_existing.currency_code<>upper(p_currency_code)
+      or v_existing.payment_date<>p_payment_date
+      or coalesce(v_existing.method,'')<>coalesce(nullif(btrim(p_method),''),'')
+      or coalesce(v_existing.reference,'')<>coalesce(nullif(btrim(p_reference),''),'')
+      or coalesce(v_existing.notes,'')<>coalesce(nullif(btrim(p_notes),''),'') then
       return jsonb_build_object('ok',false,'reason','idempotency_conflict');
     end if;
     select * into v_invoice from global.invoices where id=v_existing.invoice_id and workspace_id=p_workspace_id;
