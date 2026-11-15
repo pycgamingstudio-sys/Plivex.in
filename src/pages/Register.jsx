@@ -149,7 +149,7 @@ export default function Register() {
         </>
       }
     >
-      {APP_EDITION !== "global" && !inviteCode && (
+      {APP_EDITION === "india" && !inviteCode && (
         <div className="grid gap-3 rounded-xl border border-border bg-muted/20 p-3 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="signup-country">Business country</Label>
@@ -231,7 +231,7 @@ export default function Register() {
             />
           </div>
         </div>
-        {APP_EDITION !== "global" && (
+        {APP_EDITION === "india" && (
         <div className="space-y-2">
           <Label htmlFor="inviteCode">Have a Workspace Invite Code? <span className="text-muted-foreground font-normal">(optional)</span></Label>
           <div className="relative">

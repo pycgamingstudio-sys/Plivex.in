@@ -1,13 +1,14 @@
 /**
  * Stable edition identifiers for future multi-edition work.
  *
- * This module is intentionally not imported by the India application yet.
- * Global behavior must remain opt-in until a reviewed integration release.
+ * `unified` is a single-domain runtime that selects the India or Global
+ * workspace only after the authenticated account has been safely classified.
  */
 
 export const EDITION_IDS = Object.freeze({
   INDIA: "india",
   GLOBAL: "global",
+  UNIFIED: "unified",
 });
 
 export const DEFAULT_EDITION_ID = EDITION_IDS.INDIA;
@@ -18,7 +19,7 @@ const ALLOWED_EDITION_IDS = new Set(Object.values(EDITION_IDS));
  * Resolve an explicit edition identifier safely.
  *
  * Missing, non-string, whitespace-padded, or unknown values resolve to India.
- * This is a fail-closed compatibility default, not a country-detection system.
+ * Unified is an explicit build target; it does not infer a user country.
  */
 export function resolveEditionId(value) {
   if (typeof value !== "string") return DEFAULT_EDITION_ID;

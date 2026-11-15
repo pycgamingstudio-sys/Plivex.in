@@ -10,7 +10,7 @@ import { defineConfig, loadEnv } from 'vite'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   const edition = env.VITE_APP_EDITION || process.env.VITE_APP_EDITION || 'india'
-  const wranglerFile = edition === 'global' ? './wrangler.global.jsonc' : './wrangler.jsonc'
+  const wranglerFile = edition === 'global' ? './wrangler.global.jsonc' : edition === 'unified' ? './wrangler.unified.jsonc' : './wrangler.jsonc'
   const wranglerPath = fileURLToPath(new URL(wranglerFile, import.meta.url))
   let workerConfig
   try {

@@ -27,7 +27,7 @@ export default function GlobalCountryOnboarding() {
     try {
       // Persist the explicit choice on the authenticated identity before provisioning.
       const { error: metadataError } = await supabase.auth.updateUser({
-        data: { signup_country_code: country.code, signup_locale_code: selectedLocale },
+        data: { plivex_runtime_edition: "global", signup_country_code: country.code, signup_locale_code: selectedLocale },
       });
       if (metadataError) throw metadataError;
 

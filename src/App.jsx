@@ -20,6 +20,7 @@ import TrialGate from './components/TrialGate';
 const PageNotFound = lazy(() => import("./lib/PageNotFound"));
 const UserNotRegisteredError = lazy(() => import("@/components/UserNotRegisteredError"));
 const GlobalCountryOnboarding = lazy(() => import("@/components/global/GlobalCountryOnboarding"));
+const UnifiedCountryOnboarding = lazy(() => import("@/components/global/UnifiedCountryOnboarding"));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
@@ -77,9 +78,15 @@ const AuthenticatedApp = () => {
     }
   }
 
-  // Global users without a workspace must choose their business country first.
-  if (APP_EDITION === "global" && isAuthenticated && user && (!user.workspace_id || !user.role)) {
+  // Global users are routed into the isolated Global app after runtime classification.
+  if (isAuthenticated && user?.edition === "global" && (!user.workspace_id || !user.role)) {
     return <GlobalCountryOnboarding />;
+  }
+  if (APP_EDITION === "unified" && isAuthenticated && user?.edition === "pending") {
+    return <UnifiedCountryOnboarding />;
+  }
+  if (APP_EDITION === "unified" && isAuthenticated && user?.edition === "global") {
+    return <GlobalApp />;
   }
 
   // Render the main app
@@ -165,27 +172,45 @@ function SyncErrorListener() {
   return null;
 }
 
+function RuntimeEditionApp() {
+  const { isAuthenticated, user, logout } = useAuth();
+
+  // Global users share the same authentication gate but never mount India-only
+  // paywall, team, storage migration or legacy route providers.
+  if (APP_EDITION === "unified" && isAuthenticated && user?.edition === "global") {
+    return <GlobalApp onSignOut={logout} />;
+  }
+  if (APP_EDITION === "unified" && isAuthenticated && user?.edition === "pending") {
+    return <UnifiedCountryOnboarding />;
+  }
+
+  return (
+    <PaywallProvider>
+      <QueryClientProvider client={queryClientInstance}>
+        <WorkspaceTeamProvider>
+          <Router>
+            <ScrollToTop />
+            <Suspense fallback={<div className="fixed inset-0 flex items-center justify-center bg-background"><div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-800" role="status" aria-label="Loading page" /></div>}><AuthenticatedApp /></Suspense>
+          </Router>
+        </WorkspaceTeamProvider>
+        <Toaster />
+        <SyncErrorListener />
+        <LanguagePrompt />
+      </QueryClientProvider>
+    </PaywallProvider>
+  );
+}
+
 function App() {
   useEffect(() => { startTranslator(); }, []);
 
-  // Global has its own isolated UI and auth lifecycle; never mount India route providers.
+  // The isolated Global preview remains available; the unified build selects
+  // the workspace runtime only after authenticated account classification.
   if (APP_EDITION === "global") return <GlobalApp />;
 
   return (
     <AuthProvider>
-      <PaywallProvider>
-        <QueryClientProvider client={queryClientInstance}>
-          <WorkspaceTeamProvider>
-            <Router>
-              <ScrollToTop />
-              <Suspense fallback={<div className="fixed inset-0 flex items-center justify-center bg-background"><div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-800" role="status" aria-label="Loading page" /></div>}><AuthenticatedApp /></Suspense>
-            </Router>
-          </WorkspaceTeamProvider>
-          <Toaster />
-          <SyncErrorListener />
-          <LanguagePrompt />
-        </QueryClientProvider>
-      </PaywallProvider>
+      <RuntimeEditionApp />
     </AuthProvider>
   )
 }

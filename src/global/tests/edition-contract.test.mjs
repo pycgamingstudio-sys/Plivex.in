@@ -16,6 +16,7 @@ test("India is the safe default", () => {
 
 test("only explicitly supported identifiers resolve", () => {
   assert.equal(resolveEditionId("global"), "global");
+  assert.equal(resolveEditionId("unified"), "unified");
   assert.equal(resolveEditionId("india"), "india");
   assert.equal(resolveEditionId(" GLOBAL "), "global");
   assert.equal(resolveEditionId("unknown"), "india");
@@ -27,6 +28,7 @@ test("only explicitly supported identifiers resolve", () => {
 test("support check is exact and does not normalize untrusted input", () => {
   assert.equal(isSupportedEditionId(EDITION_IDS.INDIA), true);
   assert.equal(isSupportedEditionId(EDITION_IDS.GLOBAL), true);
+  assert.equal(isSupportedEditionId(EDITION_IDS.UNIFIED), true);
   assert.equal(isSupportedEditionId(" GLOBAL "), false);
   assert.equal(isSupportedEditionId("unknown"), false);
   assert.equal(isSupportedEditionId(null), false);
@@ -34,5 +36,5 @@ test("support check is exact and does not normalize untrusted input", () => {
 
 test("edition identifiers are immutable", () => {
   assert.equal(Object.isFrozen(EDITION_IDS), true);
-  assert.deepEqual(Object.values(EDITION_IDS).sort(), ["global", "india"]);
+  assert.deepEqual(Object.values(EDITION_IDS).sort(), ["global", "india", "unified"]);
 });

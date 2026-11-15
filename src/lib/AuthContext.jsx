@@ -75,7 +75,7 @@ export const AuthProvider = ({ children }) => {
     const response = await db.functions.invoke('verifyInviteCode', { code, email: currentUser?.email });
     if (!response?.data?.ok) throw new Error(response?.data?.error || 'Your workspace invite could not be applied.');
     clearPendingInviteCode();
-    return { user: await db.auth.me(), pendingInvite: true };
+    return { user: await db.auth.me({ preferIndia: true }), pendingInvite: true };
   };
 
   const checkUserAuth = async () => {
@@ -89,9 +89,22 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingAuth(true);
       let currentUser = await db.auth.me();
 
+      // New unified accounts must choose a country before either workspace is opened.
+      if (APP_EDITION === "unified" && currentUser?.edition === "pending" && !getPendingInviteCode()) {
+        resetWorkspaceCache();
+        setTenantId(null, { migrateLegacy: false });
+        setUser(currentUser);
+        signedInRef.current = true;
+        setIsAuthenticated(true);
+        setAuthError(null);
+        setIsLoadingAuth(false);
+        setAuthChecked(true);
+        return;
+      }
+
       // Global identity and workspace authorization are read only from Global RPCs.
       // Never consult India public.profiles, invites, or workspace-record endpoints.
-      if (APP_EDITION === "global") {
+      if (APP_EDITION === "global" || currentUser?.edition === "global") {
         const pendingGlobalInvite = getPendingInviteCode();
         if (pendingGlobalInvite) {
           throw new Error("Global workspace invitations are not available yet. Remove the invite link and sign in with your own Global account.");
@@ -109,7 +122,7 @@ export const AuthProvider = ({ children }) => {
         setTenantId(`global:${currentUser.id}`, { migrateLegacy: false });
         resetWorkspaceCache();
         // Global workspace hydration is routed through the isolated Global records adapter.
-        if (currentUser?.workspace_id) await hydrateWorkspaceData();
+        if (APP_EDITION === "global" && currentUser?.workspace_id) await hydrateWorkspaceData();
         setUser(currentUser);
         signedInRef.current = true;
         setIsAuthenticated(true);
@@ -178,7 +191,7 @@ export const AuthProvider = ({ children }) => {
   const logout = (shouldRedirect = true) => {
     clearSessionCache();
     resetWorkspaceCache();
-    setTenantId(null, { migrateLegacy: APP_EDITION !== 'global' });
+    setTenantId(null, { migrateLegacy: APP_EDITION !== 'global' && user?.edition !== "global" });
     setUser(null);
     setIsAuthenticated(false);
     if (shouldRedirect) {

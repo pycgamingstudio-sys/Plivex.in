@@ -14,31 +14,29 @@ const [backend, authContext, stores, paywall, login, register, app, onboarding] 
   read("../../components/global/GlobalCountryOnboarding.jsx"),
 ]);
 
-test("Global backend defaults fail closed and blocks India endpoint fallback", () => {
+test("Global backend blocks India endpoint fallback in both Global and unified runtime", () => {
   assert.match(backend, /resolveEditionId\(import\.meta\.env\.VITE_APP_EDITION\)/);
-  assert.match(backend, /APP_EDITION === "global" && !\["global-ensure-owner", "global-business-records"\]\.includes\(functionName\)/);
+  assert.match(backend, /globalRuntime.*global-ensure-owner/);
+  assert.match(backend, /resolveRuntimeEdition/);
   assert.match(backend, /global-auth-context/);
   assert.match(backend, /global-update-profile/);
 });
 
-test("Global auth hydrates workspace data only through the isolated Global adapter", () => {
-  assert.match(authContext, /APP_EDITION === "global"/);
-  assert.doesNotMatch(authContext, /globalEnsureOwner/);
-  assert.match(app, /GlobalCountryOnboarding/);
-  assert.match(onboarding, /globalEnsureOwner/);
+test("Global auth uses Global tenant storage and skips India hydration in unified mode", () => {
+  assert.match(authContext, /currentUser\?\.edition === "global"/);
   assert.match(authContext, /global:\$\{currentUser\.id\}/);
+  assert.match(authContext, /APP_EDITION === "global" && currentUser\?\.workspace_id/);
   assert.match(authContext, /Global workspace invitations are not available yet/);
-  const globalStart = authContext.indexOf('if (APP_EDITION === "global")');
-  const indiaStart = authContext.indexOf("setTenantId(currentUser?.id)", globalStart);
-  const globalBranch = authContext.slice(globalStart, indiaStart);
-  assert.match(globalBranch, /if \(currentUser\?\.workspace_id\) await hydrateWorkspaceData\(\)/);
+  assert.match(app, /GlobalCountryOnboarding/);
+  assert.match(app, /UnifiedCountryOnboarding/);
+  assert.match(onboarding, /globalEnsureOwner/);
 });
 
 test("Global tenant storage never imports legacy India localStorage keys", () => {
   assert.match(stores, /if \(options\?\.migrateLegacy !== false\) migrateLegacyData/);
 });
 
-test("Global login and registration do not call India invite verification", () => {
+test("India invite flows remain available while Global invitations stay disabled", () => {
   assert.match(login, /APP_EDITION === "global" && code/);
   assert.match(register, /APP_EDITION === "global" && code/);
 });
