@@ -9,7 +9,7 @@ DECLARE
   duplicate_payment jsonb;
   conflict_payment jsonb;
   overpayment jsonb;
-  invoice_id uuid := '55555555-eeee-4555-8555-555555555555';
+  v_invoice_id uuid := '55555555-eeee-4555-8555-555555555555';
   idem uuid := '66666666-eeee-4666-8666-666666666666';
   payment_count bigint;
   invoice_row global.invoices%rowtype;
@@ -48,7 +48,7 @@ BEGIN
 
   payment := public.global_record_invoice_payment(
     '66666666-6666-4666-8666-666666666666','cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-    invoice_id,3000,'GBP','2026-11-15','bank_transfer','BANK-REF-1','first payment',idem
+    v_invoice_id,3000,'GBP','2026-11-15','bank_transfer','BANK-REF-1','first payment',idem
   );
   IF payment->>'ok'<>'true' OR payment->>'duplicate'<>'false'
     OR payment->'invoice'->>'status'<>'partially_paid'
@@ -66,7 +66,7 @@ BEGIN
 
   conflict_payment := public.global_record_invoice_payment(
     '66666666-6666-4666-8666-666666666666','cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-    invoice_id,4000,'GBP','2026-11-15','bank_transfer','BANK-REF-1','first payment',idem
+    v_invoice_id,4000,'GBP','2026-11-15','bank_transfer','BANK-REF-1','first payment',idem
   );
   IF conflict_payment->>'reason'<>'idempotency_conflict' THEN
     RAISE EXCEPTION 'Global payment idempotency conflict was not rejected: %', conflict_payment;
@@ -74,16 +74,16 @@ BEGIN
 
   overpayment := public.global_record_invoice_payment(
     '66666666-6666-4666-8666-666666666666','cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-    invoice_id,8000,'GBP','2026-11-15','bank_transfer','BANK-REF-2','overpayment attempt',
+    v_invoice_id,8000,'GBP','2026-11-15','bank_transfer','BANK-REF-2','overpayment attempt',
     '77777777-eeee-4777-8777-777777777777'
   );
   IF overpayment->>'reason'<>'overpayment' THEN
     RAISE EXCEPTION 'Global overpayment was not rejected: %', overpayment;
   END IF;
 
-  SELECT count(*) INTO payment_count FROM global.invoice_payments WHERE invoice_id=invoice_id;
+  SELECT count(*) INTO payment_count FROM global.invoice_payments WHERE invoice_id=v_invoice_id;
   IF payment_count<>1 THEN RAISE EXCEPTION 'Payment retry created duplicate ledger rows: %',payment_count; END IF;
-  SELECT * INTO invoice_row FROM global.invoices WHERE id=invoice_id;
+  SELECT * INTO invoice_row FROM global.invoices WHERE id=v_invoice_id;
   IF invoice_row.amount_paid_minor<>3000 OR invoice_row.status<>'partially_paid' THEN
     RAISE EXCEPTION 'Invoice payment balance is inconsistent: %',row_to_json(invoice_row);
   END IF;
