@@ -30,9 +30,9 @@ export async function handleCashfreeRefundEvent(
 ): Promise<Response | null> {
   if (!isCashfreeRefundEvent(event)) return null;
   const refund = event?.data?.refund || {};
-  const refundId = String(refund.cf_refund_id || refund.refund_id || "");
+  const refundId = String(refund.cf_refund_id || refund.refund_id || "").trim();
   const refundOrderId = String(refund.order_id || event?.data?.order?.order_id || "").trim();
-  const providerPaymentId = String(refund.cf_payment_id || "");
+  const providerPaymentId = String(refund.cf_payment_id || "").trim();
   const refundStatus = String(refund.refund_status || "").toUpperCase();
   const refundAmount = Number(refund.refund_amount ?? refund.amount);
   // Convert the provider major-unit value using exact decimal arithmetic.
