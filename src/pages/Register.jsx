@@ -14,7 +14,7 @@ import { safeReturnTo } from "@/lib/authReturnTo";
 import { parseAndValidateInviteCode } from "@/lib/workspace";
 import { clearSessionCache } from "@/lib/sessionCache";
 import { getPendingInviteCode, rememberPendingInviteCode, authPageLink } from "@/components/auth/workspaceInvite";
-import { COUNTRY_REGISTRY, getCountryByCode } from "@/global/countries/country-registry.js";
+import { COUNTRY_REGISTRY, getCountryByCode, getCountryFlag } from "@/global/countries/country-registry.js";
 
 function getInitialSignupCountry() {
   // Start with the established India path; users explicitly choose another
@@ -29,6 +29,7 @@ function passwordRequirementError(password) {
 
 export default function Register() {
   const [email, setEmail] = useState("");
+  const [businessName, setBusinessName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
@@ -74,7 +75,7 @@ export default function Register() {
       // Remember the invite so it is applied automatically after the user confirms
       // their email and signs in (an invited member must never become a separate owner).
       rememberPendingInviteCode(code);
-      await db.auth.register(APP_EDITION === "global" ? { email, password } : { email, password, countryCode, localeCode });
+      await db.auth.register(APP_EDITION === "global" ? { email, password } : { email, password, countryCode, localeCode, businessName: businessName.trim() });
       setEmailSent(true);
     } catch (err) {
       setError(err.message || "Registration failed");
@@ -153,7 +154,7 @@ export default function Register() {
             setCountryCode(nextCountry?.code || "IN");
             setLocaleCode(nextCountry?.locales?.[0] || "en-IN");
             }} className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm">
-            {COUNTRY_REGISTRY.map((country) => <option key={country.code} value={country.code}>{country.name}</option>)}
+            {COUNTRY_REGISTRY.map((country) => <option key={country.code} value={country.code}>{getCountryFlag(country.code)}  {country.name} · {country.currencyCode}</option>)}
             </select>
           </div>
           <div className="space-y-2">
@@ -165,7 +166,7 @@ export default function Register() {
           <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">This saves your business country and display locale. It does not determine tax residency or legal compliance.</p>
         </div>
       )}
-      <GoogleSignInButton inviteCode={inviteCode} countryCode={countryCode} localeCode={localeCode} returnTo={safeReturnTo()} onError={setError} disabled={loading || (APP_EDITION === "global" && Boolean(getPendingInviteCode(inviteCode)))} className="mb-6" />
+      <GoogleSignInButton inviteCode={inviteCode} countryCode={countryCode} localeCode={localeCode} businessName={businessName.trim()} returnTo={safeReturnTo()} onError={setError} disabled={loading || (APP_EDITION === "global" && Boolean(getPendingInviteCode(inviteCode)))} className="mb-6" />
 
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
@@ -174,6 +175,7 @@ export default function Register() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2"><Label htmlFor="business-name">Business name</Label><Input id="business-name" autoComplete="organization" maxLength={160} placeholder="Your business name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} className="h-12" required /></div>
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
           <div className="relative">

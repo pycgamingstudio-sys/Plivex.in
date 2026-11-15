@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useState } from "react";
 import { Check, Sparkles, Crown, X } from "lucide-react";
 import { GLOBAL_BILLING, formatPlanPrice } from "@/global/billing/pricing.js";
-import { getCountryByCode } from "@/global/countries/country-registry.js";
+import { getCountryByCode, getCountryFlag, COUNTRY_REGISTRY } from "@/global/countries/country-registry.js";
 
 const PLANS = [
   { id: "free", name: "Free", accent: false, badge: null, tagline: "For getting started with no card needed.", included: ["30 invoices / month", "20 clients and stock items", "PDF downloads with Made with Plivex footer", "Basic invoicing and expense tracking"], locked: ["WhatsApp sharing", "Team and lead pipeline", "GSTR-1 export and custom logo"] },
@@ -10,21 +10,10 @@ const PLANS = [
   { id: "pro", name: "Pro", accent: true, badge: "MOST POPULAR", tagline: "For growing businesses that need everything.", included: ["Up to 3,000 invoices / month & quotations", "WhatsApp one-click sharing", "Custom branding & logos", "Advanced reports & GSTR-1 export", "Full client CRM & lead pipeline", "Multi-currency support", "Auto payment reminders"], locked: [] },
 ];
 
-function getInitialBillingCountry() {
-  try {
-    const locales = [navigator.language, ...(navigator.languages || [])].filter(Boolean);
-    for (const locale of locales) {
-      const region = new Intl.Locale(locale).region;
-      if (region && GLOBAL_BILLING[region]) return region;
-    }
-  } catch { /* use the safe default when locale detection is unavailable */ }
-  return "IN";
-}
-
 export default function PricingSection() {
-  const [countryCode, setCountryCode] = useState(getInitialBillingCountry);
+  const [countryCode, setCountryCode] = useState("");
   const [billing, setBilling] = useState("monthly");
-  const country = GLOBAL_BILLING[countryCode];
+  const country = countryCode ? GLOBAL_BILLING[countryCode] : null;
   const countryInfo = getCountryByCode(countryCode);
   const locale = countryInfo?.locales?.[0] || "en";
   const hasYearly = Boolean(country?.yearly);
@@ -41,22 +30,22 @@ export default function PricingSection() {
         <div className="text-center">
           <div className="inline-flex items-center gap-1.5 rounded-full bg-[#6D28D9]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#6D28D9]"><Sparkles className="h-3 w-3" />Pricing</div>
           <h2 className="mt-3 text-[22px] font-bold text-slate-900 sm:text-[26px]">Simple, honest pricing for every business.</h2>
-          <p className="mx-auto mt-1.5 max-w-xl text-[12px] text-slate-500">Free plan, no card needed. Upgrade when your business needs more.</p>
+          <p className="mx-auto mt-1.5 max-w-xl text-[12px] text-slate-500">Free plan, no card needed. Choose your country to see local pricing and currency.</p>
         </div>
 
         <div className="mx-auto mt-5 flex max-w-xs flex-col gap-1.5 text-left">
-          <label htmlFor="pricing-country" className="text-xs font-semibold text-slate-700">Choose billing country</label>
+          <label htmlFor="pricing-country" className="text-xs font-semibold text-slate-700">Select country to see pricing</label>
           <select id="pricing-country" value={countryCode} onChange={(event) => changeCountry(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800">
-            {Object.entries(GLOBAL_BILLING).map(([code, item]) => <option key={code} value={code}>{getCountryByCode(code)?.name || code} ({item.currency})</option>)}
+            <option value="">🌍 Select your country</option>{COUNTRY_REGISTRY.filter(({ code }) => GLOBAL_BILLING[code]).map((entry) => <option key={entry.code} value={entry.code}>{getCountryFlag(entry.code)}  {entry.name} · {entry.currencyCode}</option>)}
           </select>
         </div>
 
-        {hasYearly && <div className="mx-auto mt-4 flex w-fit items-center gap-1 rounded-xl bg-slate-100 p-1">
+        {country && hasYearly && <div className="mx-auto mt-4 flex w-fit items-center gap-1 rounded-xl bg-slate-100 p-1">
           <button type="button" onClick={() => setBilling("monthly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "monthly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Monthly</button>
           <button type="button" onClick={() => setBilling("yearly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "yearly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Yearly</button>
         </div>}
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        {!country ? <div className="mt-7 rounded-2xl border border-dashed border-[#D8CCF5] bg-[#FAF8FF] px-5 py-9 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">🌍</div><h3 className="mt-3 text-sm font-bold text-slate-900">Your pricing, in your currency</h3><p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-slate-500">Select your business country above to view the plans and prices available in your region.</p></div> : <><div className="mt-6 grid gap-4 sm:grid-cols-2">
           {PLANS.map((plan) => {
             const amountMinor = plan.id === "free" ? 0 : country[billing === "yearly" ? "yearly" : "monthly"]?.[plan.id];
             const price = amountMinor === 0 ? formatPlanPrice(0, currency, locale) : Number.isSafeInteger(amountMinor) ? formatPlanPrice(amountMinor, currency, locale) : "Not available";
@@ -84,7 +73,7 @@ export default function PricingSection() {
         </div>
         <p className="mt-4 text-center text-[10px] text-slate-400">Prices shown in {currency}. Applicable taxes, if any, are shown before payment.</p>
         {!country.paymentEnabled && <p role="status" className="mt-2 text-center text-xs text-amber-700">Cashfree checkout in {currency} is not enabled yet. Pricing is displayed, but payment will remain unavailable until Cashfree confirms this currency for the merchant account.</p>}
-        <p className="mt-2 text-center text-[10px] text-slate-400">Secure checkout via Cashfree where the selected currency is enabled.</p>
+        <p className="mt-2 text-center text-[10px] text-slate-400">Secure checkout via Cashfree where the selected currency is enabled.</p></>}
       </div>
     </section>
   );

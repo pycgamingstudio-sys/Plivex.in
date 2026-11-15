@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from "react";
 import { backend as db, supabase } from "@/api/backendClient";
-import { COUNTRY_REGISTRY, getCountryByCode } from "@/global/countries/country-registry.js";
+import { COUNTRY_REGISTRY, getCountryByCode, getCountryFlag } from "@/global/countries/country-registry.js";
 
 export default function GlobalCountryOnboarding() {
   const [countryCode, setCountryCode] = useState("");
   const [localeCode, setLocaleCode] = useState("");
+  const [businessName, setBusinessName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const country = useMemo(() => getCountryByCode(countryCode), [countryCode]);
@@ -27,7 +28,7 @@ export default function GlobalCountryOnboarding() {
     try {
       // Persist the explicit choice on the authenticated identity before provisioning.
       const { error: metadataError } = await supabase.auth.updateUser({
-        data: { signup_country_code: country.code, signup_locale_code: selectedLocale },
+        data: { signup_country_code: country.code, signup_locale_code: selectedLocale, full_name: businessName.trim() },
       });
       if (metadataError) throw metadataError;
 
@@ -73,11 +74,15 @@ export default function GlobalCountryOnboarding() {
             >
               <option value="">Select your country</option>
               {COUNTRY_REGISTRY.filter((entry) => entry.code !== "IN").map((entry) => (
-                <option key={entry.code} value={entry.code}>{entry.name}</option>
+                <option key={entry.code} value={entry.code}>{getCountryFlag(entry.code)}  {entry.name} · {entry.currencyCode}</option>
               ))}
             </select>
           </div>
-          {country && (
+          <div className="space-y-2">
+            <label htmlFor="global-business-name" className="text-sm font-medium">Business name</label>
+            <input id="global-business-name" required maxLength={160} value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="e.g. Acme Trading LLC" className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm" />
+          </div>
+          {country && locales.length > 1 && (
             <div className="space-y-2">
               <label htmlFor="global-business-locale" className="text-sm font-medium">Language and number format</label>
               <select
@@ -91,13 +96,14 @@ export default function GlobalCountryOnboarding() {
               <p className="text-xs text-muted-foreground">Workspace currency: {country.currencyCode}</p>
             </div>
           )}
+          {country && locales.length <= 1 && <p className="text-xs text-muted-foreground">Workspace language: {locales[0]} · Currency: {country.currencyCode}</p>}
           <p className="text-xs leading-5 text-muted-foreground">
             This choice sets regional workspace preferences. It does not determine tax residency or guarantee local tax compliance.
           </p>
           {error && <div role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
           <button
             type="submit"
-            disabled={loading || !country}
+            disabled={loading || !country || !businessName.trim()}
             className="h-12 w-full rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? "Setting up your workspace..." : "Continue"}

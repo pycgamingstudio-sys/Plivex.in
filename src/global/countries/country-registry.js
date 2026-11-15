@@ -34,6 +34,12 @@ export function getCountryByCode(value) {
   return /^[A-Z]{2}$/.test(code) ? countriesByCode.get(code) ?? null : null;
 }
 
+export function getCountryFlag(value) {
+  const country = getCountryByCode(value);
+  if (!country) return "";
+  return String.fromCodePoint(...[...country.code].map((char) => 127397 + char.charCodeAt(0)));
+}
+
 /** Returns a copy so callers cannot mutate the canonical registry. */
 export function listSelectableCountries() {
   return COUNTRY_REGISTRY.map((country) => ({
