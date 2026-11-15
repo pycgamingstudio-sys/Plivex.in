@@ -11,8 +11,8 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 
 SET ROLE service_role;
-SET request.jwt.claim.role = 'service_role';
-SET request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
+SELECT set_config('request.jwt.claim.role','service_role',false);
+SELECT set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',false);
 
 -- Seed the already-created India regression identity with a realistic owned workspace.
 INSERT INTO public.workspace_members(
@@ -83,8 +83,8 @@ BEGIN
 
 RESET ROLE;
 SET ROLE authenticated;
-SET request.jwt.claim.role = 'authenticated';
-SET request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
+SELECT set_config('request.jwt.claim.role','authenticated',false);
+SELECT set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',false);
 DO $region_spoof$
 BEGIN
   BEGIN
@@ -97,7 +97,7 @@ END
 $region_spoof$;
 RESET ROLE;
 SET ROLE service_role;
-SET request.jwt.claim.role = 'service_role';
+SELECT set_config('request.jwt.claim.role','service_role',false);
 DO $region_spoof_assert$
 BEGIN
   IF NOT EXISTS (
@@ -131,7 +131,7 @@ END
 $india_to_global$;
 
 -- Global to India must remove the old Global workspace and create a fresh India workspace.
-SET request.jwt.claim.sub = '77777777-7777-4777-8777-777777777777';
+SELECT set_config('request.jwt.claim.sub','77777777-7777-4777-8777-777777777777',false);
 INSERT INTO global.workspaces(id,name,country_code,locale_code,currency_code,created_by)
 VALUES ('c7777777-7777-4777-8777-777777777777','Global to India Fixture','GB','en-GB','GBP','77777777-7777-4777-8777-777777777777');
 INSERT INTO global.user_profiles(user_id,email,full_name,default_workspace_id)
@@ -179,7 +179,7 @@ END
 $global_to_india$;
 
 -- Global to Global uses a new workspace and country-specific currency, without preserving old business rows.
-SET request.jwt.claim.sub = '88888888-8888-4888-8888-888888888888';
+SELECT set_config('request.jwt.claim.sub','88888888-8888-4888-8888-888888888888',false);
 INSERT INTO auth.users(id,email,raw_user_meta_data,raw_app_meta_data)
 VALUES ('88888888-8888-4888-8888-888888888888','country-reset-global-global@example.test','{"full_name":"Global to Global"}'::jsonb,'{}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
@@ -222,7 +222,7 @@ $global_to_global$;
 
 -- Force a failure after the India workspace has been deleted in the function body.
 -- The enclosing subtransaction must restore every old record and membership.
-SET request.jwt.claim.sub = '99999999-9999-4999-8999-999999999999';
+SELECT set_config('request.jwt.claim.sub','99999999-9999-4999-8999-999999999999',false);
 INSERT INTO public.profiles(id,email,full_name,role,workspace_id,country_code,locale_code)
 VALUES ('99999999-9999-4999-8999-999999999999','country-reset-rollback@example.test','Rollback Probe Owner','admin','workspace-reset-rollback','IN','en-IN');
 INSERT INTO public.workspace_members(membership_key,workspace_id,owner_id,user_id,name,email,role,status,activated_at)
