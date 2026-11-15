@@ -67,7 +67,8 @@ begin
     return jsonb_build_object('ok',false,'reason','invalid_notes');
   end if;
   if jsonb_typeof(coalesce(p_items,'null')) <> 'array'
-     or jsonb_array_length(p_items)<1 or jsonb_array_length(p_items)>100 then
+     or jsonb_array_length(case when jsonb_typeof(p_items)='array' then p_items else '[]'::jsonb end)<1
+     or jsonb_array_length(case when jsonb_typeof(p_items)='array' then p_items else '[]'::jsonb end)>100 then
     return jsonb_build_object('ok',false,'reason','invalid_items');
   end if;
   if p_client_id is not null and not exists(
@@ -195,6 +196,7 @@ begin
     return jsonb_build_object('ok',false,'reason','forbidden');
   end if;
 
+  perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text || ':' || p_idempotency_key::text, 0));
   select * into v_existing from global.invoice_payments
   where workspace_id=p_workspace_id and idempotency_key=p_idempotency_key
   for update;
