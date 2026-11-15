@@ -53,7 +53,7 @@ Deno.serve(async (req: Request) => {
     const countryCode = countryLocales[requestedCountry]?.includes(requestedLocale) ? requestedCountry : "IN";
     const localeCode = countryLocales[countryCode]?.includes(requestedLocale) ? requestedLocale : "en-IN";
     const { error: countryError } = await auth.admin.from("business_profile").upsert({
-      workspace_id: workspaceId, country_code: countryCode, locale_code: localeCode,
+      workspace_id: workspaceId, country_code: countryCode, locale_code: localeCode, name: String(body?.businessName || metadata.full_name || metadata.name || "").trim().slice(0, 160) || null,
     }, { onConflict: "workspace_id", ignoreDuplicates: true });
     if (countryError) {
       console.error("Owner workspace country setup failed", { code: countryError.code });
