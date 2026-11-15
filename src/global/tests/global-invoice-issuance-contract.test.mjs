@@ -30,6 +30,8 @@ test("Issued invoice headers, lines, and refund ledger are immutable", () => {
   assert.match(migration, /global\.guard_issued_invoice_items/);
   assert.match(migration, /Issued invoice lines are immutable/);
   assert.match(migration, /global\.guard_invoice_refund_append_only/);
+  assert.match(migration, /global\.guard_invoice_payment_append_only/);
+  assert.match(migration, /issuance_request_fingerprint/);
 });
 
 test("Refund and reconciliation RPCs are service-role only", () => {
