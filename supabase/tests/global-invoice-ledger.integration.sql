@@ -25,8 +25,9 @@ BEGIN
     jsonb_build_array(jsonb_build_object(
       'product_id','11111111-aaaa-4111-8111-111111111111',
       'description','Draft line','quantity',2,'unit_price_minor',5000,'discount_minor',500
-    ))
-  ,draft_key);
+    )),
+    draft_key
+  );
   IF draft->>'ok' <> 'true'
     OR draft->'invoice'->>'status' <> 'draft'
     OR (draft->'invoice'->>'subtotal_minor')::bigint <> 10000
