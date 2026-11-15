@@ -303,18 +303,18 @@ const auth = {
 
       if (mode === "pending" && !options.preferIndia) return pendingUser();
 
-      const { data: profile, error: profileError } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
-      if (profileError) throw new ApiError("Could not load your account profile.", 503, { operation: "profile" });
-
-      if (mode === "pending" && options.preferIndia) return profile ? indiaUser(profile) : pendingUser();
-      if (mode === "india") return profile ? indiaUser(profile) : pendingUser();
-
       if (mode === "global") {
         const { user: globalUser, error: globalError } = await loadGlobalUser();
         if (globalError) throw new ApiError(globalError.message || "Could not load your Global account.", globalError.status || 400, { operation: "global-auth-context" });
         if (!globalUser?.id) throw new ApiError("Your Global account could not be loaded.", 401);
         return { ...globalUser, edition: "global" };
       }
+
+      const { data: profile, error: profileError } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
+      if (profileError) throw new ApiError("Could not load your account profile.", 503, { operation: "profile" });
+
+      if (mode === "pending" && options.preferIndia) return profile ? indiaUser(profile) : pendingUser();
+      if (mode === "india") return profile ? indiaUser(profile) : pendingUser();
 
       const createdAt = Date.parse(authUser.created_at || "");
       const lastSignInAt = Date.parse(authUser.last_sign_in_at || "");
