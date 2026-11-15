@@ -4,10 +4,17 @@ import PageShell from "@/components/PageShell";
 import { KEYS, loadList, saveList, genId } from "@/lib/stores";
 import { inputCls, btnPrimary, btnGhost } from "@/lib/ui";
 import { usePaywall } from "@/lib/paywall";
+import { APP_EDITION } from "@/api/backendClient";
+import { useAuth } from "@/lib/AuthContext";
+import { getCountryExperience } from "@/global/countries/country-experience.js";
 
 const blank = { name: "", company: "", email: "", phone: "", gstin: "", address: "" };
 
 export default function ClientDatabase() {
+  const { user } = useAuth();
+  const countryExperience = getCountryExperience(user?.country_code);
+  const registrationLabel = APP_EDITION === "global" ? (countryExperience?.business.registrationLabel || "Tax registration number") : "GSTIN";
+  const phonePrefix = countryExperience?.phoneCode || "+91";
   const { limits, usage, remaining, openPaywall } = usePaywall();
   const [clients, setClients] = useState(() => loadList(KEYS.clients));
   const [editing, setEditing] = useState(null);
@@ -33,19 +40,19 @@ export default function ClientDatabase() {
               <div className="mt-2 space-y-0.5 text-[11px] text-muted-foreground">
                 {c.email && <p>{c.email}</p>}
                 {c.phone && <p>{c.phone}</p>}
-                {c.gstin && <p className="font-mono-ui">GSTIN {c.gstin}</p>}
+                {c.gstin && <p className="font-mono-ui">{registrationLabel} {c.gstin}</p>}
                 {c.address && <p className="whitespace-pre-line">{c.address}</p>}
               </div>
             </div>
           ))}
         </div>
       )}
-      {editing && <ClientModal value={editing} onClose={() => setEditing(null)} onSave={save} />}
+      {editing && <ClientModal value={editing} onClose={() => setEditing(null)} onSave={save} registrationLabel={registrationLabel} phonePrefix={phonePrefix} />}
     </PageShell>
   );
 }
 
-function ClientModal({ value, onClose, onSave }) {
+function ClientModal({ value, onClose, onSave, registrationLabel, phonePrefix }) {
   const [form, setForm] = useState(value);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   return (
@@ -56,8 +63,8 @@ function ClientModal({ value, onClose, onSave }) {
           <label className="block text-[12px] font-semibold text-muted-foreground">Name<input className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Client name" /></label>
           <label className="block text-[12px] font-semibold text-muted-foreground">Company<input className={inputCls} value={form.company} onChange={(e) => set("company", e.target.value)} placeholder="Company (optional)" /></label>
           <label className="block text-[12px] font-semibold text-muted-foreground">Email<input className={inputCls} value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="accounts@client.com" /></label>
-          <label className="block text-[12px] font-semibold text-muted-foreground">Phone<input className={inputCls} value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+91" /></label>
-          <label className="block text-[12px] font-semibold text-muted-foreground">GSTIN<input className={inputCls} value={form.gstin} onChange={(e) => set("gstin", e.target.value)} placeholder="22AAAAA0000A1Z5" /></label>
+          <label className="block text-[12px] font-semibold text-muted-foreground">Phone<input className={inputCls} value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder={phonePrefix} /></label>
+          <label className="block text-[12px] font-semibold text-muted-foreground">{registrationLabel}<input className={inputCls} value={form.gstin} onChange={(e) => set("gstin", e.target.value)} placeholder={APP_EDITION === "global" ? `Enter ${registrationLabel}` : "22AAAAA0000A1Z5"} /></label>
         </div>
         <label className="mt-3 block text-[12px] font-semibold text-muted-foreground">Address<textarea className={`${inputCls} min-h-[64px]`} value={form.address} onChange={(e) => set("address", e.target.value)} /></label>
         <div className="mt-4 flex justify-end gap-2"><button onClick={onClose} className={btnGhost}>Cancel</button><button onClick={() => onSave(form)} className={btnPrimary}>Save client</button></div>
