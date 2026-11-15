@@ -2,6 +2,13 @@
 -- Drafts intentionally carry no tax calculation and cannot be treated as issued tax invoices.
 begin;
 
+alter table global.invoices
+  add column if not exists creation_idempotency_key uuid;
+
+create unique index if not exists global_invoices_creation_idempotency_idx
+  on global.invoices(workspace_id, creation_idempotency_key)
+  where creation_idempotency_key is not null;
+
 alter table global.invoice_payments
   add column if not exists idempotency_key uuid;
 
@@ -17,7 +24,8 @@ create or replace function public.global_create_invoice_draft(
   p_issue_date date,
   p_due_date date,
   p_notes text,
-  p_items jsonb
+  p_items jsonb,
+  p_idempotency_key uuid
 )
 returns jsonb
 language plpgsql
@@ -43,6 +51,8 @@ declare
   v_index integer := 0;
   v_invoice jsonb;
   v_items jsonb := '[]'::jsonb;
+  v_existing global.invoices%rowtype;
+  v_fingerprint text;
 begin
   if p_user_id is null or p_workspace_id is null then
     return jsonb_build_object('ok',false,'reason','invalid_identity');
@@ -63,6 +73,7 @@ begin
   if p_issue_date is null or (p_due_date is not null and p_due_date < p_issue_date) then
     return jsonb_build_object('ok',false,'reason','invalid_dates');
   end if;
+  if p_idempotency_key is null then return jsonb_build_object('ok',false,'reason','invalid_request'); end if;
   if p_notes is not null and length(p_notes)>4000 then
     return jsonb_build_object('ok',false,'reason','invalid_notes');
   end if;
@@ -75,6 +86,23 @@ begin
     select 1 from global.clients where id=p_client_id and workspace_id=p_workspace_id and status='active'
   ) then
     return jsonb_build_object('ok',false,'reason','client_not_found');
+  end if;
+
+  v_fingerprint := md5(jsonb_build_object(
+    'client_id',p_client_id,'currency_code',v_currency,'issue_date',p_issue_date,
+    'due_date',p_due_date,'notes',p_notes,'items',p_items
+  )::text);
+  perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text || ':' || p_idempotency_key::text, 0));
+  select * into v_existing from global.invoices
+  where workspace_id=p_workspace_id and creation_idempotency_key=p_idempotency_key
+  for update;
+  if found then
+    if v_existing.invoice_snapshot->>'draft_request_fingerprint' <> v_fingerprint then
+      return jsonb_build_object('ok',false,'reason','idempotency_conflict');
+    end if;
+    select coalesce(jsonb_agg(to_jsonb(t) order by t.sort_order),'[]'::jsonb) into v_items
+    from global.invoice_items t where t.workspace_id=p_workspace_id and t.invoice_id=v_existing.id;
+    return jsonb_build_object('ok',true,'duplicate',true,'invoice',to_jsonb(v_existing),'items',v_items);
   end if;
 
   for v_item in select value from jsonb_array_elements(p_items) loop
@@ -129,11 +157,11 @@ begin
   v_invoice_number := 'DRAFT-' || to_char(current_date,'YYYYMMDD') || '-' || upper(substr(replace(gen_random_uuid()::text,'-',''),1,8));
   insert into global.invoices(
     workspace_id,client_id,invoice_number,status,currency_code,issue_date,due_date,
-    subtotal_minor,discount_minor,tax_minor,total_minor,amount_paid_minor,notes,invoice_snapshot,created_by
+    subtotal_minor,discount_minor,tax_minor,total_minor,amount_paid_minor,notes,invoice_snapshot,created_by,creation_idempotency_key
   ) values (
     p_workspace_id,p_client_id,v_invoice_number,'draft',v_currency,p_issue_date,p_due_date,
     v_subtotal,v_discount,0,v_total,0,p_notes,
-    jsonb_build_object('tax_status','not_calculated','document_status','draft_only'),p_user_id
+    jsonb_build_object('tax_status','not_calculated','document_status','draft_only','draft_request_fingerprint',v_fingerprint),p_user_id,p_idempotency_key
   ) returning id into v_invoice_id;
 
   for v_item in select value from jsonb_array_elements(v_items) loop
@@ -244,9 +272,9 @@ begin
 end;
 $function$;
 
-revoke all on function public.global_create_invoice_draft(uuid,uuid,uuid,text,date,date,text,jsonb) from public, anon, authenticated;
+revoke all on function public.global_create_invoice_draft(uuid,uuid,uuid,text,date,date,text,jsonb,uuid) from public, anon, authenticated;
 revoke all on function public.global_record_invoice_payment(uuid,uuid,uuid,bigint,text,date,text,text,text,uuid) from public, anon, authenticated;
-grant execute on function public.global_create_invoice_draft(uuid,uuid,uuid,text,date,date,text,jsonb) to service_role;
+grant execute on function public.global_create_invoice_draft(uuid,uuid,uuid,text,date,date,text,jsonb,uuid) to service_role;
 grant execute on function public.global_record_invoice_payment(uuid,uuid,uuid,bigint,text,date,text,text,text,uuid) to service_role;
 
 commit;
