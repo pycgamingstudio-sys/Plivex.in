@@ -100,6 +100,7 @@ jobs:
 
       - name: Verify Global trigger helper privileges in disposable candidate database
         env:
+          PGHOST: 127.0.0.1
           PGUSER: supabase_admin
           PGPASSWORD: postgres
           PGPORT: "5434"
