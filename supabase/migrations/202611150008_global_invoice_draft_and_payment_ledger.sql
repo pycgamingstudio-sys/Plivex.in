@@ -97,7 +97,7 @@ begin
   where workspace_id=p_workspace_id and creation_idempotency_key=p_idempotency_key
   for update;
   if found then
-    if v_existing.invoice_snapshot->>'draft_request_fingerprint' <> v_fingerprint then
+    if v_existing.invoice_snapshot->>'draft_request_fingerprint' IS DISTINCT FROM v_fingerprint then
       return jsonb_build_object('ok',false,'reason','idempotency_conflict');
     end if;
     select coalesce(jsonb_agg(to_jsonb(t) order by t.sort_order),'[]'::jsonb) into v_items
