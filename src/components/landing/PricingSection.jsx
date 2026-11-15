@@ -10,17 +10,6 @@ const PLANS = [
   { id: "pro", name: "Pro", accent: true, badge: "MOST POPULAR", tagline: "For growing businesses that need everything.", included: ["Up to 3,000 invoices / month & quotations", "WhatsApp one-click sharing", "Custom branding & logos", "Advanced reports & GSTR-1 export", "Full client CRM & lead pipeline", "Multi-currency support", "Auto payment reminders"], locked: [] },
 ];
 
-function getInitialBillingCountry() {
-  try {
-    const locales = [navigator.language, ...(navigator.languages || [])].filter(Boolean);
-    for (const locale of locales) {
-      const region = new Intl.Locale(locale).region;
-      if (region && GLOBAL_BILLING[region]) return region;
-    }
-  } catch { /* use the safe default when locale detection is unavailable */ }
-  return "IN";
-}
-
 export default function PricingSection() {
   const [countryCode, setCountryCode] = useState("");
   const [billing, setBilling] = useState("monthly");
