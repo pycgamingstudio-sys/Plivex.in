@@ -278,11 +278,16 @@ begin
   where p.id = p_user_id
   for update;
 
+  -- Use the user's selected Global workspace, never an arbitrary earliest membership.
   select * into v_global_membership
   from global.workspace_members m
-  where m.user_id = p_user_id and m.status = 'active'
-  order by m.created_at asc
-  limit 1
+  where m.user_id = p_user_id
+    and m.status = 'active'
+    and m.workspace_id = (
+      select up.default_workspace_id
+      from global.user_profiles up
+      where up.user_id = p_user_id
+    )
   for update;
 
   if v_global_membership.id is not null then
