@@ -11,6 +11,7 @@ export function getCountryStandardRateRule(countryCode) {
   return {
     ...rule,
     verified: true,
+    catalogVersion: result.catalogVersion,
     components: rule.components.map((component) => ({ ...component })),
   };
 }
