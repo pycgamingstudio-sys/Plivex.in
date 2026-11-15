@@ -16,7 +16,7 @@ test("Global draft invoice endpoint validates identity, currency, dates and line
   assert.match(edge, /action === "create_draft"/);
   assert.match(edge, /global_create_invoice_draft/);
   assert.match(edge, /MAX_BODY_BYTES/);
-  assert.match(migration, /v_role not in ('owner','admin','manager','employee')/);
+  assert.match(migration, /v_role not in \\('owner','admin','manager','employee'\\)/);
   assert.match(migration, /p_currency_code/);
   assert.match(migration, /tax_status','not_calculated/);
 });
