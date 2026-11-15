@@ -28,6 +28,10 @@ const newId = () => crypto.randomUUID();
 export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   const currency = account?.currency_code || "USD";
   const countryCode = account?.country_code || "";
+  const money = (amount, currencyCode = currency) => new Intl.NumberFormat(
+    account?.locale_code || CURRENCY_LOCALES[currencyCode] || "en",
+    { style:"currency", currency:currencyCode },
+  ).format(Number(amount || 0) / (10 ** digits(currencyCode)));
   const [clients, setClients] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [items, setItems] = useState([]);
