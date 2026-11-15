@@ -3,7 +3,7 @@
   "captured_at": "2026-11-14",
   "source": "read-only SELECT from supabase_migrations.schema_migrations (version,name,statements)",
   "remote_ledger_entries": 52,
-  "local_migration_files": 33,
+  "local_migration_files": 32,
   "exact_version_matches": 0,
   "basename_matches": [
     {
@@ -353,8 +353,7 @@
     "20261114000002_global_workspace_tax_registration_profile.sql",
     "20261114000003_global_invoice_tax_calculation.sql",
     "20261114000004_global_tax_snapshot_hardening.sql",
-    "20261114000005_cashfree_refund_exact_payment_mapping.sql",
-    "202611150006_global_trigger_function_privileges.sql"
+    "20261114000005_cashfree_refund_exact_payment_mapping.sql"
   ],
   "notes": [
     "Recovered SQL is copied from the production migration ledger statements column.",
