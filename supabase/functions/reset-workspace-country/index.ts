@@ -65,7 +65,7 @@ Deno.serve(async (req: Request) => {
       };
       const status = data.reason === "workspace_owner_required" ? 403
         : data.reason === "cooldown_active" ? 429
-        : data.reason === "active_owner_workspace_required" || data.reason === "legacy_global_membership_requires_review" ? 409
+        : data.reason === "active_owner_workspace_required" || data.reason === "legacy_global_membership_requires_review" || data.reason === "conflicting_workspace_memberships" ? 409
         : 400;
       return jsonResponse({
         error: data.reason === "cooldown_active"
