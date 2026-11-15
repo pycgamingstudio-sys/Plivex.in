@@ -10,10 +10,12 @@ import { KEYS, useLocalState } from "@/lib/stores";
 import { inputCls } from "@/lib/ui";
 import DataImportExport from "@/components/DataImportExport";
 import WorkspaceCountrySettings from "@/components/global/WorkspaceCountrySettings";
+import { useAuth } from "@/lib/AuthContext";
 
 const EMAIL_KEY = "invoicepulse:emailSettings";
 
 export default function Settings() {
+  const { user } = useAuth();
   const [settings, setSettings] = useLocalState(KEYS.settings, { currency: "INR", taxRate: 18 });
   const [dark, setDark] = useLocalState("invoicepulse-dark", false);
   const set = (k, v) => setSettings((s) => ({ ...s, [k]: v }));
@@ -33,7 +35,7 @@ export default function Settings() {
         <p className="mb-3 mt-1 text-xs text-muted-foreground">Choose the language of the app. You can change it any time in Settings.</p>
         <LanguageSwitcher showHindi={APP_EDITION !== "global"} />
       </div>
-      <div className="mt-4"><WorkspaceCountrySettings lockCountry={APP_EDITION === "global"} /></div>
+      <div className="mt-4"><WorkspaceCountrySettings lockCountry={false} /></div>
       <div className="mt-4"><EmailSettingsCard /></div>
     </PageShell>
   );
