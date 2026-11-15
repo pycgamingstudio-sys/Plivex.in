@@ -1,4 +1,5 @@
 name: Validate Plivex migration branch
+# Exact-payment refund and full migration replay coverage also runs in the Global Foundation, Stage 4, and PostgreSQL workflows.
 
 on:
   push:
