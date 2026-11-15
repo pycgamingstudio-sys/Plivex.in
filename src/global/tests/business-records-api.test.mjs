@@ -101,7 +101,7 @@ test("Country reset is authenticated, owner-scoped, cooldown-limited and atomic"
   assert.match(regionMigration, /to_regclass\('global\.invoice_refunds'\)/);
   assert.match(regionMigration, /guard_invoice_payment_append_only/);
   assert.match(regionMigration, /guard_issued_invoice_immutability/);
-  assert.match(regionMigration, /current_user = 'postgres'/);
+  assert.match(regionMigration, /current_user in \('postgres','supabase_admin','service_role'\)/);
   assert.match(resetRpc, /revoke all on function public\.reset_workspace_country_atomic.*from public, anon, authenticated/s);
   assert.match(resetRpc, /grant execute on function public\.reset_workspace_country_atomic.*to service_role/s);
   assert.match(authContext, /const profileCountry = currentUser\?\.country_code/);
