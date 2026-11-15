@@ -3,6 +3,9 @@
 
 begin;
 
+grant usage on schema private to service_role;
+grant select on private.country_reset_state, private.country_reset_events to service_role;
+
 update public.profiles
 set country_code = 'IN',
     locale_code = coalesce(locale_code, 'en-IN'),
