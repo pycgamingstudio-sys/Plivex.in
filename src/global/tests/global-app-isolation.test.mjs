@@ -15,6 +15,8 @@ test("Global edition mounts its isolated app before the India providers and rout
   assert.ok(app.includes('import GlobalApp from "@/global/GlobalApp.jsx";'));
   assert.ok(app.includes('if (APP_EDITION === "global") return <GlobalApp />;'));
   assert.ok(app.includes("<AuthProvider>"));
+  assert.match(app, /RuntimeEditionApp/);
+  assert.match(app, /GlobalApp onSignOut=\\{logout\\}/);
   assert.ok(app.includes('<Route path="/login" element={<Login />} />'));
 });
 
