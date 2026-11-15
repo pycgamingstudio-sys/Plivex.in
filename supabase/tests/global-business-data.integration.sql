@@ -34,7 +34,8 @@ VALUES
 INSERT INTO global.stock_levels(workspace_id,product_id,quantity)
 VALUES
  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','11111111-aaaa-4111-8111-111111111111',12),
- ('dddddddd-dddd-4ddd-8ddd-dddddddddddd','22222222-bbbb-4222-8222-222222222222',27);
+ ('dddddddd-dddd-4ddd-8ddd-dddddddddddd','22222222-bbbb-4222-8222-222222222222',27)
+ON CONFLICT (workspace_id,product_id) DO UPDATE SET quantity=EXCLUDED.quantity;
 INSERT INTO global.stock_movements(workspace_id,product_id,movement_type,quantity_delta,created_by)
 VALUES
  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','11111111-aaaa-4111-8111-111111111111','receipt',12,'66666666-6666-4666-8666-666666666666'),
