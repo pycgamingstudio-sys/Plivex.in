@@ -44,6 +44,7 @@ export default function GlobalApp() {
   const [records, setRecords] = useState({});
   const [form, setForm] = useState({});
   const [notice, setNotice] = useState("");
+  const [movementRequest, setMovementRequest] = useState(null);
   const [error, setError] = useState("");
 
 
@@ -167,19 +168,23 @@ export default function GlobalApp() {
       const movementType = form.movementType || "receipt";
       const quantityDelta = movementType === "sale" ? -Math.abs(quantity)
         : movementType === "adjustment" ? quantity : Math.abs(quantity);
+      const movementPayload = {
+        workspace_id: account.workspace_id,
+        product_id: form.productId,
+        movement_type: movementType,
+        quantity_delta: quantityDelta,
+        notes: form.notes?.trim() || null,
+      };
+      const signature = JSON.stringify(movementPayload);
+      const requestId = movementRequest?.signature === signature ? movementRequest.id : crypto.randomUUID();
+      setMovementRequest({ signature, id: requestId });
       const { data, error: movementError } = await supabase.functions.invoke("global-stock-movements", {
-        body: {
-          workspace_id: account.workspace_id,
-          product_id: form.productId,
-          movement_type: movementType,
-          quantity_delta: quantityDelta,
-          notes: form.notes?.trim() || null,
-          idempotency_key: crypto.randomUUID(),
-        },
+        body: { ...movementPayload, idempotency_key: requestId },
       });
       if (movementError) throw new Error(await errorMessage(movementError, "Could not record stock movement."));
       if (!data?.ok || typeof data.quantity !== "number") throw new Error("Inventory service returned an invalid response.");
       setForm({});
+      setMovementRequest(null);
       setNotice(`Stock movement recorded. New balance: ${data.quantity}.`);
       await loadRecords("inventory");
     } catch (movementSaveError) {
