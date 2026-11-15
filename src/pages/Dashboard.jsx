@@ -20,6 +20,7 @@ import { useRole, canAccessTab } from "@/lib/roles";
 import AccountProfileModal from "@/components/AccountProfileModal";
 import PresenceBeacon from "@/components/PresenceBeacon";
 import { processDueReminders } from "@/lib/reminders";
+import { APP_EDITION } from "@/api/backendClient";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -53,7 +54,7 @@ export default function Dashboard({ initialTab }) {
   const consume = () => setIntent(null);
   const visibleTabs = TABS.filter((t) => canAccessTab(role, t.id));
   const active = visibleTabs.find((t) => t.id === tab) || visibleTabs[0] || TABS[0];
-  const hasGstrAccess = ["basic", "pro"].includes(String(plan || "").toLowerCase());
+  const hasGstrAccess = APP_EDITION === "global" || ["basic", "pro"].includes(String(plan || "").toLowerCase());
   const pages = navItems.filter((i) => i.to !== "/" && (!HIDDEN_FROM_SIDEBAR.includes(i.to) || i.to === "/tax-summary") && (!i.roles || i.roles.includes(role)));
   const teamUnlocked = canAccess("team_management");
 
@@ -158,7 +159,7 @@ export default function Dashboard({ initialTab }) {
             <div className="flex items-center justify-between"><h3 className="text-[15px] font-bold text-slate-900">All workspace pages</h3><button onClick={() => setMoreOpen(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
             <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
               {pages.map((p) => p.to === "/tax-summary" && !hasGstrAccess ? (
-                <button key={p.to} onClick={() => { setMoreOpen(false); openPaywall("GSTR-1 export is available on Basic and Pro plans."); }} className="flex flex-col items-center gap-2 rounded-xl border border-[#E5E7EB] p-4 text-center hover:border-[#6D28D9] hover:bg-slate-50">
+                <button key={p.to} onClick={() => { setMoreOpen(false); openPaywall("Tax reporting is available on eligible plans."); }} className="flex flex-col items-center gap-2 rounded-xl border border-[#E5E7EB] p-4 text-center hover:border-[#6D28D9] hover:bg-slate-50">
                   <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#6D28D9]/10 text-[#6D28D9]"><p.icon className="h-4.5 w-4.5" /></span>
                   <span className="text-[11px] font-semibold text-slate-700">{p.label}</span>
                   <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800">BASIC / PRO</span>
