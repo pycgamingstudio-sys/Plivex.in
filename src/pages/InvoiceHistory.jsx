@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "@/lib/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { createRoot } from "react-dom/client";
 import { InvoicePreview } from "./Home";
@@ -6,7 +7,8 @@ import { History, Trash2, Eye, Download } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import PageShell from "@/components/PageShell";
 import { KEYS, loadList, removeItem, saveList, saveState } from "@/lib/stores";
-import { backend, supabase } from "@/api/backendClient";
+import { APP_EDITION, backend, supabase } from "@/api/backendClient";
+import GlobalInvoicesPanel from "@/components/global/GlobalInvoicesPanel";
 
 const sym = (c) => ({ INR: "₹", USD: "$", EUR: "€" }[c] || c);
 const money = (v, c = "INR") => `${sym(c)} ${(Number(v) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -16,6 +18,15 @@ const reminderStatus = { scheduled: "Scheduled", on_hold: "Queued for automatic 
 
 export default function InvoiceHistory() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const invokeGlobalRecords = useCallback(async (table) => {
+    const { data, error } = await supabase.functions.invoke("global-business-records", {
+      body:{ workspace_id:user?.workspace_id, table, action:"list", limit:100 },
+    });
+    if (error) throw error;
+    return data;
+  }, [user?.workspace_id]);
+  const noGlobalRefresh = useCallback(() => {}, []);
   const [items, setItems] = useState(() => loadList(KEYS.history, { includeCancelled: true }));
   const [view, setView] = useState(null);
   const [filter, setFilter] = useState("all");
@@ -36,7 +47,7 @@ export default function InvoiceHistory() {
   }, []);
   useEffect(() => {
     let active = true;
-    if (!view?.id) { setReminderEvents([]); return undefined; }
+    if (APP_EDITION === "global" || !view?.id) { setReminderEvents([]); return undefined; }
     setEventsLoading(true);
     supabase.from("invoice_reminder_events").select("id,stage,scheduled_for,status,sent_at,recipient_email,failure_reason")
       .eq("invoice_id", view.id).order("scheduled_for", { ascending: true })
@@ -205,6 +216,10 @@ export default function InvoiceHistory() {
     }
   };
   // Automatic recipient mapping — pulled from the saved invoice record or client database, never typed manually.
+  if (APP_EDITION === "global") {
+    return <GlobalInvoicesPanel account={user} invoke={invokeGlobalRecords} onRefresh={noGlobalRefresh} />;
+  }
+
   const reminderEmail = (it) => {
     if (it.clientEmail) return it.clientEmail;
     const match = loadList(KEYS.clients).find((c) => (c.name || "").toLowerCase() === (it.clientName || "").toLowerCase());
