@@ -7,9 +7,9 @@
 //  - Business endpoints                -> POST <API base>/api/public/<kebab-name>
 //    with the Supabase access token in the Authorization header.
 import { createClient } from '@supabase/supabase-js';
-import { resolveEditionId } from '@/global/core/edition-contract.js';
+import { resolveRuntimeEdition } from '@/global/core/edition-contract.js';
 
-export const APP_EDITION = resolveEditionId(import.meta.env.VITE_APP_EDITION);
+export const APP_EDITION = resolveRuntimeEdition(import.meta.env.VITE_APP_EDITION, typeof window !== "undefined" ? window.location.pathname : "/");
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
