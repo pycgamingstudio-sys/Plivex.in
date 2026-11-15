@@ -1,13 +1,27 @@
 import { useState } from "react";
+import { useAuth } from "@/lib/AuthContext";
+import { getCountryExperience } from "@/global/countries/country-experience.js";
+import { formatWorkspaceDateTime } from "@/global/localization/date-format.js";
 import { Activity, FileText, MessageCircle } from "lucide-react";
 import PageShell from "@/components/PageShell";
 import { KEYS, loadList, saveList } from "@/lib/stores";
 
 const iconFor = (type) => (type === "share" ? MessageCircle : FileText);
 const toneFor = (type) => (type === "share" ? "bg-[#25D366]/15 text-[#1da851]" : "bg-primary/15 text-primary");
-const timeLabel = (v) => (v ? new Date(v).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—");
+
 
 export default function AccountActivity() {
+  const { user } = useAuth();
+  const country = getCountryExperience(user?.country_code || "IN");
+  const locale = user?.locale_code || country?.defaultLocale || "en-IN";
+  const needsWorkspaceZone = country?.timeZonePolicy === "workspace-select";
+  const timeZone = user?.time_zone || (needsWorkspaceZone ? "UTC" : country?.timeZonePolicy || "UTC");
+  const timeZoneNote = needsWorkspaceZone && !user?.time_zone ? " (UTC)" : "";
+  const timeLabel = (value) => {
+    if (!value) return "—";
+    try { return `${formatWorkspaceDateTime(value, { locale, timeZone, options: { year: undefined } })}${timeZoneNote}`; }
+    catch { return "—"; }
+  };
   const [items, setItems] = useState(() => loadList(KEYS.activity));
   const clear = () => { if (window.confirm("Clear all activity?")) { saveList(KEYS.activity, []); setItems([]); } };
   return (
