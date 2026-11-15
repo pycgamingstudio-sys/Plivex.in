@@ -9,21 +9,21 @@ const PILLARS = [
     features: [
       "GST & Non-GST invoicing", "CGST/SGST/IGST auto-breakup", "WhatsApp one-click sharing",
       "Recurring bills & cycles", "Credit notes & adjustments", "Quotation → invoice convert",
-      "HSN autocomplete engine", "Multi-currency invoices", "Print-perfect A4 PDFs", "Dynamic UPI QR codes",
+      "HSN autocomplete engine", "Country-based currency display (Global drafts)", "Print-perfect A4 PDFs", "Dynamic UPI QR codes",
     ],
   },
   {
     icon: Users, title: "Client & Contact Management", tone: "from-[#2563EB] to-[#3B82F6]",
     features: [
       "Isolated client directory", "Per-client ledgers", "Lead pipeline (Kanban)",
-      "Client risk assessment", "Self-service client portals", "Auto-fill client details",
+      "Client and lead organisation", "Client records and contact history", "Auto-fill client details",
       "Contact history timeline", "Duplicate detection",
     ],
   },
   {
     icon: Wallet, title: "Payments & Financial Tracking", tone: "from-[#059669] to-[#10B981]",
     features: [
-      "UPI QR code generation", "PayU checkout", "Stripe-ready billing", "Partial payment tracking",
+      "UPI QR code generation", "PayU checkout", "Payment tracking for supported workflows", "Partial payment tracking",
       "Expense & purchase ledger", "Net profit calculation", "Auto payment reminders", "Reconciliation engine",
     ],
   },
@@ -37,14 +37,14 @@ const PILLARS = [
   {
     icon: ShieldCheck, title: "AI-First Infrastructure & Security", tone: "from-[#0D9488] to-[#14B8A6]",
     features: [
-      "Isolated workspace security", "Role-based access control", "Encrypted cloud backups",
+      "Isolated workspace security", "Role-based access control", "Workspace-scoped data access",
       "AI Business Assistant for workspace questions", "Prepare supported records for your confirmation", "Owner-controlled permissions", "Per-tenant data separation", "Audit activity logs", "Secure email login", "Workspace ID isolation",
     ],
   },
   {
     icon: Plug, title: "Usability & Integrations", tone: "from-[#DB2777] to-[#EC4899]",
     features: [
-      "Mobile responsive PWA", "Bulk PDF export", "REST API ready", "PayU payments",
+      "Mobile responsive PWA", "Bulk PDF export", "Connected web workspace", "PayU payments",
       "Cancel & track invoices", "Available in Hindi and English", "Multi-user team access", "Custom branding & logos",
     ],
   },
@@ -65,13 +65,13 @@ export default function AboutSection({ showFounderPhotos = true } = {}) {
           <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /><p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">About Plivex</p></div>
           <h2 className="mt-2 text-[22px] font-bold leading-tight sm:text-[28px]">Smart invoicing with your built-in AI Business Assistant.</h2>
           <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-white/85">
-            Plivex brings invoicing, quotations, customer records, expenses, inventory and business reports together in one web workspace. It is designed for Indian retailers, wholesalers, distributors, freelancers, service providers and small teams that want their everyday billing work organised in one place.
+            Plivex brings invoicing, quotations, customer records, expenses, inventory and business reports together in one web workspace. It is designed for retailers, wholesalers, distributors, freelancers, service providers and small teams that want everyday billing work organised in one place. India GST workflows are available today; Global capabilities are being introduced in stages.
           </p>
           <div className="mt-5 flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 p-3">
-            {showFounderPhotos && <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Founder & Developer of Plivex" width="56" height="56" loading="lazy" decoding="async" className="h-14 w-14 shrink-0 rounded-full border-2 border-white/70 object-cover object-center" />}
+            {showFounderPhotos && <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Developer of Plivex" width="56" height="56" loading="lazy" decoding="async" className="h-14 w-14 shrink-0 rounded-full border-2 border-white/70 object-cover object-center" />}
             <div className="min-w-0">
               <p className="text-sm font-bold text-white">Yashvant Sharma</p>
-              <p className="text-xs text-white/75">Founder &amp; Developer, Plivex</p>
+              <p className="text-xs text-white/75">Developer, Plivex</p>
             </div>
           </div>
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -116,19 +116,19 @@ export default function AboutSection({ showFounderPhotos = true } = {}) {
             </div>
           </div>
           <div className="mt-6 border-t border-[#E5E7EB] pt-6">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">About the founder</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">About the developer</p>
             <div className="mt-3 flex items-center gap-4">
-              {showFounderPhotos && <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Founder and Developer of Plivex" loading="lazy" width="64" height="64" className="h-16 w-16 shrink-0 rounded-full border border-slate-200 object-cover" />}
+              {showFounderPhotos && <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Developer of Plivex" loading="lazy" width="64" height="64" className="h-16 w-16 shrink-0 rounded-full border border-slate-200 object-cover" />}
               <div className="min-w-0">
                 <h3 className="text-[14px] font-bold text-slate-900">Yashvant Sharma</h3>
-                <p className="mt-0.5 text-[11px] font-semibold text-[#6D28D9]">Founder &amp; Developer, Plivex</p>
+                <p className="mt-0.5 text-[11px] font-semibold text-[#6D28D9]">Developer, Plivex</p>
                 <p className="mt-1 text-[12px] leading-relaxed text-slate-600">Building practical billing and business management tools for Indian small businesses.</p>
               </div>
             </div>
           </div>
           <div className="mt-6 flex flex-wrap items-center gap-2 rounded-2xl border border-[#6D28D9]/20 bg-[#6D28D9]/5 p-4">
             <Zap className="h-4 w-4 text-[#6D28D9]" />
-            <p className="flex-1 text-[12px] font-medium text-slate-700">Every workspace is fully isolated — your invoices, clients and expenses are strictly scoped to your account, never visible to anyone else.</p>
+            <p className="flex-1 text-[12px] font-medium text-slate-700">Workspace records are scoped to the signed-in business account, with role-based access for supported team workflows.</p>
             <Link to="/register" className="rounded-xl bg-[#6D28D9] px-4 py-2 text-[11px] font-bold text-white hover:bg-[#7C3AED]">Start free</Link>
           </div>
         </div>
