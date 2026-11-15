@@ -156,6 +156,75 @@ INSERT INTO global.business_profiles(workspace_id,legal_name,display_name,email,
 VALUES ('c7777777-7777-4777-8777-777777777777','Old Global Ltd','Old Global','country-reset-global-india@example.test','GB','en-GB','GBP');
 INSERT INTO global.clients(workspace_id,name,created_by)
 VALUES ('c7777777-7777-4777-8777-777777777777','Old Global Client','77777777-7777-4777-8777-777777777777');
+
+-- Seed an issued invoice with append-only payment and refund ledger rows.
+INSERT INTO global.invoices(
+  id,workspace_id,client_id,invoice_number,status,currency_code,issue_date,
+  subtotal_minor,discount_minor,tax_minor,total_minor,amount_paid_minor,
+  amount_refunded_minor,invoice_snapshot,created_by
+) VALUES (
+  'c7777777-7777-4777-8777-777777777779',
+  'c7777777-7777-4777-8777-777777777777',
+  (SELECT id FROM global.clients WHERE workspace_id='c7777777-7777-4777-8777-777777777777' AND name='Old Global Client' LIMIT 1),
+  'INV-RESET-GB-001','draft','GBP',current_date,10000,0,2000,12000,0,0,
+  '{"document_status":"draft","test_fixture":true}'::jsonb,
+  '77777777-7777-4777-8777-777777777777'
+);
+INSERT INTO global.invoice_items(
+  workspace_id,invoice_id,description,quantity,unit_price_minor,discount_minor,
+  tax_rate_bps,tax_minor,line_total_minor,sort_order
+) VALUES (
+  'c7777777-7777-4777-8777-777777777777',
+  'c7777777-7777-4777-8777-777777777779',
+  'Fixture service',1,10000,0,2000,2000,12000,0
+);
+UPDATE global.invoices
+SET status='partially_refunded',amount_paid_minor=5000,amount_refunded_minor=1000,
+    invoice_snapshot='{"document_status":"issued","test_fixture":true}'::jsonb
+WHERE id='c7777777-7777-4777-8777-777777777779';
+INSERT INTO global.invoice_payments(
+  workspace_id,invoice_id,amount_minor,currency_code,payment_date,method,recorded_by,idempotency_key
+) VALUES (
+  'c7777777-7777-4777-8777-777777777777',
+  'c7777777-7777-4777-8777-777777777779',
+  5000,'GBP',current_date,'bank',
+  '77777777-7777-4777-8777-777777777777',
+  'c7777777-7777-4777-8777-777777777780'
+);
+INSERT INTO global.invoice_refunds(
+  workspace_id,invoice_id,amount_minor,currency_code,refund_date,method,reason,recorded_by,idempotency_key
+) VALUES (
+  'c7777777-7777-4777-8777-777777777777',
+  'c7777777-7777-4777-8777-777777777779',
+  1000,'GBP',current_date,'bank','Fixture refund',
+  '77777777-7777-4777-8777-777777777777',
+  'c7777777-7777-4777-8777-777777777781'
+);
+
+DO $ledger_guard$
+BEGIN
+  BEGIN
+    DELETE FROM global.invoice_payments WHERE idempotency_key='c7777777-7777-4777-8777-777777777780';
+    RAISE EXCEPTION 'payment append-only guard did not fire';
+  EXCEPTION WHEN SQLSTATE '55000' THEN NULL;
+  END;
+  BEGIN
+    DELETE FROM global.invoice_refunds WHERE idempotency_key='c7777777-7777-4777-8777-777777777781';
+    RAISE EXCEPTION 'refund append-only guard did not fire';
+  EXCEPTION WHEN SQLSTATE '55000' THEN NULL;
+  END;
+  BEGIN
+    DELETE FROM global.invoice_items WHERE invoice_id='c7777777-7777-4777-8777-777777777779';
+    RAISE EXCEPTION 'issued invoice item guard did not fire';
+  EXCEPTION WHEN SQLSTATE '55000' THEN NULL;
+  END;
+  BEGIN
+    DELETE FROM global.invoices WHERE id='c7777777-7777-4777-8777-777777777779';
+    RAISE EXCEPTION 'issued invoice deletion guard did not fire';
+  EXCEPTION WHEN SQLSTATE '55000' THEN NULL;
+  END;
+END
+$ledger_guard$;
 INSERT INTO public.profiles(id,email,full_name,role,workspace_id,country_code,locale_code)
 VALUES ('77777777-7777-4777-8777-777777777777','country-reset-global-india@example.test','Global to India','admin',null,'GB','en-GB')
 ON CONFLICT (id) DO UPDATE SET workspace_id=null,country_code='GB',locale_code='en-GB';
@@ -177,8 +246,12 @@ BEGIN
   END IF;
   new_workspace_id := result->>'workspace_id';
   IF EXISTS (SELECT 1 FROM global.workspaces WHERE id='c7777777-7777-4777-8777-777777777777')
-     OR EXISTS (SELECT 1 FROM global.clients WHERE workspace_id='c7777777-7777-4777-8777-777777777777') THEN
-    RAISE EXCEPTION 'Old Global workspace or business records were not removed';
+     OR EXISTS (SELECT 1 FROM global.clients WHERE workspace_id='c7777777-7777-4777-8777-777777777777')
+     OR EXISTS (SELECT 1 FROM global.invoices WHERE workspace_id='c7777777-7777-4777-8777-777777777777')
+     OR EXISTS (SELECT 1 FROM global.invoice_items WHERE workspace_id='c7777777-7777-4777-8777-777777777777')
+     OR EXISTS (SELECT 1 FROM global.invoice_payments WHERE workspace_id='c7777777-7777-4777-8777-777777777777')
+     OR EXISTS (SELECT 1 FROM global.invoice_refunds WHERE workspace_id='c7777777-7777-4777-8777-777777777777') THEN
+    RAISE EXCEPTION 'Old Global workspace, invoice, payment or refund data was not fully removed';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id='77777777-7777-4777-8777-777777777777' AND workspace_id=new_workspace_id AND country_code='IN' AND locale_code='hi-IN')
      OR NOT EXISTS (SELECT 1 FROM public.workspace_members WHERE workspace_id=new_workspace_id AND user_id='77777777-7777-4777-8777-777777777777' AND role='admin' AND status='active')
