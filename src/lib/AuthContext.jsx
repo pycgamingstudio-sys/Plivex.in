@@ -75,7 +75,7 @@ export const AuthProvider = ({ children }) => {
     const response = await db.functions.invoke('verifyInviteCode', { code, email: currentUser?.email });
     if (!response?.data?.ok) throw new Error(response?.data?.error || 'Your workspace invite could not be applied.');
     clearPendingInviteCode();
-    return { user: await db.auth.me(), pendingInvite: true };
+    return { user: await db.auth.me({ preferIndia: true }), pendingInvite: true };
   };
 
   const checkUserAuth = async () => {
