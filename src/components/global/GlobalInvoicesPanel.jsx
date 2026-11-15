@@ -160,6 +160,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       const doc = new jsPDF();
       const snap = invoice.invoice_snapshot || {};
       const seller = snap.seller || {};
+      const buyer = snap.buyer || {};
       doc.setFontSize(20); doc.text("PLIVEX · TAX INVOICE", 16, 20);
       doc.setFontSize(10);
       doc.text(`Invoice: ${invoice.invoice_number}`,16,31);
@@ -169,7 +170,8 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       doc.text(`Address: ${seller.address || profile?.address || "—"}`,16,61);
       doc.text(`VAT number: ${seller.tax_registration_number || "—"}`,16,67);
       const client=clients.find((c)=>c.id===invoice.client_id);
-      doc.text(`Bill to: ${client?.name || "Customer"}`,16,80);
+      doc.text(`Bill to: ${buyer.name || client?.name || "Customer"}`,16,80);
+      if (buyer.email || client?.email) doc.text(`Customer email: ${buyer.email || client?.email}`,16,86);
       doc.text("Description",16,96); doc.text("Qty",110,96); doc.text("Net",130,96); doc.text("VAT",160,96); doc.text("Total",190,96,{align:"right"});
       let y=104;
       for (const line of lineItems) {
