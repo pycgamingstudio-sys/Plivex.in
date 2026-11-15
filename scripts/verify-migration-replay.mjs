@@ -15,7 +15,7 @@ const localOnly = manifest.local_only_files || [];
 if (manifest.remote_ledger_entries !== 52 || history.length !== 39 || missing.length !== 35
   || manifest.local_migration_files !== 36 || pairs.length !== 17
   || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 19) {
-  fail("Migration reconciliation counts differ from the reviewed 52/39/35/35/17/13/4/18 manifest");
+  fail("Migration reconciliation counts differ from the reviewed remote-history and local migration manifest counts");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
 
@@ -44,8 +44,8 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 71 || new Set(candidatePlan.map((x) => x.path)).size !== 70) {
-  fail("Candidate replay plan must contain 35 recovered historical and all 35 current local migrations");
+if (candidatePlan.length !== 71 || new Set(candidatePlan.map((x) => x.path)).size !== 71) {
+  fail("Candidate replay plan must contain 35 recovered historical and all 36 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -207,6 +207,7 @@ function assertGlobalMigrationRollback(port) {
     const invoiceLedgerResidue = query(port, db, "SELECT (to_regprocedure('public.global_create_invoice_draft(uuid,uuid,uuid,text,date,date,text,jsonb,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_record_invoice_payment(uuid,uuid,uuid,bigint,text,date,text,text,text,uuid)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoices' AND column_name='creation_idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='global' AND indexname='global_invoices_creation_idempotency_idx')::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoice_payments' AND column_name='idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='global' AND indexname='global_invoice_payments_idempotency_idx')::text");
     if (invoiceLedgerResidue !== "false|false|false|false|false|false") fail("Global invoice/payment rollback left functions, columns or indexes behind: " + invoiceLedgerResidue);
 
+    psql(port, db, ["-f", invoiceLedgerPath]);
     // Verify the Part 5 issuance/refund migration rolls back its functions,
     // immutable guards, views, sequence table, refund table and invoice columns.
     const issuancePath = resolve(root, "supabase/migrations/202611150011_global_invoice_issuance_and_refunds.sql");
