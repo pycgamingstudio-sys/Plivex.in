@@ -130,15 +130,8 @@ WHERE created_by IN (
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab',
   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 );
-DELETE FROM auth.users
-WHERE id IN (
-  '66666666-6666-4666-8666-666666666666',
-  '77777777-7777-4777-8777-777777777777',
-  '88888888-8888-4888-8888-888888888888',
-  '99999999-9999-4999-8999-999999999999',
-  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab',
-  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
-);
+-- Synthetic auth.users rows intentionally remain only in this disposable CI database;
+-- the runner destroys the database after replay. service_role must not delete Auth users.
 
 -- An invited member must never fall through into a new standalone owner workspace.
 INSERT INTO global.workspace_members(workspace_id,user_id,role,status,invited_by)
