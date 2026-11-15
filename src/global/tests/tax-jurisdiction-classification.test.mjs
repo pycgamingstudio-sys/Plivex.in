@@ -30,7 +30,9 @@ test("Canada registry covers 10 provinces/territories and source-backed publishe
  assert.ok(regions.every(r=>r.sourceAuthority==="Canada Revenue Agency"));
 });
 test("India and other regional registries identify administrative regions but do not imply tax rules",()=>{
- assert.ok(listTaxJurisdictions("IN").length>25);
+ assert.equal(listTaxJurisdictions("IN").length,36);
+ assert.equal(getTaxJurisdiction("IN","DN")?.code,"DN");
+ assert.equal(getTaxJurisdiction("IN","DD"),null);
  assert.equal(listTaxJurisdictions("GB").length,4);
  assert.equal(listTaxJurisdictions("AE").length,7);
  assert.equal(listTaxJurisdictions("AU").length,8);
