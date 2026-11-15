@@ -94,6 +94,8 @@ test("Country reset is authenticated, owner-scoped, cooldown-limited and atomic"
   assert.match(resetRpc, /pg_advisory_xact_lock/);
   assert.match(resetRpc, /interval '30 days'/);
   assert.match(resetRpc, /workspace_owner_required/);
+  assert.match(resetRpc, /up\.default_workspace_id/);
+  assert.match(resetRpc, /active_global_workspace_not_selected/);
   assert.match(resetRpc, /update public\.subscriptions/);
   assert.match(resetRpc, /update public\.payment_logs/);
   assert.match(resetRpc, /private\.country_reset_events/);
