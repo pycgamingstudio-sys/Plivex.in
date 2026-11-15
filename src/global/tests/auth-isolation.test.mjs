@@ -15,7 +15,7 @@ const [backend, authContext, stores, paywall, login, register, app, onboarding] 
 ]);
 
 test("Global backend defaults fail closed and blocks India endpoint fallback", () => {
-  assert.match(backend, /resolveEditionId\(import\.meta\.env\.VITE_APP_EDITION\)/);
+  assert.match(backend, /resolveRuntimeEdition\(import\.meta\.env\.VITE_APP_EDITION/);
   assert.match(backend, /APP_EDITION === "global" && !\["global-ensure-owner", "global-business-records"\]\.includes\(functionName\)/);
   assert.match(backend, /global-auth-context/);
   assert.match(backend, /global-update-profile/);

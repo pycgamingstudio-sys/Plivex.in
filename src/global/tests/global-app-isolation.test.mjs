@@ -3,12 +3,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [app, globalApp, onboarding, worker, vite] = await Promise.all([
+const [app, globalApp, onboarding, worker, vite, googleButton, indiaWorker] = await Promise.all([
   read("../../App.jsx"),
   read("../GlobalApp.jsx"),
   read("../../components/global/GlobalCountryOnboarding.jsx"),
   read("../../../wrangler.global.jsonc"),
   read("../../../vite.config.js"),
+  read("../../components/auth/GoogleSignInButton.jsx"),
+  read("../../../wrangler.jsonc"),
 ]);
 
 test("Global edition mounts its isolated app before the India providers and route tree", () => {
@@ -24,15 +26,17 @@ test("Global UI uses only Global Auth and Global business records APIs", () => {
   assert.match(globalApp, /global-business-records/);
   assert.match(globalApp, /GlobalCountryOnboarding/);
   assert.match(globalApp, /if \(session && account && !account\.workspace_id\)/);
-  assert.match(globalApp, /const \[countryCode, setCountryCode\] = useState\(""\)/);
-  assert.match(globalApp, /Select your business country/);
+  assert.doesNotMatch(globalApp, /COUNTRY_OPTIONS|setCountryCode|signup_country_code/);
+  assert.match(onboarding, /Select your country/);
+  assert.match(onboarding, /Language and number format/);
   assert.doesNotMatch(globalApp, /hydrateWorkspaceData|workspace-records|from\(["']profiles["']\)/);
 });
 
-test("Global UI does not expose unfinished invoice creation or inventory mutations", () => {
-  assert.match(globalApp, /Invoice creation, payment collection and stock movements are not enabled yet/);
-  assert.match(globalApp, /This section is read-only/);
+test("Global UI enables inventory movements while keeping invoice creation and payments disabled", () => {
+  assert.match(globalApp, /Invoice drafts can be saved, but tax finalization and online payment collection are not enabled/);
+  assert.match(globalApp, /global-stock-movements/);
   assert.match(globalApp, /const TABLES = \{ clients: "clients", products: "products", expenses: "expenses"/);
+  assert.match(globalApp, /Save draft invoices and record external payments for issued invoices/);
 });
 
 test("Global Cloudflare build targets its own Worker and edition config", () => {
@@ -41,4 +45,20 @@ test("Global Cloudflare build targets its own Worker and edition config", () => 
   assert.equal(config.vars.VITE_APP_EDITION, "global");
   assert.match(vite, /wrangler\.global\.jsonc/);
   assert.match(vite, /VITE_APP_EDITION: edition/);
+});
+
+test("Unified same-domain worker preserves India at root and serves Global under /global", () => {
+  const config = JSON.parse(indiaWorker);
+  assert.equal(config.name, "plivex-in");
+  assert.equal(config.vars.VITE_APP_EDITION, "unified");
+  assert.equal(config.previews.vars.VITE_APP_EDITION, "unified");
+  assert.match(vite, /\|\| 'unified'/);
+  assert.match(googleButton, /APP_EDITION === "global" \? "\/global\/" : "\/"/);
+  assert.match(globalApp, /href="\/global\/"|href=\{?"\/global\/"?\}/);
+});
+
+test("Global and India email callbacks preserve their same-origin edition path", async () => {
+  const backend = await read("../../api/backendClient.js");
+  assert.match(backend, /resolveRuntimeEdition\(import\.meta\.env\.VITE_APP_EDITION/);
+  assert.match(backend, /APP_EDITION === "global" \? "\/global\/" : "\/"/);
 });

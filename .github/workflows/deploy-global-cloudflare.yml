@@ -54,7 +54,7 @@ jobs:
         run: npm run test:global
 
       - name: Type-check Global Edge Functions
-        run: deno check supabase/functions/_shared/global.ts supabase/functions/global-auth-context/index.ts supabase/functions/global-ensure-owner/index.ts supabase/functions/global-update-profile/index.ts supabase/functions/global-business-records/index.ts
+        run: deno check supabase/functions/_shared/global.ts supabase/functions/global-auth-context/index.ts supabase/functions/global-ensure-owner/index.ts supabase/functions/global-update-profile/index.ts supabase/functions/global-business-records/index.ts supabase/functions/global-stock-movements/index.ts supabase/functions/global-invoices/index.ts
 
       - name: Run lint and type checks
         run: |

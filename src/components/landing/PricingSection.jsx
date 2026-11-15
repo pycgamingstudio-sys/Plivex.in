@@ -4,6 +4,8 @@ import { Check, Sparkles, Crown, X } from "lucide-react";
 import { GLOBAL_BILLING, formatPlanPrice } from "@/global/billing/pricing.js";
 import { getCountryByCode } from "@/global/countries/country-registry.js";
 
+const COUNTRY_FLAGS = Object.freeze({ IN: "🇮🇳", US: "🇺🇸", GB: "🇬🇧", AE: "🇦🇪", CA: "🇨🇦", AU: "🇦🇺", SG: "🇸🇬" });
+
 const PLANS = [
   { id: "free", name: "Free", accent: false, badge: null, tagline: "For getting started with no card needed.", included: ["30 invoices / month", "20 clients and stock items", "PDF downloads with Made with Plivex footer", "Basic invoicing and expense tracking"], locked: ["WhatsApp sharing", "Team and lead pipeline", "GSTR-1 export and custom logo"] },
   { id: "basic", name: "Basic", accent: false, badge: null, tagline: "For freelancers & small shops getting started.", included: ["GST & Non-GST invoicing", "Up to 100 invoices / month", "Dynamic UPI QR codes", "HD PDF downloads", "Basic client database", "Expense tracker", "Standard email support", "Zero watermark"], locked: ["WhatsApp one-click share", "Custom business logo", "Advanced reports"] },
@@ -44,11 +46,27 @@ export default function PricingSection() {
           <p className="mx-auto mt-1.5 max-w-xl text-[12px] text-slate-500">Free plan, no card needed. Upgrade when your business needs more.</p>
         </div>
 
-        <div className="mx-auto mt-5 flex max-w-xs flex-col gap-1.5 text-left">
-          <label htmlFor="pricing-country" className="text-xs font-semibold text-slate-700">Choose billing country</label>
-          <select id="pricing-country" value={countryCode} onChange={(event) => changeCountry(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800">
-            {Object.entries(GLOBAL_BILLING).map(([code, item]) => <option key={code} value={code}>{getCountryByCode(code)?.name || code} ({item.currency})</option>)}
-          </select>
+        <div className="mx-auto mt-5 max-w-2xl text-left">
+          <p id="pricing-country-label" className="mb-2 text-center text-xs font-semibold text-slate-700">Choose your country</p>
+          <div role="group" aria-labelledby="pricing-country-label" className="flex flex-wrap justify-center gap-2">
+            {Object.entries(GLOBAL_BILLING).map(([code, item]) => {
+              const selected = countryCode === code;
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => changeCountry(code)}
+                  aria-pressed={selected}
+                  aria-label={`Show pricing for ${getCountryByCode(code)?.name || code} in ${item.currency}`}
+                  className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D28D9] focus-visible:ring-offset-2 ${selected ? "border-[#6D28D9] bg-[#6D28D9]/5 text-[#5B21B6]" : "border-slate-200 bg-white text-slate-700 hover:border-[#6D28D9]/50"}`}
+                >
+                  <span aria-hidden="true" className="text-lg leading-none">{COUNTRY_FLAGS[code] || "🌐"}</span>
+                  <span>{getCountryByCode(code)?.name || code}</span>
+                  <span className="text-[10px] text-slate-400">{item.currency}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {hasYearly && <div className="mx-auto mt-4 flex w-fit items-center gap-1 rounded-xl bg-slate-100 p-1">
@@ -77,7 +95,11 @@ export default function PricingSection() {
                   {plan.included.map((feature) => <div key={feature} className="flex items-start gap-2 text-[11px] font-medium text-slate-700"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Check className="h-2.5 w-2.5" /></span>{feature}</div>)}
                   {plan.locked.map((feature) => <div key={feature} className="flex items-start gap-2 text-[11px] font-medium text-slate-400"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-500"><X className="h-2.5 w-2.5" /></span>{feature}</div>)}
                 </div>
-                <Link to="/register" className={`mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[12px] font-bold transition-transform hover:-translate-y-0.5 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9] hover:bg-[#6D28D9]/5"}`}>{plan.accent ? <Crown className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}Get {plan.name}</Link>
+                {countryCode === "IN" ? (
+                  <Link to="/register" className={`mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[12px] font-bold transition-transform hover:-translate-y-0.5 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9] hover:bg-[#6D28D9]/5"}`}>{plan.accent ? <Crown className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}Get {plan.name}</Link>
+                ) : (
+                  <a href="/global/" aria-label={`Get ${plan.name} for ${countryInfo?.name || countryCode}`} className={`mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[12px] font-bold transition-transform hover:-translate-y-0.5 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9] hover:bg-[#6D28D9]/5"}`}>{plan.accent ? <Crown className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}Get {plan.name}</a>
+                )}
               </div>
             );
           })}
