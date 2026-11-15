@@ -20,6 +20,7 @@ import TrialGate from './components/TrialGate';
 const PageNotFound = lazy(() => import("./lib/PageNotFound"));
 const UserNotRegisteredError = lazy(() => import("@/components/UserNotRegisteredError"));
 const GlobalCountryOnboarding = lazy(() => import("@/components/global/GlobalCountryOnboarding"));
+const UnifiedCountryOnboarding = lazy(() => import("@/components/global/UnifiedCountryOnboarding"));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
@@ -77,9 +78,15 @@ const AuthenticatedApp = () => {
     }
   }
 
-  // Global users without a workspace must choose their business country first.
-  if (APP_EDITION === "global" && isAuthenticated && user && (!user.workspace_id || !user.role)) {
+  // Global users are routed into the isolated Global app after runtime classification.
+  if (isAuthenticated && user?.edition === "global" && (!user.workspace_id || !user.role)) {
     return <GlobalCountryOnboarding />;
+  }
+  if (APP_EDITION === "unified" && isAuthenticated && user?.edition === "pending") {
+    return <UnifiedCountryOnboarding />;
+  }
+  if (APP_EDITION === "unified" && isAuthenticated && user?.edition === "global") {
+    return <GlobalApp />;
   }
 
   // Render the main app
