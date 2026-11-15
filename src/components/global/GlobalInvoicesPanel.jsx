@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { jsPDF } from "jspdf";
 import { supabase } from "@/api/backendClient";
 import GlobalTaxEditor from "@/components/invoice/GlobalTaxEditor";
+import { calculateInvoiceGlobalTax } from "@/global/tax/invoice-tax-integration.js";
 
 const today = () => {
   const d = new Date();
@@ -80,11 +81,12 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     registeredJurisdiction:profile?.tax_jurisdiction_code || "",
   }), [countryCode, currency, profile]);
   const previewInvoice = useMemo(() => ({
-    currency, issueDate:form.issueDate,
+    currency, issueDate:selected?.issue_date || form.issueDate,
     business:{ name:profile?.legal_name || profile?.display_name || "", address:profile?.address || "" },
-    items:[{ quantity:Number(form.quantity || 0), rate:Number(form.unitPrice || 0) }],
-    discountType:"percent", discount:0, globalTax:taxContext,
-  }), [currency, form.issueDate, form.quantity, form.unitPrice, profile, taxContext]);
+    items:selectedItems.map((item) => ({ quantity:Number(item.quantity), rate:Number(item.unit_price_minor || 0) / (10 ** digits(currency)) })),
+    discountType:"fixed", discount:Number(selected?.discount_minor || 0) / (10 ** digits(currency)), globalTax:taxContext,
+  }), [currency, form.issueDate, profile, selected, selectedItems, taxContext]);
+  const taxPreview = useMemo(() => calculateInvoiceGlobalTax(previewInvoice, workspaceProfile), [previewInvoice, workspaceProfile]);
 
   const saveProfile = async (event) => {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
@@ -233,7 +235,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   };
 
   const selectedClient = clients.find((client) => client.id === selected?.client_id);
-  const canIssue = countryCode === "GB" && selected?.status === "draft" && profile?.tax_registration_status === "registered";
+  const canIssue = countryCode === "GB" && selected?.status === "draft" && taxPreview.ok === true;
 
   return (
     <section className="mt-6 space-y-5">
