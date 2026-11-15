@@ -1,4 +1,5 @@
 import { calculateGlobalTax } from "./global-tax-engine.js";
+import { createGlobalInvoiceTaxSnapshot, getEInvoiceReadiness } from "./global-invoice-finalization.js";
 import { calculateManualTax } from "./manual-tax-calculator.js";
 import { getTaxInvoiceFormat, validateTaxInvoiceSellerFields } from "./tax-invoice-formats.js";
 import { isSupportedManualTaxTreatment, normalizeManualTaxTreatment } from "./tax-treatment-policy.js";
@@ -165,7 +166,20 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
     treatment: "standard",
     priceMode: config.priceMode,
   });
-  return result.ok
-    ? { ...result, mode: "automatic", format, registrationEvidence: "user-attested", warning: "The standard-rate rule is source-backed. Seller registration, place of supply and tax category are self-declared and are not independently verified by Plivex." }
-    : result;
+  if (!result.ok) return result;
+  const finalized = createGlobalInvoiceTaxSnapshot({
+    countryCode, invoiceDate: issueDate, taxResult: result,
+  });
+  if (!finalized.ok) {
+    return fail("TAX_SNAPSHOT_FINALIZATION_FAILED", "The calculated tax could not be frozen with its rule provenance. Keep this invoice as a draft and review the tax details.");
+  }
+  return {
+    ...result,
+    mode: "automatic",
+    format,
+    registrationEvidence: "user-attested",
+    taxSnapshot: finalized.snapshot,
+    eInvoiceReadiness: getEInvoiceReadiness(countryCode),
+    warning: "The standard-rate rule is source-backed. Seller registration, place of supply and tax category are self-declared and are not independently verified by Plivex.",
+  };
 }

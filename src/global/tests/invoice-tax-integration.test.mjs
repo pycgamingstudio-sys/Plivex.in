@@ -31,6 +31,9 @@ test("UK standard VAT integrates with the invoice amount and retains rule proven
   assert.equal(result.totalMinor, 12000);
   assert.equal(result.registrationEvidence, "user-attested");
   assert.equal(result.ruleSnapshot.source, "https://www.gov.uk/vat-rates");
+  assert.equal(result.taxSnapshot.immutable, true);
+  assert.equal(result.taxSnapshot.rule.id, result.ruleSnapshot.id);
+  assert.equal(result.eInvoiceReadiness.transmissionEnabled, false);
 });
 
 test("UAE, Australia and Singapore use only their country standard baselines", () => {
