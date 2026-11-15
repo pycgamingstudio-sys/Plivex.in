@@ -13,7 +13,11 @@ const digits = (currency) => {
   catch { return 2; }
 };
 const minor = (amount, currency) => Math.round(Number(amount || 0) * (10 ** digits(currency)));
-const money = (amount, currency) => new Intl.NumberFormat(undefined, { style:"currency", currency }).format(Number(amount || 0) / (10 ** digits(currency)));
+const CURRENCY_LOCALES = Object.freeze({ INR:"en-IN", USD:"en-US", GBP:"en-GB", AED:"en-AE", CAD:"en-CA", AUD:"en-AU", SGD:"en-SG" });
+const money = (amount, currency) => {
+  const locale = CURRENCY_LOCALES[currency] || "en";
+  return new Intl.NumberFormat(locale, { style:"currency", currency }).format(Number(amount || 0) / (10 ** digits(currency)));
+};
 const field = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm";
 const button = "rounded-lg bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50";
 const secondary = "rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-50";
