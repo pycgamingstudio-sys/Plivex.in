@@ -37,6 +37,7 @@ test("Global invoice PDF uses country tax and registration terminology", async (
   const source = await read("../../components/global/GlobalInvoicesPanel.jsx");
   assert.match(source, /experience\?\.business\.taxName/);
   assert.match(source, /experience\?\.business\.registrationLabel/);
+  assert.match(source, /account\?\.locale_code/);
   assert.doesNotMatch(source, /new Intl\.NumberFormat\(undefined/);
 });
 
