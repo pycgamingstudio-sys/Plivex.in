@@ -68,3 +68,22 @@ Status: implementation in progress. This document records the initial source aud
 - All country-specific documents preserve immutable issue-time snapshots.
 - Seven-country tests, India regression tests, build, lint and relevant database/RLS tests pass.
 - No claim of launch readiness until staging smoke tests and production deployment verification are complete.
+
+
+## Part 8 implementation hardening in this branch
+
+- Added a single immutable presentation profile for IN, US, GB, AE, CA, AU and SG. It supplies regional business-registration labels, address labels, document terminology, default locale and time-zone policy; it is not a tax-law rules engine.
+- Added explicit-locale date and currency formatting. Date-only values retain their calendar day across time zones. Global invoice previews/PDFs and public invoice copies use saved workspace locale metadata.
+- Global invoice PDFs use the selected country's tax name and registration label (for example Sales tax / sales-tax permit in the US, GST/HST/PST/QST in Canada, VAT in the UK/UAE, GST in Australia/Singapore). Public invoice copies no longer hard-code GSTIN for non-India workspaces.
+- Account activity and reports use workspace regional formatting where the data source is available.
+- Unsupported India-only tools (shared invoice-link manager, local usage reports, quick templates, local payment logs, service catalog and team management) fail closed for Global workspaces with a clear route back to Global invoices. This avoids showing India GST/INR defaults or disconnected local-only data as if it were Global functionality.
+- India tax, UPI, GST controls and existing India invoice paths remain separated.
+
+## Explicit release limitations
+
+- This branch does **not** provide complete translated interface catalogs for Spanish, Arabic, French, Chinese, Malay or Tamil. Global UI remains English; India retains its existing English/Hindi support. The selected locale currently controls regional number/date formatting, not UI translation. Arabic RTL is not claimed.
+- US, Canada and Australia need a persisted workspace time-zone selector before local wall-clock time can be shown. Until then, multi-zone date-time display uses explicitly labeled UTC fallback; this is not equivalent to full time-zone onboarding.
+- Tax capabilities remain exactly as defined by `global-tax-capabilities.js`: India legacy GST; UK standard-rated VAT baseline; UAE/Australia/Singapore standard-rate calculation baseline with issuance disabled; US/Canada require verified jurisdiction rules and remain disabled for issuance.
+- Cashfree foreign-currency activation is independent of workspace country selection. Country choice does not enable checkout in a currency that the payment provider has not activated.
+- Global usage reports, payment-log screen, service catalog, quick templates, shared-link management and team-management UI remain unavailable rather than displaying India-only or disconnected data.
+- This is a code/test release candidate only. No live Supabase schema/data mutation or Cloudflare production deployment is part of this branch. Merge/deploy only after the latest branch checks pass and the product owner accepts the explicit limitations above.
