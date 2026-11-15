@@ -7,9 +7,20 @@
 //  - Business endpoints                -> POST <API base>/api/public/<kebab-name>
 //    with the Supabase access token in the Authorization header.
 import { createClient } from '@supabase/supabase-js';
-import { resolveEditionId } from '@/global/core/edition-contract.js';
+import { resolveEditionId, isSupportedEditionId, UNIFIED_EDITION_ID } from '@/global/core/edition-contract.js';
 
-export const APP_EDITION = resolveEditionId(import.meta.env.VITE_APP_EDITION);
+const BUILD_EDITION = import.meta.env.VITE_APP_EDITION === UNIFIED_EDITION_ID
+  ? UNIFIED_EDITION_ID
+  : resolveEditionId(import.meta.env.VITE_APP_EDITION);
+export const isUnifiedBuild = BUILD_EDITION === UNIFIED_EDITION_ID;
+// Runtime starts fail-closed as India; AuthContext switches it only after the
+// signed-in user's workspace country has been verified by Supabase.
+export let APP_EDITION = isUnifiedBuild ? "india" : BUILD_EDITION;
+export function setRuntimeEdition(edition) {
+  if (!isUnifiedBuild || !isSupportedEditionId(edition)) return false;
+  APP_EDITION = edition;
+  return true;
+}
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
