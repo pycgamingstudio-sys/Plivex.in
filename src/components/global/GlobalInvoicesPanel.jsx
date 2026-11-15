@@ -3,6 +3,8 @@ import { jsPDF } from "jspdf";
 import { supabase } from "@/api/backendClient";
 import GlobalTaxEditor from "@/components/invoice/GlobalTaxEditor";
 import { calculateInvoiceGlobalTax } from "@/global/tax/invoice-tax-integration.js";
+import { getCountryExperience } from "@/global/countries/country-experience.js";
+import { formatWorkspaceDate } from "@/global/localization/date-format.js";
 
 const today = () => {
   const d = new Date();
@@ -185,19 +187,30 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       const snap = invoice.invoice_snapshot || {};
       const seller = snap.seller || {};
       const buyer = snap.buyer || {};
+      const experience = getCountryExperience(countryCode);
+      const locale = account?.locale_code || experience?.defaultLocale || "en";
+      const requiresWorkspaceZone = experience?.timeZonePolicy === "workspace-select";
+      const timeZone = account?.time_zone || (requiresWorkspaceZone ? "UTC" : experience?.timeZonePolicy || "UTC");
+      const dateLabel = (value) => {
+        if (!value) return "—";
+        try { return `${formatWorkspaceDate(value, { locale, timeZone })}${requiresWorkspaceZone && !account?.time_zone ? " (UTC)" : ""}`; }
+        catch { return String(value); }
+      };
+      const taxName = experience?.business.taxName || "Tax";
+      const registrationLabel = experience?.business.registrationLabel || "Tax registration";
       doc.setFontSize(20); doc.text(invoice.status === "draft" ? "PLIVEX · DRAFT INVOICE" : "PLIVEX · TAX INVOICE", 16, 20);
       if (invoice.status === "draft") { doc.setFontSize(9); doc.text("DRAFT — NOT ISSUED", 16, 25); }
       doc.setFontSize(10);
       doc.text(`Invoice: ${invoice.invoice_number}`,16,31);
-      doc.text(`Issue date: ${invoice.issue_date}`,16,37);
-      doc.text(`Due date: ${invoice.due_date || "—"}`,16,43);
+      doc.text(`Issue date: ${dateLabel(invoice.issue_date)}`,16,37);
+      doc.text(`Due date: ${dateLabel(invoice.due_date)}`,16,43);
       doc.text(`Seller: ${seller.legal_name || profile?.legal_name || "—"}`,16,55);
       doc.text(`Address: ${seller.address || profile?.address || "—"}`,16,61);
-      doc.text(`VAT number: ${seller.tax_registration_number || "—"}`,16,67);
+      doc.text(`${registrationLabel}: ${seller.tax_registration_number || "—"}`,16,67);
       const client=clients.find((c)=>c.id===invoice.client_id);
       doc.text(`Bill to: ${buyer.name || client?.name || "Customer"}`,16,80);
       if (buyer.email || client?.email) doc.text(`Customer email: ${buyer.email || client?.email}`,16,86);
-      doc.text("Description",16,96); doc.text("Qty",110,96); doc.text("Net",130,96); doc.text("VAT",160,96); doc.text("Total",190,96,{align:"right"});
+      doc.text("Description",16,96); doc.text("Qty",110,96); doc.text("Net",130,96); doc.text(taxName,160,96); doc.text("Total",190,96,{align:"right"});
       let y=104;
       for (const line of lineItems) {
         if (y>260) { doc.addPage(); y=20; }
@@ -211,7 +224,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       y+=10;
       doc.text(`Subtotal: ${money(invoice.subtotal_minor,invoice.currency_code)}`,16,y); y+=7;
       doc.text(`Discount: ${money(invoice.discount_minor,invoice.currency_code)}`,16,y); y+=7;
-      doc.text(`VAT: ${money(invoice.tax_minor,invoice.currency_code)}`,16,y); y+=7;
+      doc.text(`${taxName}: ${money(invoice.tax_minor,invoice.currency_code)}`,16,y); y+=7;
       doc.setFontSize(13); doc.text(`Total: ${money(invoice.total_minor,invoice.currency_code)}`,16,y);
       doc.setFontSize(8); doc.text("Tax treatment and registration information are based on seller-provided declarations.",16,285);
       doc.save(`${invoice.invoice_number}.pdf`);
