@@ -103,6 +103,8 @@ test("Country reset is authenticated, owner-scoped, cooldown-limited and atomic"
   assert.doesNotMatch(resetRpc, /public\.business_profile[^;]*country_code/s);
   assert.match(resetRpc, /insert into public\.business_profile\(workspace_id, name\)/);
   assert.match(regionMigration, /profiles_india_region_defaults/);
+  assert.match(regionMigration, /profiles_protect_region_fields/);
+  assert.match(regionMigration, /protect_profile_region_fields/);
   assert.match(regionMigration, /update_india_workspace_locale/);
   assert.match(localeHandler, /authenticate\(req\)/);
   assert.match(localeHandler, /update_india_workspace_locale/);
