@@ -245,14 +245,25 @@ BEGIN
     RAISE EXCEPTION 'Global to India reset failed: %', result;
   END IF;
   new_workspace_id := result->>'workspace_id';
-  IF EXISTS (SELECT 1 FROM global.workspaces WHERE id='c7777777-7777-4777-8777-777777777777')
-     OR EXISTS (SELECT 1 FROM global.clients WHERE workspace_id='c7777777-7777-4777-8777-777777777777')
-     OR EXISTS (SELECT 1 FROM global.invoices WHERE workspace_id='c7777777-7777-4777-8777-777777777777')
-     OR EXISTS (SELECT 1 FROM global.invoice_items WHERE workspace_id='c7777777-7777-4777-8777-777777777777')
-     OR EXISTS (SELECT 1 FROM global.invoice_payments WHERE workspace_id='c7777777-7777-4777-8777-777777777777')
-     OR EXISTS (SELECT 1 FROM global.invoice_refunds WHERE workspace_id='c7777777-7777-4777-8777-777777777777') THEN
-    RAISE EXCEPTION 'Old Global workspace, invoice, payment or refund data was not fully removed';
-  END IF;
+  DECLARE
+    v_workspaces integer;
+    v_clients integer;
+    v_invoices integer;
+    v_items integer;
+    v_payments integer;
+    v_refunds integer;
+  BEGIN
+    SELECT count(*) INTO v_workspaces FROM global.workspaces WHERE id='c7777777-7777-4777-8777-777777777777';
+    SELECT count(*) INTO v_clients FROM global.clients WHERE workspace_id='c7777777-7777-4777-8777-777777777777';
+    SELECT count(*) INTO v_invoices FROM global.invoices WHERE workspace_id='c7777777-7777-4777-8777-777777777777';
+    SELECT count(*) INTO v_items FROM global.invoice_items WHERE workspace_id='c7777777-7777-4777-8777-777777777777';
+    SELECT count(*) INTO v_payments FROM global.invoice_payments WHERE workspace_id='c7777777-7777-4777-8777-777777777777';
+    SELECT count(*) INTO v_refunds FROM global.invoice_refunds WHERE workspace_id='c7777777-7777-4777-8777-777777777777';
+    IF v_workspaces + v_clients + v_invoices + v_items + v_payments + v_refunds > 0 THEN
+      RAISE EXCEPTION 'Old Global records remain: workspaces %, clients %, invoices %, items %, payments %, refunds %',
+        v_workspaces, v_clients, v_invoices, v_items, v_payments, v_refunds;
+    END IF;
+  END;
   IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id='77777777-7777-4777-8777-777777777777' AND workspace_id=new_workspace_id AND country_code='IN' AND locale_code='hi-IN')
      OR NOT EXISTS (SELECT 1 FROM public.workspace_members WHERE workspace_id=new_workspace_id AND user_id='77777777-7777-4777-8777-777777777777' AND role='admin' AND status='active')
      OR NOT EXISTS (SELECT 1 FROM public.business_profile WHERE workspace_id=new_workspace_id) THEN
