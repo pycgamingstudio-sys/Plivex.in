@@ -72,6 +72,9 @@ test("Global business tax profile stores the effective registration date in the 
 
 test("Global tax registration settings preserve the onboarded country", () => {
   assert.match(settings, /lockCountry = false/);
-  assert.match(settings, /lockCountry \? \{\} : \{ country_code: selectedCountry\.code, locale_code: locale \}/);
+  assert.match(settings, /request_workspace_country_change/);
+  assert.match(settings, /identityChanged/);
+  assert.match(settings, /Country change request submitted for review/);
+  assert.match(settings, /lockCountry = false/);
   assert.match(businessProfile, /WorkspaceCountrySettings lockCountry=\{APP_EDITION === "global"\}/);
 });
