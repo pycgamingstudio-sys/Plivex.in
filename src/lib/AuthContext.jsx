@@ -32,12 +32,16 @@ async function resolveSignedInEdition(currentUser) {
   if (currentUser?.workspace_id && !countryCode) countryCode = 'IN';
 
   let globalUser = null;
-  if (countryCode !== 'IN') {
+  // A newly registered non-India user has an authenticated identity but no
+  // Global workspace yet. Do not call the membership-only context RPC before
+  // onboarding; it is created by GlobalCountryOnboarding after explicit choice.
+  const hasWorkspaceMembership = Boolean(currentUser?.workspace_id && currentUser?.role);
+  if (countryCode !== 'IN' && hasWorkspaceMembership) {
     const { data: globalContext, error: globalError } = await supabase.functions.invoke('global-auth-context', { body: {} });
     if (!globalError && globalContext?.user?.id === currentUser?.id) {
       globalUser = globalContext.user;
       countryCode = globalUser.country_code || countryCode;
-    } else if (countryCode) {
+    } else {
       throw new Error('Your Global workspace could not be verified. Your existing data has not been changed.');
     }
   }
