@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [app, globalApp, worker, vite] = await Promise.all([
+const [app, globalApp, onboarding, worker, vite] = await Promise.all([
   read("../../App.jsx"),
   read("../GlobalApp.jsx"),
+  read("../../components/global/GlobalCountryOnboarding.jsx"),
   read("../../../wrangler.global.jsonc"),
   read("../../../vite.config.js"),
 ]);
@@ -19,7 +20,7 @@ test("Global edition mounts its isolated app before the India providers and rout
 
 test("Global UI uses only Global Auth and Global business records APIs", () => {
   assert.match(globalApp, /global-auth-context/);
-  assert.match(globalApp, /global-ensure-owner/);
+  assert.match(onboarding, /globalEnsureOwner/);
   assert.match(globalApp, /global-business-records/);
   assert.match(globalApp, /GlobalCountryOnboarding/);
   assert.match(globalApp, /if \(session && account && !account\.workspace_id\)/);
