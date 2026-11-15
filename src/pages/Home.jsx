@@ -967,7 +967,7 @@ export default function Home() {
 
       const clientName = invoice.client.name || "there";
       const totalAmt = money(computeTotal(invoiceForPreview), invoice.currency);
-      const due = invoice.dueDate ? dateLabel(invoice.dueDate) : "—";
+      const due = invoice.dueDate ? dateLabel(invoice.dueDate, workspaceTaxProfile?.localeCode || "en-IN") : "—";
       const upi = (invoice.upiId || "").trim();
       const bizName = invoice.business.name || "Plivex";
       const paymentLine = upi ? `Payment Details / UPI: ${upi}` : "Please contact us for payment details.";
