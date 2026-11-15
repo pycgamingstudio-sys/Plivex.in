@@ -58,6 +58,113 @@ for each row execute function public.protect_profile_region_fields();
 
 revoke all on function public.protect_profile_region_fields() from public, anon, authenticated;
 
+-- Preserve append-only/issued-invoice protection everywhere except the
+-- tightly-scoped, owner-verified service-role country reset transaction.
+create or replace function global.guard_issued_invoice_immutability()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, global
+as $function$
+begin
+  if tg_op = 'DELETE' then
+    if current_setting('plivex.workspace_country_reset', true) = 'on'
+       and current_user = 'postgres'
+       and coalesce(auth.role(), '') = 'service_role' then
+      return old;
+    end if;
+    if old.status <> 'draft' then
+      raise exception using errcode = '55000', message = 'Issued invoices cannot be deleted';
+    end if;
+    return old;
+  end if;
+
+  if old.status <> 'draft' and (
+    new.workspace_id is distinct from old.workspace_id
+    or new.client_id is distinct from old.client_id
+    or new.invoice_number is distinct from old.invoice_number
+    or new.currency_code is distinct from old.currency_code
+    or new.issue_date is distinct from old.issue_date
+    or new.due_date is distinct from old.due_date
+    or new.subtotal_minor is distinct from old.subtotal_minor
+    or new.discount_minor is distinct from old.discount_minor
+    or new.tax_minor is distinct from old.tax_minor
+    or new.total_minor is distinct from old.total_minor
+    or new.notes is distinct from old.notes
+    or new.invoice_snapshot is distinct from old.invoice_snapshot
+    or new.created_by is distinct from old.created_by
+    or new.issuance_idempotency_key is distinct from old.issuance_idempotency_key
+  ) then
+    raise exception using errcode = '55000', message = 'Issued invoice content and tax snapshot are immutable';
+  end if;
+  if old.status <> 'draft' and new.amount_paid_minor < old.amount_paid_minor then
+    raise exception using errcode = '55000', message = 'Recorded invoice payments cannot be reduced';
+  end if;
+  if old.status <> 'draft' and new.amount_refunded_minor < old.amount_refunded_minor then
+    raise exception using errcode = '55000', message = 'Recorded invoice refunds cannot be reduced';
+  end if;
+  return new;
+end;
+$function$;
+
+create or replace function global.guard_issued_invoice_items()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, global
+as $function$
+declare
+  v_status text;
+begin
+  if tg_op = 'DELETE'
+     and current_setting('plivex.workspace_country_reset', true) = 'on'
+     and current_user = 'postgres'
+     and coalesce(auth.role(), '') = 'service_role' then
+    return old;
+  end if;
+
+  select status into v_status from global.invoices
+  where workspace_id = coalesce(new.workspace_id, old.workspace_id)
+    and id = coalesce(new.invoice_id, old.invoice_id)
+  for update;
+  if v_status is distinct from 'draft' then
+    raise exception using errcode = '55000', message = 'Issued invoice lines are immutable';
+  end if;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end;
+$function$;
+
+create or replace function global.guard_invoice_payment_append_only()
+returns trigger
+language plpgsql
+set search_path = pg_catalog
+as $function$
+begin
+  if tg_op = 'DELETE'
+     and current_setting('plivex.workspace_country_reset', true) = 'on'
+     and current_user = 'postgres'
+     and coalesce(auth.role(), '') = 'service_role' then
+    return old;
+  end if;
+  raise exception using errcode = '55000', message = 'Invoice payment ledger rows are append-only';
+end;
+$function$;
+
+create or replace function global.guard_invoice_refund_append_only()
+returns trigger
+language plpgsql
+set search_path = pg_catalog
+as $function$
+begin
+  if tg_op = 'DELETE'
+     and current_setting('plivex.workspace_country_reset', true) = 'on'
+     and current_user = 'postgres'
+     and coalesce(auth.role(), '') = 'service_role' then
+    return old;
+  end if;
+  raise exception using errcode = '55000', message = 'Invoice refund ledger rows are append-only';
+end;
+$function$;
+
 create or replace function public.update_india_workspace_locale(
   p_user_id uuid,
   p_locale_code text
