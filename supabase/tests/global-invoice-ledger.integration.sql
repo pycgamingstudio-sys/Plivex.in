@@ -4,6 +4,9 @@ SET ROLE service_role;
 DO $global_invoice_ledger$
 DECLARE
   draft jsonb;
+  draft_retry jsonb;
+  draft_conflict jsonb;
+  draft_key uuid := '99999999-eeee-4999-8999-999999999999';
   denied jsonb;
   payment jsonb;
   duplicate_payment jsonb;
@@ -23,7 +26,7 @@ BEGIN
       'product_id','11111111-aaaa-4111-8111-111111111111',
       'description','Draft line','quantity',2,'unit_price_minor',5000,'discount_minor',500
     ))
-  );
+  ,draft_key);
   IF draft->>'ok' <> 'true'
     OR draft->'invoice'->>'status' <> 'draft'
     OR (draft->'invoice'->>'subtotal_minor')::bigint <> 10000
@@ -32,6 +35,34 @@ BEGIN
     OR (draft->'invoice'->>'total_minor')::bigint <> 9500
     OR draft->'invoice'->'invoice_snapshot'->>'tax_status' <> 'not_calculated' THEN
     RAISE EXCEPTION 'Global draft invoice calculation or draft-only tax snapshot failed: %', draft;
+  END IF;
+
+  draft_retry := public.global_create_invoice_draft(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    'GBP','2026-11-15',NULL,'draft-only integration fixture',
+    jsonb_build_array(jsonb_build_object(
+      'product_id','11111111-aaaa-4111-8111-111111111111',
+      'description','Draft line','quantity',2,'unit_price_minor',5000,'discount_minor',500
+    )),draft_key
+  );
+  IF draft_retry->>'ok'<>'true' OR draft_retry->>'duplicate'<>'true'
+    OR draft_retry->'invoice'->>'id'<>draft->'invoice'->>'id' THEN
+    RAISE EXCEPTION 'Global draft invoice retry was not idempotent: %', draft_retry;
+  END IF;
+  draft_conflict := public.global_create_invoice_draft(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    'GBP','2026-11-15',NULL,'draft-only integration fixture',
+    jsonb_build_array(jsonb_build_object(
+      'product_id','11111111-aaaa-4111-8111-111111111111',
+      'description','Different draft line','quantity',2,'unit_price_minor',5000,'discount_minor',500
+    )),draft_key
+  );
+  IF draft_conflict->>'reason'<>'idempotency_conflict' THEN
+    RAISE EXCEPTION 'Global draft invoice idempotency conflict was not rejected: %', draft_conflict;
   END IF;
 
   denied := public.global_create_invoice_draft(
