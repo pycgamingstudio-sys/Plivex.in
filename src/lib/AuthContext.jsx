@@ -22,15 +22,7 @@ async function resolveSignedInEdition(currentUser) {
   const metadataCountry = authData?.user?.user_metadata?.signup_country_code;
   let countryCode = typeof metadataCountry === 'string' ? metadataCountry.trim().toUpperCase() : '';
 
-  if (currentUser?.workspace_id) {
-    const { data: businessProfile, error: profileError } = await supabase
-      .from('business_profile')
-      .select('country_code')
-      .eq('workspace_id', currentUser.workspace_id)
-      .maybeSingle();
-    if (profileError) throw profileError;
-    countryCode = businessProfile?.country_code || countryCode || 'IN';
-  }
+  if (currentUser?.workspace_id && !countryCode) countryCode = 'IN';
 
   // A Global user may not yet have a workspace; the signed-up country metadata
   // identifies the onboarding path without creating or mutating any records.
