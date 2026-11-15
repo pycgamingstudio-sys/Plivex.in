@@ -49,5 +49,7 @@ test("Global drafts are stored as drafts and cannot be shared as issued tax invo
   assert.match(backend, /global-stock-movements/);
   assert.match(home, /DRAFT · NOT A TAX INVOICE/);
   assert.match(home, /Global invoices are draft-only/);
-  assert.match(home, /tax and payment collection are not finalized/);
+  assert.match(home, /This is not an issued tax invoice; payment-provider collection is not connected yet/);
+  assert.match(home, /action:"capabilities"/);
+  assert.match(home, /action:"issue"/);
 });
