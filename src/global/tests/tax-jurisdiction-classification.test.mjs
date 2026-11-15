@@ -24,9 +24,9 @@ test("Canada registry covers 10 provinces/territories and source-backed publishe
  const on=getTaxJurisdiction("CA","ON");
  assert.deepEqual(on.components.map(c=>c.ratePercent),[13]);
  const qc=getTaxJurisdiction("CA","QC");
- assert.deepEqual(qc.components.map(c=>c.rateBps),[5,9.975]);
+ assert.deepEqual(qc.components.map(c=>c.ratePercent),[5,9.975]);
  const bc=getTaxJurisdiction("CA","BC");
- assert.deepEqual(bc.components.map(c=>c.rateBps),[5,7]);
+ assert.deepEqual(bc.components.map(c=>c.ratePercent),[5,7]);
  assert.ok(regions.every(r=>r.sourceAuthority==="Canada Revenue Agency"));
 });
 test("India and other regional registries identify administrative regions but do not imply tax rules",()=>{
