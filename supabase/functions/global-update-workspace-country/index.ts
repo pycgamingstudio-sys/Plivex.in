@@ -86,7 +86,8 @@ Deno.serve(async (req: Request) => {
         workspace_admin_required: "Only a workspace owner or admin can change its country.",
         unsupported_country_currency: "The selected country currency is not supported.",
         unsupported_country_locale: "The selected language and country combination is not supported.",
-        workspace_not_found: "Your Global workspace was not found.",\n        india_workspace_migration_required: "A Global workspace cannot be switched to India until a safe India data migration is available.",
+        workspace_not_found: "Your Global workspace was not found.",
+        india_workspace_migration_required: "A Global workspace cannot be switched to India until a safe India data migration is available.",
       };
       return json({ error: messages[data?.reason] || "Country settings could not be saved.", reason: data?.reason }, 400, origin);
     }
