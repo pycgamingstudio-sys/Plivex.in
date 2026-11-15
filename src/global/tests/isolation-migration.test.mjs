@@ -37,7 +37,10 @@ test("Global workspace country and currency identifiers are constrained", () => 
   assert.ok(migration.includes("currency_code ~ '^[A-Z]{3}$'"));
 });
 
-test("Global timestamp trigger helper is not executable by API roles", () => {
-  const hardening = migration.replace(/--.*$/gm, "");
-  assert.match(hardening, /revoke all on function global\.set_updated_at\(\) from public, anon, authenticated/i);
+test("Global timestamp trigger helper is not executable by API roles", async () => {
+  const hardening = await readFile(
+    new URL("../../../supabase/migrations/202611150006_global_trigger_function_privileges.sql", import.meta.url),
+    "utf8",
+  );
+  assert.ok(hardening.includes("revoke all on function global.set_updated_at() from public, anon, authenticated"));
 });
