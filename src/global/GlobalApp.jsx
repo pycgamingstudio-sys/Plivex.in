@@ -40,6 +40,7 @@ export default function GlobalApp() {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [tab, setTab] = useState("overview");
   const [records, setRecords] = useState({});
   const [form, setForm] = useState({});
@@ -83,7 +84,14 @@ export default function GlobalApp() {
       catch (loadError) { if (active) setError(loadError.message); }
       finally { if (active) setLoading(false); }
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setMode("reset");
+        setPassword("");
+        setConfirmPassword("");
+        setError("");
+        setNotice("");
+      }
       setSession(nextSession || null);
       if (nextSession) {
         loadContext(nextSession).catch((loadError) => setError(loadError.message)).finally(() => setLoading(false));
@@ -105,7 +113,23 @@ export default function GlobalApp() {
     event.preventDefault();
     setBusy(true); setError(""); setNotice("");
     try {
-      if (mode === "register") {
+      if (mode === "forgot") {
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+          redirectTo: `${window.location.origin}/global/reset-password`,
+        });
+        if (resetError) throw resetError;
+        setMode("login");
+        setNotice("If an account exists for this email, a password reset link has been sent.");
+      } else if (mode === "reset") {
+        if (password.length < 8) throw new Error("Use at least 8 characters for your new password.");
+        if (password !== confirmPassword) throw new Error("The passwords do not match.");
+        const { error: updateError } = await supabase.auth.updateUser({ password });
+        if (updateError) throw updateError;
+        setPassword("");
+        setConfirmPassword("");
+        setMode("login");
+        setNotice("Your password has been updated successfully.");
+      } else if (mode === "register") {
         const { error: signUpError, data } = await supabase.auth.signUp({
           email: email.trim(),
           password,
@@ -280,6 +304,31 @@ export default function GlobalApp() {
 
   if (loading) return <div className="min-h-screen grid place-items-center bg-[#F8F7FC] text-slate-600">Loading Plivex…</div>;
 
+  if (mode === "reset") {
+    return (
+      <main className="min-h-screen bg-[#F8F7FC] px-4 py-10 text-slate-900">
+        <div className="mx-auto max-w-md">
+          <a href="/global/" className="text-2xl font-black tracking-tight text-violet-700">Plivex <span className="text-slate-500">Global</span></a>
+          <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h1 className="text-2xl font-bold">Set a new password</h1>
+            <p className="mt-2 text-sm text-slate-500">Choose a new password for your Plivex account.</p>
+            <form className="mt-6 space-y-4" onSubmit={submitAuth}>
+              <label className="block text-sm font-medium">New password
+                <input required minLength={8} type="password" autoComplete="new-password" className="mt-1 w-full rounded-lg border border-slate-300 p-3" value={password} onChange={(event) => setPassword(event.target.value)} />
+              </label>
+              <label className="block text-sm font-medium">Confirm new password
+                <input required minLength={8} type="password" autoComplete="new-password" className="mt-1 w-full rounded-lg border border-slate-300 p-3" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
+              </label>
+              <button disabled={busy} className="w-full rounded-lg bg-violet-700 p-3 font-semibold text-white disabled:opacity-60">{busy ? "Please wait…" : "Update password"}</button>
+            </form>
+            {notice && <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
+            {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+          </section>
+        </div>
+      </main>
+    );
+  }
+
   if (session && account && !account.workspace_id) return <GlobalCountryOnboarding />;
 
   if (!session || !account) {
@@ -288,7 +337,7 @@ export default function GlobalApp() {
         <div className="mx-auto max-w-md">
           <a href="/global/" className="text-2xl font-black tracking-tight text-violet-700">Plivex <span className="text-slate-500">Global</span></a>
           <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h1 className="text-2xl font-bold">{mode === "register" ? "Create your account" : "Welcome to Plivex"}</h1>
+            <h1 className="text-2xl font-bold">{mode === "register" ? "Create your account" : mode === "forgot" ? "Reset your password" : "Welcome to Plivex"}</h1>
             <p className="mt-2 text-sm text-slate-500">International business workspace for clients, products and expenses.</p>
             <div className="mt-6">
               <GoogleSignInButton onError={setError} disabled={busy} />
@@ -302,13 +351,14 @@ export default function GlobalApp() {
               <label className="block text-sm font-medium">Email
                 <input required type="email" autoComplete="email" className="mt-1 w-full rounded-lg border border-slate-300 p-3" value={email} onChange={(event) => setEmail(event.target.value)} />
               </label>
-              <label className="block text-sm font-medium">Password
+              {mode !== "forgot" && <label className="block text-sm font-medium">Password
                 <input required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} className="mt-1 w-full rounded-lg border border-slate-300 p-3" value={password} onChange={(event) => setPassword(event.target.value)} />
-              </label>
-              <button disabled={busy} className="w-full rounded-lg bg-violet-700 p-3 font-semibold text-white disabled:opacity-60">{busy ? "Please wait…" : mode === "register" ? "Create account" : "Sign in"}</button>
+              </label>}
+              <button disabled={busy} className="w-full rounded-lg bg-violet-700 p-3 font-semibold text-white disabled:opacity-60">{busy ? "Please wait…" : mode === "register" ? "Create account" : mode === "forgot" ? "Send reset link" : "Sign in"}</button>
             </form>
-            <button className="mt-4 text-sm font-semibold text-violet-700" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); setNotice(""); }}>
-              {mode === "register" ? "Already registered? Sign in" : "New to Plivex? Create account"}
+            {mode === "login" && <button type="button" className="mt-4 block text-sm font-semibold text-violet-700" onClick={() => { setMode("forgot"); setPassword(""); setError(""); setNotice(""); }}>Forgot password?</button>}
+            <button type="button" className="mt-4 text-sm font-semibold text-violet-700" onClick={() => { setMode(mode === "register" ? "login" : "register"); setPassword(""); setError(""); setNotice(""); }}>
+              {mode === "register" ? "Already registered? Sign in" : mode === "forgot" ? "Back to sign in" : "New to Plivex? Create account"}
             </button>
             {notice && <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
             {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
