@@ -101,7 +101,8 @@ BEGIN
   SET workspace_id = null, country_code = 'US', locale_code = 'en-US'
   WHERE id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   INSERT INTO global.user_profiles(user_id,email,full_name,default_workspace_id)
-  VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','country-reset-employee@example.test','Workspace Employee',new_workspace_id::uuid);
+  VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','country-reset-employee@example.test','Workspace Employee',new_workspace_id::uuid)
+  ON CONFLICT (user_id) DO UPDATE SET email=excluded.email,full_name=excluded.full_name,default_workspace_id=excluded.default_workspace_id;
   INSERT INTO global.workspace_members(workspace_id,user_id,role,status)
   VALUES (new_workspace_id::uuid,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','employee','active');
   result := public.reset_workspace_country_atomic(
@@ -147,7 +148,8 @@ SELECT set_config('request.jwt.claim.sub','77777777-7777-4777-8777-777777777777'
 INSERT INTO global.workspaces(id,name,country_code,locale_code,currency_code,created_by)
 VALUES ('c7777777-7777-4777-8777-777777777777','Global to India Fixture','GB','en-GB','GBP','77777777-7777-4777-8777-777777777777');
 INSERT INTO global.user_profiles(user_id,email,full_name,default_workspace_id)
-VALUES ('77777777-7777-4777-8777-777777777777','country-reset-global-india@example.test','Global to India','c7777777-7777-4777-8777-777777777777');
+VALUES ('77777777-7777-4777-8777-777777777777','country-reset-global-india@example.test','Global to India','c7777777-7777-4777-8777-777777777777')
+ON CONFLICT (user_id) DO UPDATE SET email=excluded.email,full_name=excluded.full_name,default_workspace_id=excluded.default_workspace_id;
 INSERT INTO global.workspace_members(workspace_id,user_id,role,status)
 VALUES ('c7777777-7777-4777-8777-777777777777','77777777-7777-4777-8777-777777777777','owner','active');
 INSERT INTO global.business_profiles(workspace_id,legal_name,display_name,email,country_code,locale_code,currency_code)
@@ -198,7 +200,8 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO global.workspaces(id,name,country_code,locale_code,currency_code,created_by)
 VALUES ('d8888888-8888-4888-8888-888888888888','Global to Global Fixture','US','en-US','USD','88888888-8888-4888-8888-888888888888');
 INSERT INTO global.user_profiles(user_id,email,full_name,default_workspace_id)
-VALUES ('88888888-8888-4888-8888-888888888888','country-reset-global-global@example.test','Global to Global','d8888888-8888-4888-8888-888888888888');
+VALUES ('88888888-8888-4888-8888-888888888888','country-reset-global-global@example.test','Global to Global','d8888888-8888-4888-8888-888888888888')
+ON CONFLICT (user_id) DO UPDATE SET email=excluded.email,full_name=excluded.full_name,default_workspace_id=excluded.default_workspace_id;
 INSERT INTO global.workspace_members(workspace_id,user_id,role,status)
 VALUES ('d8888888-8888-4888-8888-888888888888','88888888-8888-4888-8888-888888888888','owner','active');
 INSERT INTO global.business_profiles(workspace_id,legal_name,display_name,email,country_code,locale_code,currency_code)
