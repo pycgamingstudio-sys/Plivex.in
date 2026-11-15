@@ -1,8 +1,8 @@
 /**
  * Stable edition identifiers for future multi-edition work.
  *
- * This module is intentionally not imported by the India application yet.
- * Global behavior must remain opt-in until a reviewed integration release.
+ * Runtime routing is opt-in: legacy edition builds remain unchanged, while a
+ * unified build mounts Global only below the /global path.
  */
 
 export const EDITION_IDS = Object.freeze({
