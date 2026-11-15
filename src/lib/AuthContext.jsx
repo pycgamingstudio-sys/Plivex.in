@@ -124,6 +124,7 @@ export const AuthProvider = ({ children }) => {
   const runCheckUserAuth = async () => {
     try {
       setIsLoadingAuth(true);
+      if (isUnifiedBuild) setRuntimeEdition('india');
       let currentUser = await db.auth.me();
       if (isUnifiedBuild) currentUser = await resolveSignedInEdition(currentUser);
 
@@ -214,6 +215,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = (shouldRedirect = true) => {
+    if (isUnifiedBuild) setRuntimeEdition('india');
     clearSessionCache();
     resetWorkspaceCache();
     setTenantId(null, { migrateLegacy: APP_EDITION !== 'global' });
