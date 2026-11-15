@@ -7,6 +7,7 @@ test("workspace date formatting requires explicit locale and time zone", () => {
   assert.equal(formatWorkspaceDate(instant, { locale: "en-US", timeZone: "America/New_York" }), "Jan 01, 2026");
   assert.equal(formatWorkspaceDate(instant, { locale: "en-GB", timeZone: "Europe/London" }), "02 Jan 2026");
   assert.equal(formatWorkspaceDate(instant, { locale: "en-IN", timeZone: "Asia/Kolkata" }), "02 Jan 2026");
+  assert.equal(formatWorkspaceDate("2026-01-02", { locale: "en-US", timeZone: "America/Los_Angeles" }), "Jan 02, 2026");
 });
 
 test("workspace date-time formatting honors regional locale and zone", () => {
