@@ -46,7 +46,7 @@ export default function GlobalApp() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState("login");
-  const [countryCode, setCountryCode] = useState("US");
+  const [countryCode, setCountryCode] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [tab, setTab] = useState("overview");
@@ -55,7 +55,7 @@ export default function GlobalApp() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
-  const country = COUNTRY_OPTIONS.find((item) => item.code === countryCode) || COUNTRY_OPTIONS[0];
+  const country = COUNTRY_OPTIONS.find((item) => item.code === countryCode) || null;
 
   const invoke = useCallback(async (table, action = "list", values = undefined) => {
     if (!account?.workspace_id) throw new Error("Your Global workspace is not ready.");
@@ -113,6 +113,7 @@ export default function GlobalApp() {
     setBusy(true); setError(""); setNotice("");
     try {
       if (mode === "register") {
+        if (!country) throw new Error("Choose your business country before creating your Global account.");
         const { error: signUpError, data } = await supabase.auth.signUp({
           email: email.trim(),
           password,
@@ -187,7 +188,8 @@ export default function GlobalApp() {
             <p className="mt-2 text-sm text-slate-500">International business workspace for clients, products and expenses.</p>
             <form className="mt-6 space-y-4" onSubmit={submitAuth}>
               {mode === "register" && <label className="block text-sm font-medium">Business country
-                <select className="mt-1 w-full rounded-lg border border-slate-300 p-3" value={countryCode} onChange={(event) => setCountryCode(event.target.value)}>
+                <select required className="mt-1 w-full rounded-lg border border-slate-300 p-3" value={countryCode} onChange={(event) => setCountryCode(event.target.value)}>
+                  <option value="">Select your business country</option>
                   {COUNTRY_OPTIONS.map((item) => <option key={item.code} value={item.code}>{item.label} · {item.currency}</option>)}
                 </select>
               </label>}
