@@ -172,27 +172,42 @@ function SyncErrorListener() {
   return null;
 }
 
+function RuntimeEditionApp() {
+  const { isAuthenticated, user, logout } = useAuth();
+
+  // Global users share the same authentication gate but never mount India-only
+  // paywall, team, storage migration or legacy route providers.
+  if (APP_EDITION === "unified" && isAuthenticated && user?.edition === "global") {
+    return <GlobalApp onSignOut={logout} />;
+  }
+
+  return (
+    <PaywallProvider>
+      <QueryClientProvider client={queryClientInstance}>
+        <WorkspaceTeamProvider>
+          <Router>
+            <ScrollToTop />
+            <Suspense fallback={<div className="fixed inset-0 flex items-center justify-center bg-background"><div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-800" role="status" aria-label="Loading page" /></div>}><AuthenticatedApp /></Suspense>
+          </Router>
+        </WorkspaceTeamProvider>
+        <Toaster />
+        <SyncErrorListener />
+        <LanguagePrompt />
+      </QueryClientProvider>
+    </PaywallProvider>
+  );
+}
+
 function App() {
   useEffect(() => { startTranslator(); }, []);
 
-  // Global has its own isolated UI and auth lifecycle; never mount India route providers.
+  // The isolated Global preview remains available; the unified build selects
+  // the workspace runtime only after authenticated account classification.
   if (APP_EDITION === "global") return <GlobalApp />;
 
   return (
     <AuthProvider>
-      <PaywallProvider>
-        <QueryClientProvider client={queryClientInstance}>
-          <WorkspaceTeamProvider>
-            <Router>
-              <ScrollToTop />
-              <Suspense fallback={<div className="fixed inset-0 flex items-center justify-center bg-background"><div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-800" role="status" aria-label="Loading page" /></div>}><AuthenticatedApp /></Suspense>
-            </Router>
-          </WorkspaceTeamProvider>
-          <Toaster />
-          <SyncErrorListener />
-          <LanguagePrompt />
-        </QueryClientProvider>
-      </PaywallProvider>
+      <RuntimeEditionApp />
     </AuthProvider>
   )
 }
