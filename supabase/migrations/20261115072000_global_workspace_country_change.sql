@@ -26,7 +26,7 @@ alter table global.workspace_country_change_events enable row level security;
 revoke all on global.workspace_country_change_events from public, anon, authenticated;
 grant all on global.workspace_country_change_events to service_role;
 
-create or replace function global.global_change_workspace_country(
+create or replace function public.global_change_workspace_country(
   p_user_id uuid,
   p_workspace_id uuid,
   p_country_code text,
@@ -140,7 +140,7 @@ begin
 end;
 $function$;
 
-revoke all on function global.global_change_workspace_country(uuid,uuid,text,text,text,text) from public, anon, authenticated;
+revoke all on function public.global_change_workspace_country(uuid,uuid,text,text,text,text) from public, anon, authenticated;
 grant execute on function global.global_change_workspace_country(uuid,uuid,text,text,text,text) to service_role;
 
 commit;
