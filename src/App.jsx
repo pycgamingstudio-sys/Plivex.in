@@ -180,6 +180,9 @@ function RuntimeEditionApp() {
   if (APP_EDITION === "unified" && isAuthenticated && user?.edition === "global") {
     return <GlobalApp onSignOut={logout} />;
   }
+  if (APP_EDITION === "unified" && isAuthenticated && user?.edition === "pending") {
+    return <UnifiedCountryOnboarding />;
+  }
 
   return (
     <PaywallProvider>
