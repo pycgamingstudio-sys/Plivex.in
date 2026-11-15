@@ -33,7 +33,7 @@ test("Global UI uses only Global Auth and Global business records APIs", () => {
 });
 
 test("Global UI enables inventory movements while keeping invoice creation and payments disabled", () => {
-  assert.match(globalApp, /Invoice creation and payment collection are not enabled yet/);
+  assert.match(globalApp, /Draft invoices can be saved, but tax finalization and online payment collection are not enabled/);
   assert.match(globalApp, /global-stock-movements/);
   assert.match(globalApp, /const TABLES = \{ clients: "clients", products: "products", expenses: "expenses"/);
   assert.match(globalApp, /tab === "invoices" \? "Read-only until invoice and payment workflows are enabled\."/);
