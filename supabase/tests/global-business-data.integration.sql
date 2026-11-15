@@ -5,7 +5,6 @@ VALUES
  ('66666666-6666-4666-8666-666666666666','global-data-a@example.test','{}'::jsonb,'{}'::jsonb),
  ('77777777-7777-4777-8777-777777777777','global-data-b@example.test','{}'::jsonb,'{}'::jsonb),
  ('88888888-8888-4888-8888-888888888888','global-data-manager@example.test','{}'::jsonb,'{}'::jsonb),
- ('a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1','global-data-storekeeper@example.test','{}'::jsonb,'{}'::jsonb),
  ('b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2','global-data-accountant@example.test','{}'::jsonb,'{}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
@@ -18,8 +17,7 @@ INSERT INTO global.workspace_members(workspace_id,user_id,role,status)
 VALUES
  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','66666666-6666-4666-8666-666666666666','owner','active'),
  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd','77777777-7777-4777-8777-777777777777','owner','active'),
- ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','88888888-8888-4888-8888-888888888888','manager','active'),
- ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1','storekeeper','active'),
+ ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','88888888-8888-4888-8888-888888888888','manager','active') ,
  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2','accountant','active');
 INSERT INTO global.business_profiles(workspace_id,legal_name,display_name,country_code,locale_code,currency_code)
 VALUES
@@ -273,13 +271,13 @@ BEGIN
   END IF;
 
   result := public.global_record_stock_movement(
-    'a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1',
+    '88888888-8888-4888-8888-888888888888',
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     '11111111-aaaa-4111-8111-111111111111',
-    'receipt',2,'Storekeeper receipt','f6f6f6f6-f6f6-46f6-86f6-f6f6f6f6f6f6'
+    'receipt',2,'Manager receipt','f6f6f6f6-f6f6-46f6-86f6-f6f6f6f6f6f6'
   );
   IF result->>'ok' <> 'true' THEN
-    RAISE EXCEPTION 'Storekeeper could not record stock: %', result;
+    RAISE EXCEPTION 'Manager could not record stock: %', result;
   END IF;
 
   result := public.global_record_stock_movement(
