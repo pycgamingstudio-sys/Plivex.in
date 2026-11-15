@@ -9,7 +9,7 @@ test("the application mounts one shared router instead of a separate GlobalApp",
   assert.doesNotMatch(app, /import\s+GlobalApp\s+from/);
   assert.doesNotMatch(app, /return\s+<GlobalApp\s*\/>/);
   assert.match(app, /<AuthProvider>/);
-  assert.match(app, /<AppLayout\s*>/);
+  assert.match(app, /element={<AppLayout \/>}/);
 });
 
 test("unified authentication resolves workspace country before selecting regional handlers", () => {
