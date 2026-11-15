@@ -193,8 +193,8 @@ begin
     return jsonb_build_object('ok',false,'reason','country_not_enabled');
   end if;
   if v_profile.tax_registration_status <> 'registered'
+    or upper(coalesce(v_profile.tax_registration_type,'')) <> 'VAT'
     or nullif(btrim(v_profile.tax_registration_number),'') is null
-    or nullif(btrim(v_profile.tax_registration_type),'') is null
     or v_profile.tax_registration_effective_from is null
     or v_invoice.issue_date < v_profile.tax_registration_effective_from
     or nullif(btrim(v_profile.legal_name),'') is null
@@ -424,5 +424,57 @@ grant execute on function public.global_record_invoice_refund(uuid,uuid,uuid,big
 
 comment on table global.invoice_refunds is 'Append-only Global invoice refund ledger; amount_refunded_minor tracks successful recorded refunds.';
 comment on view global.invoice_reconciliation is 'Member-scoped Global invoice payment/refund reconciliation; net received is gross payments less refunds.';
+
+-- Refund rows are an append-only audit ledger.
+create or replace function global.guard_invoice_refund_append_only()
+returns trigger
+language plpgsql
+set search_path = pg_catalog
+as $function$
+begin
+  raise exception using errcode = '55000', message = 'Invoice refund ledger rows are append-only';
+end;
+$function$;
+drop trigger if exists global_invoice_refunds_append_only on global.invoice_refunds;
+create trigger global_invoice_refunds_append_only
+  before update or delete on global.invoice_refunds
+  for each row execute function global.guard_invoice_refund_append_only();
+
+create or replace function public.global_list_invoice_reconciliation(
+  p_user_id uuid,
+  p_workspace_id uuid,
+  p_limit integer default 100
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog, global
+as $function$
+declare
+  v_role text;
+  v_records jsonb;
+  v_limit integer := greatest(1,least(coalesce(p_limit,100),200));
+begin
+  if p_user_id is null or p_workspace_id is null then
+    return jsonb_build_object('ok',false,'reason','invalid_identity');
+  end if;
+  select role into v_role from global.workspace_members
+  where workspace_id=p_workspace_id and user_id=p_user_id and status='active'
+  limit 1;
+  if v_role is null then return jsonb_build_object('ok',false,'reason','access_denied'); end if;
+  select coalesce(jsonb_agg(to_jsonb(t) order by t.invoice_id),'[]'::jsonb)
+  into v_records
+  from (
+    select * from global.invoice_reconciliation
+    where workspace_id=p_workspace_id
+    order by invoice_id desc
+    limit v_limit
+  ) t;
+  return jsonb_build_object('ok',true,'records',v_records);
+end;
+$function$;
+
+revoke all on function public.global_list_invoice_reconciliation(uuid,uuid,integer) from public,anon,authenticated;
+grant execute on function public.global_list_invoice_reconciliation(uuid,uuid,integer) to service_role;
 
 commit;
