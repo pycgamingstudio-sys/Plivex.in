@@ -36,7 +36,7 @@ test("Global UI uses only Global Auth and Global business records APIs", () => {
 test("Global UI does not expose unfinished invoice creation or inventory mutations", () => {
   assert.match(globalApp, /Invoice creation, payment collection and stock movements are not enabled yet/);
   assert.match(globalApp, /This section is read-only/);
-  assert.match(globalApp, /const TABLES = \{ clients: "clients", products: "products", expenses: "expenses" /);
+  assert.match(globalApp, /const TABLES = \\{ clients: "clients", products: "products", expenses: "expenses", inventory:/);
 });
 
 test("Cloudflare build configs keep Global isolated and unified on a preview Worker", () => {
