@@ -11,10 +11,10 @@ const [app, globalApp, worker, vite] = await Promise.all([
 ]);
 
 test("Global edition mounts its isolated app before the India providers and route tree", () => {
-  assert.match(app, /import GlobalApp from "@\\/global\\/GlobalApp\\.jsx"/);
-  assert.match(app, /if \\(APP_EDITION === "global"\\) return <GlobalApp \\/>/);
-  assert.match(app, /<AuthProvider>/);
-  assert.match(app, /<Route path="\\/login" element={<Login \\/>} \\/>/);
+  assert.ok(app.includes('import GlobalApp from "@/global/GlobalApp.jsx";'));
+  assert.ok(app.includes('if (APP_EDITION === "global") return <GlobalApp />;'));
+  assert.ok(app.includes("<AuthProvider>"));
+  assert.ok(app.includes('<Route path="/login" element={<Login />} />'));
 });
 
 test("Global UI uses only Global Auth and Global business records APIs", () => {
