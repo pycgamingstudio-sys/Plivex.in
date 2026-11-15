@@ -19,7 +19,8 @@ const [backend, handler, shared, rpc, settings, businessProfile, resetRpc, reset
 
 test("Global app can invoke only the dedicated Global business records function", () => {
   assert.match(backend, /!\["global-ensure-owner", "global-business-records", "global-invoices", "global-stock-movements", "global-update-workspace-country", "reset-workspace-country"\]\.includes\(functionName\)/);
-  assert.match(backend, /"global-business-records", "global-invoices", "global-stock-movements", "reset-workspace-country", "workspace-records"/);
+  assert.match(backend, /APP_EDITION === "global" && functionName === "workspace-records"/);
+  assert.match(backend, /"reset-workspace-country", "update-workspace-locale", "workspace-records"/);
   assert.match(handler, /\.rpc\("global_business_records"/);
 });
 
