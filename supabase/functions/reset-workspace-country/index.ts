@@ -60,6 +60,7 @@ Deno.serve(async (req: Request) => {
         workspace_not_found: "Your current workspace could not be verified.",
         active_owner_workspace_required: "An active owner workspace is required before changing country.",
         legacy_global_membership_requires_review: "An older inactive Global membership needs support review. No data was deleted.",
+        conflicting_workspace_memberships: "Your account has conflicting India and Global workspace links. No data was deleted; support must verify the account first.",
         same_country: "Your selected country is already active. Change only the language setting instead.",
       };
       const status = data.reason === "workspace_owner_required" ? 403
