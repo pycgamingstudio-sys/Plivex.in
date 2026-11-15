@@ -58,7 +58,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 const initialInvoice = {
   business: { name: "", email: "", phone: "", gstin: "", address: "" },
   client: { name: "", company: "", email: "", phone: "", gstin: "", address: "" },
-  number: "", issueDate: "", dueDate: "", currency: "INR",
+  number: "", issueDate: "", dueDate: "", currency: "INR", globalDraftRequestId: crypto.randomUUID(),
   items: [
     { id: "item-1", description: "", quantity: "", rate: "", gstRate: 18 },
   ],
@@ -686,7 +686,7 @@ export default function Home() {
       const isGlobalDraft = workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN";
       if (isGlobalDraft) {
         const saved = await recordInvoice();
-        setInvoice((current) => ({ ...current, number: saved.number, documentStatus: "draft" }));
+        setInvoice((current) => ({ ...current, id: saved.id, number: saved.number, globalDraftRequestId: saved.idempotencyKey || current.globalDraftRequestId, documentStatus: "draft" }));
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const pdf = await renderPdfDocument();
         if (!pdf) return;
@@ -735,7 +735,7 @@ export default function Home() {
       ? (loadState(KEYS.settings, { currency: "INR" })?.currency || "INR")
       : "INR";
     const defaultCurrency = resolveInvoiceCurrencyForWorkspace(workspaceTaxProfile?.countryCode, preferredCurrency);
-    setInvoice(applyBusinessProfile({ ...initialInvoice, currency: defaultCurrency, items: [{ ...initialInvoice.items[0], id: `item-${Date.now()}` }] }));
+    setInvoice(applyBusinessProfile({ ...initialInvoice, globalDraftRequestId: crypto.randomUUID(), currency: defaultCurrency, items: [{ ...initialInvoice.items[0], id: `item-${Date.now()}` }] }));
     setErrors({});
     setMobileMenuOpen(false);
     setMobileTab("edit");
