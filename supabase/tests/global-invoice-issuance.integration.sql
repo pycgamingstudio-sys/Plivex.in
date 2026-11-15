@@ -53,7 +53,8 @@ BEGIN
     OR (v_issued->'invoice'->>'tax_minor')::bigint<>2000
     OR (v_issued->'invoice'->>'total_minor')::bigint<>12000
     OR v_issued->'invoice'->'invoice_snapshot'->>'tax_status'<>'calculated'
-    OR v_issued->'invoice'->'invoice_snapshot'->'seller'->>'tax_registration_number'<>'GB123456789' THEN
+    OR v_issued->'invoice'->'invoice_snapshot'->'seller'->>'tax_registration_number'<>'GB123456789'
+    OR v_issued->'invoice'->'invoice_snapshot'->'buyer'->>'name'<>'Client A' THEN
     RAISE EXCEPTION 'GB invoice issuance, numbering or immutable VAT snapshot failed: %',v_issued;
   END IF;
 
