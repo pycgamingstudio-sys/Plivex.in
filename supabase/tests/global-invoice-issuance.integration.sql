@@ -70,6 +70,17 @@ BEGIN
     RAISE EXCEPTION 'Global invoice issuance retry was not idempotent: %',v_retry;
   END IF;
 
+  v_retry := public.global_issue_invoice(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    v_invoice_id,
+    '{"registration_confirmed":true,"place_of_supply_confirmed":true,"tax_category_confirmed":true,"tax_category":"standard-rated","mode":"automatic","price_mode":"inclusive","place_of_supply":"United Kingdom"}'::jsonb,
+    v_issue_key
+  );
+  IF v_retry->>'ok'<>'false' OR v_retry->>'reason'<>'idempotency_conflict' THEN
+    RAISE EXCEPTION 'Issuance idempotency key accepted a changed tax context: %',v_retry;
+  END IF;
+
   SELECT * INTO v_line FROM global.invoice_items WHERE invoice_id=v_invoice_id LIMIT 1;
   IF v_line.tax_rate_bps<>2000 OR v_line.tax_minor<>2000 OR v_line.line_total_minor<>12000 THEN
     RAISE EXCEPTION 'GB invoice line VAT values are inconsistent: %',row_to_json(v_line);
