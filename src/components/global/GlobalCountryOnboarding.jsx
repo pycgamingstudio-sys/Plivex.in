@@ -78,7 +78,11 @@ export default function GlobalCountryOnboarding() {
               ))}
             </select>
           </div>
-          {country && (
+          <div className="space-y-2">
+            <label htmlFor="global-business-name" className="text-sm font-medium">Business name</label>
+            <input id="global-business-name" required maxLength={160} value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="e.g. Acme Trading LLC" className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm" />
+          </div>
+          {country && locales.length > 1 && (
             <div className="space-y-2">
               <label htmlFor="global-business-locale" className="text-sm font-medium">Language and number format</label>
               <select
@@ -92,6 +96,7 @@ export default function GlobalCountryOnboarding() {
               <p className="text-xs text-muted-foreground">Workspace currency: {country.currencyCode}</p>
             </div>
           )}
+          {country && locales.length <= 1 && <p className="text-xs text-muted-foreground">Workspace language: {locales[0]} · Currency: {country.currencyCode}</p>}
           <p className="text-xs leading-5 text-muted-foreground">
             This choice sets regional workspace preferences. It does not determine tax residency or guarantee local tax compliance.
           </p>
