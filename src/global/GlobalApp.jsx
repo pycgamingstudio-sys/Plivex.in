@@ -157,6 +157,36 @@ export default function GlobalApp() {
     finally { setBusy(false); }
   };
 
+  const submitStockMovement = async (event) => {
+    event.preventDefault();
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const quantity = Number(form.quantity);
+      if (!form.productId) throw new Error("Choose a product.");
+      if (!Number.isFinite(quantity) || quantity === 0) throw new Error("Enter a non-zero quantity.");
+      const movementType = form.movementType || "receipt";
+      const quantityDelta = movementType === "sale" ? -Math.abs(quantity)
+        : movementType === "adjustment" ? quantity : Math.abs(quantity);
+      const { data, error: movementError } = await supabase.functions.invoke("global-stock-movements", {
+        body: {
+          workspace_id: account.workspace_id,
+          product_id: form.productId,
+          movement_type: movementType,
+          quantity_delta: quantityDelta,
+          notes: form.notes?.trim() || null,
+          idempotency_key: crypto.randomUUID(),
+        },
+      });
+      if (movementError) throw new Error(await errorMessage(movementError, "Could not record stock movement."));
+      if (!data?.ok || typeof data.quantity !== "number") throw new Error("Inventory service returned an invalid response.");
+      setForm({});
+      setNotice(`Stock movement recorded. New balance: ${data.quantity}.`);
+      await loadRecords("inventory");
+    } catch (movementSaveError) {
+      setError(movementSaveError.message || "Could not record stock movement.");
+    } finally { setBusy(false); }
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setSession(null); setAccount(null); setRecords({});
@@ -228,11 +258,26 @@ export default function GlobalApp() {
             <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               {[["Clients", counts.clients], ["Products", counts.products], ["Expenses", counts.expenses], ["Invoices", counts.invoices], ["Stock items", counts.stock]].map(([label, value]) => <div key={label} className="rounded-xl border border-slate-200 bg-white p-5"><div className="text-sm text-slate-500">{label}</div><div className="mt-2 text-3xl font-bold">{value}</div></div>)}
             </div>
-            <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Client, product and expense records can be managed. Invoice creation, payment collection and stock movements are not enabled yet; existing invoice and stock records are view-only.</div>
+            <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Client, product and expense records can be managed. Inventory receipts, sales, returns and adjustments are enabled. Invoice creation and payment collection are not enabled yet; existing invoices remain view-only.</div>
           </>
         ) : (
           <section className="mt-6">
-            <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold">{NAV.find((item) => item.id === tab)?.label}</h1><p className="mt-1 text-sm text-slate-500">{tab === "inventory" || tab === "invoices" ? "Read-only until audited transaction workflows are enabled." : "Records are scoped to your active workspace."}</p></div><button onClick={() => loadRecords(tab).catch((loadError) => setError(loadError.message))} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Refresh</button></div>
+            <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold">{NAV.find((item) => item.id === tab)?.label}</h1><p className="mt-1 text-sm text-slate-500">{tab === "invoices" ? "Read-only until invoice and payment workflows are enabled." : tab === "inventory" ? "Record stock receipts, sales, returns and adjustments for active products." : "Records are scoped to your active workspace."}</p></div><button onClick={() => loadRecords(tab).catch((loadError) => setError(loadError.message))} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Refresh</button></div>
+            {tab === "inventory" && (
+              <form onSubmit={submitStockMovement} className="mt-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
+                <select required aria-label="Product" className="rounded-lg border border-slate-300 p-3" value={form.productId || ""} onChange={(e) => setForm({ ...form, productId: e.target.value })}>
+                  <option value="">Choose product</option>
+                  {(records.products || []).filter((product) => product.is_active !== false).map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+                </select>
+                <select aria-label="Movement type" className="rounded-lg border border-slate-300 p-3" value={form.movementType || "receipt"} onChange={(e) => setForm({ ...form, movementType: e.target.value })}>
+                  <option value="opening">Opening balance</option><option value="receipt">Stock receipt</option><option value="sale">Sale</option><option value="return">Customer return</option><option value="adjustment">Adjustment (+/-)</option>
+                </select>
+                <input required type="number" step="0.0001" min={form.movementType === "adjustment" ? undefined : "0.0001"} placeholder={form.movementType === "adjustment" ? "Quantity (+/-)" : "Quantity"} aria-label="Quantity" className="rounded-lg border border-slate-300 p-3" value={form.quantity || ""} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
+                <input maxLength={1000} placeholder="Notes (optional)" aria-label="Notes" className="rounded-lg border border-slate-300 p-3" value={form.notes || ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+                <button disabled={busy || !(records.products || []).length} className="rounded-lg bg-violet-700 px-4 py-3 font-semibold text-white disabled:opacity-60">{busy ? "Saving…" : "Record movement"}</button>
+                {form.movementType === "sale" && <p className="text-xs text-slate-500 sm:col-span-2 lg:col-span-5">Sales decrease stock automatically. Adjustments accept a positive or negative quantity.</p>}
+              </form>
+            )}
             {["clients", "products", "expenses"].includes(tab) && (
               <form onSubmit={submitRecord} className="mt-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
                 {tab === "clients" && <><input required placeholder="Client name" className="rounded-lg border border-slate-300 p-3" value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /><input type="email" placeholder="Email (optional)" className="rounded-lg border border-slate-300 p-3" value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /><input placeholder="Phone (optional)" className="rounded-lg border border-slate-300 p-3" value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></>}
@@ -249,7 +294,7 @@ export default function GlobalApp() {
                     {tab === "products" && <><td className="px-4 py-3 font-medium">{record.name}</td><td className="px-4 py-3">{record.sku || "—"}</td><td className="px-4 py-3">{money(record.sale_price_minor, record.currency_code)}</td></>}
                     {tab === "expenses" && <><td className="px-4 py-3 font-medium">{record.category}</td><td className="px-4 py-3">{record.vendor || "—"}</td><td className="px-4 py-3">{money(record.amount_minor, record.currency_code)}</td><td className="px-4 py-3">{record.expense_date}</td></>}
                     {tab === "invoices" && <><td className="px-4 py-3 font-medium">{record.invoice_number}</td><td className="px-4 py-3">{record.status}</td><td className="px-4 py-3">{money(record.total_minor, record.currency_code)}</td><td className="px-4 py-3">{record.issue_date}</td></>}
-                    {tab === "inventory" && <><td className="px-4 py-3 font-medium">{record.product_id}</td><td className="px-4 py-3">{record.quantity}</td><td className="px-4 py-3">{record.reorder_level}</td></>}
+                    {tab === "inventory" && <><td className="px-4 py-3 font-medium">{(records.products || []).find((product) => product.id === record.product_id)?.name || record.product_id}</td><td className="px-4 py-3">{record.quantity}</td><td className="px-4 py-3">{record.reorder_level}</td></>}
                   </tr>)}
                 </tbody></table></div>
               )}

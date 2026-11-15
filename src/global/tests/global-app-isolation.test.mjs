@@ -30,10 +30,11 @@ test("Global UI uses only Global Auth and Global business records APIs", () => {
   assert.doesNotMatch(globalApp, /hydrateWorkspaceData|workspace-records|from\(["']profiles["']\)/);
 });
 
-test("Global UI does not expose unfinished invoice creation or inventory mutations", () => {
-  assert.match(globalApp, /Invoice creation, payment collection and stock movements are not enabled yet/);
-  assert.match(globalApp, /This section is read-only/);
+test("Global UI enables inventory movements while keeping invoice creation and payments disabled", () => {
+  assert.match(globalApp, /Invoice creation and payment collection are not enabled yet/);
+  assert.match(globalApp, /global-stock-movements/);
   assert.match(globalApp, /const TABLES = \{ clients: "clients", products: "products", expenses: "expenses"/);
+  assert.match(globalApp, /tab === "invoices" \? "Read-only until invoice and payment workflows are enabled\."/);
 });
 
 test("Global Cloudflare build targets its own Worker and edition config", () => {
