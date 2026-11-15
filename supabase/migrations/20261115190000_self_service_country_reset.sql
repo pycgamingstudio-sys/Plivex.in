@@ -26,6 +26,7 @@ create table if not exists private.country_reset_events (
   new_currency_code text not null,
   old_workspace_id text,
   new_workspace_id text not null,
+  reason text,
   changed_at timestamptz not null default now()
 );
 
@@ -288,11 +289,11 @@ begin
 
   insert into private.country_reset_events(
     user_id, old_country_code, new_country_code, old_locale_code, new_locale_code,
-    old_currency_code, new_currency_code, old_workspace_id, new_workspace_id, changed_at
+    old_currency_code, new_currency_code, old_workspace_id, new_workspace_id, reason, changed_at
   ) values (
     p_user_id, v_from_country, p_country_code, v_from_locale, p_locale_code,
     coalesce(v_from_currency, 'UNKNOWN'), p_currency_code,
-    v_old_workspace_id, v_new_workspace_id, v_now
+    v_old_workspace_id, v_new_workspace_id, left(nullif(btrim(p_reason), ''), 500), v_now
   );
 
   insert into private.country_reset_state(user_id, last_changed_at, last_country_code, updated_at)
