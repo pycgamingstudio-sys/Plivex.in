@@ -270,7 +270,7 @@ function InvoiceEditor({ invoice, setInvoice, workspaceTaxProfile, globalTaxCalc
 function money(value, currency) { return formatMoney(value, currency); }
 function dateLabel(value, locale = "en-IN") { if (!value) return "—"; return new Date(`${value}T00:00:00`).toLocaleDateString(locale, { day: "2-digit", month: "short", year: "numeric" }); }
 
-function computeTotal(invoiceForPreview) {
+function computeTotal(invoice) {
   const subtotal = invoice.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.rate) || 0), 0);
   const discount = Number(invoice.discount) || 0;
   const discountValue = invoice.discountType === "percent" ? subtotal * Math.max(0, discount) / 100 : Math.max(0, discount);
