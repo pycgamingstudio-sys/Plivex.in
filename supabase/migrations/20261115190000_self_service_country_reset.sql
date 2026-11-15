@@ -171,11 +171,18 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'same_country');
   end if;
 
-  -- Do not silently take over stale/inactive memberships or a second tenant.
+  -- Never guess which Global workspace is active when the selected workspace
+  -- has no matching active membership. Preserve all workspaces and ask for repair.
+  if v_global_membership.id is null and exists (
+    select 1 from global.workspace_members m
+    where m.user_id = p_user_id and m.status = 'active'
+  ) then
+    return jsonb_build_object('ok', false, 'reason', 'active_global_workspace_not_selected');
+  end if;
   if v_global_membership.id is null and exists (
     select 1 from global.workspace_members m where m.user_id = p_user_id
   ) then
-    return jsonb_build_object('ok', false, 'reason', 'legacy_global_membership_requires_review');
+    return jsonb_build_object('ok', false, 'reason', 'stale_membership_conflict');
   end if;
 
   select s.last_changed_at into v_last_changed
