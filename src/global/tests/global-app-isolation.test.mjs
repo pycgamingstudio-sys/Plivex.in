@@ -10,13 +10,11 @@ const [app, globalApp, worker, vite] = await Promise.all([
   read("../../../vite.config.js"),
 ]);
 
-test("Global edition reuses the shared India landing, login, signup and app route tree", () => {
-  assert.doesNotMatch(app, /import GlobalApp from "@\/global\/GlobalApp\.jsx"/);
-  assert.doesNotMatch(app, /if \(APP_EDITION === "global"\) return <GlobalApp \/>/);
+test("Global edition mounts its isolated app before the India providers and route tree", () => {
+  assert.match(app, /import GlobalApp from "@\\/global\\/GlobalApp\\.jsx"/);
+  assert.match(app, /if \\(APP_EDITION === "global"\\) return <GlobalApp \\/>/);
   assert.match(app, /<AuthProvider>/);
-  assert.match(app, /<Route path="\/login" element={<Login \/>} \/>/);
-  assert.match(app, /<Route path="\/register" element={<Register \/>} \/>/);
-  assert.match(app, /<Route path="\/" element={<HomeGate \/>} \/>/);
+  assert.match(app, /<Route path="\\/login" element={<Login \\/>} \\/>/);
 });
 
 test("Global UI uses only Global Auth and Global business records APIs", () => {
