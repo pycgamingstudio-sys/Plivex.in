@@ -7,7 +7,7 @@ const PILLARS = [
   {
     icon: Receipt, title: "Smart Billing & Invoicing", tone: "from-[#6D28D9] to-[#7C3AED]",
     features: [
-      "India edition: GST & non-GST invoicing", "India edition: CGST/SGST/IGST auto-breakup", "WhatsApp one-click sharing",
+      "India edition: GST & non-GST invoicing", "India edition: CGST/SGST/IGST auto-breakup", "Manual WhatsApp sharing where supported",
       "Recurring bills & cycles", "Credit notes & adjustments", "Quotation → invoice convert",
       "India edition: HSN autocomplete", "Country-based currency display (Global drafts)", "Print-perfect A4 PDFs", "India edition: dynamic UPI QR codes",
     ],
@@ -30,7 +30,7 @@ const PILLARS = [
   {
     icon: BarChart3, title: "Reports & Business Intelligence", tone: "from-[#D97706] to-[#F59E0B]",
     features: [
-      "Revenue reports", "India edition: GSTR-1 ready exports", "India edition: CSV / Excel reports", "Tax summary dashboard",
+      "India edition: revenue reports", "India edition: GSTR-1 ready exports", "India edition: CSV / Excel reports", "Country-aware tax capability summary",
       "India edition: P&L statements", "India edition: sales trend charts", "India edition: staff performance metrics", "India edition: inventory valuation",
     ],
   },
@@ -45,7 +45,7 @@ const PILLARS = [
     icon: Plug, title: "Usability & Integrations", tone: "from-[#DB2777] to-[#EC4899]",
     features: [
       "Mobile responsive PWA", "Bulk PDF export", "Connected web workspace", "India payment provider: PayU",
-      "Cancel & track invoices", "India UI: Hindi and English; Global UI: English", "Multi-user team access", "Custom branding & logos",
+      "Cancel & track invoices", "India UI: Hindi and English; Global UI: English", "India edition: multi-user team access", "Custom branding & logos",
     ],
   },
 ];
