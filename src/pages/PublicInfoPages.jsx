@@ -95,7 +95,7 @@ export function AboutPage() {
         <p className="text-xs font-bold uppercase tracking-wider text-violet-700">Business ownership</p>
         <h2 id="ownership-heading" className="mt-1 text-xl font-bold text-slate-900">Meet the owner of Plivex</h2>
         <p className="mt-3 text-sm leading-6 text-slate-600">Plivex is owned by Virendra Sharma. The idea behind Plivex is simple: make everyday billing and business organisation easier for Indian small businesses, with practical tools that bring invoices, customers, expenses and stock together.</p>
-        <p className="mt-2 text-sm leading-6 text-slate-600">Yashvant Sharma leads the product's development as Founder &amp; Developer, working to turn that purpose into a straightforward, useful platform. We value clear communication, dependable service and continuous improvement based on real business needs.</p>
+        <p className="mt-2 text-sm leading-6 text-slate-600">Yashvant Sharma leads the product's development as Developer, working to turn that purpose into a straightforward, useful platform. We value clear communication, dependable service and continuous improvement based on real business needs.</p>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <a href="mailto:virendra.sharma99978@gmail.com" className="rounded-xl border border-slate-200 p-4 transition hover:border-violet-300 hover:bg-violet-50/50">
             <span className="block text-xs font-semibold uppercase tracking-wide text-slate-500">Owner email</span>
