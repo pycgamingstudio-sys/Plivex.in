@@ -249,7 +249,7 @@ const authError = (error, fallback) => {
 };
 
 const auth = {
-  async me() {
+  async me(options = {}) {
     if (APP_EDITION === "global") {
       const { data: globalData, error: globalError } = await supabase.functions.invoke("global-auth-context", { body: {} });
       if (globalError) {
@@ -285,10 +285,23 @@ const auth = {
         edition: "pending",
       });
 
-      if (mode === "pending") return pendingUser();
+      if (mode === "pending" && !options.preferIndia) return pendingUser();
 
       const { data: profile, error: profileError } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
       if (profileError) throw new ApiError("Could not load your account profile.", 503, { operation: "profile" });
+
+      if (mode === "pending" && options.preferIndia && profile) {
+        return {
+          id: uid, email: authUser.email,
+          full_name: profile.full_name || metadata.full_name || "",
+          role: profile.role, workspace_id: profile.workspace_id || undefined,
+          user_ref: profile.user_ref, trial_start_at: profile.trial_start_at,
+          trial_expires_at: profile.trial_expires_at,
+          created_date: profile.created_at || authUser.created_at,
+          profilePicture: profile.profile_picture || "", phone: metadata.phone || "",
+          edition: "india",
+        };
+      }
 
       if (mode === "india") {
         if (!profile) return pendingUser();
