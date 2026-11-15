@@ -21,6 +21,12 @@ async function resolveSignedInEdition(currentUser) {
   if (authError) throw authError;
   const metadataCountry = authData?.user?.user_metadata?.signup_country_code;
   let countryCode = typeof metadataCountry === 'string' ? metadataCountry.trim().toUpperCase() : '';
+  if (!countryCode) {
+    try {
+      const pendingRegion = JSON.parse(window.localStorage.getItem('plivex.signup.region') || 'null');
+      if (typeof pendingRegion?.countryCode === 'string') countryCode = pendingRegion.countryCode.trim().toUpperCase();
+    } catch { /* ignore malformed or stale signup preferences */ }
+  }
 
   // Existing India workspaces predate country stamping and remain on India.
   if (currentUser?.workspace_id && !countryCode) countryCode = 'IN';
