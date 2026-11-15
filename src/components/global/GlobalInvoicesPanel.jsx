@@ -300,7 +300,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
               </>}
               {selected.status!=="draft" && <p className="mt-3 text-xs text-slate-500">Issued invoice content and tax snapshot are locked. Payments and refunds are recorded separately.</p>}
             </div>
-            {["issued","partially_paid","paid","overdue"].includes(selected.status) && (
+            {["issued","partially_paid","overdue"].includes(selected.status) && (
               <div className="rounded-xl border border-slate-200 bg-white p-4">
                 <h3 className="font-semibold">Record payment</h3>
                 <form className="mt-3 grid gap-2" onSubmit={recordPayment}>
