@@ -43,7 +43,7 @@ BEGIN
   IF denied->>'reason' <> 'forbidden' THEN RAISE EXCEPTION 'Accountant created invoice draft: %', denied; END IF;
 
   INSERT INTO global.invoices(id,workspace_id,client_id,invoice_number,status,currency_code,issue_date,total_minor,created_by)
-  VALUES(invoice_id,'cccccccc-cccc-4ccc-8ccc-cccccccccccc','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+  VALUES(v_invoice_id,'cccccccc-cccc-4ccc-8ccc-cccccccccccc','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
     'ISSUED-PAYMENT-TEST','issued','GBP','2026-11-15',10000,'66666666-6666-4666-8666-666666666666');
 
   payment := public.global_record_invoice_payment(
@@ -58,7 +58,7 @@ BEGIN
 
   duplicate_payment := public.global_record_invoice_payment(
     '66666666-6666-4666-8666-666666666666','cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-    invoice_id,3000,'GBP','2026-11-15','bank_transfer','BANK-REF-1','first payment',idem
+    v_invoice_id,3000,'GBP','2026-11-15','bank_transfer','BANK-REF-1','first payment',idem
   );
   IF duplicate_payment->>'ok'<>'true' OR duplicate_payment->>'duplicate'<>'true' THEN
     RAISE EXCEPTION 'Global payment retry was not idempotent: %', duplicate_payment;
