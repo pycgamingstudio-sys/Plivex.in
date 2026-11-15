@@ -19,7 +19,7 @@ export const TAX_TREATMENTS = Object.freeze({
 
 const CLASSIFICATION_FIELDS = Object.freeze({
   IN:["supplyType","hsnOrSac","gstTreatment","placeOfSupply","reverseCharge"],
-  US:["supplyType","productTaxCategory","destinationState","localJurisdiction","exemptionCertificateId"],
+  US:["supplyType","productTaxCategory","destinationState","localJurisdiction"],
   GB:["supplyType","vatCommodityCategory","vatTreatment","placeOfSupply","reverseCharge"],
   AE:["supplyType","vatTreatment","designatedZoneStatus","placeOfSupply","reverseCharge"],
   CA:["supplyType","productTaxCategory","destinationProvince","pstQstTreatment","placeOfSupply"],
