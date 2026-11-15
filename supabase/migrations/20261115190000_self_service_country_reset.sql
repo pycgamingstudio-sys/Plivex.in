@@ -34,6 +34,8 @@ alter table private.country_reset_state enable row level security;
 alter table private.country_reset_events enable row level security;
 revoke all on private.country_reset_state from public, anon, authenticated;
 revoke all on private.country_reset_events from public, anon, authenticated;
+grant usage on schema private to service_role;
+grant select on private.country_reset_state, private.country_reset_events to service_role;
 
 -- Preserve historical country-change audit rows when their old workspace is deleted.
 alter table global.workspace_country_change_events
