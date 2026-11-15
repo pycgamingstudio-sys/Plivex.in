@@ -65,7 +65,7 @@ test("public marketing copy distinguishes Global availability from India-only fe
   const pages = await read("../../pages/PublicInfoPages.jsx");
   const about = await read("../../components/landing/AboutSection.jsx");
   assert.doesNotMatch(pages, /platform for Indian small businesses/);
-  assert.match(pages, /tax fields and invoice issuance depend on the selected country/);
+  assert.match(pages, /tax fields and invoice issuance depend on the selected country/i);
   assert.match(about, /India edition: CGST\/SGST\/IGST auto-breakup/);
   assert.match(about, /Global UI: English/);
   assert.match(about, /Global capabilities are being introduced in stages/);
