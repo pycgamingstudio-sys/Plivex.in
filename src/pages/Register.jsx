@@ -154,8 +154,8 @@ export default function Register() {
             <Label htmlFor="signup-country">Business country</Label>
             <select id="signup-country" required value={countryCode} onChange={(event) => {
             const nextCountry = getCountryByCode(event.target.value);
-            setCountryCode(nextCountry?.code || "IN");
-            setLocaleCode(nextCountry?.locales?.[0] || "en-IN");
+            setCountryCode(nextCountry?.code || "");
+            setLocaleCode(nextCountry?.locales?.[0] || "");
             }} className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm">
             <option value="">Select your business country</option>
             {COUNTRY_REGISTRY.map((country) => <option key={country.code} value={country.code}>{getCountryFlag(country.code)}  {country.name} · {country.currencyCode}</option>)}
@@ -163,7 +163,7 @@ export default function Register() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="signup-locale">Language and number format</Label>
-            <select id="signup-locale" value={localeCode} onChange={(event) => setLocaleCode(event.target.value)} className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm">
+            <select id="signup-locale" required value={localeCode} onChange={(event) => setLocaleCode(event.target.value)} className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm">
             {localeOptions.map((locale) => <option key={locale} value={locale}>{locale}</option>)}
             </select>
           </div>
