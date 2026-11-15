@@ -159,6 +159,22 @@ Deno.serve(async (req: Request) => {
       return globalJson(data, 200, origin);
     }
 
+    if (body.action === "capabilities") {
+      const { data, error } = await auth.admin.rpc("global_list_invoice_reconciliation", {
+        p_user_id: auth.user.id,
+        p_workspace_id: workspaceId,
+        p_limit: 1,
+      });
+      const ledgerReady = !error && data?.ok === true;
+      return globalJson({
+        ok: true,
+        ledger_ready: ledgerReady,
+        issuance_ready: ledgerReady && data?.country_code === "GB",
+        issuance_countries: ["GB"],
+        country_code: data?.country_code || null,
+      }, 200, origin);
+    }
+
     if (body.action === "issue") {
       if (typeof body.invoice_id !== "string" || !UUID.test(body.invoice_id)
         || typeof body.idempotency_key !== "string" || !UUID.test(body.idempotency_key)
