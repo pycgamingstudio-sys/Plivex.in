@@ -32,7 +32,7 @@ test("Global payment ledger is external-only, atomic and idempotent", () => {
 });
 
 test("Global invoice UI never claims an uncalculated draft is a tax invoice", () => {
-  assert.match(app, /tax has not been calculated/);
+  assert.match(app, /Tax has not been calculated/);
   assert.match(app, /cannot be issued as a tax invoice/);
   assert.match(app, /Draft only: tax is not calculated/);
 });
