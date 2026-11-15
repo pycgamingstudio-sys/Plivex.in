@@ -31,7 +31,8 @@ test("public attribution distinguishes the owner from the developer", () => {
 
 test("landing page labels Global functionality as a staged rollout", () => {
   const landing = read("src/pages/GuestDashboard.jsx");
-  assert.match(landing, /India GST workflows are available today; Global capabilities are being introduced in stages/);
+  assert.match(landing, /Your workspace uses the country and regional settings you select when you create your account/);
+  assert.doesNotMatch(landing, /India GST workflows are available today/);
   assert.match(landing, /Create your free account/);
   assert.match(landing, /DEMO/);
 });
