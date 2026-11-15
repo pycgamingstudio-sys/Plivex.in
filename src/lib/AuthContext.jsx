@@ -90,7 +90,7 @@ export const AuthProvider = ({ children }) => {
       let currentUser = await db.auth.me();
 
       // New unified accounts must choose a country before either workspace is opened.
-      if (APP_EDITION === "unified" && currentUser?.edition === "pending") {
+      if (APP_EDITION === "unified" && currentUser?.edition === "pending" && !getPendingInviteCode()) {
         resetWorkspaceCache();
         setTenantId(null, { migrateLegacy: false });
         setUser(currentUser);
