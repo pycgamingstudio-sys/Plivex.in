@@ -45,7 +45,7 @@ export default function PricingSection() {
           <button type="button" onClick={() => setBilling("yearly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "yearly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Yearly</button>
         </div>}
 
-        {!country ? <div className="mt-7 rounded-2xl border border-dashed border-[#D8CCF5] bg-[#FAF8FF] px-5 py-9 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">🌍</div><h3 className="mt-3 text-sm font-bold text-slate-900">Your pricing, in your currency</h3><p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-slate-500">Select your business country above to view the plans and prices available in your region.</p></div> : <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        {!country ? <div className="mt-7 rounded-2xl border border-dashed border-[#D8CCF5] bg-[#FAF8FF] px-5 py-9 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">🌍</div><h3 className="mt-3 text-sm font-bold text-slate-900">Your pricing, in your currency</h3><p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-slate-500">Select your business country above to view the plans and prices available in your region.</p></div> : <><div className="mt-6 grid gap-4 sm:grid-cols-2">
           {PLANS.map((plan) => {
             const amountMinor = plan.id === "free" ? 0 : country[billing === "yearly" ? "yearly" : "monthly"]?.[plan.id];
             const price = amountMinor === 0 ? formatPlanPrice(0, currency, locale) : Number.isSafeInteger(amountMinor) ? formatPlanPrice(amountMinor, currency, locale) : "Not available";
