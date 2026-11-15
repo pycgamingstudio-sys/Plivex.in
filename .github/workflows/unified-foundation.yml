@@ -2,9 +2,9 @@ name: Unified App and Workspace Foundation CI
 
 on:
   push:
-    branches: [unified-app-part-2]
+    branches: [unified-app-part-3]
   pull_request:
-    branches: [unified-app-part-1]
+    branches: [unified-app-part-2]
 
 permissions:
   contents: read
