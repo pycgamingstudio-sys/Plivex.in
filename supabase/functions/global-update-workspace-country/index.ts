@@ -59,22 +59,19 @@ Deno.serve(async (req: Request) => {
     if (!settings || !settings.locales.includes(localeCode)) return json({ error: "Choose a supported country and locale." }, 400, origin);
 
     const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
-    const { data: membership, error: membershipError } = await admin
-      .schema("global").from("workspace_members")
-      .select("workspace_id, role, status")
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .maybeSingle();
-    if (membershipError) {
-      console.error("Global country membership lookup failed", { code: membershipError.code });
+    const { data: authContext, error: contextError } = await admin.rpc("global_get_auth_context", { p_user_id: user.id });
+    if (contextError) {
+      console.error("Global country context lookup failed", { code: contextError.code });
       return json({ error: "Could not verify your Global workspace." }, 503, origin);
     }
-    if (!membership?.workspace_id) return json({ error: "Your Global workspace was not found." }, 404, origin);
-    if (!["owner", "admin"].includes(membership.role)) return json({ error: "Only a workspace owner or admin can change its country." }, 403, origin);
+    const membership = authContext?.membership;
+    const workspaceId = membership?.workspace_id;
+    if (!workspaceId) return json({ error: "Your Global workspace was not found." }, 404, origin);
+    if (!["owner", "admin"].includes(membership?.role)) return json({ error: "Only a workspace owner or admin can change its country." }, 403, origin);
 
-    const { data, error } = await admin.schema("global").rpc("global_change_workspace_country", {
+    const { data, error } = await admin.rpc("global_change_workspace_country", {
       p_user_id: user.id,
-      p_workspace_id: membership.workspace_id,
+      p_workspace_id: workspaceId,
       p_country_code: countryCode,
       p_locale_code: localeCode,
       p_currency_code: settings.currency,
