@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   deploy:
-    # Production deploys are permitted only from the protected India main branch.
+    # Production deploys are permitted only from the protected main branch using the unified app build.
     if: github.ref == 'refs/heads/main'
     name: Build and deploy production assets
     runs-on: ubuntu-latest
@@ -42,13 +42,16 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Run membership tests
+      - name: Run India compatibility tests
         run: npm run test:membership
 
-      - name: Build production app
-        run: npm run build
-      - name: Verify public build configuration
-        run: npm run verify:build-env
+      - name: Run Global workspace regression tests
+        run: npm run test:global
+
+      - name: Build the single unified production app
+        run: VITE_APP_EDITION=unified npm run build
+      - name: Verify unified public build configuration
+        run: VITE_APP_EDITION=unified npm run verify:build-env
 
       - name: Deploy existing Plivex Worker
         uses: cloudflare/wrangler-action@v4
