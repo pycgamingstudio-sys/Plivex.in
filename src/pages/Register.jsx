@@ -28,7 +28,8 @@ function passwordRequirementError(password) {
 }
 
 export default function Register() {
-  const [email, setEmail] = useState("");\n  const [businessName, setBusinessName] = useState("");
+  const [email, setEmail] = useState("");
+  const [businessName, setBusinessName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
@@ -173,7 +174,8 @@ export default function Register() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">\n        <div className="space-y-2"><Label htmlFor="business-name">Business name</Label><Input id="business-name" autoComplete="organization" maxLength={160} placeholder="Your business name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} className="h-12" required /></div>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2"><Label htmlFor="business-name">Business name</Label><Input id="business-name" autoComplete="organization" maxLength={160} placeholder="Your business name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} className="h-12" required /></div>
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
           <div className="relative">
