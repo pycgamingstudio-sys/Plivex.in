@@ -4,7 +4,8 @@ import { COUNTRY_REGISTRY, getCountryByCode, getCountryFlag } from "@/global/cou
 
 export default function GlobalCountryOnboarding() {
   const [countryCode, setCountryCode] = useState("");
-  const [localeCode, setLocaleCode] = useState("");\n  const [businessName, setBusinessName] = useState("");
+  const [localeCode, setLocaleCode] = useState("");
+  const [businessName, setBusinessName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const country = useMemo(() => getCountryByCode(countryCode), [countryCode]);
