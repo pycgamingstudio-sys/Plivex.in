@@ -13,8 +13,8 @@ const normalized = pairs.filter((x) => x.normalized_sql_match === true);
 const localOnly = manifest.local_only_files || [];
 
 if (manifest.remote_ledger_entries !== 52 || history.length !== 39 || missing.length !== 35
-  || manifest.local_migration_files !== 33 || pairs.length !== 17
-  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 16) {
+  || manifest.local_migration_files !== 34 || pairs.length !== 17
+  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 17) {
   fail("Migration reconciliation counts differ from the reviewed 52/39/35/33/17/13/4/16 manifest");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
@@ -44,8 +44,8 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 68 || new Set(candidatePlan.map((x) => x.path)).size !== 68) {
-  fail("Candidate replay plan must contain 35 recovered historical and all 33 current local migrations");
+if (candidatePlan.length !== 69 || new Set(candidatePlan.map((x) => x.path)).size !== 69) {
+  fail("Candidate replay plan must contain 35 recovered historical and all 34 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -259,7 +259,7 @@ function summary(port, remote) {
 
 const remotePort = Number(process.env.REMOTE_PGPORT || 5433);
 const candidatePort = Number(process.env.CANDIDATE_PGPORT || 5434);
-console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 68 candidate replay entries.");
+console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 69 candidate replay entries.");
 resetDb(remotePort);
 replay(remotePort, remotePlan, true);
 assertRls(remotePort, false);
