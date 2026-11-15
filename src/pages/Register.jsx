@@ -17,13 +17,8 @@ import { getPendingInviteCode, rememberPendingInviteCode, authPageLink } from "@
 import { COUNTRY_REGISTRY, getCountryByCode } from "@/global/countries/country-registry.js";
 
 function getInitialSignupCountry() {
-  try {
-    const locales = [navigator.language, ...(navigator.languages || [])].filter(Boolean);
-    for (const locale of locales) {
-      const region = new Intl.Locale(locale).region;
-      if (region && getCountryByCode(region)) return region;
-    }
-  } catch { /* use the safe default when locale detection is unavailable */ }
+  // Start with the established India path; users explicitly choose another
+  // business country when creating a non-India workspace.
   return "IN";
 }
 
