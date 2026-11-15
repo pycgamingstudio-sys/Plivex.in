@@ -432,9 +432,47 @@ export async function saveInvoiceToServer(inv) {
         : crypto.randomUUID();
       try { localStorage.setItem(requestKeyName, idempotencyKey); } catch { /* key still applies to this request */ }
     }
+    const clientKeyName = tenantKey(`global-client-id:${sig}`);
+    let clientId = "";
+    try { clientId = localStorage.getItem(clientKeyName) || ""; } catch { /* resolve from the client list */ }
+    if (!/^[0-9a-f-]{36}$/i.test(clientId)) {
+      const clientName = str(inv.client?.name || inv.client?.company).trim();
+      const clientEmail = str(inv.client?.email).trim().toLowerCase();
+      const clientPhone = str(inv.client?.phone).trim();
+      const clientTaxNumber = str(inv.client?.gstin).trim();
+      const clientAddress = str(inv.client?.address).trim();
+      const clientList = await api.functions.invoke("workspaceRecords", { table:"clients", action:"list", limit:100 });
+      const knownClients = clientList?.data?.records || [];
+      const existingClient = clientEmail
+        ? knownClients.find((client) => String(client.email || "").trim().toLowerCase() === clientEmail)
+        : clientPhone
+          ? knownClients.find((client) => String(client.phone || "").replace(/\D/g, "") === clientPhone.replace(/\D/g, "")
+            && String(client.name || "").trim().toLowerCase() === clientName.toLowerCase())
+          : knownClients.filter((client) => String(client.name || "").trim().toLowerCase() === clientName.toLowerCase()).length === 1
+            ? knownClients.find((client) => String(client.name || "").trim().toLowerCase() === clientName.toLowerCase())
+            : null;
+      if (existingClient?.id) {
+        clientId = existingClient.id;
+      } else {
+        const createdClient = await api.functions.invoke("workspaceRecords", {
+          table:"clients",
+          action:"create",
+          values:{
+            name:clientName,
+            email:clientEmail || null,
+            phone:clientPhone || null,
+            tax_registration_number:clientTaxNumber || null,
+            billing_address:{ formatted:clientAddress },
+          },
+        });
+        clientId = createdClient?.data?.record?.id || createdClient?.data?.records?.[0]?.id || "";
+      }
+      if (!/^[0-9a-f-]{36}$/i.test(clientId)) throw new Error("The Global customer record could not be saved.");
+      try { localStorage.setItem(clientKeyName, clientId); } catch { /* the server record remains available */ }
+    }
     const response = await api.functions.invoke("globalInvoices", {
       action: "create_draft",
-      client_id: null,
+      client_id: clientId,
       currency_code: currency,
       issue_date: dateOrNull(inv.issueDate) || new Date().toISOString().slice(0, 10),
       due_date: dateOrNull(inv.dueDate),
