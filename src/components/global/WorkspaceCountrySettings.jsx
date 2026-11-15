@@ -182,7 +182,7 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
               {COUNTRY_REGISTRY.filter((country) => !isGlobalWorkspace || country.code !== "IN").map((country) => <option key={country.code} value={country.code}>{country.name} ({country.currencyCode})</option>)}
             </select>
           </label>
-          <label className="text-xs font-semibold">Number and currency locale
+          <label className="text-xs font-semibold">Regional number and currency format
             <select className="mt-1 w-full rounded-lg border bg-background px-3 py-2.5 text-sm" value={locale} onChange={(event) => { setLocale(event.target.value); setMessage(""); }} disabled={!selectedCountry || lockCountry}>
               <option value="">Select locale</option>
               {localeOptions.map((item) => <option key={item} value={item}>{item}</option>)}

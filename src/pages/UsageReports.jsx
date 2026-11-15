@@ -2,23 +2,32 @@ import { useState, useMemo } from "react";
 import { BarChart3 } from "lucide-react";
 import PageShell from "@/components/PageShell";
 import { KEYS, loadList } from "@/lib/stores";
+import { useAuth } from "@/lib/AuthContext";
+import { getCountryExperience } from "@/global/countries/country-experience.js";
+import { formatCurrency } from "@/global/localization/number-format.js";
+import { formatWorkspaceDate } from "@/global/localization/date-format.js";
 
-const sym = (c) => ({ INR: "₹", USD: "$", EUR: "€" }[c] || c);
-const money = (v, c = "INR") => `${sym(c)} ${(Number(v) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const dateLabel = (v) => (v ? new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—");
+
 
 function Stat({ label, value, accent }) {
   return <div className={`rounded-xl border bg-card p-4 ${accent ? "border-primary/40 bg-primary/[.04]" : ""}`}><p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p><p className="mt-1 text-[22px] font-bold tracking-[-0.03em]">{value}</p></div>;
 }
 
 export default function UsageReports() {
+  const { user } = useAuth();
+  const country = getCountryExperience(user?.country_code || "IN");
+  const locale = user?.locale_code || country?.defaultLocale || "en-IN";
+  const currency = user?.currency_code || country?.currencyCode || "INR";
+  const timeZone = user?.time_zone || (country?.timeZonePolicy === "workspace-select" ? "UTC" : country?.timeZonePolicy || "UTC");
+  const money = (value, code = currency) => formatCurrency(Number(value) || 0, { currencyCode: code, locale });
+  const dateLabel = (value) => value ? formatWorkspaceDate(value, { locale, timeZone, options: { year: undefined } }) : "—";
   const [items] = useState(() => loadList(KEYS.history));
   const month = useMemo(() => { const now = new Date(); return { y: now.getFullYear(), m: now.getMonth() }; }, []);
   const thisMonth = items.filter((it) => { const d = new Date(it.createdDate || it.issueDate); return d.getFullYear() === month.y && d.getMonth() === month.m; });
   const total = thisMonth.reduce((s, it) => s + (Number(it.total) || 0), 0);
   const count = thisMonth.length;
   const avg = count ? total / count : 0;
-  const monthName = new Date(month.y, month.m, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+  const monthName = new Date(Date.UTC(month.y, month.m, 1)).toLocaleDateString(locale, { month: "long", year: "numeric", timeZone: "UTC" });
 
   return (
     <PageShell icon={BarChart3} title="Usage reports" subtitle={`Billing summary for ${monthName}.`}>

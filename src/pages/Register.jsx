@@ -162,7 +162,7 @@ export default function Register() {
             </select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="signup-locale">Language and number format</Label>
+            <Label htmlFor="signup-locale">Regional number and date format</Label>
             <select id="signup-locale" required value={localeCode} onChange={(event) => setLocaleCode(event.target.value)} className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm">
             {localeOptions.map((locale) => <option key={locale} value={locale}>{locale}</option>)}
             </select>

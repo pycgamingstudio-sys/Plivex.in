@@ -84,7 +84,7 @@ export default function GlobalCountryOnboarding() {
           </div>
           {country && locales.length > 1 && (
             <div className="space-y-2">
-              <label htmlFor="global-business-locale" className="text-sm font-medium">Language and number format</label>
+              <label htmlFor="global-business-locale" className="text-sm font-medium">Regional number and date format</label>
               <select
                 id="global-business-locale"
                 value={localeCode || country.locales[0]}

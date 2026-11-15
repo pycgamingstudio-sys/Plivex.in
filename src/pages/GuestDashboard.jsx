@@ -8,10 +8,10 @@ import AboutSection from "@/components/landing/AboutSection";
 import PricingSection from "@/components/landing/PricingSection";
 
 const DEMO_INVOICES = [
-  { id: 1, number: "INV-2026-0141", client: "Sharma Traders", amount: "₹48,700.00", status: "Paid" },
-  { id: 2, number: "INV-2026-0142", client: "Nair & Co", amount: "₹23,940.00", status: "Pending" },
-  { id: 3, number: "INV-2026-0143", client: "Vikram Enterprises", amount: "₹1,12,250.00", status: "Paid" },
-  { id: 4, number: "INV-2026-0144", client: "Mehta Retail", amount: "₹9,440.00", status: "Pending" },
+  { id: 1, number: "INV-2026-0141", client: "Sample customer 01", amount: "48,700.00", status: "Paid" },
+  { id: 2, number: "INV-2026-0142", client: "Sample customer 02", amount: "23,940.00", status: "Pending" },
+  { id: 3, number: "INV-2026-0143", client: "Sample customer 03", amount: "112,250.00", status: "Paid" },
+  { id: 4, number: "INV-2026-0144", client: "Sample customer 04", amount: "9,440.00", status: "Pending" },
 ];
 
 const TREND = [
@@ -25,10 +25,10 @@ const TREND = [
 ];
 
 const ACTIONS = [
-  { id: "create-invoice", label: "Create Invoice", desc: "GST-ready, print-perfect PDFs in under a minute.", icon: FileText, gradient: "bg-gradient-to-br from-[#EDE9FE] to-[#DDD6FE]" },
+  { id: "create-invoice", label: "Create Invoice", desc: "Country-aware, print-perfect invoices in under a minute.", icon: FileText, gradient: "bg-gradient-to-br from-[#EDE9FE] to-[#DDD6FE]" },
   { id: "add-stock", label: "Add Stock", desc: "Inventory auto-deducts on every bill you raise.", icon: Package, gradient: "bg-gradient-to-br from-[#FEE2E2] to-[#FECACA]" },
   { id: "open-crm", label: "Open CRM", desc: "Client directory and lead pipeline in one place.", icon: Users, gradient: "bg-gradient-to-br from-[#FAE8FF] to-[#F5D0FE]" },
-  { id: "export-gst", label: "Export GST", desc: "GSTR-1 registers and Tally-ready exports.", icon: FileCheck2, gradient: "bg-gradient-to-br from-[#DBEAFE] to-[#BFDBFE]" },
+  { id: "export-gst", label: "Tax reports", desc: "Country-specific tax and business reports.", icon: FileCheck2, gradient: "bg-gradient-to-br from-[#DBEAFE] to-[#BFDBFE]" },
   { id: "settings", label: "Open Settings", desc: "Workspace defaults, team roles and branding.", icon: Settings, gradient: "bg-gradient-to-br from-[#FEF3C7] to-[#FDE68A]" },
 ];
 
@@ -65,7 +65,7 @@ export default function GuestDashboard() {
             <Link to="/contact-us" className="text-sm font-semibold text-slate-600 hover:text-[#6D28D9]">Contact</Link>
           </nav>
           <div className="flex items-center gap-2">
-            <LanguageSwitcher className="hidden sm:inline-flex" />
+            <LanguageSwitcher className="hidden sm:inline-flex" showHindi={false} />
             <button onClick={() => setAuthAction("")} className="rounded-xl border border-[#E5E7EB] px-3 py-2 text-[12px] font-bold text-slate-700 hover:bg-slate-50">Sign in</button>
             <Link to="/register" className="rounded-xl bg-[#6D28D9] px-3 py-2 text-[12px] font-bold text-white hover:bg-[#7C3AED]">Get started</Link>
           </div>
@@ -78,7 +78,7 @@ export default function GuestDashboard() {
             <div>
               <p className="inline-flex items-center gap-2 rounded-full border border-violet-100 bg-violet-50 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-violet-700"><Sparkles className="h-3.5 w-3.5" />Smart business workspace</p>
               <h1 className="mt-4 text-3xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">Less paperwork.<br/><span className="text-[#6D28D9]">More business.</span></h1>
-              <p className="mt-4 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">Bring invoices, customers, stock, expenses and reports into one connected business workspace. India GST workflows are available today; Global capabilities are being introduced in stages. Start with the Free plan and upgrade only when you need more.</p>
+              <p className="mt-4 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">Bring invoices, customers, stock, expenses and reports into one connected business workspace. Your workspace uses the country and regional settings you select when you create your account. Start with the Free plan and upgrade only when you need more.</p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link to="/register" className="inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#5B21B6]">Create your free account <span aria-hidden="true">→</span></Link>
                 <a href="#features" className="inline-flex items-center rounded-xl border border-violet-200 px-5 py-3 text-sm font-bold text-violet-700 hover:bg-violet-50">Explore features</a>
@@ -104,9 +104,9 @@ export default function GuestDashboard() {
         </div>
 
         <div className="fade-up fade-up-delay-1 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <DemoCard icon={TrendingUp} label="Total Invoiced" value="₹1,94,330" sub="42 invoices" gradient="from-[#6D28D9] to-[#7C3AED]" />
-          <DemoCard icon={CheckCircle2} label="Paid" value="₹1,21,900" sub="28 invoices" gradient="from-[#059669] to-[#10B981]" />
-          <DemoCard icon={Clock} label="Pending" value="₹72,430" sub="14 invoices" gradient="from-[#D97706] to-[#F59E0B]" />
+          <DemoCard icon={TrendingUp} label="Total Invoiced" value="194.3k" sub="42 invoices" gradient="from-[#6D28D9] to-[#7C3AED]" />
+          <DemoCard icon={CheckCircle2} label="Paid" value="121.9k" sub="28 invoices" gradient="from-[#059669] to-[#10B981]" />
+          <DemoCard icon={Clock} label="Pending" value="72.43k" sub="14 invoices" gradient="from-[#D97706] to-[#F59E0B]" />
           <DemoCard icon={Boxes} label="Stock Items" value="128" sub="6 low-stock alerts" gradient="from-[#2563EB] to-[#3B82F6]" />
         </div>
 

@@ -5,7 +5,7 @@ import LanguagePrompt from "@/components/LanguagePrompt"
 import { startTranslator } from "@/lib/i18n"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { APP_EDITION } from '@/api/backendClient';
 import ScrollToTop from './components/ScrollToTop';
@@ -106,18 +106,18 @@ const AuthenticatedApp = () => {
             <Route path="/invoice-builder" element={<Home />} />
         <Route element={<AppLayout />}>
           <Route path="/invoice-history" element={<InvoiceHistory />} />
-          <Route path="/invoice-shares" element={<InvoiceShareManagement />} />
+          <Route path="/invoice-shares" element={<GlobalFeatureGate feature="Shared invoice links"><InvoiceShareManagement /></GlobalFeatureGate>} />
           <Route path="/business-profile" element={<BusinessProfile />} />
           <Route path="/client-database" element={<ClientDatabase />} />
-          <Route path="/usage-reports" element={<UsageReports />} />
+          <Route path="/usage-reports" element={<GlobalFeatureGate feature="Usage reports"><UsageReports /></GlobalFeatureGate>} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/templates" element={<QuickTemplates />} />
-          <Route path="/payment-logs" element={<PaymentLogs />} />
+          <Route path="/templates" element={<GlobalFeatureGate feature="Quick templates"><QuickTemplates /></GlobalFeatureGate>} />
+          <Route path="/payment-logs" element={<GlobalFeatureGate feature="Payment logs"><PaymentLogs /></GlobalFeatureGate>} />
           <Route path="/tax-summary" element={<TaxSummary />} />
           <Route path="/help-center" element={<HelpCenter />} />
           <Route path="/account-activity" element={<AccountActivity />} />
-          <Route path="/service-catalog" element={<ServiceCatalog />} />
-          <Route path="/team-management" element={<ProTeamRoute />} />
+          <Route path="/service-catalog" element={<GlobalFeatureGate feature="Service catalog"><ServiceCatalog /></GlobalFeatureGate>} />
+          <Route path="/team-management" element={<GlobalFeatureGate feature="Team management"><ProTeamRoute /></GlobalFeatureGate>} />
             </Route>
           </Route>
         </Route>
@@ -128,6 +128,26 @@ const AuthenticatedApp = () => {
 };
 
 // Shows a message when a change could not be saved on the server (e.g. a role without permission).
+
+function GlobalFeatureGate({ children, feature }) {
+  const { user } = useAuth();
+  if (APP_EDITION === "global" && user?.country_code !== "IN") {
+    return (
+      <main className="mx-auto max-w-xl rounded-2xl border bg-card p-6 text-center">
+        <p className="text-xs font-bold uppercase tracking-wider text-primary">Global workspace</p>
+        <h1 className="mt-2 text-xl font-bold">{feature} is not available yet</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          This feature is still being adapted for your workspace country. We have hidden the India-only version so it cannot show incorrect tax, currency or business records.
+        </p>
+        <Link to="/invoice-history" className="mt-5 inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+          Open Global invoices
+        </Link>
+      </main>
+    );
+  }
+  return children;
+}
+
 function ProTeamRoute() {
   const { canAccess, openPaywall } = usePaywall();
   useEffect(() => { if (!canAccess("team_management")) openPaywall("Team management requires the Pro plan."); }, [canAccess, openPaywall]);

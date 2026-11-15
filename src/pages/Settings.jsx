@@ -46,7 +46,7 @@ export default function Settings() {
         <LanguageSwitcher showHindi={APP_EDITION !== "global"} />
       </div>
       <div className="mt-4"><WorkspaceCountrySettings lockCountry={false} /></div>
-      <div className="mt-4"><EmailSettingsCard /></div>
+      {APP_EDITION === "global" ? <div className="mt-4 rounded-xl border bg-card p-4"><p className="text-sm font-semibold">Email integrations</p><p className="mt-1 text-xs text-muted-foreground">Automated payment reminders are not enabled for Global workspaces yet. India-only reminder settings are hidden here.</p></div> : <div className="mt-4"><EmailSettingsCard /></div>}
     </PageShell>
   );
 }

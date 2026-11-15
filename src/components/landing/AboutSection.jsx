@@ -7,9 +7,9 @@ const PILLARS = [
   {
     icon: Receipt, title: "Smart Billing & Invoicing", tone: "from-[#6D28D9] to-[#7C3AED]",
     features: [
-      "GST & Non-GST invoicing", "CGST/SGST/IGST auto-breakup", "WhatsApp one-click sharing",
+      "India edition: GST & non-GST invoicing", "India edition: CGST/SGST/IGST auto-breakup", "Manual WhatsApp sharing where supported",
       "Recurring bills & cycles", "Credit notes & adjustments", "Quotation → invoice convert",
-      "HSN autocomplete engine", "Country-based currency display (Global drafts)", "Print-perfect A4 PDFs", "Dynamic UPI QR codes",
+      "India edition: HSN autocomplete", "Country-based currency display (Global drafts)", "Print-perfect A4 PDFs", "India edition: dynamic UPI QR codes",
     ],
   },
   {
@@ -23,15 +23,15 @@ const PILLARS = [
   {
     icon: Wallet, title: "Payments & Financial Tracking", tone: "from-[#059669] to-[#10B981]",
     features: [
-      "UPI QR code generation", "PayU checkout", "Payment tracking for supported workflows", "Partial payment tracking",
-      "Expense & purchase ledger", "Net profit calculation", "Auto payment reminders", "Reconciliation engine",
+      "India edition: UPI QR code generation", "India payment provider: PayU checkout", "Payment tracking for supported workflows", "Partial payment tracking",
+      "India edition: expense & purchase ledger", "India edition: net profit calculation", "India edition: automatic payment reminders", "Reconciliation engine",
     ],
   },
   {
     icon: BarChart3, title: "Reports & Business Intelligence", tone: "from-[#D97706] to-[#F59E0B]",
     features: [
-      "Revenue reports", "GSTR-1 ready exports", "CSV / Excel downloads", "Tax summary dashboard",
-      "P&L statements", "Sales trend charts", "Staff performance metrics", "Inventory valuation",
+      "India edition: revenue reports", "India edition: GSTR-1 ready exports", "India edition: CSV / Excel reports", "Country-aware tax capability summary",
+      "India edition: P&L statements", "India edition: sales trend charts", "India edition: staff performance metrics", "India edition: inventory valuation",
     ],
   },
   {
@@ -44,15 +44,15 @@ const PILLARS = [
   {
     icon: Plug, title: "Usability & Integrations", tone: "from-[#DB2777] to-[#EC4899]",
     features: [
-      "Mobile responsive PWA", "Bulk PDF export", "Connected web workspace", "PayU payments",
-      "Cancel & track invoices", "Available in Hindi and English", "Multi-user team access", "Custom branding & logos",
+      "Mobile responsive PWA", "Bulk PDF export", "Connected web workspace", "India payment provider: PayU",
+      "Cancel & track invoices", "India UI: Hindi and English; Global UI: English", "India edition: multi-user team access", "Custom branding & logos",
     ],
   },
 ];
 
 const STATS = [
   { value: "6", label: "Core capability areas" },
-  { value: "2", label: "Languages · Hindi & English" },
+  { value: "2", label: "India UI languages · Global UI in English" },
   { value: "Free", label: "Plan to get started" },
   { value: "No card", label: "Needed to get started" },
 ];
