@@ -97,8 +97,8 @@ test("Country reset is authenticated, owner-scoped, cooldown-limited and atomic"
   assert.match(resetRpc, /update public\.subscriptions/);
   assert.match(resetRpc, /update public\.payment_logs/);
   assert.match(resetRpc, /private\.country_reset_events/);
-  assert.match(resetRpc, /plivex\.workspace_country_reset/);
-  assert.match(resetRpc, /to_regclass\('global\.invoice_refunds'\)/);
+  assert.match(regionMigration, /plivex\.workspace_country_reset/);
+  assert.match(regionMigration, /to_regclass\('global\.invoice_refunds'\)/);
   assert.match(regionMigration, /guard_invoice_payment_append_only/);
   assert.match(regionMigration, /guard_issued_invoice_immutability/);
   assert.match(regionMigration, /current_user = 'postgres'/);
