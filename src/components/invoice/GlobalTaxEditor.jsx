@@ -56,7 +56,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
         <span className="rounded-full bg-muted px-2 py-1 text-[10px] font-semibold">{currency}</span>
       </div>
 
-      <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-[11px] text-amber-950"><strong>Draft-only:</strong> this calculation is a preview. Global invoices are saved as drafts; tax is not yet committed to an issued invoice and cannot be used to collect payment.</div>\n      <div className="mt-3 rounded-lg bg-muted/40 p-3 text-[11px] text-muted-foreground">
+      <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-[11px] text-amber-950"><strong>Preview:</strong> this is a tax estimate until the server validates and issues the invoice. Issued invoice tax snapshots are locked and are not silently recalculated.</div>\n      <div className="mt-3 rounded-lg bg-muted/40 p-3 text-[11px] text-muted-foreground">
         <p><strong>Saved registration:</strong> {workspaceProfile?.registrationNumber || "Not provided"} · {workspaceProfile?.registrationStatus || "unregistered"}</p>
         <p className="mt-1">Effective from: {workspaceProfile?.registrationEffectiveFrom || "Not provided"} · Registered jurisdiction: {workspaceProfile?.registeredJurisdiction || "Not provided"}</p>
       </div>
