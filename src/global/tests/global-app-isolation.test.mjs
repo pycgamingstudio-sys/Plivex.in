@@ -3,12 +3,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [app, globalApp, onboarding, worker, vite] = await Promise.all([
+const [app, globalApp, onboarding, worker, vite, googleButton, indiaWorker] = await Promise.all([
   read("../../App.jsx"),
   read("../GlobalApp.jsx"),
   read("../../components/global/GlobalCountryOnboarding.jsx"),
   read("../../../wrangler.global.jsonc"),
   read("../../../vite.config.js"),
+  read("../../components/auth/GoogleSignInButton.jsx"),
+  read("../../../wrangler.jsonc"),
 ]);
 
 test("Global edition mounts its isolated app before the India providers and route tree", () => {
@@ -43,4 +45,20 @@ test("Global Cloudflare build targets its own Worker and edition config", () => 
   assert.equal(config.vars.VITE_APP_EDITION, "global");
   assert.match(vite, /wrangler\.global\.jsonc/);
   assert.match(vite, /VITE_APP_EDITION: edition/);
+});
+
+test("Unified same-domain worker preserves India at root and serves Global under /global", () => {
+  const config = JSON.parse(indiaWorker);
+  assert.equal(config.name, "plivex-in");
+  assert.equal(config.vars.VITE_APP_EDITION, "unified");
+  assert.equal(config.previews.vars.VITE_APP_EDITION, "unified");
+  assert.match(vite, /\|\| 'unified'/);
+  assert.match(googleButton, /APP_EDITION === "global" \? "\/global\/" : "\/"/);
+  assert.match(globalApp, /href="\/global\/"|href=\{?"\/global\/"?\}/);
+});
+
+test("Global and India email callbacks preserve their same-origin edition path", () => {
+  const backend = read("../../api/backendClient.js");
+  assert.match(backend, /resolveRuntimeEdition\(import\.meta\.env\.VITE_APP_EDITION/);
+  assert.match(backend, /APP_EDITION === "global" \? "\/global\/" : "\/"/);
 });
