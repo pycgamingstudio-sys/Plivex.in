@@ -43,7 +43,7 @@ const CA_REGIONS = [
 }));
 
 const REGION_CODES = Object.freeze({
-  IN:["AN","AP","AR","AS","BR","CH","CG","DN","DD","DL","GA","GJ","HR","HP","JK","JH","KA","KL","LA","LD","MP","MH","MN","ML","MZ","NL","OD","PB","PY","RJ","SK","TN","TS","TR","UP","UK","WB"],
+  IN:["AN","AP","AR","AS","BR","CH","CG","DN","DL","GA","GJ","HR","HP","JK","JH","KA","KL","LA","LD","MP","MH","MN","ML","MZ","NL","OD","PB","PY","RJ","SK","TN","TS","TR","UP","UK","WB"],
   GB:["ENG","SCT","WLS","NIR"],
   AE:["AZ","DU","SH","AJ","UQ","RK","FJ"],
   AU:["NSW","VIC","QLD","WA","SA","TAS","ACT","NT"],
