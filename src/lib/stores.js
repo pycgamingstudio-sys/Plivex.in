@@ -431,11 +431,11 @@ export async function saveInvoiceToServer(inv) {
       due_date: dateOrNull(inv.dueDate),
       notes: [inv.notes, inv.terms].filter(Boolean).join("\\n\\n").slice(0, 4000),
       items,
-      idempotency_key: crypto.randomUUID(),
+      idempotency_key: inv.globalDraftRequestId || crypto.randomUUID(),
     });
     const saved = response?.data?.invoice;
     if (!saved?.id) throw new Error("The Global draft invoice could not be saved.");
-    const result = { id: saved.id, number: saved.invoice_number, status: "draft", currency };
+    const result = { id: saved.id, number: saved.invoice_number, status: "draft", currency, idempotencyKey: inv.globalDraftRequestId || undefined };
     _savedSignatures.set(sig, result);
     return result;
   }
