@@ -32,7 +32,7 @@ const errorMessage = async (error, fallback) => {
   return error?.message || fallback;
 };
 
-export default function GlobalApp() {
+export default function GlobalApp({ onSignOut } = {}) {
   const [session, setSession] = useState(null);
   const [account, setAccount] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -158,7 +158,8 @@ export default function GlobalApp() {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    if (onSignOut) await onSignOut();
+    else await supabase.auth.signOut();
     setSession(null); setAccount(null); setRecords({});
   };
 
