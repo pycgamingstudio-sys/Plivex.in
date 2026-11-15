@@ -222,9 +222,21 @@ const functions = {
     // operations intentionally retain the legacy fallback until their contracts
     // and runtime tests are complete.
     const functionName = kebab(String(name || ""));
+    if (APP_EDITION === "global" && functionName === "global-update-workspace-country") {
+      const { data, error } = await supabase.functions.invoke(functionName, { body: payload || {} });
+      if (error) {
+        let message = error.message || "Workspace country could not be saved.";
+        try {
+          const response = await error.context?.clone?.json();
+          if (typeof response?.error === "string") message = response.error;
+        } catch { /* retain SDK error */ }
+        throw new ApiError(message, error.status || 400, { operation: name });
+      }
+      return { data };
+    }
     if (APP_EDITION === "global" && functionName === "workspace-records") return invokeGlobalWorkspaceRecords(payload);
     if (APP_EDITION === "global" && ["global-invoices", "global-stock-movements"].includes(functionName)) return invokeGlobalLedger(functionName, payload);
-    if (APP_EDITION === "global" && !["global-ensure-owner", "global-business-records", "global-invoices", "global-stock-movements"].includes(functionName)) {
+    if (APP_EDITION === "global" && !["global-ensure-owner", "global-business-records", "global-invoices", "global-stock-movements", "global-update-workspace-country"].includes(functionName)) {
       throw new ApiError("This Global feature is not enabled yet. Your India workspace is kept separate.", 503, { operation: name });
     }
     const migratedFunctions = new Set([

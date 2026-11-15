@@ -143,7 +143,7 @@ function Sidebar({ onNew, onPricing }) {
       <div className="mt-auto p-3">
         <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/60 p-3.5">
           <div className="mb-2 flex items-center gap-2 text-[11px] font-bold"><Sparkles className="h-3.5 w-3.5 text-sidebar-primary" />Free workspace</div>
-          <p className="text-[11px] leading-relaxed text-sidebar-foreground/55">Three polished PDF exports, then keep going for ₹249/month.</p>
+          <p className="text-[11px] leading-relaxed text-sidebar-foreground/55">{user?.country_code && user.country_code !== "IN" ? (user.country_code === "US" ? "Basic $5.99 · Pro $9.99/month. USD checkout activation is pending." : `Workspace currency ${user.currency_code || ""}. Local subscription pricing is not configured yet.`) : "Three polished PDF exports, then keep going for ₹249/month."}</p>
           <button data-testid="button-upgrade-sidebar" onClick={onPricing} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-sidebar-primary px-3 py-2.5 text-[11px] font-bold text-sidebar-primary-foreground transition-transform hover:-translate-y-0.5"><Sparkles className="h-3.5 w-3.5" />Pricing Plans</button>
         </div>
         <div className="mt-4 flex items-center gap-2 border-t border-sidebar-border pt-4">{user?.profilePicture ? <img src={user.profilePicture} alt="avatar" className="h-7 w-7 rounded-full object-cover" /> : <div className="flex h-7 w-7 items-center justify-center rounded-full bg-sidebar-primary/15 text-[10px] font-bold text-sidebar-primary">{(user?.full_name || user?.email || "U").charAt(0).toUpperCase()}</div>}<div className="min-w-0"><p className="truncate text-[11px] font-semibold">{user?.full_name || "Account"}</p><p className="truncate text-[10px] text-sidebar-foreground/45">{user?.email || ""}</p></div><MoreHorizontal className="ml-auto h-4 w-4 text-sidebar-foreground/45" /></div>
@@ -196,10 +196,10 @@ function InvoiceEditor({ invoice, setInvoice, workspaceTaxProfile, globalTaxCalc
         <div className="mt-4 flex flex-wrap items-center gap-2.5 border-t pt-4">{canAccess("custom_logo") ? (<label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"><ImagePlus className="h-3.5 w-3.5" />{invoice.logo ? "Replace logo" : "Add logo"}<input data-testid="input-logo-upload" type="file" accept="image/png,image/jpeg" className="hidden" onChange={(e) => uploadImage(e, "logo")} /></label>) : (<button type="button" onClick={onLocked} className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"><LockKeyhole className="h-3.5 w-3.5" />{invoice.logo ? "Replace logo" : "Add logo"}<span className="rounded bg-primary/15 px-1.5 py-0.5 font-mono-ui text-[9px] font-bold uppercase text-primary">Pro</span></button>)}<button data-testid="button-draw-signature" onClick={onSignature} className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"><Pencil className="h-3.5 w-3.5" />{invoice.signature ? "Edit signature" : "Draw signature"}</button><label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"><ImagePlus className="h-3.5 w-3.5" />Upload signature<input data-testid="input-signature-upload" type="file" accept="image/png,image/jpeg" className="hidden" onChange={(e) => uploadImage(e, "signature")} /></label><span className="text-[10px] text-muted-foreground">Optional · shown on the final page</span></div>
       </SectionCard>
       <SectionCard icon={WalletCards} eyebrow="Bill to" title="Client details">
-        <div className="grid gap-3 sm:grid-cols-2"><Field label="Client Business Name" error={errors.clientName}><input required data-testid="input-client-name" className={withErrorClass(inputClass, errors.clientName)} value={invoice.client.name} onChange={(e) => setClient("name", e.target.value)} placeholder="Client Business Name (required)" /></Field><Field label="Company" hint="Optional"><input data-testid="input-client-company" className={inputClass} value={invoice.client.company} onChange={(e) => setClient("company", e.target.value)} placeholder="Company name (optional)" /></Field><Field label="Email"><input data-testid="input-client-email" type="email" className={inputClass} value={invoice.client.email} onChange={(e) => setClient("email", e.target.value)} placeholder="accounts@client.com" /></Field><Field label="Phone"><input data-testid="input-client-phone" className={inputClass} value={invoice.client.phone} onChange={(e) => setClient("phone", e.target.value)} placeholder="+91" /></Field><Field label="GSTIN" hint="Optional"><input data-testid="input-client-gstin" className={inputClass} value={invoice.client.gstin} onChange={(e) => setClient("gstin", e.target.value)} placeholder="22AAAAA0000A1Z5" /></Field></div><Field label="Client address"><textarea data-testid="input-client-address" className={`${inputClass} min-h-[68px]`} value={invoice.client.address} onChange={(e) => setClient("address", e.target.value)} placeholder="Enter address (optional)" /></Field>
+        <div className="grid gap-3 sm:grid-cols-2"><Field label="Client Business Name" error={errors.clientName}><input required data-testid="input-client-name" className={withErrorClass(inputClass, errors.clientName)} value={invoice.client.name} onChange={(e) => setClient("name", e.target.value)} placeholder="Client Business Name (required)" /></Field><Field label="Company" hint="Optional"><input data-testid="input-client-company" className={inputClass} value={invoice.client.company} onChange={(e) => setClient("company", e.target.value)} placeholder="Company name (optional)" /></Field><Field label="Email"><input data-testid="input-client-email" type="email" className={inputClass} value={invoice.client.email} onChange={(e) => setClient("email", e.target.value)} placeholder="accounts@client.com" /></Field><Field label="Phone"><input data-testid="input-client-phone" className={inputClass} value={invoice.client.phone} onChange={(e) => setClient("phone", e.target.value)} placeholder={getCountryByCode(workspaceTaxProfile?.countryCode)?.phoneCode || "+91"} /></Field><Field label={isGlobalWorkspace ? "Client tax registration number" : "GSTIN"} hint="Optional"><input data-testid="input-client-gstin" className={inputClass} value={invoice.client.gstin} onChange={(e) => setClient("gstin", e.target.value)} placeholder={isGlobalWorkspace ? "Enter local tax number (optional)" : "22AAAAA0000A1Z5"} /></Field></div><Field label="Client address"><textarea data-testid="input-client-address" className={`${inputClass} min-h-[68px]`} value={invoice.client.address} onChange={(e) => setClient("address", e.target.value)} placeholder="Enter address (optional)" /></Field>
       </SectionCard>
       <SectionCard icon={CalendarDays} eyebrow="Control the details" title="Invoice settings">
-        <div className="grid gap-3 sm:grid-cols-2"><Field label="Invoice no."><input data-testid="input-invoice-number" className={inputClass} value={invoice.number} onChange={(e) => setInvoice((old) => ({ ...old, number: e.target.value }))} placeholder="INV-0001 (optional)" /></Field><Field label={isGlobalWorkspace ? `Workspace currency · ${invoice.currency}` : "Currency"}><select data-testid="select-currency" className={`${inputClass} ${!canAccess("multi_currency") && !isGlobalWorkspace ? "opacity-60" : ""}`} disabled={!canAccess("multi_currency") && !isGlobalWorkspace} value={invoice.currency} onChange={(e) => setInvoice((old) => ({ ...old, currency: e.target.value }))}>{SUPPORTED_CURRENCIES.map((currency) => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select>{!canAccess("multi_currency") && !isGlobalWorkspace && <button type="button" onClick={onLocked} className="mt-1.5 flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline"><LockKeyhole className="h-3 w-3" />Unlock Multi-Currency</button>}</Field><Field label="Issue date" error={errors.issueDate}><input data-testid="input-issue-date" type="date" onClick={openPicker} className={withErrorClass(dateInputClass, errors.issueDate)} value={invoice.issueDate} onChange={(e) => { setInvoice((old) => ({ ...old, issueDate: e.target.value })); if (e.target.value) onClearError("issueDate"); }} /></Field><Field label="Due date"><input data-testid="input-due-date" type="date" min={invoice.issueDate || undefined} onClick={openPicker} className={dateInputClass} value={invoice.dueDate} onChange={(e) => setInvoice((old) => ({ ...old, dueDate: e.target.value }))} /></Field></div>
+        <div className="grid gap-3 sm:grid-cols-2"><Field label="Invoice no."><input data-testid="input-invoice-number" className={inputClass} value={invoice.number} onChange={(e) => setInvoice((old) => ({ ...old, number: e.target.value }))} placeholder="INV-0001 (optional)" /></Field><Field label={isGlobalWorkspace ? `Workspace currency · ${invoice.currency}` : "Currency"}><select data-testid="select-currency" className={`${inputClass} ${!canAccess("multi_currency") ? "opacity-60" : ""}`} disabled={!canAccess("multi_currency")} value={invoice.currency} onChange={(e) => setInvoice((old) => ({ ...old, currency: e.target.value }))}>{SUPPORTED_CURRENCIES.map((currency) => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select>{!canAccess("multi_currency") && <button type="button" onClick={onLocked} className="mt-1.5 flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline"><LockKeyhole className="h-3 w-3" />Unlock Multi-Currency</button>}</Field><Field label="Issue date" error={errors.issueDate}><input data-testid="input-issue-date" type="date" onClick={openPicker} className={withErrorClass(dateInputClass, errors.issueDate)} value={invoice.issueDate} onChange={(e) => { setInvoice((old) => ({ ...old, issueDate: e.target.value })); if (e.target.value) onClearError("issueDate"); }} /></Field><Field label="Due date"><input data-testid="input-due-date" type="date" min={invoice.issueDate || undefined} onClick={openPicker} className={dateInputClass} value={invoice.dueDate} onChange={(e) => setInvoice((old) => ({ ...old, dueDate: e.target.value }))} /></Field></div>
         <div className="mt-3"><Field label="Your UPI ID / VPA" hint="Optional · adds a pay QR"><input data-testid="input-upi-id" className={inputClass} value={invoice.upiId || ""} onChange={(e) => setInvoice((old) => ({ ...old, upiId: e.target.value }))} placeholder="9876543210@paytm" /></Field></div>
       </SectionCard>
       <SectionCard icon={FileText} eyebrow="What you did" title="Line items" action={<span className="font-mono-ui text-[10px] text-muted-foreground">{invoice.items.length.toString().padStart(2, "0")} items</span>}>
@@ -266,7 +266,7 @@ function InvoiceEditor({ invoice, setInvoice, workspaceTaxProfile, globalTaxCalc
 }
 
 function money(value, currency) { return formatMoney(value, currency); }
-function dateLabel(value) { if (!value) return "—"; return new Date(`${value}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); }
+function dateLabel(value, locale = "en-IN") { if (!value) return "—"; return new Date(`${value}T00:00:00`).toLocaleDateString(locale, { day: "2-digit", month: "short", year: "numeric" }); }
 
 function computeTotal(invoiceForPreview) {
   const subtotal = invoice.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.rate) || 0), 0);
@@ -404,9 +404,23 @@ const PRICING_PLANS = [
     locked: [] },
 ];
 
-function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEmail }) {
+function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEmail, countryCode = "IN", currencyCode = "INR" }) {
+  const isGlobalPricing = countryCode !== "IN";
   const isVirendraAccount = String(userEmail || "").trim().toLowerCase() === "virendra.sharma99978@gmail.com";
-  const displayPlans = PRICING_PLANS.map((plan) => isVirendraAccount && plan.id === "basic_monthly" ? { ...plan, price: 25, amount: 2500, badge: "SPECIAL PRICE" } : plan);
+  const displayPlans = countryCode === "US"
+    ? [
+        { ...PRICING_PLANS[0], price: 5.99, amount: 599, badge: null, included: ["USD workspace base currency", "Invoices and quotations", "Client and product records", "Inventory and expense tracking", "Regional number and date formats"], locked: ["Additional invoice currencies", "Automated tax calculations without verified jurisdiction rules"] },
+        { ...PRICING_PLANS[1], price: 9.99, amount: 999, badge: "MOST POPULAR", included: ["Everything in Basic", "Advanced CRM and business reports", "Expanded invoice and inventory limits", "Additional currencies when enabled", "Priority support"], locked: [] },
+      ]
+    : isGlobalPricing
+      ? []
+      : PRICING_PLANS.map((plan) => isVirendraAccount && plan.id === "basic_monthly" ? { ...plan, price: 25, amount: 2500, badge: "SPECIAL PRICE" } : plan);
+  const priceLabel = (price) => new Intl.NumberFormat(countryCode === "US" ? "en-US" : "en-IN", {
+    style: "currency",
+    currency: currencyCode,
+    minimumFractionDigits: currencyCode === "INR" ? 0 : 2,
+    maximumFractionDigits: currencyCode === "INR" ? 0 : 2,
+  }).format(price);
   const activePlan = currentPlan?.planId ? PRICING_PLANS.find((plan) => plan.id === currentPlan.planId) : null;
   return (
     <div className="app-chrome fixed inset-0 z-50 flex items-start justify-center bg-[#1f1c35]/55 p-4 backdrop-blur-md sm:items-center">
@@ -416,26 +430,28 @@ function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEm
           <div className="absolute -bottom-12 -left-8 h-40 w-40 rounded-full bg-accent/30 blur-2xl" />
           <button data-testid="button-close-pricing" onClick={onClose} className="absolute right-4 top-4 rounded-lg p-2 text-primary-foreground/80 transition-colors hover:bg-white/10" aria-label="Close pricing"><X className="h-4 w-4" /></button>
           <div className="relative">
-            <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /><p className="font-mono-ui text-[10px] font-medium uppercase tracking-[0.18em]">Plivex Pro</p></div>
+            <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /><p className="font-mono-ui text-[10px] font-medium uppercase tracking-[0.18em]">{isGlobalPricing ? "Plivex Global" : "Plivex Pro"}</p></div>
             <h3 className="mt-2 text-[22px] font-bold leading-tight tracking-[-0.04em]">Choose your subscription</h3>
-            <p className="mt-1.5 text-[12px] leading-relaxed text-primary-foreground/85">Unlock unlimited invoices, WhatsApp sharing &amp; premium features.</p>
+            <p className="mt-1.5 text-[12px] leading-relaxed text-primary-foreground/85">{isGlobalPricing ? "Country-based workspace plans and regional features." : "Unlock unlimited invoices, WhatsApp sharing &amp; premium features."}</p>
           </div>
         </div>
         <div className="max-h-[60vh] overflow-y-auto px-4 py-5 sm:px-6">
           {currentPlan?.active && (
             <CurrentPlanCard planName={currentPlan.planName} benefits={activePlan?.included || []} startedAt={currentPlan.startedAt} expiresAt={currentPlan.expiresAt} />
           )}
+          {countryCode === "US" && <p className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-950">USD plan prices are displayed for the United States, but USD checkout is not enabled yet. Cashfree multi-currency activation is still pending, so purchase is temporarily unavailable.</p>}
+          {isGlobalPricing && displayPlans.length === 0 && <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Subscription pricing in {currencyCode} is not configured yet. Your workspace home currency and country-based invoice defaults remain available.</p>}
           <div className="grid gap-3 sm:grid-cols-2">
             {displayPlans.map((plan) => (
               <div key={plan.id} className={`relative flex flex-col rounded-2xl border p-4 ${plan.accent ? "border-primary bg-primary/[.05]" : "border-border bg-background/40"}`}>
                 {plan.badge && <span className={`absolute -top-2.5 right-4 rounded-full px-2.5 py-0.5 font-mono-ui text-[9px] font-bold uppercase tracking-wider text-primary-foreground ${plan.accent ? "bg-primary" : "bg-muted-foreground"}`}>{plan.badge}</span>}
                 <p className="text-[12px] font-bold uppercase tracking-wider text-muted-foreground">{plan.name}</p>
-                <p className="mt-2 text-[26px] font-bold leading-none tracking-[-0.03em]">₹{plan.price}<span className="text-[12px] font-medium text-muted-foreground">/{plan.period}</span></p>
+                <p className="mt-2 text-[26px] font-bold leading-none tracking-[-0.03em]">{priceLabel(plan.price)}<span className="text-[12px] font-medium text-muted-foreground">/{plan.period}</span></p>
                 <div className="mt-3 space-y-1.5">
                   {plan.included.map((f) => <div key={f} className="flex items-start gap-2 text-[11px] font-medium text-foreground"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Check className="h-2.5 w-2.5" /></span>{f}</div>)}
                   {plan.locked.map((f) => <div key={f} className="flex items-start gap-2 text-[11px] font-medium text-muted-foreground/70"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600"><X className="h-2.5 w-2.5" /></span>{f} (Locked)</div>)}
                 </div>
-                <button data-testid={`button-checkout-${plan.id}`} onClick={() => onCheckout(plan)} className={`mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[12px] font-bold transition-transform hover:-translate-y-0.5 ${plan.accent ? "bg-primary text-primary-foreground" : "border border-primary text-primary hover:bg-secondary"}`}>{plan.accent ? <Zap className="h-3.5 w-3.5" /> : <LockKeyhole className="h-3.5 w-3.5" />}Buy ₹{plan.price}/{plan.period}</button>
+                <button data-testid={`button-checkout-${plan.id}`} onClick={() => onCheckout(plan)} disabled={isGlobalPricing} className={`mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[12px] font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${plan.accent ? "bg-primary text-primary-foreground" : "border border-primary text-primary hover:bg-secondary"}`}>{plan.accent ? <Zap className="h-3.5 w-3.5" /> : <LockKeyhole className="h-3.5 w-3.5" />}{isGlobalPricing ? "USD checkout unavailable" : `Buy ${priceLabel(plan.price)}/${plan.period}`}</button>
               </div>
             ))}
           </div>
@@ -444,7 +460,7 @@ function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEm
         <div className="border-t px-6 py-4">
           <button data-testid="button-close-pricing-text" onClick={onClose} className="w-full text-center text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground">Close</button>
         </div>
-        <div className="flex items-center justify-center gap-1 border-t px-6 py-3 text-[10px] text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" />Secure checkout via Cashfree</div>
+        <div className="flex items-center justify-center gap-1 border-t px-6 py-3 text-[10px] text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" />{isGlobalPricing ? "International checkout is not active yet" : "Secure checkout via Cashfree"}</div>
       </div>
     </div>
   );
@@ -517,10 +533,11 @@ export default function Home() {
         if (response?.error) throw response.error;
         const record = response?.data?.record || {};
         if (!active) return;
-        const countryCode = String(record.country_code || "IN").toUpperCase();
+        const countryCode = String(record.country_code || user?.country_code || "IN").toUpperCase();
         setWorkspaceTaxProfile({
           countryCode,
-          currencyCode: GLOBAL_COUNTRY_CURRENCIES[countryCode] || "INR",
+          currencyCode: GLOBAL_COUNTRY_CURRENCIES[countryCode] || user?.currency_code || (countryCode === "IN" ? "INR" : ""),
+          localeCode: record.locale_code || user?.locale_code || (countryCode === "IN" ? "en-IN" : "en-US"),
           registrationNumber: record.tax_registration_number || "",
           registrationType: record.tax_registration_type || "",
           registrationStatus: record.tax_registration_status || "unregistered",
@@ -877,7 +894,7 @@ export default function Home() {
       const file = new File([blob], safeFilename, { type: "application/pdf" });
       const clientName = invoice.client.name || "there";
       const totalAmt = money(computeTotal(invoiceForPreview), invoice.currency);
-      const due = invoice.dueDate ? dateLabel(invoice.dueDate) : "—";
+      const due = invoice.dueDate ? dateLabel(invoice.dueDate, workspaceTaxProfile?.localeCode || "en-IN") : "—";
       const upi = (invoice.upiId || "").trim();
       const bizName = invoice.business.name || "Plivex";
       const paymentLine = upi ? `💳 Payment Details / UPI: ${upi}` : "💳 Payment Details: Please contact us for payment details.";
@@ -966,7 +983,7 @@ export default function Home() {
 
       const clientName = invoice.client.name || "there";
       const totalAmt = money(computeTotal(invoiceForPreview), invoice.currency);
-      const due = invoice.dueDate ? dateLabel(invoice.dueDate) : "—";
+      const due = invoice.dueDate ? dateLabel(invoice.dueDate, workspaceTaxProfile?.localeCode || "en-IN") : "—";
       const upi = (invoice.upiId || "").trim();
       const bizName = invoice.business.name || "Plivex";
       const paymentLine = upi ? `Payment Details / UPI: ${upi}` : "Please contact us for payment details.";
@@ -1010,7 +1027,7 @@ export default function Home() {
         </main>
       </div>
       {signatureOpen && <SignatureModal onClose={() => setSignatureOpen(false)} onSave={(data) => { setInvoice((old) => ({ ...old, signature: data })); notify("Signature saved"); }} />}
-      {pricingOpen && <PricingModal onClose={() => { setPricingOpen(false); setCheckoutNotice(""); }} onCheckout={checkout} checkoutNotice={checkoutNotice} userEmail={user?.email} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} />}
+      {pricingOpen && <PricingModal onClose={() => { setPricingOpen(false); setCheckoutNotice(""); }} onCheckout={checkout} checkoutNotice={checkoutNotice} userEmail={user?.email} countryCode={workspaceTaxProfile?.countryCode || user?.country_code || "IN"} currencyCode={workspaceTaxProfile?.currencyCode || user?.currency_code || "INR"} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} />}
       {whatsappOpen && <WhatsAppNumberModal value={whatsappNumber} onChange={setWhatsappNumber} onClose={() => setWhatsappOpen(false)} onSend={() => sendWhatsApp(whatsappNumber)} sending={whatsappSending} />}
       <PresenceBeacon />
       <Toast toast={toast} onClose={() => setToast(null)} />

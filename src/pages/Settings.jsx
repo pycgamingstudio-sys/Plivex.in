@@ -10,10 +10,12 @@ import { KEYS, useLocalState } from "@/lib/stores";
 import { inputCls } from "@/lib/ui";
 import DataImportExport from "@/components/DataImportExport";
 import WorkspaceCountrySettings from "@/components/global/WorkspaceCountrySettings";
+import { useAuth } from "@/lib/AuthContext";
 
 const EMAIL_KEY = "invoicepulse:emailSettings";
 
 export default function Settings() {
+  const { user } = useAuth();
   const [settings, setSettings] = useLocalState(KEYS.settings, { currency: "INR", taxRate: 18 });
   const [dark, setDark] = useLocalState("invoicepulse-dark", false);
   const set = (k, v) => setSettings((s) => ({ ...s, [k]: v }));
@@ -22,8 +24,18 @@ export default function Settings() {
   return (
     <PageShell icon={SettingsIcon} title="Settings" subtitle="Defaults applied across your workspace.">
       <div className="space-y-4 rounded-xl border bg-card p-5">
-        <label className="block text-[12px] font-semibold text-muted-foreground">Default invoice currency<select className={inputCls} value={settings.currency} onChange={(e) => set("currency", e.target.value)}>{SUPPORTED_CURRENCIES.map((currency) => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select></label>
-        <label className="block text-[12px] font-semibold text-muted-foreground">Default GST rate<select className={inputCls} value={settings.taxRate} onChange={(e) => set("taxRate", Number(e.target.value))}><option value="0">0%</option><option value="5">5%</option><option value="12">12%</option><option value="18">18%</option><option value="28">28%</option></select></label>
+        {APP_EDITION === "global" ? (
+          <div className="rounded-lg border p-3">
+            <p className="text-[12px] font-semibold text-muted-foreground">Workspace base currency</p>
+            <p className="mt-1 text-lg font-bold">{user?.currency_code || "—"}</p>
+            <p className="text-[11px] text-muted-foreground">Controlled by the selected workspace country. Multi-currency is a separate feature.</p>
+          </div>
+        ) : (
+          <>
+            <label className="block text-[12px] font-semibold text-muted-foreground">Default invoice currency<select className={inputCls} value={settings.currency} onChange={(e) => set("currency", e.target.value)}>{SUPPORTED_CURRENCIES.map((currency) => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select></label>
+            <label className="block text-[12px] font-semibold text-muted-foreground">Default GST rate<select className={inputCls} value={settings.taxRate} onChange={(e) => set("taxRate", Number(e.target.value))}><option value="0">0%</option><option value="5">5%</option><option value="12">12%</option><option value="18">18%</option><option value="28">28%</option></select></label>
+          </>
+        )}
         <div className="flex items-center justify-between rounded-lg border p-3"><div><p className="text-[13px] font-semibold">Dark theme</p><p className="text-[11px] text-muted-foreground">Toggle the workspace appearance.</p></div><button onClick={() => setDark(!dark)} className={`relative h-6 w-11 rounded-full transition-colors ${dark ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${dark ? "left-[22px]" : "left-0.5"}`} /></button></div>
         <p className="flex items-center gap-1.5 text-[11px] text-emerald-600"><Check className="h-3.5 w-3.5" />Saved automatically</p>
       </div>
@@ -33,7 +45,7 @@ export default function Settings() {
         <p className="mb-3 mt-1 text-xs text-muted-foreground">Choose the language of the app. You can change it any time in Settings.</p>
         <LanguageSwitcher showHindi={APP_EDITION !== "global"} />
       </div>
-      <div className="mt-4"><WorkspaceCountrySettings lockCountry={APP_EDITION === "global"} /></div>
+      <div className="mt-4"><WorkspaceCountrySettings lockCountry={false} /></div>
       <div className="mt-4"><EmailSettingsCard /></div>
     </PageShell>
   );
