@@ -78,6 +78,34 @@ BEGIN
     RAISE EXCEPTION 'Country reset audit event was not written';
   END IF;
 
+RESET ROLE;
+SET ROLE authenticated;
+SET request.jwt.claim.role = 'authenticated';
+SET request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
+DO $region_spoof$
+BEGIN
+  BEGIN
+    UPDATE public.profiles SET country_code='CA', locale_code='fr-CA'
+    WHERE id='11111111-1111-4111-8111-111111111111';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+END
+$region_spoof$;
+RESET ROLE;
+SET ROLE service_role;
+DO $region_spoof_assert$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id='11111111-1111-4111-8111-111111111111'
+      AND country_code='US' AND locale_code='en-US'
+  ) THEN
+    RAISE EXCEPTION 'Authenticated profile update spoofed the canonical workspace country or locale';
+  END IF;
+END
+$region_spoof_assert$;
+
   result := public.reset_workspace_country_atomic(
     '11111111-1111-4111-8111-111111111111','CA','fr-CA','CAD','Cooldown probe'
   );
