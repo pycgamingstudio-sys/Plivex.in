@@ -157,6 +157,7 @@ declare
   v_price_mode text;
   v_place text;
   v_tax_snapshot jsonb;
+  v_issuance_fingerprint text;
   v_items jsonb;
 begin
   if p_user_id is null or p_workspace_id is null or p_invoice_id is null
@@ -170,12 +171,13 @@ begin
   if v_role is null then return jsonb_build_object('ok',false,'reason','access_denied'); end if;
   if v_role not in ('owner','admin','manager') then return jsonb_build_object('ok',false,'reason','forbidden'); end if;
 
+  v_issuance_fingerprint := md5(p_tax_context::text);
   perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text || ':issue:' || p_idempotency_key::text,0));
   select * into v_existing from global.invoices
   where workspace_id=p_workspace_id and issuance_idempotency_key=p_idempotency_key
   for update;
   if found then
-    if v_existing.id <> p_invoice_id then
+    if v_existing.id <> p_invoice_id or v_existing.invoice_snapshot->>'issuance_request_fingerprint' is distinct from v_issuance_fingerprint then
       return jsonb_build_object('ok',false,'reason','idempotency_conflict');
     end if;
     return jsonb_build_object('ok',true,'duplicate',true,'invoice',to_jsonb(v_existing));
@@ -262,6 +264,7 @@ begin
 
   v_tax_snapshot := jsonb_build_object(
     'document_status','issued',
+    'issuance_request_fingerprint',v_issuance_fingerprint,
     'country_code','GB',
     'currency_code','GBP',
     'tax_status','calculated',
