@@ -18,6 +18,8 @@ test("unified authentication resolves workspace country before selecting regiona
   assert.match(auth, /resolveSignedInEdition\(currentUser\)/);
   assert.match(auth, /resolveWorkspaceEdition\(countryCode, supportedCodes\)/);
   assert.match(auth, /setRuntimeEdition\(edition\)/);
+  assert.match(auth, /const wasGlobalWorkspace = APP_EDITION === 'global'/);
+  assert.match(auth, /migrateLegacy: !wasGlobalWorkspace/);
   assert.match(backend, /export let APP_EDITION/);
   assert.match(backend, /export const isUnifiedBuild/);
 });
@@ -26,4 +28,5 @@ test("Global country onboarding uses the shared Plivex brand", () => {
   const onboarding = read("../../components/global/GlobalCountryOnboarding.jsx");
   assert.match(onboarding, /<p className="text-sm font-semibold text-primary">Plivex<\/p>/);
   assert.doesNotMatch(onboarding, />Plivex Global</);
+  assert.match(onboarding, /filter\(\(entry\) => entry.code !== "IN"\)/);
 });
