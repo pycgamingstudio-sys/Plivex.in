@@ -34,7 +34,7 @@ export function resolveEditionId(value) {
 /** Resolve the edition for a unified same-origin build without changing legacy builds. */
 export function resolveRuntimeEdition(buildEdition, pathname = "/") {
   if (buildEdition === UNIFIED_EDITION_ID) {
-    return typeof pathname === "string" && /^\\/global(?:\\/|$)/.test(pathname)
+    return typeof pathname === "string" && pathname.startsWith("/global") && (pathname.length === 7 || pathname[7] === "/")
       ? EDITION_IDS.GLOBAL
       : EDITION_IDS.INDIA;
   }
