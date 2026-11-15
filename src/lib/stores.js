@@ -423,7 +423,16 @@ export async function saveInvoiceToServer(inv) {
     if (!items.length || items.some((item) => !item.description || !Number.isFinite(item.quantity) || item.quantity <= 0)) {
       throw new Error("Add valid invoice lines before saving this Global draft.");
     }
-    const idempotencyKey = typeof inv.globalDraftRequestId === "string" && /^[0-9a-f-]{36}$/i.test(inv.globalDraftRequestId)\n      ? inv.globalDraftRequestId\n      : crypto.randomUUID();\n    const response = await api.functions.invoke("globalInvoices", {
+    const requestKeyName = tenantKey(`global-draft-request:${sig}`);
+    let idempotencyKey = "";
+    try { idempotencyKey = localStorage.getItem(requestKeyName) || ""; } catch { /* use a fresh in-memory key */ }
+    if (!/^[0-9a-f-]{36}$/i.test(idempotencyKey)) {
+      idempotencyKey = typeof inv.globalDraftRequestId === "string" && /^[0-9a-f-]{36}$/i.test(inv.globalDraftRequestId)
+        ? inv.globalDraftRequestId
+        : crypto.randomUUID();
+      try { localStorage.setItem(requestKeyName, idempotencyKey); } catch { /* key still applies to this request */ }
+    }
+    const response = await api.functions.invoke("globalInvoices", {
       action: "create_draft",
       client_id: null,
       currency_code: currency,
