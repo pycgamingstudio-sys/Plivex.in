@@ -78,9 +78,9 @@ export default function GuestDashboard() {
             <div>
               <p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-white/90"><Sparkles className="h-3.5 w-3.5" />Smart business workspace</p>
               <h1 className="mt-4 text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl lg:text-5xl">Less paperwork.<br/><span className="text-violet-200">More business.</span></h1>
-              <p className="mt-4 max-w-xl text-sm leading-6 text-white/85 sm:text-base">Create GST invoices, manage clients, track expenses and stock, and organise everyday billing in one workspace. Start with the Free plan and upgrade only when you need more.</p>
+              <p className="mt-4 max-w-xl text-sm leading-6 text-white/85 sm:text-base">Bring invoices, customers, stock, expenses and reports into one connected business workspace. India GST workflows are available today; Global capabilities are being introduced in stages. Start with the Free plan and upgrade only when you need more.</p>
               <div className="mt-5 flex flex-wrap gap-3">
-                <Link to="/register" className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-violet-800 shadow-sm hover:bg-violet-50">Use Plivex for free <span aria-hidden="true">→</span></Link>
+                <Link to="/register" className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-violet-800 shadow-sm hover:bg-violet-50">Create your free account <span aria-hidden="true">→</span></Link>
                 <a href="#features" className="inline-flex items-center rounded-xl border border-white/35 px-5 py-3 text-sm font-bold text-white hover:bg-white/10">Explore features</a>
               </div>
               <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs font-medium text-white/80"><span>✓ Free plan available</span><span>✓ No card required</span><span>✓ Hindi &amp; English</span></div>
@@ -173,7 +173,7 @@ export default function GuestDashboard() {
           <div className="grid gap-6 sm:grid-cols-2">
             <div>
               <div className="flex items-center gap-3"><Logo className="h-10 w-10" rounded="rounded-xl" /><div><p className="text-lg font-bold text-slate-900">Plivex</p><p className="text-sm text-slate-600">Smart Invoicing &amp; Business OS</p></div></div>
-              <p className="mt-3 max-w-sm text-sm leading-6 text-slate-600">Billing, client records, expenses and business reports for Indian small businesses.</p>
+              <p className="mt-3 max-w-sm text-sm leading-6 text-slate-600">An all-in-one business workspace for invoicing, customers, stock, expenses and reports. India GST workflows are available; Global capabilities are rolling out in stages.</p>
               <p className="mt-3 text-sm font-semibold text-slate-800">Support: <a className="text-[#6D28D9] underline underline-offset-4" href="mailto:support@plivex.in">support@plivex.in</a></p>
             </div>
             <div>
