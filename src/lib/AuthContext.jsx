@@ -215,10 +215,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = (shouldRedirect = true) => {
+    const wasGlobalWorkspace = APP_EDITION === 'global';
     if (isUnifiedBuild) setRuntimeEdition('india');
     clearSessionCache();
     resetWorkspaceCache();
-    setTenantId(null, { migrateLegacy: APP_EDITION !== 'global' });
+    setTenantId(null, { migrateLegacy: !wasGlobalWorkspace });
     setUser(null);
     setIsAuthenticated(false);
     if (shouldRedirect) {
