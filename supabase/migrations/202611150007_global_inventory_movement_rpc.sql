@@ -83,7 +83,7 @@ begin
   if v_role is null then
     return jsonb_build_object('ok', false, 'reason', 'access_denied');
   end if;
-  if v_role not in ('owner','admin','manager','storekeeper') then
+  if v_role not in ('owner','admin','manager') then
     return jsonb_build_object('ok', false, 'reason', 'forbidden');
   end if;
 
