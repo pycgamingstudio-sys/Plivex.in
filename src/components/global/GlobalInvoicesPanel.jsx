@@ -99,8 +99,9 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   const saveProfile = async (event) => {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
     try {
+      const profileValues = { ...profileForm, tax_registration_effective_from: profileForm.tax_registration_effective_from || null };
       const { data, error: invokeError } = await supabase.functions.invoke("global-business-records", {
-        body:{ workspace_id:account.workspace_id, table:"business_profiles", action:"update", id:account.workspace_id, values:profileForm },
+        body:{ workspace_id:account.workspace_id, table:"business_profiles", action:"update", id:account.workspace_id, values:profileValues },
       });
       if (invokeError) throw invokeError;
       if (!data?.ok) throw new Error(data?.error || "Could not save seller profile.");
