@@ -8,7 +8,6 @@ import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { APP_EDITION } from '@/api/backendClient';
-import GlobalApp from "@/global/GlobalApp.jsx";
 import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import RoleGuard from '@/components/RoleGuard';
@@ -168,8 +167,7 @@ function SyncErrorListener() {
 function App() {
   useEffect(() => { startTranslator(); }, []);
 
-  // Global has its own isolated UI and auth lifecycle; never mount India route providers.
-  if (APP_EDITION === "global") return <GlobalApp />;
+  // India and Global workspaces share this router, auth provider and dashboard shell.
 
   return (
     <AuthProvider>
