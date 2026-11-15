@@ -90,6 +90,26 @@ BEGIN
     RAISE EXCEPTION 'Country reset audit event was not written';
   END IF;
 
+  result := public.reset_workspace_country_atomic(
+    '11111111-1111-4111-8111-111111111111','CA','fr-CA','CAD','Cooldown probe'
+  );
+  IF result->>'ok' <> 'false' OR result->>'reason' <> 'cooldown_active' THEN
+    RAISE EXCEPTION '30-day cooldown did not prevent a rapid second country reset: %', result;
+  END IF;
+
+  INSERT INTO global.user_profiles(user_id,email,full_name,default_workspace_id)
+  VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','country-reset-employee@example.test','Workspace Employee',new_workspace_id::uuid);
+  INSERT INTO global.workspace_members(workspace_id,user_id,role,status)
+  VALUES (new_workspace_id::uuid,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','employee','active');
+  result := public.reset_workspace_country_atomic(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','CA','fr-CA','CAD','Owner guard probe'
+  );
+  IF result->>'ok' <> 'false' OR result->>'reason' <> 'workspace_owner_required' THEN
+    RAISE EXCEPTION 'Non-owner was able to reset a shared workspace: %', result;
+  END IF;
+END
+$india_to_global$;
+
 RESET ROLE;
 SET ROLE authenticated;
 SELECT set_config('request.jwt.claim.role','authenticated',false);
@@ -118,26 +138,6 @@ BEGIN
   END IF;
 END
 $region_spoof_assert$;
-
-  result := public.reset_workspace_country_atomic(
-    '11111111-1111-4111-8111-111111111111','CA','fr-CA','CAD','Cooldown probe'
-  );
-  IF result->>'ok' <> 'false' OR result->>'reason' <> 'cooldown_active' THEN
-    RAISE EXCEPTION '30-day cooldown did not prevent a rapid second country reset: %', result;
-  END IF;
-
-  INSERT INTO global.user_profiles(user_id,email,full_name,default_workspace_id)
-  VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','country-reset-employee@example.test','Workspace Employee',new_workspace_id::uuid);
-  INSERT INTO global.workspace_members(workspace_id,user_id,role,status)
-  VALUES (new_workspace_id::uuid,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','employee','active');
-  result := public.reset_workspace_country_atomic(
-    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','CA','fr-CA','CAD','Owner guard probe'
-  );
-  IF result->>'ok' <> 'false' OR result->>'reason' <> 'workspace_owner_required' THEN
-    RAISE EXCEPTION 'Non-owner was able to reset a shared workspace: %', result;
-  END IF;
-END
-$india_to_global$;
 
 -- Global to India must remove the old Global workspace and create a fresh India workspace.
 SELECT set_config('request.jwt.claim.sub','77777777-7777-4777-8777-777777777777',false);
