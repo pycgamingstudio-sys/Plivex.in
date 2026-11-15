@@ -30,9 +30,9 @@ export async function handleCashfreeRefundEvent(
 ): Promise<Response | null> {
   if (!isCashfreeRefundEvent(event)) return null;
   const refund = event?.data?.refund || {};
-  const refundId = String(refund.cf_refund_id || refund.refund_id || "");
-  const refundOrderId = String(refund.order_id || "");
-  const providerPaymentId = String(refund.cf_payment_id || "");
+  const refundId = String(refund.cf_refund_id || refund.refund_id || "").trim();
+  const refundOrderId = String(refund.order_id || event?.data?.order?.order_id || "").trim();
+  const providerPaymentId = String(refund.cf_payment_id || "").trim();
   const refundStatus = String(refund.refund_status || "").toUpperCase();
   const refundAmount = Number(refund.refund_amount ?? refund.amount);
   // Convert the provider major-unit value using exact decimal arithmetic.
@@ -45,31 +45,41 @@ export async function handleCashfreeRefundEvent(
     !providerPaymentId ||
     !order.txnid ||
     refundOrderId !== order.txnid ||
-    !["SUCCESS", "PENDING", "FAILED", "CANCELLED"].includes(refundStatus) ||
+    !["SUCCESS", "PENDING", "FAILED", "CANCELLED", "ONHOLD"].includes(refundStatus) ||
     refundMinor === null ||
     refundMinor <= 0
   ) return json({ error: "Invalid refund event" }, 400);
 
-  const normalizedStatus = refundStatus === "CANCELLED" ? "failed" : refundStatus.toLowerCase();
+  const normalizedStatus = refundStatus === "CANCELLED" ? "failed" : refundStatus === "ONHOLD" ? "pending" : refundStatus.toLowerCase();
   const { data: result, error } = await applyRefund({
     p_subscription_id: order.id,
     p_order_id: refundOrderId,
     p_provider_payment_id: providerPaymentId,
     p_provider_refund_id: refundId,
     p_amount_minor: refundMinor,
-    p_currency: String(order.currency || "INR").toUpperCase(),
+    p_currency: String(refund.refund_currency || order.currency || "INR").toUpperCase(),
     p_refund_status: normalizedStatus,
     p_raw: event,
   });
   if (error) return json({ error: "Atomic refund reconciliation failed" }, 503);
   if (!result?.ok) {
-    const conflict =
-      result?.reason === "cumulative_refund_exceeds_payment" ||
-      result?.reason === "refund_amount_conflict" ||
-      result?.reason === "refund_id_already_used" ||
-      result?.reason === "payment_log_not_found" ||
-      result?.reason === "ambiguous_payment_log" ||
-      result?.reason === "historical_unlinked_refund";
+    const conflictReasons = new Set([
+      "cumulative_refund_exceeds_payment",
+      "cumulative_refund_exceeds_payment_log",
+      "refund_amount_conflict",
+      "refund_id_already_used",
+      "refund_payment_mapping_conflict",
+      "payment_mapping_missing",
+      "payment_mapping_not_found",
+      "payment_mapping_ambiguous",
+      "payment_log_not_found",
+      "ambiguous_payment_log",
+      "historical_unlinked_refund",
+      "historical_refund_reconciliation_required",
+      "historical_refund_mapping_ambiguous",
+      "refund_amount_invalid",
+    ]);
+    const conflict = conflictReasons.has(result?.reason);
     return json(
       { error: "Refund could not be reconciled", reason: result?.reason || "refund_not_applied" },
       conflict ? 409 : 503,

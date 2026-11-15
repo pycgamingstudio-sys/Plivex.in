@@ -87,6 +87,35 @@ Deno.test("Cashfree refund handler rejects missing payment identity and mismatch
   if (calls !== 0) throw new Error("Invalid payment identity reached the refund RPC");
 });
 
+Deno.test("Cashfree ONHOLD refund events remain pending and mapping conflicts are surfaced", async () => {
+  const onHold = await handleCashfreeRefundEvent({
+    type: "REFUND_STATUS_WEBHOOK",
+    data: { refund: {
+      cf_refund_id: "CF-REFUND-ONHOLD",
+      order_id: order.txnid,
+      cf_payment_id: "CFPAY-1",
+      refund_status: "ONHOLD",
+      refund_amount: 1,
+      refund_currency: "INR",
+    } },
+  }, order, async (args) => {
+    if (args.p_refund_status !== "pending") throw new Error("ONHOLD was not normalized to pending");
+    if (args.p_order_id !== order.txnid || args.p_provider_payment_id !== "CFPAY-1") {
+      throw new Error("ONHOLD event lost exact order/payment identity");
+    }
+    return { data: { ok: true, refund_status: "pending" }, error: null };
+  });
+  const ambiguous = await handleCashfreeRefundEvent(successEvent, order, async () => ({
+    data: { ok: false, reason: "payment_mapping_ambiguous" }, error: null,
+  }));
+  const historicalHold = await handleCashfreeRefundEvent(successEvent, order, async () => ({
+    data: { ok: false, reason: "historical_refund_reconciliation_required" }, error: null,
+  }));
+  if (onHold?.status !== 200 || ambiguous?.status !== 409 || historicalHold?.status !== 409) {
+    throw new Error("ONHOLD or historical refund conflict handling failed");
+  }
+});
+
 Deno.test("non-refund Cashfree payment events do not enter the refund handler", async () => {
   const paymentEvent = { type: "PAYMENT_SUCCESS_WEBHOOK", data: { order: { order_id: "PLXCF-12345678123412341234123456" }, payment: { payment_status: "SUCCESS" } } };
   if (isCashfreeRefundEvent(paymentEvent)) throw new Error("Payment event was classified as a refund");
