@@ -38,6 +38,7 @@ export default function GlobalCountryOnboarding() {
       if (!response?.data?.ok) {
         throw new Error(response?.data?.error || "Your workspace could not be initialized.");
       }
+      try { window.localStorage.removeItem("plivex.signup.region"); } catch { /* best effort */ }
       window.location.reload();
     } catch (submitError) {
       setError(submitError?.message || "Could not save your business country. Please try again.");
