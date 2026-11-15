@@ -19,3 +19,11 @@ verify_jwt = true
 # Global business records use their own schema and validate membership in the handler.
 [functions.global-business-records]
 verify_jwt = true
+
+# Global invoices and payment ledger are authenticated inside the handler.
+[functions.global-invoices]
+verify_jwt = true
+
+# Global stock ledger is authenticated inside the handler.
+[functions.global-stock-movements]
+verify_jwt = true
