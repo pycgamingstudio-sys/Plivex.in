@@ -14,7 +14,7 @@ export default function GlobalCountryOnboarding() {
   const handleContinue = async (event) => {
     event.preventDefault();
     setError("");
-    if (!country) {
+    if (!country || country.code === "IN") {
       setError("Please choose your business country.");
       return;
     }
