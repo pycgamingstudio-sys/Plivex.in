@@ -3,6 +3,8 @@
  * It accepts maintained rule snapshots; it contains no guessed US/Canada rates.
  * All financial values are integer currency minor units. No FX conversion.
  */
+import { TAX_ENGINE_VERSION } from "./tax-rule-registry.js";
+
 const CURRENCY_MINOR_UNITS = Object.freeze({ INR: 2, USD: 2, GBP: 2, AED: 2, CAD: 2, AUD: 2, SGD: 2 });
 const COUNTRIES = Object.freeze({ IN: "INR", US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD" });
 const OFFICIAL_SOURCE_HOSTS = Object.freeze({
@@ -106,12 +108,14 @@ export function calculateVerifiedTaxRule(input) {
   components[components.length - 1].amountMinor += taxMinor - componentTotal;
 
   return {
-    ok: true, status: "calculated", engineVersion: "0.1.0", countryCode, currencyCode,
+    ok: true, status: "calculated", engineVersion: TAX_ENGINE_VERSION, countryCode, currencyCode,
     currencyMinorUnits: CURRENCY_MINOR_UNITS[currencyCode], jurisdictionId: rule.jurisdictionId || null,
     treatment: rule.treatment, priceMode: input.priceMode, taxableMinor, taxMinor, totalMinor, components,
     registrationEvidence: registration.verified === true ? "externally-verified" : "user-attested",
     ruleSnapshot: {
-      id: rule.id, version: rule.version, source: rule.source,
+      id: rule.id, version: rule.version, catalogVersion: rule.catalogVersion || null,
+      source: rule.source, sourceAuthority: rule.sourceAuthority || null,
+      scope: rule.scope || null, coverage: rule.coverage || null,
       effectiveFrom: rule.effectiveFrom, effectiveTo: rule.effectiveTo || null, reviewedOn: rule.reviewedOn || null,
     },
   };
