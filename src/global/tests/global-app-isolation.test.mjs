@@ -3,42 +3,41 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [app, globalApp, onboarding, worker, vite] = await Promise.all([
+const [app, auth, backend, onboarding, worker, vite] = await Promise.all([
   read("../../App.jsx"),
-  read("../GlobalApp.jsx"),
+  read("../../lib/AuthContext.jsx"),
+  read("../../api/backendClient.js"),
   read("../../components/global/GlobalCountryOnboarding.jsx"),
-  read("../../../wrangler.global.jsonc"),
+  read("../../../wrangler.jsonc"),
   read("../../../vite.config.js"),
 ]);
 
-test("Global edition mounts its isolated app before the India providers and route tree", () => {
-  assert.ok(app.includes('import GlobalApp from "@/global/GlobalApp.jsx";'));
-  assert.ok(app.includes('if (APP_EDITION === "global") return <GlobalApp />;'));
-  assert.ok(app.includes("<AuthProvider>"));
-  assert.ok(app.includes('<Route path="/login" element={<Login />} />'));
+test("India and Global workspaces mount one shared router and AppLayout", () => {
+  assert.doesNotMatch(app, /import\s+GlobalApp\s+from/);
+  assert.doesNotMatch(app, /return\s+<GlobalApp\s*\/>/);
+  assert.match(app, /<AuthProvider>/);
+  assert.match(app, /element={<AppLayout \/>}/);
+  assert.match(app, /APP_EDITION === "global" && isAuthenticated/);
 });
 
-test("Global UI uses only Global Auth and Global business records APIs", () => {
-  assert.match(globalApp, /global-auth-context/);
+test("shared authentication resolves Global workspace membership without reading India profiles for Global", () => {
+  assert.match(auth, /resolveSignedInEdition\(currentUser\)/);
+  assert.match(auth, /global-auth-context/);
+  assert.ok(auth.includes("global:"));
+  assert.match(backend, /global-business-records/);
+  assert.match(backend, /global-ensure-owner/);
   assert.match(onboarding, /globalEnsureOwner/);
-  assert.match(globalApp, /global-business-records/);
-  assert.match(globalApp, /GlobalCountryOnboarding/);
-  assert.match(globalApp, /if \(session && account && !account\.workspace_id\)/);
-  assert.match(globalApp, /const \[countryCode, setCountryCode\] = useState\(""\)/);
-  assert.match(globalApp, /Select your business country/);
-  assert.doesNotMatch(globalApp, /hydrateWorkspaceData|workspace-records|from\(["']profiles["']\)/);
 });
 
-test("Global UI does not expose unfinished invoice creation or inventory mutations", () => {
-  assert.match(globalApp, /Invoice creation, payment collection and stock movements are not enabled yet/);
-  assert.match(globalApp, /This section is read-only/);
-  assert.match(globalApp, /const TABLES = \{ clients: "clients", products: "products", expenses: "expenses"/);
+test("Global signup cannot accidentally provision an India workspace through Global onboarding", () => {
+  assert.match(onboarding, /country\.code === "IN"/);
+  assert.match(onboarding, /entry\.code !== "IN"/);
+  assert.match(auth, /signup_country_code/);
 });
 
-test("Global Cloudflare build targets its own Worker and edition config", () => {
+test("unified build uses the existing Plivex Worker config rather than a second Global Worker", () => {
   const config = JSON.parse(worker);
-  assert.equal(config.name, "plivex-global");
-  assert.equal(config.vars.VITE_APP_EDITION, "global");
-  assert.match(vite, /wrangler\.global\.jsonc/);
+  assert.equal(config.name, "plivex-in");
+  assert.match(vite, /edition === 'global' \? '\.\/wrangler\.global\.jsonc' : '\.\/wrangler\.jsonc'/);
   assert.match(vite, /VITE_APP_EDITION: edition/);
 });
