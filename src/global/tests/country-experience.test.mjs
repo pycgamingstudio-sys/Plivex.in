@@ -35,6 +35,6 @@ test("unknown countries fail closed and returned nested metadata cannot mutate r
   assert.equal(getCountryExperience("ZZ"), null);
   assert.equal(getCountryExperience(null), null);
   const profile = getCountryExperience("US");
-  profile.address.postalCodeLabel = "wrong";
+  assert.throws(() => { profile.address.postalCodeLabel = "wrong"; }, TypeError);
   assert.equal(getCountryExperience("US").address.postalCodeLabel, "ZIP code");
 });
