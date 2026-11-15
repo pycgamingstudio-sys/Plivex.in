@@ -146,14 +146,8 @@ begin
     ) then
       return jsonb_build_object('ok', false, 'reason', 'workspace_owner_required');
     end if;
-    select bp.country_code, bp.locale_code
-      into v_from_country, v_from_locale
-    from public.business_profile bp
-    where bp.workspace_id = v_profile.workspace_id
-    order by bp.created_at asc
-    limit 1;
-    v_from_country := coalesce(v_from_country, v_profile.country_code, 'IN');
-    v_from_locale := coalesce(v_from_locale, v_profile.locale_code, 'en-IN');
+    v_from_country := coalesce(v_profile.country_code, 'IN');
+    v_from_locale := coalesce(v_profile.locale_code, 'en-IN');
     v_from_currency := case v_from_country
       when 'IN' then 'INR' when 'US' then 'USD' when 'GB' then 'GBP'
       when 'AE' then 'AED' when 'CA' then 'CAD' when 'AU' then 'AUD'
@@ -242,8 +236,8 @@ begin
       v_full_name, v_email, 'admin', 'active', v_now, v_now
     );
 
-    insert into public.business_profile(workspace_id, name, country_code, locale_code)
-    values (v_new_workspace_id, v_full_name, 'IN', p_locale_code);
+    insert into public.business_profile(workspace_id, name)
+    values (v_new_workspace_id, v_full_name);
   else
     v_workspace_name := left(coalesce(nullif(btrim(v_full_name), ''), split_part(v_email, '@', 1) || ' Workspace'), 160);
     insert into global.workspaces(name, country_code, locale_code, currency_code, created_by)
