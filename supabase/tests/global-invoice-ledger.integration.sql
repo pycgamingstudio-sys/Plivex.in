@@ -69,7 +69,8 @@ BEGIN
     'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2',
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     NULL,'GBP','2026-11-15',NULL,NULL,
-    jsonb_build_array(jsonb_build_object('description','Denied','quantity',1,'unit_price_minor',100))
+    jsonb_build_array(jsonb_build_object('description','Denied','quantity',1,'unit_price_minor',100)),
+    'aaaaaaaa-eeee-4aaa-8aaa-aaaaaaaaaaaa'
   );
   IF denied->>'reason' <> 'forbidden' THEN RAISE EXCEPTION 'Accountant created invoice draft: %', denied; END IF;
 
@@ -125,7 +126,7 @@ RESET ROLE;
 SET ROLE authenticated;
 DO $rpc_privileges$
 BEGIN
-  IF has_function_privilege('authenticated','public.global_create_invoice_draft(uuid,uuid,uuid,text,date,date,text,jsonb)','EXECUTE')
+  IF has_function_privilege('authenticated','public.global_create_invoice_draft(uuid,uuid,uuid,text,date,date,text,jsonb,uuid)','EXECUTE')
      OR has_function_privilege('authenticated','public.global_record_invoice_payment(uuid,uuid,uuid,bigint,text,date,text,text,text,uuid)','EXECUTE') THEN
     RAISE EXCEPTION 'Authenticated role can execute Global invoice/payment RPCs directly';
   END IF;
