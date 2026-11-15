@@ -13,6 +13,7 @@ DECLARE
   v_us_draft jsonb;
   v_us_issue jsonb;
   v_invoice_id uuid;
+  v_payment_id uuid;
   v_invoice global.invoices%rowtype;
   v_line global.invoice_items%rowtype;
   v_rejected boolean;
@@ -70,6 +71,17 @@ BEGIN
     RAISE EXCEPTION 'Global invoice issuance retry was not idempotent: %',v_retry;
   END IF;
 
+  v_retry := public.global_issue_invoice(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    v_invoice_id,
+    '{"registration_confirmed":true,"place_of_supply_confirmed":true,"tax_category_confirmed":true,"tax_category":"standard-rated","mode":"automatic","price_mode":"inclusive","place_of_supply":"United Kingdom"}'::jsonb,
+    v_issue_key
+  );
+  IF v_retry->>'ok'<>'false' OR v_retry->>'reason'<>'idempotency_conflict' THEN
+    RAISE EXCEPTION 'Issuance idempotency key accepted a changed tax context: %',v_retry;
+  END IF;
+
   SELECT * INTO v_line FROM global.invoice_items WHERE invoice_id=v_invoice_id LIMIT 1;
   IF v_line.tax_rate_bps<>2000 OR v_line.tax_minor<>2000 OR v_line.line_total_minor<>12000 THEN
     RAISE EXCEPTION 'GB invoice line VAT values are inconsistent: %',row_to_json(v_line);
@@ -98,6 +110,15 @@ BEGIN
     RAISE EXCEPTION 'Global issued invoice payment ledger failed: %',v_payment;
   END IF;
 
+  SELECT id INTO v_payment_id FROM global.invoice_payments
+  WHERE invoice_id=v_invoice_id ORDER BY created_at DESC LIMIT 1;
+  v_rejected := false;
+  BEGIN
+    UPDATE global.invoice_payments SET method='tampered' WHERE id=v_payment_id;
+  EXCEPTION WHEN SQLSTATE '55000' THEN v_rejected := true;
+  END;
+  IF NOT v_rejected THEN RAISE EXCEPTION 'Global payment ledger row was mutable'; END IF;
+
   v_refund := public.global_record_invoice_refund(
     '66666666-6666-4666-8666-666666666666',
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
@@ -121,7 +142,7 @@ BEGIN
     '66666666-6666-4666-8666-666666666666',
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc',200
   );
-  IF v_reconciliation->>'ok'<>'true'
+  IF v_reconciliation->>'ok'<>'true' OR coalesce(v_reconciliation->>'country_code','')<>'GB'
     OR NOT EXISTS (
       SELECT 1 FROM jsonb_array_elements(v_reconciliation->'records') r
       WHERE r->>'invoice_id'=v_invoice_id::text

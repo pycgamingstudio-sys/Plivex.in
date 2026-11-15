@@ -686,14 +686,78 @@ export default function Home() {
       const isGlobalDraft = workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN";
       if (isGlobalDraft) {
         const saved = await recordInvoice();
-        setInvoice((current) => ({ ...current, id: saved.id, number: saved.number, globalDraftRequestId: saved.idempotencyKey || current.globalDraftRequestId, documentStatus: "draft" }));
+        const issueKey = invoice.globalIssueInvoiceId === saved.id && /^[0-9a-f-]{36}$/i.test(invoice.globalIssueRequestId || "")
+          ? invoice.globalIssueRequestId
+          : crypto.randomUUID();
+        setInvoice((current) => ({
+          ...current,
+          id: saved.id,
+          number: saved.number,
+          globalDraftRequestId: saved.idempotencyKey || current.globalDraftRequestId,
+          globalIssueInvoiceId: saved.id,
+          globalIssueRequestId: issueKey,
+          documentStatus: "draft",
+        }));
+
+        let issuedInvoice = null;
+        if (workspaceTaxProfile?.countryCode === "GB") {
+          let capabilities = null;
+          try {
+            capabilities = await backend.functions.invoke("globalInvoices", { action:"capabilities" });
+          } catch {
+            // A missing migration or undeployed Edge Function keeps this invoice draft-only.
+          }
+          if (capabilities?.data?.issuance_ready === true) {
+            const tax = invoiceForPreview.globalTax || {};
+            const issueResponse = await backend.functions.invoke("globalInvoices", {
+              action:"issue",
+              invoice_id:saved.id,
+              idempotency_key:issueKey,
+              tax_context:{
+                registration_confirmed:tax.registrationConfirmed === true,
+                place_of_supply_confirmed:tax.placeOfSupplyConfirmed === true,
+                tax_category_confirmed:tax.taxCategoryConfirmed === true,
+                tax_category:tax.taxCategory || "",
+                mode:tax.mode || "",
+                price_mode:tax.priceMode || "",
+                place_of_supply:tax.placeOfSupply || "",
+              },
+            });
+            if (!issueResponse?.data?.ok || !issueResponse?.data?.invoice?.invoice_number) {
+              throw new Error(issueResponse?.data?.error || "The server could not issue this invoice. Your saved draft is still available.");
+            }
+            issuedInvoice = issueResponse.data.invoice;
+            setInvoice((current) => ({
+              ...current,
+              number:issuedInvoice.invoice_number,
+              documentStatus:"issued",
+              globalTaxSnapshot:issuedInvoice.invoice_snapshot,
+            }));
+            trackStaffAction({
+              label:`Global invoice ${issuedInvoice.invoice_number} issued for ${invoice.client.name || "client"}`,
+              type:"invoice",
+              revenue:Number(issuedInvoice.total_minor || 0) / 100,
+            });
+          }
+        }
+
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const pdf = await renderPdfDocument();
         if (!pdf) return;
-        const draftFilename = `Plivex_DRAFT_${String(saved.number || "invoice").replace(/[^a-zA-Z0-9]+/g, "-")}.pdf`;
-        pdf.save(draftFilename);
-        recordActivity("Global draft invoice exported");
-        notify("Draft PDF downloaded. It is not an issued tax invoice; tax and payment collection are not finalized.");
+        const exportNumber = issuedInvoice?.invoice_number || saved.number || "invoice";
+        const exportFilename = issuedInvoice
+          ? `Plivex_${String(exportNumber).replace(/[^a-zA-Z0-9]+/g, "-")}.pdf`
+          : `Plivex_DRAFT_${String(exportNumber).replace(/[^a-zA-Z0-9]+/g, "-")}.pdf`;
+        pdf.save(exportFilename);
+        recordActivity(issuedInvoice ? "Global invoice issued and PDF exported" : "Global draft invoice exported");
+        if (issuedInvoice) {
+          notify(`UK VAT invoice ${issuedInvoice.invoice_number} issued and PDF downloaded. Payment-provider collection is not connected yet.`);
+        } else {
+          const reason = workspaceTaxProfile?.countryCode === "GB"
+            ? "Server-side UK issuance is not activated yet."
+            : "Tax issuance for this country is not enabled yet.";
+          notify(`Draft PDF downloaded. ${reason} This is not an issued tax invoice; payment-provider collection is not connected yet.`);
+        }
         return;
       }
       // India retains its existing save, stock and invoice-sharing workflow.

@@ -5,6 +5,9 @@ import { readFileSync } from "node:fs";
 const migration = readFileSync(new URL("../../../supabase/migrations/202611150011_global_invoice_issuance_and_refunds.sql", import.meta.url), "utf8");
 const edge = readFileSync(new URL("../../../supabase/functions/global-invoices/index.ts", import.meta.url), "utf8");
 const panel = readFileSync(new URL("../../components/global/GlobalInvoicesPanel.jsx", import.meta.url), "utf8");
+const home = readFileSync(new URL("../../pages/Home.jsx", import.meta.url), "utf8");
+const history = readFileSync(new URL("../../pages/InvoiceHistory.jsx", import.meta.url), "utf8");
+const stores = readFileSync(new URL("../../lib/stores.js", import.meta.url), "utf8");
 
 test("Global invoice issuance is server-authoritative and initially GB-only", () => {
   assert.match(migration, /v_workspace\.country_code <> 'GB'/);
@@ -30,6 +33,8 @@ test("Issued invoice headers, lines, and refund ledger are immutable", () => {
   assert.match(migration, /global\.guard_issued_invoice_items/);
   assert.match(migration, /Issued invoice lines are immutable/);
   assert.match(migration, /global\.guard_invoice_refund_append_only/);
+  assert.match(migration, /global\.guard_invoice_payment_append_only/);
+  assert.match(migration, /issuance_request_fingerprint/);
 });
 
 test("Refund and reconciliation RPCs are service-role only", () => {
@@ -59,4 +64,30 @@ test("Global invoice workspace exposes PDF, WhatsApp/email share, payment, refun
   assert.match(panel, /record_refund/);
   assert.match(panel, /list_reconciliation/);
   assert.match(panel, /GlobalTaxEditor/);
+});
+
+test("Unified app issues only when backend capabilities are ready and keeps other countries draft-only", () => {
+  assert.match(edge, /body\.action === "capabilities"/);
+  assert.match(edge, /issuance_ready/);
+  assert.match(edge, /data\?\.country_code === "GB"/);
+  assert.match(migration, /\x27country_code\x27,v_country_code/);
+  assert.match(home, /action:"capabilities"/);
+  assert.match(home, /capabilities\?\.data\?\.issuance_ready === true/);
+  assert.match(home, /action:"issue"/);
+  assert.match(home, /documentStatus:"issued"/);
+  assert.match(history, /APP_EDITION === "global"/);
+  assert.match(history, /GlobalInvoicesPanel/);
+});
+
+test("Global invoice drafts preserve the customer relationship for final buyer snapshots", () => {
+  assert.match(stores, /workspaceRecords.*table:"clients"/s);
+  assert.match(stores, /client_id: clientId/);
+  assert.match(stores, /billing_address:\{ formatted:clientAddress \}/);
+});
+
+test("Global invoice manager fails closed until backend migration and Edge Function are ready", () => {
+  assert.match(panel, /action:"capabilities"/);
+  assert.match(panel, /issuanceReady:false, ledgerReady:false/);
+  assert.match(panel, /backendCapabilities\.issuanceReady/);
+  assert.match(panel, /backendCapabilities\.ledgerReady/);
 });

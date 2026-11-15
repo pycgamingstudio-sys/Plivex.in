@@ -27,6 +27,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   const [items, setItems] = useState([]);
   const [profile, setProfile] = useState(null);
   const [reconciliation, setReconciliation] = useState([]);
+  const [backendCapabilities, setBackendCapabilities] = useState({ issuanceReady:false, ledgerReady:false });
   const [selectedId, setSelectedId] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -43,9 +44,19 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   const [refundForm, setRefundForm] = useState({ amount:"", date:today(), method:"bank_transfer", reference:"", reason:"" });
 
   const refresh = useCallback(async () => {
+    const capabilityResult = await supabase.functions.invoke("global-invoices", {
+      body:{ action:"capabilities", workspace_id:account.workspace_id },
+    });
+    const capabilities = {
+      issuanceReady: capabilityResult.data?.ok === true && capabilityResult.data?.issuance_ready === true,
+      ledgerReady: capabilityResult.data?.ok === true && capabilityResult.data?.ledger_ready === true,
+    };
+    setBackendCapabilities(capabilities);
     const [clientData, invoiceData, itemData, profileData, reconciliationData] = await Promise.all([
       invoke("clients"), invoke("invoices"), invoke("invoice_items"), invoke("business_profiles"),
-      supabase.functions.invoke("global-invoices", { body:{ action:"list_reconciliation", workspace_id:account.workspace_id, limit:100 } }),
+      capabilities.ledgerReady
+        ? supabase.functions.invoke("global-invoices", { body:{ action:"list_reconciliation", workspace_id:account.workspace_id, limit:100 } })
+        : Promise.resolve({ data:{ records:[] }, error:null }),
     ]);
     setClients(clientData.records || []);
     setInvoices(invoiceData.records || []);
@@ -99,8 +110,9 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   const saveProfile = async (event) => {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
     try {
+      const profileValues = { ...profileForm, tax_registration_effective_from: profileForm.tax_registration_effective_from || null };
       const { data, error: invokeError } = await supabase.functions.invoke("global-business-records", {
-        body:{ workspace_id:account.workspace_id, table:"business_profiles", action:"update", id:account.workspace_id, values:profileForm },
+        body:{ workspace_id:account.workspace_id, table:"business_profiles", action:"update", id:account.workspace_id, values:profileValues },
       });
       if (invokeError) throw invokeError;
       if (!data?.ok) throw new Error(data?.error || "Could not save seller profile.");
@@ -248,16 +260,17 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   };
 
   const selectedClient = clients.find((client) => client.id === selected?.client_id);
-  const canIssue = countryCode === "GB" && selected?.status === "draft" && taxPreview.ok === true;
+  const canIssue = backendCapabilities.issuanceReady && countryCode === "GB" && selected?.status === "draft" && taxPreview.ok === true;
 
   return (
     <section className="mt-6 space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h1 className="text-2xl font-bold">Global invoices</h1><p className="mt-1 text-sm text-slate-500">Draft, issue and reconcile invoices in {currency}. Issuance is currently enabled for UK standard-rated VAT only.</p></div>
+        <div><h1 className="text-2xl font-bold">Global invoices</h1><p className="mt-1 text-sm text-slate-500">Draft, issue and reconcile invoices in {currency}. UK standard-rated VAT issuance will unlock only after the server migration and Edge Function are ready.</p></div>
         <button className={button} onClick={() => { setShowCreate((v)=>!v); setError(""); setNotice(""); }}> {showCreate ? "Close" : "Create draft"} </button>
       </div>
       {notice && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {!backendCapabilities.ledgerReady ? <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Server-side invoice issuance and ledger are not activated yet. You can save drafts, but Plivex will not mark them as issued until the database migration and Edge Function are deployed.</p> : countryCode !== "GB" ? <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">This country is draft-only in the first release. UK standard-rated VAT is the only issuance adapter currently supported.</p> : null}
 
       <details className="rounded-xl border border-slate-200 bg-white p-4">
         <summary className="cursor-pointer font-semibold">Seller & tax registration profile</summary>
@@ -315,7 +328,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
               </>}
               {selected.status!=="draft" && <p className="mt-3 text-xs text-slate-500">Issued invoice content and tax snapshot are locked. Payments and refunds are recorded separately.</p>}
             </div>
-            {["issued","partially_paid","overdue"].includes(selected.status) && (
+            {backendCapabilities.ledgerReady && ["issued","partially_paid","overdue"].includes(selected.status) && (
               <div className="rounded-xl border border-slate-200 bg-white p-4">
                 <h3 className="font-semibold">Record payment</h3>
                 <form className="mt-3 grid gap-2" onSubmit={recordPayment}>
@@ -327,7 +340,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
                 </form>
               </div>
             )}
-            {selected.amount_paid_minor>selected.amount_refunded_minor && (
+            {backendCapabilities.ledgerReady && selected.amount_paid_minor>selected.amount_refunded_minor && (
               <div className="rounded-xl border border-slate-200 bg-white p-4">
                 <h3 className="font-semibold">Record refund</h3>
                 <form className="mt-3 grid gap-2" onSubmit={recordRefund}>
@@ -345,11 +358,11 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
+      {backendCapabilities.ledgerReady ? <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="font-semibold">Payment reconciliation</div>
         <p className="mt-1 text-xs text-slate-500">Gross payments less recorded refunds. This is an internal ledger view, not a bank statement.</p>
         <div className="mt-3 overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="p-2">Invoice</th><th className="p-2">Gross paid</th><th className="p-2">Refunds</th><th className="p-2">Net received</th><th className="p-2">Outstanding</th></tr></thead><tbody className="divide-y divide-slate-100">{reconciliation.map((row)=><tr key={row.invoice_id}><td className="p-2">{row.invoice_number}</td><td className="p-2">{money(row.gross_payments_minor,row.currency_code)}</td><td className="p-2">{money(row.refunds_minor,row.currency_code)}</td><td className="p-2">{money(row.net_received_minor,row.currency_code)}</td><td className="p-2">{money(row.outstanding_minor,row.currency_code)}</td></tr>)}</tbody></table></div>
-      </div>
+      </div> : null}
     </section>
   );
 }

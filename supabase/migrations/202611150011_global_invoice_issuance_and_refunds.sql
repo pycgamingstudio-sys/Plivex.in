@@ -126,6 +126,21 @@ create trigger global_invoice_items_immutability_guard
   before insert or update or delete on global.invoice_items
   for each row execute function global.guard_issued_invoice_items();
 
+-- Payment entries are an append-only audit ledger too.
+create or replace function global.guard_invoice_payment_append_only()
+returns trigger
+language plpgsql
+set search_path = pg_catalog
+as $function$
+begin
+  raise exception using errcode = '55000', message = 'Invoice payment ledger rows are append-only';
+end;
+$function$;
+drop trigger if exists global_invoice_payments_append_only on global.invoice_payments;
+create trigger global_invoice_payments_append_only
+  before update or delete on global.invoice_payments
+  for each row execute function global.guard_invoice_payment_append_only();
+
 create or replace function public.global_issue_invoice(
   p_user_id uuid,
   p_workspace_id uuid,
@@ -157,6 +172,7 @@ declare
   v_price_mode text;
   v_place text;
   v_tax_snapshot jsonb;
+  v_issuance_fingerprint text;
   v_items jsonb;
 begin
   if p_user_id is null or p_workspace_id is null or p_invoice_id is null
@@ -170,12 +186,13 @@ begin
   if v_role is null then return jsonb_build_object('ok',false,'reason','access_denied'); end if;
   if v_role not in ('owner','admin','manager') then return jsonb_build_object('ok',false,'reason','forbidden'); end if;
 
+  v_issuance_fingerprint := md5(p_tax_context::text);
   perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text || ':issue:' || p_idempotency_key::text,0));
   select * into v_existing from global.invoices
   where workspace_id=p_workspace_id and issuance_idempotency_key=p_idempotency_key
   for update;
   if found then
-    if v_existing.id <> p_invoice_id then
+    if v_existing.id <> p_invoice_id or v_existing.invoice_snapshot->>'issuance_request_fingerprint' is distinct from v_issuance_fingerprint then
       return jsonb_build_object('ok',false,'reason','idempotency_conflict');
     end if;
     return jsonb_build_object('ok',true,'duplicate',true,'invoice',to_jsonb(v_existing));
@@ -262,6 +279,7 @@ begin
 
   v_tax_snapshot := jsonb_build_object(
     'document_status','issued',
+    'issuance_request_fingerprint',v_issuance_fingerprint,
     'country_code','GB',
     'currency_code','GBP',
     'tax_status','calculated',
@@ -463,6 +481,7 @@ set search_path = pg_catalog, global
 as $function$
 declare
   v_role text;
+  v_country_code text;
   v_records jsonb;
   v_limit integer := greatest(1,least(coalesce(p_limit,100),200));
 begin
@@ -473,6 +492,7 @@ begin
   where workspace_id=p_workspace_id and user_id=p_user_id and status='active'
   limit 1;
   if v_role is null then return jsonb_build_object('ok',false,'reason','access_denied'); end if;
+  select country_code into v_country_code from global.workspaces where id=p_workspace_id;
   select coalesce(jsonb_agg(to_jsonb(t) order by t.invoice_id),'[]'::jsonb)
   into v_records
   from (
@@ -481,7 +501,7 @@ begin
     order by invoice_id desc
     limit v_limit
   ) t;
-  return jsonb_build_object('ok',true,'records',v_records);
+  return jsonb_build_object('ok',true,'country_code',v_country_code,'records',v_records);
 end;
 $function$;
 
