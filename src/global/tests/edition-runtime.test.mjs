@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveEditionId, resolveRuntimeEdition } from "../edition-contract.js";
+import { resolveEditionId, resolveRuntimeEdition } from "../core/edition-contract.js";
 
 test("legacy explicit edition builds keep their previous behavior", () => {
   assert.equal(resolveRuntimeEdition("india", "/global/"), "india");
