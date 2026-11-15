@@ -257,7 +257,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (body.action === "list_reconciliation") {
-      const requestedLimit = body.limit === undefined ? 100 : body.limit;
+      const requestedLimit = body.limit === undefined ? 100 : Number(body.limit);
       if (!Number.isInteger(requestedLimit) || requestedLimit < 1 || requestedLimit > 200) {
         return globalJson({ error: "Reconciliation limit must be between 1 and 200." }, 400, origin);
       }
