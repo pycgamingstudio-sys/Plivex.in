@@ -95,7 +95,19 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
       const identityChanged = !lockCountry
         && Boolean(savedCountry)
         && (selectedCountry.code !== savedCountry || locale !== savedLocale);
-      if (identityChanged) {
+      const shouldSaveGlobalIdentity = isGlobalWorkspace && !lockCountry
+        && (!savedCountry || identityChanged);
+      if (shouldSaveGlobalIdentity) {
+        const countrySave = await db.functions.invoke("globalUpdateWorkspaceCountry", {
+          countryCode: selectedCountry.code,
+          localeCode: locale,
+          reason: requestReason.trim() || null,
+        });
+        if (!countrySave?.data?.ok) throw new Error("Global workspace country save failed");
+        setSavedCountry(selectedCountry.code);
+        setSavedLocale(locale);
+        await checkUserAuth?.();
+      } else if (identityChanged) {
         if (pendingRequest) throw new Error("A country change request is already pending review.");
         const request = await db.rpc("request_workspace_country_change", {
           p_target_country_code: selectedCountry.code,
@@ -136,9 +148,11 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
       });
       if (response?.error || !response?.data?.record) throw response?.error || new Error("Tax profile save failed");
       setSavedTaxProfile({ ...taxProfile });
-      setMessage(identityChanged
-        ? "Country change request submitted for review. Your current country and existing records have not changed."
-        : "Workspace country and tax profile saved.");
+      setMessage(shouldSaveGlobalIdentity
+        ? "Workspace country saved. New records use the selected country; existing invoices keep their original snapshots."
+        : identityChanged
+          ? "Country change request submitted for review. Your current country and existing records have not changed."
+          : "Workspace country and tax profile saved.");
     } catch {
       setError("Country was not saved. Check your workspace permission and try again.");
     } finally {
