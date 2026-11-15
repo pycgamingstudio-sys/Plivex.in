@@ -8,11 +8,11 @@ test("Global signup defers country choice until after authentication", async () 
   const register = await read("../../pages/Register.jsx");
   const google = await read("../../components/auth/GoogleSignInButton.jsx");
   const backend = await read("../../api/backendClient.js");
-  assert.match(register, /APP_EDITION !== "global" && !inviteCode/);
+  assert.match(register, /APP_EDITION === "india" && !inviteCode/);
   assert.match(register, /APP_EDITION === "global" \? \{ email, password \}/);
-  assert.match(google, /APP_EDITION !== "global"/);
+  assert.match(google, /APP_EDITION === "india"/);
   assert.match(google, /else if \(APP_EDITION !== "global"\).*localStorage\.setItem/s);
-  assert.match(backend, /APP_EDITION === "global"/);
+  assert.match(backend, /plivex_runtime_edition: "pending"/);
   assert.match(backend, /"global-ensure-owner", "global-business-records"/);
 });
 
@@ -20,9 +20,15 @@ test("new Global identities are held at onboarding before workspace provisioning
   const auth = await read("../../lib/AuthContext.jsx");
   const app = await read("../../App.jsx");
   const onboarding = await read("../../components/global/GlobalCountryOnboarding.jsx");
+  const unifiedOnboarding = await read("../../components/global/UnifiedCountryOnboarding.jsx");
   assert.match(auth, /Require an explicit business-country choice before provisioning/);
   assert.match(auth, /setIsAuthenticated\(true\)/);
   assert.match(app, /GlobalCountryOnboarding/);
+  assert.match(app, /UnifiedCountryOnboarding/);
+  assert.match(auth, /currentUser\\?\\.edition === "pending"/);
+  assert.match(unifiedOnboarding, /plivex_runtime_edition: edition/);
+  assert.match(unifiedOnboarding, /ensureOwnerRole/);
+  assert.match(unifiedOnboarding, /globalEnsureOwner/);
   assert.match(onboarding, /Please choose your business country/);
   assert.match(onboarding, /globalEnsureOwner/);
 });
