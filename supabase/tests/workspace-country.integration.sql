@@ -86,6 +86,7 @@ INSERT INTO public.business_profile (workspace_id, name) VALUES
 \ir ../migrations/202611130006_workspace_country_identity.sql
 \ir ../migrations/202611130006_workspace_country_identity.sql
 \ir ../migrations/202611150009_safe_workspace_country_migration_requests.sql
+\ir ../migrations/202611150010_harden_country_migration_request_rls.sql
 
 DO $constraints$
 DECLARE
