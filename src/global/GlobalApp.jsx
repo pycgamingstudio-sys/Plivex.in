@@ -130,15 +130,15 @@ export default function GlobalApp() {
       if (tab === "clients") {
         values = { name: form.name?.trim(), email: form.email?.trim() || null, phone: form.phone?.trim() || null };
       } else if (tab === "products") {
-        const digits = currencyDigits(account?.currency_code || country.currency);
+        const digits = currencyDigits(account?.currency_code || "USD");
         values = {
           name: form.name?.trim(),
           sku: form.sku?.trim() || null,
           sale_price_minor: Math.round(Number(form.salePrice || 0) * (10 ** digits)),
-          currency_code: account?.currency_code || country.currency,
+          currency_code: account?.currency_code || "USD",
         };
       } else if (tab === "expenses") {
-        const currency = account?.currency_code || country.currency;
+        const currency = account?.currency_code || "USD";
         values = {
           category: form.category?.trim(),
           vendor: form.vendor?.trim() || null,
