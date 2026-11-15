@@ -1,6 +1,8 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 
-import { backend as db, supabase, APP_EDITION } from '@/api/backendClient';
+import { backend as db, supabase, APP_EDITION, isUnifiedBuild, setRuntimeEdition } from '@/api/backendClient';
+import { resolveWorkspaceEdition } from '@/global/core/edition-contract.js';
+import { listSelectableCountries } from '@/global/countries/country-registry.js';
 import { hydrateWorkspaceData, resetWorkspaceCache } from '@/lib/stores';
 import { clearSessionCache } from '@/lib/sessionCache';
 import { setTenantId } from '@/lib/stores';
@@ -8,6 +10,46 @@ import { setTenantId } from '@/lib/stores';
 import { getPendingInviteCode, rememberPendingInviteCode, clearPendingInviteCode, authPageLink } from '@/components/auth/workspaceInvite';
 
 const AuthContext = createContext();
+
+// A single Supabase login is resolved to its workspace's country after sign-in.
+// Existing India accounts with no country stamp remain India; non-India accounts
+// must resolve to an explicitly supported country before Global handlers are used.
+async function resolveSignedInEdition(currentUser) {
+  if (!isUnifiedBuild) return APP_EDITION;
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  const metadataCountry = authData?.user?.user_metadata?.signup_country_code;
+  let countryCode = typeof metadataCountry === 'string' ? metadataCountry.trim().toUpperCase() : '';
+
+  if (currentUser?.workspace_id) {
+    const { data: businessProfile, error: profileError } = await supabase
+      .from('business_profile')
+      .select('country_code')
+      .eq('workspace_id', currentUser.workspace_id)
+      .maybeSingle();
+    if (profileError) throw profileError;
+    countryCode = businessProfile?.country_code || countryCode || 'IN';
+  }
+
+  // A Global user may not yet have a workspace; the signed-up country metadata
+  // identifies the onboarding path without creating or mutating any records.
+  if (!countryCode) {
+    const { data: globalContext, error: globalError } = await supabase.functions.invoke('global-auth-context', { body: {} });
+    if (!globalError && globalContext?.user?.id === currentUser?.id && globalContext.user.country_code) {
+      countryCode = globalContext.user.country_code;
+    }
+  }
+
+  // Accounts predating country selection and without a Global workspace retain
+  // the India path. Unsupported explicit country codes fail closed.
+  if (!countryCode) countryCode = 'IN';
+  const supportedCodes = listSelectableCountries().map((country) => country.code);
+  const edition = resolveWorkspaceEdition(countryCode, supportedCodes);
+  if (!edition) throw new Error('This business country is not supported yet. Your account data has not been changed.');
+  setRuntimeEdition(edition);
+  return edition;
+}
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -88,6 +130,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setIsLoadingAuth(true);
       let currentUser = await db.auth.me();
+      if (isUnifiedBuild) await resolveSignedInEdition(currentUser);
 
       // Global identity and workspace authorization are read only from Global RPCs.
       // Never consult India public.profiles, invites, or workspace-record endpoints.
