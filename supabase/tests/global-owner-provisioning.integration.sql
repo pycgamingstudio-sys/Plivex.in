@@ -3,7 +3,13 @@
 INSERT INTO auth.users (id,email,raw_user_meta_data,raw_app_meta_data)
 VALUES
  ('44444444-4444-4444-8444-444444444444','global-owner@example.test','{}'::jsonb,'{}'::jsonb),
- ('55555555-5555-4555-8555-555555555555','global-invited@example.test','{}'::jsonb,'{}'::jsonb)
+ ('55555555-5555-4555-8555-555555555555','global-invited@example.test','{}'::jsonb,'{}'::jsonb),
+ ('66666666-6666-4666-8666-666666666666','global-in@example.test','{}'::jsonb,'{}'::jsonb),
+ ('77777777-7777-4777-8777-777777777777','global-us@example.test','{}'::jsonb,'{}'::jsonb),
+ ('88888888-8888-4888-8888-888888888888','global-ae@example.test','{}'::jsonb,'{}'::jsonb),
+ ('99999999-9999-4999-8999-999999999999','global-ca@example.test','{}'::jsonb,'{}'::jsonb),
+ ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab','global-au@example.test','{}'::jsonb,'{}'::jsonb),
+ ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','global-sg@example.test','{}'::jsonb,'{}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
 SET ROLE service_role;
@@ -75,6 +81,57 @@ BEGIN
   END IF;
 END
 $provision_owner$;
+
+-- Verify that each selectable country can provision an isolated workspace with
+-- its exact locale/currency tuple. These are synthetic Auth users in disposable CI.
+DO $all_country_provisioning$
+DECLARE
+  test_case record;
+  result jsonb;
+BEGIN
+  FOR test_case IN
+    SELECT * FROM (VALUES
+      ('66666666-6666-4666-8666-666666666666'::uuid, 'IN', 'en-IN', 'INR'),
+      ('77777777-7777-4777-8777-777777777777'::uuid, 'US', 'en-US', 'USD'),
+      ('88888888-8888-4888-8888-888888888888'::uuid, 'AE', 'ar-AE', 'AED'),
+      ('99999999-9999-4999-8999-999999999999'::uuid, 'CA', 'fr-CA', 'CAD'),
+      ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab'::uuid, 'AU', 'en-AU', 'AUD'),
+      ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid, 'SG', 'ta-SG', 'SGD')
+    ) AS countries(user_id, country_code, locale_code, currency_code)
+  LOOP
+    result := public.global_provision_owner_workspace(
+      test_case.user_id,
+      'country-test@example.test',
+      'Country Test Owner',
+      test_case.country_code,
+      test_case.locale_code,
+      test_case.currency_code
+    );
+    IF result->>'ok' <> 'true'
+       OR result->>'created' <> 'true'
+       OR result->>'role' <> 'owner'
+       OR result->>'country_code' <> test_case.country_code
+       OR result->>'locale_code' <> test_case.locale_code
+       OR result->>'currency_code' <> test_case.currency_code THEN
+      RAISE EXCEPTION 'Country workspace provisioning failed for %: %', test_case.country_code, result;
+    END IF;
+  END LOOP;
+END
+$all_country_provisioning$;
+
+-- Remove the six synthetic workspaces so later disposable integration fixtures
+-- start from their expected clean Global schema state.
+DELETE FROM global.workspaces
+WHERE created_by IN (
+  '66666666-6666-4666-8666-666666666666',
+  '77777777-7777-4777-8777-777777777777',
+  '88888888-8888-4888-8888-888888888888',
+  '99999999-9999-4999-8999-999999999999',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+);
+-- Synthetic auth.users rows intentionally remain only in this disposable CI database;
+-- the runner destroys the database after replay. service_role must not delete Auth users.
 
 -- An invited member must never fall through into a new standalone owner workspace.
 INSERT INTO global.workspace_members(workspace_id,user_id,role,status,invited_by)
