@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const migration = readFileSync(new URL("../../../supabase/migrations/202611150011_global_invoice_issuance_and_refunds.sql", import.meta.url), "utf8");
 const edge = readFileSync(new URL("../../../supabase/functions/global-invoices/index.ts", import.meta.url), "utf8");
+const panel = readFileSync(new URL("../../components/global/GlobalInvoicesPanel.jsx", import.meta.url), "utf8");
 
 test("Global invoice issuance is server-authoritative and initially GB-only", () => {
   assert.match(migration, /v_workspace\.country_code <> 'GB'/);
@@ -48,4 +49,14 @@ test("Global invoice Edge Function exposes issue, refund and reconciliation acti
   assert.match(edge, /global_record_invoice_refund/);
   assert.match(edge, /body\.action === "list_reconciliation"/);
   assert.match(edge, /global_list_invoice_reconciliation/);
+});
+
+test("Global invoice workspace exposes PDF, WhatsApp/email share, payment, refund and reconciliation", () => {
+  assert.match(panel, /new jsPDF\(\)/);
+  assert.match(panel, /wa\.me/);
+  assert.match(panel, /mailto:/);
+  assert.match(panel, /record_payment/);
+  assert.match(panel, /record_refund/);
+  assert.match(panel, /list_reconciliation/);
+  assert.match(panel, /GlobalTaxEditor/);
 });
