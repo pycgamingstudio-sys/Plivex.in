@@ -32,3 +32,17 @@ Adds nullable `country_code` and `locale_code` columns to `public.business_profi
 ## Verification still required
 
 Chat 2 must run the full build, lint, typecheck, `npm run test:global`, PostgreSQL migration integration and India regression checks. It must verify the migration against the CI PostgreSQL schema, exercise authenticated workspace isolation and RLS, test invalid country/locale writes, and report actual workflow run IDs and logs. A live Supabase rollout remains a separately authorized operation.
+
+
+## Safe country migration requests (main — 2026-11-15)
+
+Migration: `202611150009_safe_workspace_country_migration_requests.sql`
+
+- An established India workspace cannot change its country/locale by directly upserting `business_profile`; the workspace-records API rejects such attempts.
+- A workspace admin can submit one pending country/locale change request through `request_workspace_country_change`.
+- The request records the existing and requested identity, requester, reason and timestamp. A second pending request is rejected.
+- The request is an immutable audit record for authenticated clients: there is no client UPDATE/DELETE grant or policy.
+- Submitting a request does **not** change the active country, currency, tax profile, invoice, payment, inventory, ledger, or historical tax snapshot.
+- The Global workspace country remains locked in Settings; this request workflow is for the India/public workspace profile only.
+- Approval is not automated in this phase. A request requires a separately reviewed migration plan and explicit operational approval. No automatic country switch, invoice rewriting, currency conversion, or live database migration is performed.
+- Before a future approved migration, an operator must inventory issued invoices, credit notes, payments/refunds, tax snapshots, recurring documents, integrations and reporting dependencies; define an effective date and preserve the old legal identity for historical records.

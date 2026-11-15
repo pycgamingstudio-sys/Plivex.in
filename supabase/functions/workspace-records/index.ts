@@ -82,8 +82,13 @@ Deno.serve(async (req: Request) => {
           return json({ error: "Tax jurisdiction code must be 32 characters or fewer." }, 400, origin);
         }
         const values = { ...pick(body.values, fields), workspace_id: profile.workspace_id };
-        const { data: existing, error: readError } = await db.from(table).select("id").eq("workspace_id", profile.workspace_id).maybeSingle();
+        const { data: existing, error: readError } = await db.from(table).select("id,country_code,locale_code").eq("workspace_id", profile.workspace_id).maybeSingle();
         if (readError) return json({ error: "Could not load business profile." }, readError.code === "42501" ? 403 : 400, origin);
+        if (existing?.country_code
+          && (Object.hasOwn(incoming, "country_code") || Object.hasOwn(incoming, "locale_code"))
+          && (incoming.country_code !== existing.country_code || incoming.locale_code !== existing.locale_code)) {
+          return json({ error: "Country identity changes must be submitted as an audited migration request." }, 409, origin);
+        }
         const result = existing
           ? await db.from(table).update(values).eq("workspace_id", profile.workspace_id).select("*").single()
           : await db.from(table).insert(values).select("*").single();

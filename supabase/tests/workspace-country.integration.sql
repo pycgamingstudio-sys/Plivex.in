@@ -85,6 +85,7 @@ INSERT INTO public.business_profile (workspace_id, name) VALUES
 
 \ir ../migrations/202611130006_workspace_country_identity.sql
 \ir ../migrations/202611130006_workspace_country_identity.sql
+\ir ../migrations/202611150009_safe_workspace_country_migration_requests.sql
 
 DO $constraints$
 DECLARE
@@ -174,6 +175,53 @@ BEGIN
   END;
 END
 $employee_rls$;
+RESET ROLE;
+
+-- Only workspace admins can request a country identity migration. The request
+-- is an audit record and must not mutate the active business profile.
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+SET LOCAL ROLE authenticated;
+DO $country_request$
+DECLARE
+  v_result jsonb;
+  v_count integer;
+  v_active_country text;
+BEGIN
+  v_result := public.request_workspace_country_change('US', 'en-US', 'Business relocation review');
+  IF v_result->>'status' <> 'pending_review' OR v_result->>'identity_changed' <> 'false' THEN
+    RAISE EXCEPTION 'Country request did not remain pending without applying identity';
+  END IF;
+  SELECT count(*) INTO v_count FROM public.workspace_country_change_requests
+    WHERE workspace_id = 'workspace-a' AND status = 'pending_review';
+  IF v_count <> 1 THEN RAISE EXCEPTION 'Expected one pending country change request'; END IF;
+  SELECT country_code INTO v_active_country FROM public.business_profile WHERE workspace_id = 'workspace-a';
+  IF v_active_country <> 'IN' THEN RAISE EXCEPTION 'Request unexpectedly changed active country'; END IF;
+  BEGIN
+    PERFORM public.request_workspace_country_change('ZZ', 'en-ZZ', null);
+    RAISE EXCEPTION 'Unsupported target country was accepted';
+  EXCEPTION WHEN invalid_parameter_value THEN NULL;
+  END;
+  BEGIN
+    PERFORM public.request_workspace_country_change('CA', 'fr-CA', null);
+    RAISE EXCEPTION 'Second pending request was accepted';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+END
+$country_request$;
+RESET ROLE;
+
+-- Non-admin workspace members cannot create migration requests.
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+SET LOCAL ROLE authenticated;
+DO $country_request_employee$
+BEGIN
+  BEGIN
+    PERFORM public.request_workspace_country_change('US', 'en-US', null);
+    RAISE EXCEPTION 'Non-admin member created a country migration request';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+END
+$country_request_employee$;
 RESET ROLE;
 
 ROLLBACK;
