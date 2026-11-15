@@ -65,8 +65,8 @@ Deno.serve(async (req: Request) => {
         const discount = item.discount_minor ?? 0;
         if (typeof item.description !== "string" || !item.description.trim() || item.description.length > 500
           || !Number.isFinite(quantity) || quantity <= 0 || quantity > 1_000_000 || Math.round(quantity * 10000) !== quantity * 10000
-          || !Number.isSafeInteger(unitPrice) || unitPrice < 0 || unitPrice > 9_000_000_000_000_000
-          || !Number.isSafeInteger(discount) || discount < 0 || discount > 9_000_000_000_000_000
+          || typeof unitPrice !== "number" || !Number.isSafeInteger(unitPrice) || unitPrice < 0 || unitPrice > 9_000_000_000_000_000
+          || typeof discount !== "number" || !Number.isSafeInteger(discount) || discount < 0 || discount > 9_000_000_000_000_000
           || (item.product_id !== null && item.product_id !== undefined && (typeof item.product_id !== "string" || !UUID.test(item.product_id)))) {
           return globalJson({ error: `Invoice line ${index + 1} has invalid values.` }, 400, origin);
         }
@@ -115,7 +115,7 @@ Deno.serve(async (req: Request) => {
 
     if (body.action === "record_payment") {
       if (typeof body.invoice_id !== "string" || !UUID.test(body.invoice_id)
-        || !Number.isSafeInteger(body.amount_minor) || body.amount_minor <= 0
+        || typeof body.amount_minor !== "number" || !Number.isSafeInteger(body.amount_minor) || body.amount_minor <= 0
         || typeof body.currency_code !== "string" || !/^[A-Z]{3}$/.test(body.currency_code)
         || !validDate(body.payment_date)
         || typeof body.idempotency_key !== "string" || !UUID.test(body.idempotency_key)) {
