@@ -153,8 +153,8 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
         : identityChanged
           ? "Country change request submitted for review. Your current country and existing records have not changed."
           : "Workspace country and tax profile saved.");
-    } catch {
-      setError("Country was not saved. Check your workspace permission and try again.");
+    } catch (error) {
+      setError(error?.message || "Country was not saved. Check your workspace permission and try again.");
     } finally {
       setSaving(false);
     }
