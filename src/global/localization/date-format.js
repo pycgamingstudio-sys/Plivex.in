@@ -24,7 +24,7 @@ export function formatWorkspaceDate(value, { locale, timeZone, options = {} } = 
   assertTimeZone(timeZone);
   // Calendar dates (YYYY-MM-DD) are not instants. Keep the entered day stable
   // across time zones rather than shifting it into the previous/next day.
-  const dateOnly = typeof value === "string" && /^\\d{4}-\\d{2}-\\d{2}$/.test(value);
+  const dateOnly = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
   const date = dateOnly ? toDate(`${value}T00:00:00.000Z`) : toDate(value);
   return new Intl.DateTimeFormat(locale, {
     year: "numeric", month: "short", day: "2-digit", timeZone: dateOnly ? "UTC" : timeZone, ...options,
