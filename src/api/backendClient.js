@@ -236,14 +236,14 @@ const functions = {
     }
     if (APP_EDITION === "global" && functionName === "workspace-records") return invokeGlobalWorkspaceRecords(payload);
     if (APP_EDITION === "global" && ["global-invoices", "global-stock-movements"].includes(functionName)) return invokeGlobalLedger(functionName, payload);
-    if (APP_EDITION === "global" && !["global-ensure-owner", "global-business-records", "global-invoices", "global-stock-movements", "global-update-workspace-country"].includes(functionName)) {
+    if (APP_EDITION === "global" && !["global-ensure-owner", "global-business-records", "global-invoices", "global-stock-movements", "global-update-workspace-country", "reset-workspace-country"].includes(functionName)) {
       throw new ApiError("This Global feature is not enabled yet. Your India workspace is kept separate.", 503, { operation: name });
     }
     const migratedFunctions = new Set([
       "add-client", "ensure-owner-role", "send-team-invite", "verify-invite-code",
       "get-workspace-team", "manage-workspace-member", "ping-presence",
       "track-staff-action", "get-team-presence", "get-access-status", "create-payu-order",
-      "global-ensure-owner", "global-business-records", "global-invoices", "global-stock-movements", "workspace-records", "manage-cashfree-subscription", "list-invoices", "save-invoice", "set-invoice-status", "send-payment-reminder", "set-invoice-reminder", "confirm-payment-reminder", "update-invoice-client-email",
+      "global-ensure-owner", "global-business-records", "global-invoices", "global-stock-movements", "reset-workspace-country", "workspace-records", "manage-cashfree-subscription", "list-invoices", "save-invoice", "set-invoice-status", "send-payment-reminder", "set-invoice-reminder", "confirm-payment-reminder", "update-invoice-client-email",
     ]);
     const adapter = adapters[name] || {};
     const requestPayload = adapter.request ? adapter.request(payload) : payload;
@@ -302,6 +302,8 @@ const auth = {
       full_name: profile?.full_name || session.user.user_metadata?.full_name || '',
       role: profile?.role,
       workspace_id: profile?.workspace_id || undefined,
+      country_code: profile?.country_code || undefined,
+      locale_code: profile?.locale_code || undefined,
       user_ref: profile?.user_ref,
       trial_start_at: profile?.trial_start_at,
       trial_expires_at: profile?.trial_expires_at,
