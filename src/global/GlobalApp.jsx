@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/api/backendClient";
 import GlobalCountryOnboarding from "@/components/global/GlobalCountryOnboarding";
+import GlobalInvoicesPanel from "@/components/global/GlobalInvoicesPanel";
 
 const COUNTRY_OPTIONS = [
   { code: "US", label: "United States", locale: "en-US", currency: "USD" },
@@ -239,8 +240,10 @@ export default function GlobalApp() {
             <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               {[["Clients", counts.clients], ["Products", counts.products], ["Expenses", counts.expenses], ["Invoices", counts.invoices], ["Stock items", counts.stock]].map(([label, value]) => <div key={label} className="rounded-xl border border-slate-200 bg-white p-5"><div className="text-sm text-slate-500">{label}</div><div className="mt-2 text-3xl font-bold">{value}</div></div>)}
             </div>
-            <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Global early-access workspace: client, product and expense records can be managed. Invoice creation, payment collection and stock movements are not enabled yet; existing invoice and stock records are view-only.</div>
+            <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Global workspace: client, product and expense records are available. Global invoice drafts, UK standard-rated VAT issuance, and internal payment/refund reconciliation are enabled; other countries remain draft-only. Stock movements still require their audited workflow.</div>
           </>
+        ) : tab === "invoices" ? (
+          <GlobalInvoicesPanel account={account} invoke={invoke} onRefresh={loadRecords} />
         ) : (
           <section className="mt-6">
             <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold">{NAV.find((item) => item.id === tab)?.label}</h1><p className="mt-1 text-sm text-slate-500">{tab === "inventory" || tab === "invoices" ? "Read-only until audited transaction workflows are enabled." : "Records are scoped to your active Global workspace."}</p></div><button onClick={() => loadRecords(tab).catch((loadError) => setError(loadError.message))} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Refresh</button></div>

@@ -4,7 +4,7 @@ on:
   push:
     branches: [global-dev]
   pull_request:
-    branches: [global-dev]
+    branches: [global-dev, main]
 
 permissions:
   contents: read
