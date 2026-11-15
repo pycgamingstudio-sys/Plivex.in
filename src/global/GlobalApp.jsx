@@ -3,15 +3,6 @@ import { supabase } from "@/api/backendClient";
 import GlobalCountryOnboarding from "@/components/global/GlobalCountryOnboarding";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
-const COUNTRY_OPTIONS = [
-  { code: "US", label: "United States", locale: "en-US", currency: "USD" },
-  { code: "GB", label: "United Kingdom", locale: "en-GB", currency: "GBP" },
-  { code: "CA", label: "Canada", locale: "en-CA", currency: "CAD" },
-  { code: "AU", label: "Australia", locale: "en-AU", currency: "AUD" },
-  { code: "AE", label: "United Arab Emirates", locale: "en-AE", currency: "AED" },
-  { code: "SG", label: "Singapore", locale: "en-SG", currency: "SGD" },
-  { code: "IN", label: "India", locale: "en-IN", currency: "INR" },
-];
 const NAV = [
   { id: "overview", label: "Overview" },
   { id: "clients", label: "Clients" },
@@ -47,7 +38,6 @@ export default function GlobalApp() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState("login");
-  const [countryCode, setCountryCode] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [tab, setTab] = useState("overview");
@@ -56,7 +46,6 @@ export default function GlobalApp() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
-  const country = COUNTRY_OPTIONS.find((item) => item.code === countryCode) || null;
 
   const invoke = useCallback(async (table, action = "list", values = undefined) => {
     if (!account?.workspace_id) throw new Error("Your workspace is not ready.");
@@ -114,13 +103,11 @@ export default function GlobalApp() {
     setBusy(true); setError(""); setNotice("");
     try {
       if (mode === "register") {
-        if (!country) throw new Error("Choose your business country before creating your Global account.");
         const { error: signUpError, data } = await supabase.auth.signUp({
           email: email.trim(),
           password,
           options: {
             emailRedirectTo: window.location.origin,
-            data: { signup_country_code: country.code, signup_locale_code: country.locale },
           },
         });
         if (signUpError) throw signUpError;
@@ -143,15 +130,15 @@ export default function GlobalApp() {
       if (tab === "clients") {
         values = { name: form.name?.trim(), email: form.email?.trim() || null, phone: form.phone?.trim() || null };
       } else if (tab === "products") {
-        const digits = currencyDigits(account?.currency_code || country.currency);
+        const digits = currencyDigits(account?.currency_code || "USD");
         values = {
           name: form.name?.trim(),
           sku: form.sku?.trim() || null,
           sale_price_minor: Math.round(Number(form.salePrice || 0) * (10 ** digits)),
-          currency_code: account?.currency_code || country.currency,
+          currency_code: account?.currency_code || "USD",
         };
       } else if (tab === "expenses") {
-        const currency = account?.currency_code || country.currency;
+        const currency = account?.currency_code || "USD";
         values = {
           category: form.category?.trim(),
           vendor: form.vendor?.trim() || null,
@@ -196,19 +183,12 @@ export default function GlobalApp() {
               </div>
             </div>
             <form className="space-y-4" onSubmit={submitAuth}>
-              {mode === "register" && <label className="block text-sm font-medium">Business country
-                <select required className="mt-1 w-full rounded-lg border border-slate-300 p-3" value={countryCode} onChange={(event) => setCountryCode(event.target.value)}>
-                  <option value="">Select your business country</option>
-                  {COUNTRY_OPTIONS.map((item) => <option key={item.code} value={item.code}>{item.label} · {item.currency}</option>)}
-                </select>
-              </label>}
               <label className="block text-sm font-medium">Email
                 <input required type="email" autoComplete="email" className="mt-1 w-full rounded-lg border border-slate-300 p-3" value={email} onChange={(event) => setEmail(event.target.value)} />
               </label>
               <label className="block text-sm font-medium">Password
                 <input required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} className="mt-1 w-full rounded-lg border border-slate-300 p-3" value={password} onChange={(event) => setPassword(event.target.value)} />
               </label>
-              {mode === "register" && <p className="text-xs text-slate-500">Your workspace country and currency are set at registration.</p>}
               <button disabled={busy} className="w-full rounded-lg bg-violet-700 p-3 font-semibold text-white disabled:opacity-60">{busy ? "Please wait…" : mode === "register" ? "Create account" : "Sign in"}</button>
             </form>
             <button className="mt-4 text-sm font-semibold text-violet-700" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); setNotice(""); }}>
@@ -217,13 +197,13 @@ export default function GlobalApp() {
             {notice && <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
             {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
           </section>
-          <p className="mt-6 text-center text-xs text-slate-500">Plivex · Separate from Plivex India</p>
+          <p className="mt-6 text-center text-xs text-slate-500">Plivex · Your business country and language are selected after sign-in.</p>
         </div>
       </main>
     );
   }
 
-  const currency = account.currency_code || country.currency;
+  const currency = account.currency_code || "USD";
   const currentTable = TABLES[tab];
   const currentRecords = records[currentTable] || [];
   const counts = { clients: records.clients?.length || 0, products: records.products?.length || 0, expenses: records.expenses?.length || 0, invoices: records.invoices?.length || 0, stock: records.stock_levels?.length || 0 };

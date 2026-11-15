@@ -24,8 +24,9 @@ test("Global UI uses only Global Auth and Global business records APIs", () => {
   assert.match(globalApp, /global-business-records/);
   assert.match(globalApp, /GlobalCountryOnboarding/);
   assert.match(globalApp, /if \(session && account && !account\.workspace_id\)/);
-  assert.match(globalApp, /const \[countryCode, setCountryCode\] = useState\(""\)/);
-  assert.match(globalApp, /Select your business country/);
+  assert.doesNotMatch(globalApp, /COUNTRY_OPTIONS|setCountryCode|signup_country_code/);
+  assert.match(onboarding, /Select your country/);
+  assert.match(onboarding, /Language and number format/);
   assert.doesNotMatch(globalApp, /hydrateWorkspaceData|workspace-records|from\(["']profiles["']\)/);
 });
 
