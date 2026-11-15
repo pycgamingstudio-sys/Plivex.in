@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { backend as api } from "@/api/backendClient";
+import { backend as api, APP_EDITION } from "@/api/backendClient";
 import { invoiceSaveSignature } from "@/global/tax/invoice-save-signature.js";
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -390,6 +390,55 @@ const invoiceSignature = invoiceSaveSignature;
 
 export async function saveInvoiceToServer(inv) {
   const sig = invoiceSignature(inv);
+  if (APP_EDITION === "global") {
+    const already = _savedSignatures.get(sig);
+    if (already) return already;
+    const currency = String(inv.currency || "USD").toUpperCase();
+    const digits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits;
+    const scale = 10 ** digits;
+    const rawLines = (inv.items || []).map((item) => ({
+      description: str(item.description),
+      quantity: num(item.quantity),
+      unitPriceMinor: Math.round(num(item.rate) * scale),
+    }));
+    const subtotalMinor = rawLines.reduce((sum, item) => sum + Math.round(item.quantity * item.unitPriceMinor), 0);
+    const discountValue = Math.max(0, num(inv.discount));
+    const discountMinor = Math.round((inv.discountType === "percent"
+      ? subtotalMinor * Math.min(100, discountValue) / 100
+      : Math.min(subtotalMinor, discountValue * scale)));
+    let allocated = 0;
+    const items = rawLines.map((item, index) => {
+      const lineSubtotal = Math.round(item.quantity * item.unitPriceMinor);
+      const share = index === rawLines.length - 1
+        ? discountMinor - allocated
+        : (subtotalMinor > 0 ? Math.floor(discountMinor * lineSubtotal / subtotalMinor) : 0);
+      allocated += share;
+      return {
+        description: item.description,
+        quantity: item.quantity,
+        unit_price_minor: item.unitPriceMinor,
+        discount_minor: share,
+      };
+    });
+    if (!items.length || items.some((item) => !item.description || !Number.isFinite(item.quantity) || item.quantity <= 0)) {
+      throw new Error("Add valid invoice lines before saving this Global draft.");
+    }
+    const response = await api.functions.invoke("globalInvoices", {
+      action: "create_draft",
+      client_id: null,
+      currency_code: currency,
+      issue_date: dateOrNull(inv.issueDate) || new Date().toISOString().slice(0, 10),
+      due_date: dateOrNull(inv.dueDate),
+      notes: [inv.notes, inv.terms].filter(Boolean).join("\\n\\n").slice(0, 4000),
+      items,
+      idempotency_key: crypto.randomUUID(),
+    });
+    const saved = response?.data?.invoice;
+    if (!saved?.id) throw new Error("The Global draft invoice could not be saved.");
+    const result = { id: saved.id, number: saved.invoice_number, status: "draft", currency };
+    _savedSignatures.set(sig, result);
+    return result;
+  }
   const already = _savedSignatures.get(sig);
   if (already) return already; // same invoice downloaded or shared again: do not create a duplicate
   const payload = {
