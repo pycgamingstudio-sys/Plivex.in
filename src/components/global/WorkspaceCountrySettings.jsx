@@ -29,13 +29,20 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
         const response = await db.functions.invoke("workspaceRecords", { table: "business_profile", action: "get" });
         if (response?.error) throw response.error;
         const record = response?.data?.record;
+        // A pending migration request is supplementary UI. It must never
+        // prevent the active workspace country and tax profile from loading.
         if (!lockCountry && !isGlobalWorkspace) {
-          const pending = await db.from("workspace_country_change_requests")
-            .select("id,from_country_code,from_locale_code,to_country_code,to_locale_code,status,requested_at")
-            .eq("workspace_id", user.workspace_id)
-            .eq("status", "pending_review")
-            .maybeSingle();
-          if (!pending.error && active) setPendingRequest(pending.data || null);
+          try {
+            const pending = await db.from("workspace_country_change_requests")
+              .select("id,from_country_code,from_locale_code,to_country_code,to_locale_code,status,requested_at")
+              .eq("workspace_id", user.workspace_id)
+              .eq("status", "pending_review")
+              .maybeSingle();
+            if (!pending.error && active) setPendingRequest(pending.data || null);
+            else if (pending.error) console.warn("[WorkspaceCountrySettings] Pending country request unavailable:", pending.error.message);
+          } catch (pendingError) {
+            console.warn("[WorkspaceCountrySettings] Pending country request lookup failed:", pendingError);
+          }
         }
         const country = getCountryByCode(record?.country_code || user?.country_code);
         if (!active) return;
