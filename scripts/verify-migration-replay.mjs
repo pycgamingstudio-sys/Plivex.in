@@ -13,8 +13,8 @@ const normalized = pairs.filter((x) => x.normalized_sql_match === true);
 const localOnly = manifest.local_only_files || [];
 
 if (manifest.remote_ledger_entries !== 52 || history.length !== 39 || missing.length !== 35
-  || manifest.local_migration_files !== 34 || pairs.length !== 17
-  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 17) {
+  || manifest.local_migration_files !== 35 || pairs.length !== 17
+  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 18) {
   fail("Migration reconciliation counts differ from the reviewed 52/39/35/34/17/13/4/17 manifest");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
@@ -44,8 +44,8 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 69 || new Set(candidatePlan.map((x) => x.path)).size !== 69) {
-  fail("Candidate replay plan must contain 35 recovered historical and all 34 current local migrations");
+if (candidatePlan.length !== 70 || new Set(candidatePlan.map((x) => x.path)).size !== 69) {
+  fail("Candidate replay plan must contain 35 recovered historical and all 35 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -124,6 +124,7 @@ function assertGlobalFoundation(port) {
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-isolation-foundation.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-owner-provisioning.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-business-data.integration.sql")]);
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-invoice-ledger.integration.sql")]);
 }
 function applyForcedMigrationRollback(port, db, migrationPath) {
   const migration = readFileSync(migrationPath, "utf8")
@@ -195,7 +196,14 @@ function assertGlobalMigrationRollback(port) {
     if (inventoryRollback.status === 0) fail("Global inventory migration rollback probe unexpectedly committed");
     const inventoryResidue = query(port, db, "SELECT (to_regprocedure('public.global_record_stock_movement(uuid,uuid,uuid,text,numeric,text,uuid)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='stock_movements' AND column_name='idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_products_create_stock_level' AND NOT tgisinternal)::text");
     if (inventoryResidue !== "false|false|false") fail("Global inventory rollback left its function, column or trigger behind: " + inventoryResidue);
-    console.log("PASS actual DDL rollback for all five Global foundation migrations and inventory extension");
+    // Apply inventory, then verify the invoice/payment ledger migration rolls back all DDL atomically.
+    psql(port, db, ["-f", inventoryPath]);
+    const invoiceLedgerPath = resolve(root, "supabase/migrations/202611150008_global_invoice_draft_and_payment_ledger.sql");
+    const invoiceLedgerRollback = applyForcedMigrationRollback(port, db, invoiceLedgerPath);
+    if (invoiceLedgerRollback.status === 0) fail("Global invoice/payment migration rollback probe unexpectedly committed");
+    const invoiceLedgerResidue = query(port, db, "SELECT (to_regprocedure('public.global_create_invoice_draft(uuid,uuid,uuid,text,date,date,text,jsonb)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_record_invoice_payment(uuid,uuid,uuid,bigint,text,date,text,text,text,uuid)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoice_payments' AND column_name='idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='global' AND indexname='global_invoice_payments_idempotency_idx')::text");
+    if (invoiceLedgerResidue !== "false|false|false|false") fail("Global invoice/payment rollback left functions, columns or indexes behind: " + invoiceLedgerResidue);
+    console.log("PASS actual DDL rollback for Global foundation, inventory and invoice/payment migrations");
   } finally {
     const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], {
       cwd: root, env: envFor(port, "postgres"), encoding: "utf8",
@@ -259,7 +267,7 @@ function summary(port, remote) {
 
 const remotePort = Number(process.env.REMOTE_PGPORT || 5433);
 const candidatePort = Number(process.env.CANDIDATE_PGPORT || 5434);
-console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 69 candidate replay entries.");
+console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 70 candidate replay entries.");
 resetDb(remotePort);
 replay(remotePort, remotePlan, true);
 assertRls(remotePort, false);
@@ -273,5 +281,5 @@ assertCandidateIndia(candidatePort);
 assertGlobalFoundation(candidatePort);
 assertRollback(candidatePort);
 assertGlobalMigrationRollback(candidatePort);
-console.log("PASS global-dev candidate replay 35 recovered + 32 local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
+console.log("PASS global-dev candidate replay 35 recovered + 35 local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
 console.log("PASS archive hashes, version ordering, replay, Global workspace isolation, migration rollback, RLS and India data-integrity checks.");
