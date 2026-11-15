@@ -75,7 +75,14 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
           </select>
         </label>
         <label className={labelClass}>Place of supply
-          <input className={fieldClass} maxLength={180} value={config.placeOfSupply || ""} onChange={(e) => update({ placeOfSupply: e.target.value, placeOfSupplyConfirmed: false })} placeholder="Destination / place where supply is made" />
+          {countryCode === "GB" ? (
+            <select className={fieldClass} value={config.placeOfSupply || ""} onChange={(e) => update({ placeOfSupply: e.target.value, placeOfSupplyConfirmed: false })}>
+              <option value="">Select place of supply</option>
+              <option value="United Kingdom">United Kingdom</option>
+            </select>
+          ) : (
+            <input className={fieldClass} maxLength={180} value={config.placeOfSupply || ""} onChange={(e) => update({ placeOfSupply: e.target.value, placeOfSupplyConfirmed: false })} placeholder="Destination / place where supply is made" />
+          )}
         </label>
         <label className={labelClass}>{format?.classificationLabel || "Goods/services tax category"}
           <select className={fieldClass} value={config.taxCategory || ""} onChange={(e) => update({ taxCategory: e.target.value, taxCategoryConfirmed: false })}>
