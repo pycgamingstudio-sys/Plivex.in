@@ -3,7 +3,7 @@
   "captured_at": "2026-11-14",
   "source": "read-only SELECT from supabase_migrations.schema_migrations (version,name,statements)",
   "remote_ledger_entries": 52,
-  "local_migration_files": 32,
+  "local_migration_files": 35,
   "exact_version_matches": 0,
   "basename_matches": [
     {
@@ -353,7 +353,10 @@
     "20261114000002_global_workspace_tax_registration_profile.sql",
     "20261114000003_global_invoice_tax_calculation.sql",
     "20261114000004_global_tax_snapshot_hardening.sql",
-    "20261114000005_cashfree_refund_exact_payment_mapping.sql"
+    "20261114000005_cashfree_refund_exact_payment_mapping.sql",
+    "202611150007_global_inventory_movement_rpc.sql",
+    "202611150006_global_trigger_function_privileges.sql",
+    "202611150008_global_invoice_draft_and_payment_ledger.sql"
   ],
   "notes": [
     "Recovered SQL is copied from the production migration ledger statements column.",
@@ -366,7 +369,10 @@
     "202611150002_global_owner_provisioning.sql adds service_role-only RPC wrappers for Global auth context, idempotent owner workspace provisioning, and Global profile updates. It is included in the disposable 66-entry candidate replay; business data remains in the global schema.",
     "202611150004_global_business_records_rpc.sql adds a service_role-only public RPC that keeps the global schema private from PostgREST while enforcing active Global workspace membership for client/product/expense CRUD and read-only invoice/inventory listing.",
     "The four Global migrations were applied to the existing Supabase project on 2026-11-14 through the Supabase migration API. Their recorded remote versions are 20261114163116, 20261114163144, 20261114163149, and 20261114163153; the matching local SQL files are tracked in basename_matches for replay convergence.",
-    "202611150005_global_business_profile_records.sql was applied to the live Supabase project as migration version 20261114182255 (name global_business_profile_records) after disposable replay, rollback, RLS and India regression checks passed."
+    "202611150005_global_business_profile_records.sql was applied to the live Supabase project as migration version 20261114182255 (name global_business_profile_records) after disposable replay, rollback, RLS and India regression checks passed.",
+    "202611150007_global_inventory_movement_rpc.sql adds a service-role-only atomic Global stock movement RPC, idempotency protection, and automatic zero-stock rows for new products. It is included in the 68-entry disposable candidate replay.",
+    "202611150006_global_trigger_function_privileges.sql removes API-role execution from the internal Global timestamp trigger helper; it is included in disposable replay.",
+    "202611150008_global_invoice_draft_and_payment_ledger.sql adds service-role-only Global draft invoice creation and idempotent external-payment recording; draft invoices are explicitly marked tax-not-calculated and cannot be issued as tax invoices."
   ],
   "recovered_historical_sources": [
     {
