@@ -21,6 +21,8 @@ test("Global UI uses only Global Auth and Global business records APIs", () => {
   assert.match(globalApp, /global-auth-context/);
   assert.match(globalApp, /global-ensure-owner/);
   assert.match(globalApp, /global-business-records/);
+  assert.match(globalApp, /GlobalCountryOnboarding/);
+  assert.match(globalApp, /if \(session && account && !account\.workspace_id\)/);
   assert.doesNotMatch(globalApp, /hydrateWorkspaceData|workspace-records|from\(["']profiles["']\)/);
 });
 
