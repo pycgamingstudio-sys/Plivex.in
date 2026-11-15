@@ -2,7 +2,10 @@ import { useState, useMemo } from "react";
 import { Receipt, Download } from "lucide-react";
 import PageShell from "@/components/PageShell";
 import { KEYS, loadList, loadState } from "@/lib/stores";
-import { backend } from "@/api/backendClient";
+import { backend, APP_EDITION } from "@/api/backendClient";
+import { useAuth } from "@/lib/AuthContext";
+import { getCountryExperience } from "@/global/countries/country-experience.js";
+import { getGlobalTaxCapability } from "@/global/tax/global-tax-capabilities.js";
 import { downloadGSTR1Json } from "@/lib/gstrExport";
 import { inputCls } from "@/lib/ui";
 
@@ -12,6 +15,7 @@ function Card({ label, value, accent }) {
   return <div className={`rounded-xl border bg-card p-4 ${accent ? "border-accent/40 bg-accent/10" : ""}`}><p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p><p className="mt-1 text-[20px] font-bold">{value}</p></div>;
 }
 export default function TaxSummary() {
+  const { user } = useAuth();
   const [items] = useState(() => loadList(KEYS.history));
   const [period, setPeriod] = useState("month");
   const [gstin, setGstin] = useState(() => loadState(KEYS.businessProfile, {}).gstin || "");
@@ -53,6 +57,31 @@ export default function TaxSummary() {
       setExportError(error?.message || "GSTR-1 export failed. Please try again.");
     } finally { setExporting(false); }
   };
+
+  if (APP_EDITION === "global") {
+    const experience = getCountryExperience(user?.country_code);
+    const capability = getGlobalTaxCapability(user?.country_code);
+    const calculationLabel = capability.calculation === "standard_rate_baseline"
+      ? "Standard-rate baseline only"
+      : capability.calculation === "verified_jurisdiction_rule_required"
+        ? "Verified local jurisdiction rules required"
+        : "Not configured";
+    const issuanceLabel = capability.issuance === "disabled" || capability.issuance === "not_configured"
+      ? "Disabled until country rules are verified"
+      : capability.issuance === "code_ready_database_migration_pending"
+        ? "Awaiting verified release readiness"
+        : "Available through the existing country adapter";
+    return (
+      <PageShell icon={Receipt} title={experience ? `${experience.business.taxName} summary` : "Tax summary"} subtitle={experience ? `Tax capability for your ${experience.countryName} workspace.` : "Your workspace country could not be verified."}>
+        <div className="rounded-xl border bg-card p-5 space-y-3">
+          <div><p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tax calculation</p><p className="mt-1 text-base font-semibold">{calculationLabel}</p></div>
+          <div><p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Invoice issuance</p><p className="mt-1 text-base font-semibold">{issuanceLabel}</p></div>
+          <p className="text-sm leading-6 text-muted-foreground">{capability.note}</p>
+        </div>
+        <p className="text-xs text-muted-foreground">Plivex does not infer tax registration or legal obligations from country selection. Country-specific reports will appear only when their calculation and reporting rules are verified.</p>
+      </PageShell>
+    );
+  }
 
   return (
     <PageShell icon={Receipt} title="Tax summary" subtitle="Breakdown of CGST, SGST and IGST collected.">
