@@ -58,7 +58,7 @@ begin
      or p_idempotency_key is null then
     return jsonb_build_object('ok', false, 'reason', 'invalid_request');
   end if;
-  if p_movement_type not in ('opening','receipt','sale','return','adjustment')
+  if p_movement_type is null or p_movement_type not in ('opening','receipt','sale','return','adjustment')
      or p_quantity_delta is null
      or p_quantity_delta = 0
      or abs(p_quantity_delta) > 1000000000000
@@ -91,9 +91,11 @@ begin
   from global.stock_movements
   where workspace_id = p_workspace_id and idempotency_key = p_idempotency_key;
   if found then
-    if v_existing.product_id <> p_product_id
+    if v_existing.created_by <> p_user_id
+       or v_existing.product_id <> p_product_id
        or v_existing.movement_type <> p_movement_type
-       or v_existing.quantity_delta <> p_quantity_delta then
+       or v_existing.quantity_delta <> p_quantity_delta
+       or coalesce(v_existing.notes,'') <> coalesce(nullif(trim(p_notes),''),'') then
       return jsonb_build_object('ok', false, 'reason', 'idempotency_conflict');
     end if;
     select quantity into v_current from global.stock_levels
