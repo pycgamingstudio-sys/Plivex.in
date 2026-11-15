@@ -2,7 +2,7 @@ import React from "react";
 import { getLang, setLang } from "@/lib/i18n";
 
 // Two small buttons: हिंदी | English. Changing the language reloads the page once.
-export default function LanguageSwitcher({ className = "" }) {
+export default function LanguageSwitcher({ className = "", showHindi = true }) {
   const current = getLang() === "hi" ? "hi" : "en";
   const btn = (code, label) => (
     <button
@@ -16,7 +16,7 @@ export default function LanguageSwitcher({ className = "" }) {
   );
   return (
     <div className={`inline-flex items-center gap-1 rounded-xl border border-border bg-card p-1 ${className}`}>
-      {btn("hi", "हिंदी")}
+      {showHindi && btn("hi", "हिंदी")}
       {btn("en", "English")}
     </div>
   );
