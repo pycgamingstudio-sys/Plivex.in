@@ -84,7 +84,7 @@ begin
     and wm.status = 'active'
   for update;
 
-  if v_role not in ('owner','admin') then
+  if coalesce(v_role, '') not in ('owner','admin') then
     return jsonb_build_object('ok', false, 'reason', 'workspace_admin_required');
   end if;
 
@@ -141,6 +141,6 @@ end;
 $function$;
 
 revoke all on function public.global_change_workspace_country(uuid,uuid,text,text,text,text) from public, anon, authenticated;
-grant execute on function global.global_change_workspace_country(uuid,uuid,text,text,text,text) to service_role;
+grant execute on function public.global_change_workspace_country(uuid,uuid,text,text,text,text) to service_role;
 
 commit;
