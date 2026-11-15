@@ -8,6 +8,7 @@
 //    with the Supabase access token in the Authorization header.
 import { createClient } from '@supabase/supabase-js';
 import { resolveEditionId } from '@/global/core/edition-contract.js';
+import { resolveRuntimeEdition } from '@/global/core/runtime-edition.js';
 
 export const APP_EDITION = resolveEditionId(import.meta.env.VITE_APP_EDITION);
 
@@ -273,7 +274,7 @@ const auth = {
 
     if (APP_EDITION === "unified") {
       const mode = metadata.plivex_runtime_edition;
-      const pendingUser = () => ({
+      const pendingUser = (edition = "pending") => ({
         id: uid,
         email: authUser.email,
         full_name: metadata.full_name || metadata.name || "",
@@ -282,77 +283,67 @@ const auth = {
         created_date: authUser.created_at,
         profilePicture: metadata.avatar_url || "",
         phone: metadata.phone || "",
-        edition: "pending",
+        edition,
       });
+      const indiaUser = (profile) => ({
+        id: uid, email: authUser.email,
+        full_name: profile.full_name || metadata.full_name || "",
+        role: profile.role, workspace_id: profile.workspace_id || undefined,
+        user_ref: profile.user_ref, trial_start_at: profile.trial_start_at,
+        trial_expires_at: profile.trial_expires_at,
+        created_date: profile.created_at || authUser.created_at,
+        profilePicture: profile.profile_picture || "", phone: metadata.phone || "",
+        edition: "india",
+      });
+      const loadGlobalUser = async () => {
+        const { data: globalData, error: globalError } = await supabase.functions.invoke("global-auth-context", { body: {} });
+        if (globalError) return { user: null, error: globalError };
+        return { user: globalData?.user || null, error: null };
+      };
 
       if (mode === "pending" && !options.preferIndia) return pendingUser();
 
       const { data: profile, error: profileError } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
       if (profileError) throw new ApiError("Could not load your account profile.", 503, { operation: "profile" });
 
-      if (mode === "pending" && options.preferIndia && profile) {
-        return {
-          id: uid, email: authUser.email,
-          full_name: profile.full_name || metadata.full_name || "",
-          role: profile.role, workspace_id: profile.workspace_id || undefined,
-          user_ref: profile.user_ref, trial_start_at: profile.trial_start_at,
-          trial_expires_at: profile.trial_expires_at,
-          created_date: profile.created_at || authUser.created_at,
-          profilePicture: profile.profile_picture || "", phone: metadata.phone || "",
-          edition: "india",
-        };
-      }
-
-      if (mode === "india") {
-        if (!profile) return pendingUser();
-        return {
-          id: uid, email: authUser.email,
-          full_name: profile.full_name || metadata.full_name || "",
-          role: profile.role, workspace_id: profile.workspace_id || undefined,
-          user_ref: profile.user_ref, trial_start_at: profile.trial_start_at,
-          trial_expires_at: profile.trial_expires_at,
-          created_date: profile.created_at || authUser.created_at,
-          profilePicture: profile.profile_picture || "", phone: metadata.phone || "",
-          edition: "india",
-        };
-      }
+      if (mode === "pending" && options.preferIndia) return profile ? indiaUser(profile) : pendingUser();
+      if (mode === "india") return profile ? indiaUser(profile) : pendingUser();
 
       if (mode === "global") {
-        const { data: globalData, error: globalError } = await supabase.functions.invoke("global-auth-context", { body: {} });
+        const { user: globalUser, error: globalError } = await loadGlobalUser();
         if (globalError) throw new ApiError(globalError.message || "Could not load your Global account.", globalError.status || 400, { operation: "global-auth-context" });
-        if (!globalData?.user?.id) throw new ApiError("Your Global account could not be loaded.", 401);
-        return { ...globalData.user, edition: "global" };
+        if (!globalUser?.id) throw new ApiError("Your Global account could not be loaded.", 401);
+        return { ...globalUser, edition: "global" };
       }
 
-      if (profile) {
-        const createdAt = Date.parse(authUser.created_at || "");
-        const lastSignInAt = Date.parse(authUser.last_sign_in_at || "");
-        const profileCreatedAt = Date.parse(profile.created_at || "");
-        const firstGoogleSignup = Number.isFinite(createdAt) && Number.isFinite(lastSignInAt)
-          && Math.abs(lastSignInAt - createdAt) <= 120000
-          && (!Number.isFinite(profileCreatedAt) || Math.abs(profileCreatedAt - createdAt) <= 120000);
-        if (firstGoogleSignup) {
-          await supabase.auth.updateUser({ data: { plivex_runtime_edition: "pending" } });
-          return pendingUser();
-        }
-        return {
-          id: uid, email: authUser.email,
-          full_name: profile.full_name || metadata.full_name || "",
-          role: profile.role, workspace_id: profile.workspace_id || undefined,
-          user_ref: profile.user_ref, trial_start_at: profile.trial_start_at,
-          trial_expires_at: profile.trial_expires_at,
-          created_date: profile.created_at || authUser.created_at,
-          profilePicture: profile.profile_picture || "", phone: metadata.phone || "",
-          edition: "india",
-        };
+      const createdAt = Date.parse(authUser.created_at || "");
+      const lastSignInAt = Date.parse(authUser.last_sign_in_at || "");
+      const profileCreatedAt = Date.parse(profile?.created_at || "");
+      const firstGoogleSignup = Boolean(profile) && Number.isFinite(createdAt) && Number.isFinite(lastSignInAt)
+        && Math.abs(lastSignInAt - createdAt) <= 120000
+        && (!Number.isFinite(profileCreatedAt) || Math.abs(profileCreatedAt - createdAt) <= 120000);
+
+      const { user: globalUser, error: globalError } = await loadGlobalUser();
+      if (globalError && !profile) {
+        throw new ApiError(globalError.message || "Could not classify your workspace.", globalError.status || 400, { operation: "global-auth-context" });
       }
 
-      const { data: globalData, error: globalError } = await supabase.functions.invoke("global-auth-context", { body: {} });
-      if (globalError) throw new ApiError(globalError.message || "Could not classify your workspace.", globalError.status || 400, { operation: "global-auth-context" });
-      if (globalData?.user?.workspace_id || String(metadata.signup_country_code || "").toUpperCase() !== "" && String(metadata.signup_country_code || "").toUpperCase() !== "IN") {
+      const runtimeEdition = resolveRuntimeEdition({
+        buildEdition: APP_EDITION,
+        mode,
+        hasLegacyProfile: Boolean(profile),
+        hasGlobalWorkspace: Boolean(globalUser?.workspace_id),
+        countryCode: metadata.signup_country_code,
+        firstGoogleSignup,
+      });
+
+      if (runtimeEdition === "global") {
         if (mode !== "global") await supabase.auth.updateUser({ data: { plivex_runtime_edition: "global" } });
-        return { ...globalData.user, edition: "global" };
+        if (globalUser?.id) return { ...globalUser, edition: "global" };
+        return pendingUser("global");
       }
+      if (runtimeEdition === "india" && profile) return indiaUser(profile);
+      if (firstGoogleSignup) await supabase.auth.updateUser({ data: { plivex_runtime_edition: "pending" } });
       return pendingUser();
     }
 
