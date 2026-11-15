@@ -6,7 +6,7 @@ begin;
 create table if not exists public.workspace_country_change_requests (
   id uuid primary key default gen_random_uuid(),
   workspace_id text not null,
-  requested_by uuid not null references auth.users(id) on delete restrict,
+  requested_by uuid not null,
   from_country_code text,
   from_locale_code text,
   to_country_code text not null,
@@ -15,7 +15,7 @@ create table if not exists public.workspace_country_change_requests (
   status text not null default 'pending_review'
     check (status in ('pending_review','approved_for_manual_review','rejected','cancelled')),
   requested_at timestamptz not null default now(),
-  reviewed_by uuid references auth.users(id) on delete restrict,
+  reviewed_by uuid,
   reviewed_at timestamptz,
   review_notes text,
   check (from_country_code is distinct from to_country_code
