@@ -159,6 +159,103 @@ Deno.serve(async (req: Request) => {
       return globalJson(data, 200, origin);
     }
 
+    if (body.action === "issue") {
+      if (typeof body.invoice_id !== "string" || !UUID.test(body.invoice_id)
+        || typeof body.idempotency_key !== "string" || !UUID.test(body.idempotency_key)
+        || !isObject(body.tax_context)) {
+        return globalJson({ error: "Invoice issuance details are invalid." }, 400, origin);
+      }
+      const tax = body.tax_context;
+      if (typeof tax.registration_confirmed !== "boolean"
+        || typeof tax.place_of_supply_confirmed !== "boolean"
+        || typeof tax.tax_category_confirmed !== "boolean"
+        || typeof tax.tax_category !== "string"
+        || typeof tax.mode !== "string"
+        || typeof tax.price_mode !== "string"
+        || typeof tax.place_of_supply !== "string") {
+        return globalJson({ error: "Required tax evidence is incomplete." }, 400, origin);
+      }
+      const { data, error } = await auth.admin.rpc("global_issue_invoice", {
+        p_user_id: auth.user.id,
+        p_workspace_id: workspaceId,
+        p_invoice_id: body.invoice_id,
+        p_tax_context: tax,
+        p_idempotency_key: body.idempotency_key,
+      });
+      if (error) {
+        console.error("Global invoice issuance RPC failed", { code: error.code });
+        return globalJson({ error: "Invoice issuance service is not ready. Please try again later." }, 503, origin);
+      }
+      if (!data?.ok) {
+        const reason = String(data?.reason || "request_failed");
+        const messages: Record<string, string> = {
+          access_denied: "You do not have access to this Global workspace.",
+          forbidden: "Your workspace role cannot issue invoices.",
+          invoice_not_found: "Invoice not found.",
+          invoice_not_draft: "Only a draft invoice can be issued.",
+          country_not_enabled: "Global invoice issuance is not enabled for this country yet.",
+          seller_profile_incomplete: "Complete the seller's legal name, address and active tax registration profile before issuing.",
+          tax_evidence_incomplete: "Confirm active registration, place of supply and standard-rated VAT treatment before issuing.",
+          invalid_invoice_amounts: "Invoice amounts are invalid.",
+          invoice_total_limit: "The invoice total exceeds the supported limit.",
+          idempotency_conflict: "This request ID was already used for another invoice.",
+        };
+        const status = ["access_denied","forbidden"].includes(reason) ? 403
+          : ["invoice_not_found"].includes(reason) ? 404
+          : ["invoice_not_draft","idempotency_conflict"].includes(reason) ? 409 : 400;
+        return globalJson({ error: messages[reason] || "Could not issue this invoice.", reason }, status, origin);
+      }
+      return globalJson(data, 200, origin);
+    }
+
+    if (body.action === "record_refund") {
+      if (typeof body.invoice_id !== "string" || !UUID.test(body.invoice_id)
+        || typeof body.amount_minor !== "number" || !Number.isSafeInteger(body.amount_minor) || body.amount_minor <= 0
+        || typeof body.currency_code !== "string" || !/^[A-Z]{3}$/.test(body.currency_code)
+        || !validDate(body.refund_date)
+        || typeof body.idempotency_key !== "string" || !UUID.test(body.idempotency_key)) {
+        return globalJson({ error: "Refund details are invalid." }, 400, origin);
+      }
+      for (const [key, limit] of [["method", 80], ["reference", 160], ["reason", 500]] as const) {
+        if (body[key] !== undefined && body[key] !== null && (typeof body[key] !== "string" || body[key].length > limit)) {
+          return globalJson({ error: "Invalid " + key + " value." }, 400, origin);
+        }
+      }
+      const { data, error } = await auth.admin.rpc("global_record_invoice_refund", {
+        p_user_id: auth.user.id,
+        p_workspace_id: workspaceId,
+        p_invoice_id: body.invoice_id,
+        p_amount_minor: body.amount_minor,
+        p_currency_code: body.currency_code,
+        p_refund_date: body.refund_date,
+        p_method: body.method ?? null,
+        p_reference: body.reference ?? null,
+        p_reason: body.reason ?? null,
+        p_idempotency_key: body.idempotency_key,
+      });
+      if (error) {
+        console.error("Global invoice refund RPC failed", { code: error.code });
+        return globalJson({ error: "Invoice refund service is not ready. Please try again later." }, 503, origin);
+      }
+      if (!data?.ok) {
+        const reason = String(data?.reason || "request_failed");
+        const messages: Record<string, string> = {
+          access_denied: "You do not have access to this Global workspace.",
+          forbidden: "Your workspace role cannot record refunds.",
+          invoice_not_found: "Invoice not found.",
+          invoice_not_refundable: "This invoice is not eligible for a refund record.",
+          invalid_refund: "Refund details are invalid.",
+          refund_exceeds_net_payments: "Refund exceeds the amount received after previous refunds.",
+          idempotency_conflict: "This request ID was already used for a different refund.",
+        };
+        const status = ["access_denied","forbidden"].includes(reason) ? 403
+          : reason === "invoice_not_found" ? 404
+          : ["invoice_not_refundable","idempotency_conflict","refund_exceeds_net_payments"].includes(reason) ? 409 : 400;
+        return globalJson({ error: messages[reason] || "Could not record the refund.", reason, available_minor: data?.available_minor }, status, origin);
+      }
+      return globalJson(data, 200, origin);
+    }
+
     return globalJson({ error: "Unsupported invoice action." }, 400, origin);
   } catch (error) {
     console.error("global-invoices failed", error);
