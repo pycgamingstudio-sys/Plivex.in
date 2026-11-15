@@ -1,0 +1,312 @@
+name: PostgreSQL Subscription Integration
+
+on:
+  push:
+    branches: [global-dev]
+  pull_request:
+    branches: [global-dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: plivex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d plivex_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: plivex_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Existing India membership regression
+        run: npm run test:membership
+      - name: Global and India regression tests
+        run: npm run test:global
+      - name: Execute migration convergence and PostgreSQL RLS integration fixture
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/subscription-priority.integration.sql
+      - name: Verify global invoice tax RPC integration and India GST compatibility
+        run: |
+          createdb plivex_global_invoice_tax_test
+          PGDATABASE=plivex_global_invoice_tax_test psql -v ON_ERROR_STOP=1 -f supabase/tests/global-invoice-tax.integration.sql
+      - name: Verify workspace country migration and constraints
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/workspace-country.integration.sql
+      - name: Verify invoice-share ownership, RLS, grants and rate limiting
+        run: |
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/invoice-share.integration.sql
+          node --test supabase/functions/invoice-share/authorization.test.mjs
+      - name: Verify global billing, NULL-workspace cross-user isolation, Migration 009 rollback, Cashfree and refund RLS
+        run: |
+          createdb plivex_billing_test
+          psql -d plivex_billing_test -v ON_ERROR_STOP=1 -f supabase/tests/global-billing.integration.sql
+      - name: Verify disposable PostgreSQL CAS predicate model and expiry guards (not HTTP handler integration)
+        shell: bash
+        run: |
+          createdb plivex_cashfree_cancel_cas_test
+          PGDATABASE=plivex_cashfree_cancel_cas_test bash supabase/tests/cashfree-cancel-cas.integration.sh
+      - name: Verify concurrent workspace renewal serialization
+        shell: bash
+        run: |
+          createdb plivex_billing_concurrency_test
+          PGDATABASE=plivex_billing_concurrency_test psql -v ON_ERROR_STOP=1 -f supabase/tests/global-billing-concurrency.setup.sql
+          PGDATABASE=plivex_billing_concurrency_test bash supabase/tests/global-billing-concurrency.sh
+      - name: Verify migration statement rollback after later function drift
+        shell: bash
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE OR REPLACE FUNCTION public.current_plan(p_workspace_id text)
+          RETURNS text LANGUAGE plpgsql STABLE AS $function$
+          DECLARE v_plan text;
+          BEGIN
+            SELECT s.tier INTO v_plan FROM public.subscriptions s
+            WHERE s.workspace_id = p_workspace_id AND s.status::text = 'active'
+              AND s.expires_at > clock_timestamp() AND s.started_at <= clock_timestamp()
+            order by case s.tier::text when 'pro' then 2 when 'basic' then 1 else 0 end desc, s.expires_at desc, s.created_at desc
+            LIMIT 1;
+            RETURN coalesce(v_plan, 'free');
+          END
+          $function$;
+          CREATE OR REPLACE FUNCTION public.get_access_status(p_workspace_id text)
+          RETURNS jsonb LANGUAGE sql STABLE AS $body$ SELECT '{}'::jsonb $body$;
+          SQL
+          if psql -v ON_ERROR_STOP=1 -f supabase/migrations/202611130004_converge_effective_subscription_priority.sql; then
+            echo "ERROR: migration unexpectedly accepted later function drift"
+            exit 1
+          fi
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          DO $block$ BEGIN
+            IF position('order by case s.tier::text when ''pro'' then 2' IN pg_get_functiondef('public.current_plan(text)'::regprocedure)) = 0 THEN
+              RAISE EXCEPTION 'Failed migration did not roll back the earlier current_plan replacement';
+            END IF;
+          END $block$;
+          SQL
+          echo "PASS: failed migration rolled back its earlier function replacement"
+      - name: Verify unknown startedAt expressions fail closed
+        shell: bash
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE OR REPLACE FUNCTION public.current_plan(p_workspace_id text)
+          RETURNS text LANGUAGE plpgsql STABLE AS $function$
+          DECLARE v_plan text;
+          BEGIN
+           SELECT s.tier INTO v_plan FROM public.subscriptions s
+           WHERE s.workspace_id = p_workspace_id AND s.status::text = 'active'
+             AND s.expires_at > clock_timestamp() AND s.started_at <= clock_timestamp()
+           order by CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at desc, s.created_at desc
+           LIMIT 1;
+           RETURN coalesce(v_plan, 'free');
+          END
+          $function$;
+          CREATE OR REPLACE FUNCTION public.get_access_status(p_workspace_id text)
+          RETURNS jsonb LANGUAGE plpgsql STABLE AS $function$
+          DECLARE v_plan text; v_expires timestamptz;
+          BEGIN
+           v_plan := public.current_plan(p_workspace_id);
+           select s.expires_at into v_expires
+            from public.subscriptions s
+            where s.workspace_id = p_workspace_id
+              and s.status::text = 'active'
+              and s.expires_at > clock_timestamp()
+              and s.started_at <= clock_timestamp()
+              and s.tier::text in ('basic','pro')
+            order by CASE s.tier::text WHEN 'pro' THEN 2 WHEN 'basic' THEN 1 ELSE 0 END DESC, s.expires_at desc, s.created_at desc
+            limit 1;
+           RETURN jsonb_build_object(
+             'plan', v_plan,
+             'expiresAt', v_expires,
+             'startedAt', case when v_plan='free' then null else
+               (select s.started_at from public.subscriptions s
+                where s.workspace_id=p_workspace_id and s.status::text='active'
+                  and s.expires_at > clock_timestamp() and s.tier::text='unexpected') end
+           );
+          END
+          $function$;
+          SQL
+          if psql -v ON_ERROR_STOP=1 -f supabase/migrations/202611130004_converge_effective_subscription_priority.sql > /tmp/started-at-migration.log 2>&1; then
+            echo "ERROR: migration unexpectedly accepted an unknown startedAt expression"
+            exit 1
+          fi
+          if ! grep -q "Unexpected get_access_status startedAt expression" /tmp/started-at-migration.log; then
+            cat /tmp/started-at-migration.log
+            echo "ERROR: migration failed for an unexpected reason"
+            exit 1
+          fi
+          echo "PASS: migration rejected an unknown startedAt expression"
+      - name: Verify unknown function definitions fail closed
+        shell: bash
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE OR REPLACE FUNCTION public.current_plan(p_workspace_id text)
+          RETURNS text LANGUAGE sql STABLE AS $$ SELECT 'unexpected'::text $$;
+          SQL
+          if psql -v ON_ERROR_STOP=1 -f supabase/migrations/202611130004_converge_effective_subscription_priority.sql; then
+            echo "ERROR: migration unexpectedly accepted an unknown current_plan definition"
+            exit 1
+          else
+            echo "PASS: migration rejected an unknown current_plan definition"
+          fi
+      - name: Verify clean database without prerequisite functions fails safely
+        shell: bash
+        run: |
+          createdb plivex_clean
+          if psql -d plivex_clean -v ON_ERROR_STOP=1 -f supabase/migrations/202611130004_converge_effective_subscription_priority.sql; then
+            echo "ERROR: migration unexpectedly succeeded without prerequisite functions"
+            exit 1
+          else
+            echo "PASS: clean schema without prerequisites fails closed"
+          fi
+      - name: Apply and verify assistant batch RLS optimization migration in disposable PostgreSQL
+        run: |
+          createdb plivex_assistant_rls_test
+          psql -d plivex_assistant_rls_test -v ON_ERROR_STOP=1 -f supabase/tests/assistant-batch-rls.integration.sql
+      - name: Verify assistant batch RPC anon privilege is removed without breaking signed-in callers
+        shell: bash
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          DO $roles$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon; END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated; END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role; END IF;
+          END
+          $roles$;
+          CREATE OR REPLACE FUNCTION public.execute_assistant_action_batch(text, text, jsonb)
+          RETURNS jsonb LANGUAGE sql SECURITY DEFINER
+          SET search_path = public, auth, pg_temp AS $body$ SELECT '{}'::jsonb $body$;
+          -- Live Supabase proacl is {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres};
+          -- PUBLIC has no EXECUTE entry and has_function_privilege('public', ...) is false.
+          -- Mirror that observed ACL baseline rather than PostgreSQL's default PUBLIC EXECUTE.
+          REVOKE EXECUTE ON FUNCTION public.execute_assistant_action_batch(text, text, jsonb) FROM PUBLIC;
+          GRANT EXECUTE ON FUNCTION public.execute_assistant_action_batch(text, text, jsonb) TO anon, authenticated, service_role;
+          SQL
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/202611130005_revoke_anon_assistant_batch_execute.sql
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          DO $assert$
+          DECLARE v_acl aclitem[];
+          BEGIN
+            SELECT p.proacl INTO v_acl
+            FROM pg_proc p
+            WHERE p.oid = 'public.execute_assistant_action_batch(text,text,jsonb)'::regprocedure;
+
+            IF EXISTS (
+              SELECT 1 FROM aclexplode(v_acl) a
+              WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE'
+            ) THEN
+              RAISE EXCEPTION 'PUBLIC must not have an explicit EXECUTE ACL entry';
+            END IF;
+            IF has_function_privilege('anon', 'public.execute_assistant_action_batch(text,text,jsonb)', 'EXECUTE') THEN
+              RAISE EXCEPTION 'anon must not retain effective EXECUTE, including PUBLIC inheritance';
+            END IF;
+            IF NOT has_function_privilege('authenticated', 'public.execute_assistant_action_batch(text,text,jsonb)', 'EXECUTE') THEN
+              RAISE EXCEPTION 'authenticated EXECUTE was unexpectedly removed';
+            END IF;
+            IF NOT has_function_privilege('service_role', 'public.execute_assistant_action_batch(text,text,jsonb)', 'EXECUTE') THEN
+              RAISE EXCEPTION 'service_role EXECUTE was unexpectedly removed';
+            END IF;
+          END
+          $assert$;
+          SQL
+          echo "PASS: anon EXECUTE revoked; authenticated and service_role preserved"
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Deno typecheck Cashfree Edge Functions
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Check Cashfree Edge Functions
+        run: |
+          deno check supabase/functions/_shared/cashfree.ts
+          deno check supabase/functions/create-cashfree-order/index.ts
+          deno check supabase/functions/cashfree-webhook/index.ts
+          deno check supabase/functions/cashfree-return/index.ts
+          deno check supabase/functions/manage-cashfree-subscription/index.ts
+          deno test supabase/functions/manage-cashfree-subscription/authorization.test.mjs
+          deno check supabase/functions/invoice-share/index.ts
+          deno check supabase/functions/save-invoice/index.ts
+          deno check supabase/functions/assistant-chat/index.ts
+          deno test supabase/functions/_shared/cashfree.test.ts
+      - name: Execute Cashfree subscription endpoint handler tests
+        run: deno test supabase/functions/manage-cashfree-subscription/handler.test.mjs
+      - name: Test Cashfree webhook refund-event handler and order ID validation
+        run: deno test supabase/functions/_shared/cashfree.test.ts supabase/functions/cashfree-webhook/refund.test.ts
+      - name: Prepare isolated handler/PostgreSQL integration database
+        run: |
+          createdb plivex_handler_test
+          psql -d plivex_handler_test -v ON_ERROR_STOP=1 -f supabase/tests/cashfree-handler-postgres.setup.sql
+      - name: Start disposable PostgREST for real handler integration
+        env:
+          TEST_JWT_SECRET: plivex-disposable-ci-jwt-secret-only-never-production-00000000000000000000000000000000
+        run: |
+          docker run --detach --rm --name plivex-postgrest --network host \
+            --env PGRST_DB_URI=postgres://postgres:postgres@127.0.0.1:5432/plivex_handler_test \
+            --env PGRST_DB_SCHEMAS=public \
+            --env PGRST_DB_ANON_ROLE=anon \
+            --env PGRST_JWT_SECRET="$TEST_JWT_SECRET" \
+            postgrest/postgrest:v12.2.3
+          ready=0
+          for attempt in $(seq 1 30); do
+            code="$(curl -sS -o /tmp/plivex-postgrest-openapi.json -w '%{http_code}' http://127.0.0.1:3000/ || true)"
+            if [ "$code" = "200" ]; then ready=1; break; fi
+            sleep 2
+          done
+          if [ "$ready" != "1" ]; then
+            docker logs plivex-postgrest
+            exit 1
+          fi
+          cat > /tmp/plivex-postgrest-proxy.ts <<'TS'
+          Deno.serve({ hostname: "127.0.0.1", port: 3001 }, async (request) => {
+            const target = new URL(request.url);
+            target.port = "3000";
+            if (target.pathname.startsWith("/rest/v1")) target.pathname = target.pathname.slice("/rest/v1".length) || "/";
+            return await fetch(new Request(target, request));
+          });
+          TS
+          deno run --allow-net /tmp/plivex-postgrest-proxy.ts > /tmp/plivex-postgrest-proxy.log 2>&1 &
+          ready=0
+          for attempt in $(seq 1 15); do
+            code="$(curl -sS -o /tmp/plivex-postgrest-proxy-openapi.json -w '%{http_code}' http://127.0.0.1:3001/rest/v1/ || true)"
+            if [ "$code" = "200" ]; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" != "1" ]; then
+            cat /tmp/plivex-postgrest-proxy.log
+            docker logs plivex-postgrest
+            exit 1
+          fi
+      - name: Run actual Edge handler to disposable PostgreSQL integration test
+        env:
+          TEST_JWT_SECRET: plivex-disposable-ci-jwt-secret-only-never-production-00000000000000000000000000000000
+          TEST_SUPABASE_URL: http://127.0.0.1:3001
+        run: deno test --allow-env --allow-net supabase/functions/manage-cashfree-subscription/handler.postgres.integration.test.mjs
+      - name: Stop disposable PostgREST
+        if: always()
+        run: docker stop plivex-postgrest || true
+      - name: Production build
+        run: npm run build
+      - name: Verify public build configuration
+        run: npm run verify:build-env

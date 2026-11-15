@@ -1,47 +1,33 @@
 import { useEffect, useState } from "react";
 import { Sparkles, X } from "lucide-react";
-
-const SEEN_KEY_PREFIX = "plivex:welcomeSeen:";
+import { canScheduleWelcomePopup, getStorageSafely, isWelcomePopupVisible, markWelcomePopupDismissed } from "./welcome-popup-state.js";
 
 export default function WelcomePopup({ userId, planName = "Free", plan = "free", planLoading = true }) {
-  const [open, setOpen] = useState(false);
+
+  const [openForUser, setOpenForUser] = useState(null);
 
   useEffect(() => {
-    // Never show before the authenticated account and its real subscription are known.
-    if (!userId || planLoading) return undefined;
-
-    const seenKey = `${SEEN_KEY_PREFIX}${userId}`;
-    let seen = false;
-    try {
-      seen = localStorage.getItem(seenKey) === "1";
-    } catch {
-      // If persistence is unavailable, fail closed rather than annoy the user on every visit.
-      return undefined;
-    }
-    if (seen) return undefined;
-
-    const timer = window.setTimeout(() => setOpen(true), 12000);
+    // Reset on account changes/logout and wait for the authoritative plan before showing.
+    setOpenForUser(null);
+    const storage = getStorageSafely(() => window.localStorage);
+    if (!canScheduleWelcomePopup({ userId, planLoading, storage })) return undefined;
+    const timer = window.setTimeout(() => setOpenForUser(userId), 12000);
     return () => window.clearTimeout(timer);
-  }, [userId, planLoading]);
+  }, [userId, planLoading, planName, plan]);
 
   const dismiss = () => {
-    setOpen(false);
-    if (!userId) return;
-    try {
-      localStorage.setItem(`${SEEN_KEY_PREFIX}${userId}`, "1");
-    } catch {
-      // Best effort; the popup remains closed for the current mount.
-    }
+    setOpenForUser(null);
+    markWelcomePopupDismissed({ userId, storage: getStorageSafely(() => window.localStorage) });
   };
 
-  if (!open) return null;
+  if (!isWelcomePopupVisible({ activeUserId: userId, openForUser, planLoading })) return null;
 
   const normalizedPlan = String(plan || "free").toLowerCase();
   const isPaid = ["basic", "pro", "enterprise"].includes(normalizedPlan);
   const displayPlan = planName || (normalizedPlan.charAt(0).toUpperCase() + normalizedPlan.slice(1));
-  const title = isPaid ? `Welcome to Plivex ${displayPlan}` : "Start free invoicing 👋";
+  const title = isPaid ? "Welcome to Plivex " + displayPlan : "Start free invoicing 👋";
   const description = isPaid
-    ? `Your ${displayPlan} subscription is active. Your workspace is ready with the features included in your plan.`
+    ? "Your " + displayPlan + " subscription is active. Your workspace is ready with the features included in your plan."
     : "Create your first invoice with Plivex. No card needed to get started.";
 
   return (

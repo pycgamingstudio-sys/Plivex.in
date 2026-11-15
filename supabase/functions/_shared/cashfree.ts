@@ -1,11 +1,31 @@
+// Cashfree is the only payment provider for Plivex Global.
+// Amounts are stored in minor units; currency is derived from the saved workspace country.
 export const PLANS = {
-  basic_monthly:{id:"basic_monthly",name:"Basic Monthly",tier:"basic",amountPaise:19900,period:"month"},
-  pro_monthly:{id:"pro_monthly",name:"Pro Monthly",tier:"pro",amountPaise:24900,period:"month"},
-  basic_yearly:{id:"basic_yearly",name:"Basic Yearly",tier:"basic",amountPaise:99900,period:"year"},
-  enterprise_yearly:{id:"enterprise_yearly",name:"Enterprise Yearly",tier:"pro",amountPaise:159900,period:"year"},
+  basic_monthly:{id:"basic_monthly",name:"Basic Monthly",tier:"basic",period:"month"},
+  pro_monthly:{id:"pro_monthly",name:"Pro Monthly",tier:"pro",period:"month"},
+  basic_yearly:{id:"basic_yearly",name:"Basic Yearly",tier:"basic",period:"year"},
+  enterprise_yearly:{id:"enterprise_yearly",name:"Pro Yearly",tier:"pro",period:"year"},
 } as const;
 export type PlanId=keyof typeof PLANS;
 export const isPlanId=(v:unknown):v is PlanId=>typeof v==="string"&&Object.prototype.hasOwnProperty.call(PLANS,v);
+
+import { getBillingForCountry, CASHFREE_CURRENCIES } from "../../../src/global/billing/pricing.js";
+const CASHFREE_CURRENCY_SET=new Set(CASHFREE_CURRENCIES);
+export function resolvePlan(planId:PlanId,countryCode:string){
+  const plan=PLANS[planId],country=getBillingForCountry(countryCode);
+  if(!country)return {available:false,reason:"unsupported_country"} as const;
+  if(!country.paymentEnabled||!CASHFREE_CURRENCY_SET.has(country.currency))return {available:false,reason:"cashfree_currency_unavailable",currency:country.currency} as const;
+  if(countryCode!=="IN"&&plan.period!=="month")return {available:false,reason:"billing_period_unavailable",currency:country.currency} as const;
+  const price=plan.period==="year"?country.yearly?.[plan.tier]:country.monthly[plan.tier];
+  if(!Number.isSafeInteger(price)||price<=0)return {available:false,reason:"plan_unavailable",currency:country.currency} as const;
+  // All customers in the same country and plan receive the same published price.
+  const amountMinor=price;
+  return {available:true,plan,currency:country.currency,countryCode,amountMinor,period:plan.period} as const;
+}
+
+export const createCashfreeOrderId=(randomUUID:()=>string=()=>crypto.randomUUID())=>"PLXCF-"+randomUUID().replaceAll("-","").slice(0,26).toUpperCase();
+export const isCashfreeOrderId=(value:unknown):value is string=>typeof value==="string"&&/^PLXCF-[A-Z0-9]{20,30}$/.test(value);
+
 export const addPeriod=(from:Date,period:"month"|"year")=>{const d=new Date(from),day=d.getUTCDate();if(period==="month")d.setUTCMonth(d.getUTCMonth()+1);else d.setUTCFullYear(d.getUTCFullYear()+1);if(d.getUTCDate()!==day)d.setUTCDate(0);return d;};
 export const safePath=(p:unknown)=>typeof p==="string"&&p.startsWith("/")&&!p.startsWith("//")&&!p.includes("\\")&&p.length<=200?p.split("?")[0]?.split("#")[0]||"/":"/";
 export const origins=new Set(["https://plivex.in","https://www.plivex.in","https://plivex.netlify.app"]);
@@ -22,15 +42,38 @@ export const api=async(path:string,init:RequestInit={})=>{
  if(!r.ok)throw new Error("Cashfree API request failed ("+r.status+").");
  return data;
 };
-export const verifyWebhook=async(raw:string,timestamp:string,signature:string)=>{
- const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(config().secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
+// Cashfree retries webhook deliveries; retain a 24-hour tolerance so ordinary
+// provider retries/resends are not rejected, while bounding captured-signature replay.
+// Accept the provider's epoch-seconds and epoch-milliseconds representations.
+export const CASHFREE_WEBHOOK_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+export const CASHFREE_WEBHOOK_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
+export function isCashfreeWebhookTimestampFresh(timestamp:string,nowMs=Date.now()){
+ if(!/^\d{10}(?:\d{3})?$/.test(timestamp))return false;
+ const raw=Number(timestamp),eventMs=timestamp.length===10?raw*1000:raw;
+ return Number.isSafeInteger(eventMs)&&eventMs<=nowMs+CASHFREE_WEBHOOK_MAX_FUTURE_SKEW_MS&&
+   nowMs-eventMs<=CASHFREE_WEBHOOK_MAX_AGE_MS;
+}
+export function cashfreePaymentStatusUpdateFilter(incoming:"pending"|"failed"){
+ return incoming==="pending"
+  ? "payment_status.is.null,payment_status.in.(created,pending)"
+  : "payment_status.is.null,payment_status.in.(created,pending,failed)";
+}
+export const verifyWebhookSignature=async(raw:string,timestamp:string,signature:string,secret:string,nowMs=Date.now())=>{
+ if(!timestamp||!signature||!secret||!isCashfreeWebhookTimestampFresh(timestamp,nowMs))return false;
+ const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
  const digest=await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(timestamp+raw));
  const expected=btoa(String.fromCharCode(...new Uint8Array(digest)));
- if(!signature||signature.length!==expected.length)return false;
+ if(signature.length!==expected.length)return false;
  let diff=0;for(let i=0;i<signature.length;i++)diff|=signature.charCodeAt(i)^expected.charCodeAt(i);return diff===0;
 };
-// Exact decimal major-unit to minor-unit conversion for verified Cashfree refund amounts.
-// Reject malformed values and fractions smaller than the currency's minor unit.
+export const verifyWebhook=async(raw:string,timestamp:string,signature:string)=>{
+ if(!timestamp||!signature)return false;
+ return verifyWebhookSignature(raw,timestamp,signature,config().secret);
+};
+
+// Convert a provider major-unit amount to minor units without rounding.
+// Cashfree returns JSON numbers; reject strings, non-finite values, negatives,
+// fractional minor units, and values outside JavaScript's safe integer range.
 export function majorToMinorUnits(value: unknown): number | null {
  if(typeof value!=="number"||!Number.isFinite(value)||value<0)return null;
  const match=value.toString().match(/^(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i);
@@ -49,16 +92,36 @@ export function majorToMinorUnits(value: unknown): number | null {
 }
 
 export async function activatePaidOrder(admin:any,order:any,providerOrder:any,payment:any,source:string){
- const expected=Number(order.amount_paise)/100,actual=Number(providerOrder?.order_amount);
- if(providerOrder?.order_status!=="PAID"||!Number.isFinite(actual)||Math.abs(actual-expected)>0.001||payment?.payment_status!=="SUCCESS")return {ok:false,reason:"payment_not_verified"};
- if(order.status==="active")return {ok:true,alreadyApplied:true};
- const planId=order?.plan_id;
- if(order.status!=="created"||!isPlanId(planId))return {ok:false,reason:"order_not_eligible"};
- const now=new Date(),paymentId=String(payment?.cf_payment_id||"");
- const {data,error}=await admin.from("subscriptions").update({status:"active",started_at:now.toISOString(),expires_at:addPeriod(now,PLANS[planId].period).toISOString(),provider_payment_id:paymentId||null,updated_at:now.toISOString()}).eq("id",order.id).eq("status","created").select("id");
- if(error)throw new Error("Subscription update failed");
- if(!data?.length){const {data:latest}=await admin.from("subscriptions").select("status").eq("id",order.id).maybeSingle();return {ok:latest?.status==="active"};}
- const {error:logError}=await admin.from("payment_logs").insert({user_id:order.user_id,user_email:order.user_email,workspace_id:order.workspace_id,txnid:order.txnid,subscription_id:order.id,provider:"cashfree",gateway:"cashfree",currency:"INR",plan_id:order.plan_id,plan_name:order.plan_name,tier:order.tier,amount:Math.round(actual*100),status:"success",outcome:"applied",hash_verified:true,provider_status:payment.payment_status,gateway_status:providerOrder.order_status,provider_payment_id:paymentId||null,raw:{order:providerOrder,payment},verified_at:now.toISOString(),reason:null,message:"Cashfree payment verified",source});
- if(logError)console.error("Cashfree payment log failed",{code:logError.code,orderId:order.txnid});
- return {ok:true};
+ // Only the old INR schema (amount_paise with no currency/minor-unit field)
+ // may use the legacy INR fallback. A modern international order missing its
+ // currency must fail closed instead of being silently interpreted as INR.
+ const isLegacyInrOrder=order?.currency==null&&order?.amount_minor_units==null&&
+   Number.isSafeInteger(order?.amount_paise)&&order.amount_paise>0;
+ const currency=typeof order?.currency==="string"&&order.currency.trim()
+   ?order.currency.trim().toUpperCase()
+   :(isLegacyInrOrder?"INR":"");
+ const expected=order?.amount_minor_units??(currency==="INR"?order?.amount_paise:null);
+ const actualMinor=majorToMinorUnits(providerOrder?.order_amount);
+ const paymentMinor=majorToMinorUnits(payment?.payment_amount);
+ const providerOrderCurrency=typeof providerOrder?.order_currency==="string"?providerOrder.order_currency.toUpperCase():"";
+ const paymentCurrency=typeof payment?.payment_currency==="string"?payment.payment_currency.toUpperCase():"";
+ if(!/^[A-Z]{3}$/.test(currency)||!Number.isSafeInteger(expected)||expected<=0||
+    providerOrder?.order_id!==order.txnid||providerOrder?.order_status!=="PAID"||
+    !/^[A-Z]{3}$/.test(providerOrderCurrency)||providerOrderCurrency!==currency||
+    !/^[A-Z]{3}$/.test(paymentCurrency)||paymentCurrency!==currency||
+    actualMinor===null||actualMinor!==expected||paymentMinor===null||paymentMinor!==expected||
+    payment?.payment_status!=="SUCCESS")
+   return {ok:false,reason:"payment_not_verified"};
+ if((order.status!=="created"&&order.status!=="active")||!isPlanId(order.plan_id))return {ok:false,reason:"order_not_eligible"};
+ const paymentId=String(payment?.cf_payment_id||"");
+ if(!paymentId)return {ok:false,reason:"missing_provider_payment_id"};
+ const {data,error}=await admin.rpc("apply_cashfree_subscription_payment",{
+   p_subscription_id:order.id,p_provider_payment_id:paymentId,p_currency:currency,
+   p_amount_minor:expected,p_provider_order_status:providerOrder.order_status,
+   p_provider_payment_status:payment.payment_status,p_raw:{order:providerOrder,payment},
+   p_source:source,
+ });
+ if(error)throw new Error("Atomic payment application failed");
+ if(!data?.ok&&data?.reason!=="already_applied")return {ok:false,reason:data?.reason||"payment_not_applied"};
+ return {ok:true,alreadyApplied:Boolean(data?.already_applied)};
 }

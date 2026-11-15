@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { backend as api } from "@/api/backendClient";
+import { invoiceSaveSignature } from "@/global/tax/invoice-save-signature.js";
 
 // ──────────────────────────────────────────────────────────────────────────
 // Multi-tenant storage layer.
@@ -35,9 +36,9 @@ export const KEYS = {
 const NAMESPACE = "invoicepulse";
 let _tenantId = "guest";
 
-export function setTenantId(id) {
+export function setTenantId(id, options = {}) {
   _tenantId = id ? String(id) : "guest";
-  migrateLegacyData(_tenantId);
+  if (options?.migrateLegacy !== false) migrateLegacyData(_tenantId);
 }
 
 export function getTenantId() {
@@ -134,6 +135,18 @@ const profileToDb = (p) => ({ name: str(p?.name), email: str(p?.email), phone: s
 
 const invoiceToUi = (r) => {
   const items = Array.isArray(r.invoice_items) ? r.invoice_items : [];
+  const snapshotItems = Array.isArray(r.invoice_snapshot?.items) ? r.invoice_snapshot.items : [];
+  const restoredItems = items.length ? items.map((it, index) => ({
+    description: str(it.description), quantity: num(it.quantity), rate: num(it.rate),
+    gstRate: it.gst_rate === null || it.gst_rate === undefined ? undefined : num(it.gst_rate),
+    ...(str(snapshotItems[index]?.hsnSac) ? { hsnSac: str(snapshotItems[index].hsnSac) } : {}),
+  })) : snapshotItems.map((item, index) => ({
+    id: str(item?.id) || ("item-" + (index + 1)),
+    description: str(item?.description), quantity: num(item?.quantity), rate: num(item?.rate),
+    gstRate: item?.gstRate === undefined && item?.gst_rate === undefined
+      ? undefined : num(item.gstRate ?? item.gst_rate),
+    ...(str(item?.hsnSac) ? { hsnSac: str(item.hsnSac) } : {}),
+  }));
   return {
     id: r.id, number: str(r.number), clientName: str(r.client_name), clientEmail: str(r.client_email), businessName: str(r.business_name),
     invoiceSnapshot: r.invoice_snapshot && typeof r.invoice_snapshot === "object" ? r.invoice_snapshot : null,
@@ -141,7 +154,7 @@ const invoiceToUi = (r) => {
     issueDate: str(r.issue_date).slice(0, 10), dueDate: str(r.due_date).slice(0, 10), createdDate: str(r.created_at), currency: r.currency || "INR",
     itemCount: items.length, taxMode: r.tax_mode || "split", taxRate: num(r.tax_rate), discountType: r.discount_type || "percent", discount: num(r.discount), notes: str(r.notes), terms: str(r.terms), status: r.status || "Pending", isDraft: !!r.is_draft,
     reminder: { enabled: !!r.reminder_enabled, language: r.reminder_language === "hi" ? "hi" : "en" },
-    items: items.map((it) => ({ description: str(it.description), quantity: num(it.quantity), rate: num(it.rate), gstRate: it.gst_rate === null || it.gst_rate === undefined ? undefined : num(it.gst_rate) })),
+    items: restoredItems,
   };
 };
 
@@ -373,17 +386,14 @@ export function useLocalState(key, fallback) {
 
 // ── Saving an invoice (the server calculates totals, the invoice number and the stock change) ──
 
-const invoiceSignature = (inv) => JSON.stringify([
-  inv.client?.name, inv.client?.email, inv.business?.name, inv.issueDate, inv.dueDate, inv.currency, inv.taxMode, inv.taxRate,
-  inv.discountType, inv.discount, inv.notes, inv.terms,
-  (inv.items || []).map((i) => [i.description, i.quantity, i.rate, i.gstRate]),
-]);
+const invoiceSignature = invoiceSaveSignature;
 
 export async function saveInvoiceToServer(inv) {
   const sig = invoiceSignature(inv);
   const already = _savedSignatures.get(sig);
   if (already) return already; // same invoice downloaded or shared again: do not create a duplicate
   const payload = {
+    ...(typeof inv.id === "string" && /^[0-9a-f-]{36}$/i.test(inv.id) ? { invoiceId: inv.id } : {}),
     items: (inv.items || []).map((i) => ({
       description: str(i.description), quantity: num(i.quantity), rate: num(i.rate),
       ...(i.gstRate === "" || i.gstRate === undefined || i.gstRate === null ? {} : { gst_rate: num(i.gstRate) }),
