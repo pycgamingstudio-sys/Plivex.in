@@ -32,9 +32,8 @@ async function resolveSignedInEdition(currentUser) {
   if (currentUser?.workspace_id && !countryCode) countryCode = 'IN';
 
   let globalUser = null;
-  // A newly registered non-India user has an authenticated identity but no
-  // Global workspace yet. Do not call the membership-only context RPC before
-  // onboarding; it is created by GlobalCountryOnboarding after explicit choice.
+  // Non-India identities are checked against the Global context. New users
+  // without a workspace may continue to the explicit onboarding screen.
   const hasWorkspaceMembership = Boolean(currentUser?.workspace_id && currentUser?.role);
   if (countryCode !== 'IN') {
     // Query Global membership for every non-India identity. The India profile
