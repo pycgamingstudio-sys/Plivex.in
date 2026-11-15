@@ -68,8 +68,7 @@ as $function$
 begin
   if tg_op = 'DELETE' then
     if current_setting('plivex.workspace_country_reset', true) = 'on'
-       and current_user = 'postgres'
-       and coalesce(auth.role(), '') = 'service_role' then
+       and current_user in ('postgres','supabase_admin','service_role') then
       return old;
     end if;
     if old.status <> 'draft' then
@@ -116,8 +115,7 @@ declare
 begin
   if tg_op = 'DELETE'
      and current_setting('plivex.workspace_country_reset', true) = 'on'
-     and current_user = 'postgres'
-     and coalesce(auth.role(), '') = 'service_role' then
+     and current_user in ('postgres','supabase_admin','service_role') then
     return old;
   end if;
 
@@ -141,8 +139,7 @@ as $function$
 begin
   if tg_op = 'DELETE'
      and current_setting('plivex.workspace_country_reset', true) = 'on'
-     and current_user = 'postgres'
-     and coalesce(auth.role(), '') = 'service_role' then
+     and current_user in ('postgres','supabase_admin','service_role') then
     return old;
   end if;
   raise exception using errcode = '55000', message = 'Invoice payment ledger rows are append-only';
@@ -157,8 +154,7 @@ as $function$
 begin
   if tg_op = 'DELETE'
      and current_setting('plivex.workspace_country_reset', true) = 'on'
-     and current_user = 'postgres'
-     and coalesce(auth.role(), '') = 'service_role' then
+     and current_user in ('postgres','supabase_admin','service_role') then
     return old;
   end if;
   raise exception using errcode = '55000', message = 'Invoice refund ledger rows are append-only';
