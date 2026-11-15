@@ -42,8 +42,8 @@ ON CONFLICT DO NOTHING;
 INSERT INTO public.stock(workspace_id,name,quantity,price)
 VALUES ('workspace-india-regression','India Reset Product',7,250)
 ON CONFLICT DO NOTHING;
-INSERT INTO public.expenses(workspace_id,category,amount,created_by)
-VALUES ('workspace-india-regression','Supplies',125,'11111111-1111-4111-8111-111111111111')
+INSERT INTO public.expenses(workspace_id,category,amount)
+VALUES ('workspace-india-regression','Supplies',125)
 ON CONFLICT DO NOTHING;
 
 DO $india_to_global$
