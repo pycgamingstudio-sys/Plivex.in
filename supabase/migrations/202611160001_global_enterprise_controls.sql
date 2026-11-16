@@ -220,6 +220,9 @@ create trigger tax_rule_versions_immutable before update or delete on global.tax
 drop trigger if exists exchange_rate_snapshots_immutable on global.exchange_rate_snapshots;
 create trigger exchange_rate_snapshots_immutable before update or delete on global.exchange_rate_snapshots
   for each row execute function global.reject_immutable_row_mutation();
+drop trigger if exists currency_conversion_history_immutable on global.currency_conversion_history;
+create trigger currency_conversion_history_immutable before update or delete on global.currency_conversion_history
+  for each row execute function global.reject_immutable_row_mutation();
 drop trigger if exists audit_events_immutable on global.audit_events;
 create trigger audit_events_immutable before update on global.audit_events
   for each row execute function global.reject_immutable_row_mutation();
