@@ -14,7 +14,8 @@ export default function IndiaPart4Tab({ user }) {
   const [stock,setStock]=useState([]);
   const [orders,setOrders]=useState([]);
   const [orderItems,setOrderItems]=useState([]);
-  const [movements,setMovements]=useState([]);\n  const [batches,setBatches]=useState([]);
+  const [movements,setMovements]=useState([]);
+  const [batches,setBatches]=useState([]);
   const [transfers,setTransfers]=useState([]);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
