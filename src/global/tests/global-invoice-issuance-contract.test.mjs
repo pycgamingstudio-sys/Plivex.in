@@ -62,3 +62,35 @@ test("Global invoice workspace exposes PDF, WhatsApp/email share, payment, refun
   assert.match(panel, /list_reconciliation/);
   assert.match(panel, /GlobalTaxEditor/);
 });
+
+const html = readFileSync(new URL("../../../index.html", import.meta.url), "utf8");
+
+test("Mobile viewport preserves browser and pinch zoom accessibility", () => {
+  assert.match(html, /name="viewport" content="width=device-width, initial-scale=1\.0"/);
+  assert.doesNotMatch(html, /user-scalable\s*=\s*no/i);
+  assert.doesNotMatch(html, /maximum-scale\s*=\s*1(?:\.0)?/i);
+});
+
+test("Refund retries are serialized and invoice balance is locked before calculation", () => {
+  const refundFunction = migration.slice(
+    migration.indexOf("create or replace function public.global_record_invoice_refund"),
+    migration.indexOf("-- Reconciliation is a read-only")
+  );
+  const advisoryLock = refundFunction.indexOf("pg_advisory_xact_lock");
+  const idempotencyRead = refundFunction.indexOf("where workspace_id=p_workspace_id and idempotency_key=p_idempotency_key");
+  const invoiceLock = refundFunction.indexOf("where id=p_invoice_id and workspace_id=p_workspace_id for update");
+  const balanceCalculation = refundFunction.indexOf("v_available := v_invoice.amount_paid_minor-v_invoice.amount_refunded_minor");
+  assert.ok(advisoryLock >= 0 && advisoryLock < idempotencyRead, "same-key retries must serialize before duplicate lookup");
+  assert.ok(idempotencyRead >= 0 && invoiceLock > idempotencyRead, "duplicate lookup must precede the new-refund invoice lock");
+  assert.ok(invoiceLock >= 0 && invoiceLock < balanceCalculation, "invoice row must be locked before refund balance is calculated");
+  assert.match(refundFunction, /unique \(workspace_id, idempotency_key\)/);
+  assert.match(refundFunction, /'duplicate',true/);
+  assert.match(refundFunction, /'idempotency_conflict'/);
+});
+
+test("Refund and reconciliation data remain workspace-scoped under RLS", () => {
+  assert.match(migration, /create policy global_invoice_refunds_select_member[\s\S]*?using \(global\.is_workspace_member\(workspace_id\)\)/);
+  assert.match(migration, /with \(security_invoker = true\) as[\s\S]*?from global\.invoices i/);
+  assert.match(migration, /revoke all on global\.invoice_number_sequences from public, anon, authenticated/);
+  assert.match(migration, /grant all on global\.invoice_number_sequences to service_role/);
+});
