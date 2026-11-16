@@ -21,6 +21,11 @@ function validateMutation(operation: string, values: Record<string, unknown>): s
     if (values.owner_id !== undefined && values.owner_id !== null && !UUID.test(String(values.owner_id))) return "Lead owner is invalid.";
     if (values.next_follow_up_at !== undefined && values.next_follow_up_at !== null && (typeof values.next_follow_up_at !== "string" || !Number.isFinite(Date.parse(values.next_follow_up_at)))) return "Follow-up date is invalid.";
     if (values.stage !== undefined && !["new","qualified","proposal","negotiation","won","lost"].includes(String(values.stage))) return "Lead stage is invalid.";
+  } else if (operation === "update_lead") {
+    if (typeof values.lead_id !== "string" || !UUID.test(values.lead_id)
+      || (values.stage !== undefined && !["new","qualified","proposal","negotiation","won","lost"].includes(String(values.stage)))
+      || (values.score !== undefined && (!Number.isInteger(values.score) || Number(values.score) < 0 || Number(values.score) > 100))
+      || (values.next_follow_up_at !== undefined && values.next_follow_up_at !== null && (typeof values.next_follow_up_at !== "string" || !Number.isFinite(Date.parse(values.next_follow_up_at))))) return "Lead update details are invalid.";
   } else if (operation === "add_lead_activity") {
     if (typeof values.lead_id !== "string" || !UUID.test(values.lead_id) || typeof values.body !== "string" || !values.body.trim() || values.body.length > 4000
       || (values.activity_type !== undefined && !["note","call","email","meeting","stage_change","follow_up"].includes(String(values.activity_type)))) return "Lead activity details are invalid.";
@@ -118,7 +123,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (body.action === "mutate") {
-      const allowed = new Set(["create_warehouse","create_lead","add_lead_activity","create_purchase_order","receive_purchase_order"]);
+      const allowed = new Set(["create_warehouse","create_lead","update_lead","add_lead_activity","create_purchase_order","receive_purchase_order"]);
       if (typeof body.operation !== "string" || !allowed.has(body.operation) || !object(body.values)) {
         return globalJson({ error: "Unsupported Part 4 operation or invalid values." }, 400, origin);
       }
@@ -144,6 +149,7 @@ Deno.serve(async (req: Request) => {
           purchase_order_not_found: "Purchase order not found.",
           warehouse_not_found: "Choose an active warehouse.",
           lead_not_found: "Lead not found.",
+          invalid_lead: "Lead update details are invalid.",
           receipt_quantity_exceeded: "Received quantity cannot exceed the outstanding purchase quantity.",
           invalid_lead: "Lead name is required and must be 200 characters or fewer.",
           invalid_warehouse: "Warehouse code and name are required.",
