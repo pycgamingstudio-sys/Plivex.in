@@ -223,7 +223,7 @@ create or replace function public.india_part4_transfer_stock(
 set search_path=pg_catalog,public
 as $$
 declare v_workspace text; v_user uuid:=auth.uid(); v_source public.stock%rowtype; v_dest public.stock%rowtype;
- v_transfer public.stock_transfers%rowtype; v_fingerprint text; v_dest_id uuid;
+ v_transfer public.stock_transfers%rowtype; v_fingerprint text; v_dest_id uuid; v_batch public.inventory_batches%rowtype; v_batch_remaining numeric(18,4); v_batch_take numeric(18,4);
 begin
  if v_user is null then return jsonb_build_object('ok',false,'reason','unauthenticated'); end if;
  select workspace_id into v_workspace from public.profiles where id=v_user;
@@ -257,6 +257,20 @@ begin
  end if;
  insert into public.stock_transfer_items(workspace_id,transfer_id,source_stock_id,destination_stock_id,quantity)
  values(v_workspace,v_transfer.id,v_source.id,v_dest_id,p_quantity);
+ v_batch_remaining:=p_quantity;
+ for v_batch in
+   select * from public.inventory_batches where workspace_id=v_workspace and warehouse_id=v_source.warehouse_id
+     and stock_id=v_source.id and quantity>0 order by expires_on nulls last,created_at,id for update
+ loop
+   exit when v_batch_remaining<=0;
+   v_batch_take:=least(v_batch.quantity,v_batch_remaining);
+   update public.inventory_batches set quantity=quantity-v_batch_take where id=v_batch.id;
+   insert into public.inventory_batches(workspace_id,warehouse_id,stock_id,batch_number,quantity,unit_cost,expires_on)
+   values(v_workspace,p_to_warehouse_id,v_dest_id,v_batch.batch_number,v_batch_take,v_batch.unit_cost,v_batch.expires_on)
+   on conflict(workspace_id,warehouse_id,stock_id,batch_number) do update
+     set quantity=public.inventory_batches.quantity+excluded.quantity;
+   v_batch_remaining:=v_batch_remaining-v_batch_take;
+ end loop;
  insert into public.stock_movements(workspace_id,warehouse_id,stock_id,movement_type,quantity_delta,reference_type,reference_id,idempotency_key,notes,created_by)
  values(v_workspace,v_source.warehouse_id,v_source.id,'transfer_out',-p_quantity,'stock_transfer',v_transfer.id,gen_random_uuid(),'Warehouse transfer',v_user),
        (v_workspace,p_to_warehouse_id,v_dest_id,'transfer_in',p_quantity,'stock_transfer',v_transfer.id,gen_random_uuid(),'Warehouse transfer',v_user);
