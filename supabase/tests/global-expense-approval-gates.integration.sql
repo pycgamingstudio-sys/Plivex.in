@@ -30,7 +30,7 @@ BEGIN
 
   result := public.global_enterprise_action(requester,ws,'approval.request',
     jsonb_build_object(
-      'actionType','expense.create','resourceType','expense','resourceId',expense_key::text,
+      'actionType','expense.create','resourceType','expense','resourceId','*',
       'payload',jsonb_build_object('amountMinor','2500','category','Travel','vendor','Test Vendor',
         'expenseDate',to_char(current_date,'YYYY-MM-DD'),'currencyCode','USD')
     ));
