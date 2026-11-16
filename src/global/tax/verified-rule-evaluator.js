@@ -22,7 +22,7 @@ const officialSource = (countryCode, value) => {
 const fail = (code, message) => ({ ok: false, status: "needs_review", code, message });
 const record = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const validDate = (value) => {
-  if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const d = new Date(value + "T00:00:00.000Z");
   return !Number.isNaN(d.valueOf()) && d.toISOString().slice(0, 10) === value;
 };
