@@ -203,7 +203,7 @@ export function validateTaxRuleSnapshot(rule) {
   if (!snapshotIsRecord(rule)) return { ok: false, code: "INVALID_RULE" };
   if (typeof rule.id !== "string" || !rule.id.trim() || typeof rule.version !== "string" || !rule.version.trim()) return { ok: false, code: "RULE_ID_VERSION_REQUIRED" };
   if (!/^[A-Z]{2}$/.test(rule.countryCode || "") || !/^[A-Z]{3}$/.test(rule.currencyCode || "")
-    || !Object.hasOwn(SNAPSHOT_COUNTRY_CURRENCY, rule.countryCode) || SNAPSHOT_COUNTRY_CURRENCY[rule.countryCode] !== rule.currencyCode) return { ok: false, code: "INVALID_SNAPSHOT_COUNTRY_CURRENCY" };
+    || !Object.hasOwn(SNAPSHOT_COUNTRY_CURRENCY, rule.countryCode) || SNAPSHOT_COUNTRY_CURRENCY[rule.countryCode] !== rule.currencyCode) return { ok: false, code: "INVALID_COUNTRY_CURRENCY" };
   if (!["standard", "reduced", "zero-rated", "exempt", "reverse-charge", "out-of-scope"].includes(rule.treatment)) return { ok: false, code: "INVALID_TREATMENT" };
   if (!snapshotValidDate(rule.effectiveFrom) || (rule.effectiveTo !== null && rule.effectiveTo !== undefined
     && (!snapshotValidDate(rule.effectiveTo) || rule.effectiveTo < rule.effectiveFrom))) return { ok: false, code: "INVALID_EFFECTIVE_DATES" };
