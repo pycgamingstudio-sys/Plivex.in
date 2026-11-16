@@ -25,6 +25,6 @@ test("Enterprise panel exposes configurable server-enforced Global expense appro
   assert.match(panel, /Expense approval policy/);
   assert.match(panel, /Prevent requesters from approving their own expense/);
   assert.match(panel, /approvalExpenseAmount/);
-  assert.match(panel, /resourceId: isExpenseApproval && approvalAction.trim() === "expense.create" \? "\*" : resourceId.trim\(\)/);
+  assert.ok(panel.includes('resourceId: isExpenseApproval && approvalAction.trim() === "expense.create" ? "*" : resourceId.trim()'));
   assert.match(panel, /Invoice and India write gates are not included in this candidate/);
 });
