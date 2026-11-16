@@ -9,7 +9,7 @@ const blankWarehouse = { code: "", name: "", is_default: false };
 const uid = () => crypto.randomUUID();
 const digits = (currency) => { try { return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits; } catch { return 2; } };
 const money = (minor, currency) => new Intl.NumberFormat(undefined, { style: "currency", currency: currency || "USD" }).format(Number(minor || 0) / (10 ** digits(currency || "USD")));
-const dateOnly = () => new Date().toISOString().slice(0, 10);
+const dateOnly = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
 const scoreLead = (lead) => Math.min(100,
   (lead.email.trim() ? 15 : 0) + (lead.phone.trim() ? 10 : 0) + (lead.company.trim() ? 10 : 0)
   + (lead.requirement.trim() ? 20 : 0) + (Number(lead.value) > 0 ? 20 : 0) + (lead.followUp ? 15 : 0)
@@ -24,6 +24,8 @@ export default function GlobalPart4Panel({ account }) {
   const [transfer, setTransfer] = useState({ from: "", to: "", product_id: "", quantity: "" });
   const [order, setOrder] = useState({ supplier_name: "", supplier_reference: "", expected_date: "", product_id: "", quantity: "1", unit_cost: "" });
   const [receipt, setReceipt] = useState({ order_id: "", warehouse_id: "", item_id: "", quantity: "", batch_number: "", expires_on: "" });
+  const [transferKey, setTransferKey] = useState(uid());
+  const [receiptKey, setReceiptKey] = useState(uid());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -62,8 +64,11 @@ export default function GlobalPart4Panel({ account }) {
 
   const run = async (fn, success) => {
     setBusy(true); setError(""); setNotice("");
-    try { await fn(); await refresh(); setNotice(success); }
-    catch (e) { setError(e.message || "Could not complete the operation."); }
+    try {
+      await fn();
+      setNotice(success);
+      try { await refresh(); } catch { setError("Saved successfully, but the refreshed list could not load. Use Refresh to try again."); }
+    } catch (e) { setError(e.message || "Could not complete the operation."); }
     finally { setBusy(false); }
   };
 
@@ -85,6 +90,10 @@ export default function GlobalPart4Panel({ account }) {
     }, "Lead saved with an automatic qualification score.");
   };
 
+  const updateLead = (leadId, values) => run(async () => {
+    await call({ action: "mutate", operation: "update_lead", values: { lead_id: leadId, ...values } });
+  }, "Lead pipeline updated.");
+
   const saveWarehouse = (event) => {
     event.preventDefault();
     run(async () => {
@@ -105,7 +114,8 @@ export default function GlobalPart4Panel({ account }) {
     event.preventDefault();
     run(async () => {
       await call({ action: "transfer", from_warehouse_id: transfer.from, to_warehouse_id: transfer.to,
-        idempotency_key: uid(), items: [{ product_id: transfer.product_id, quantity: Number(transfer.quantity) }] });
+        idempotency_key: transferKey, items: [{ product_id: transfer.product_id, quantity: Number(transfer.quantity) }] });
+      setTransferKey(uid());
       setTransfer({ from: "", to: "", product_id: "", quantity: "" });
     }, "Stock transfer completed and ledger updated.");
   };
@@ -129,10 +139,11 @@ export default function GlobalPart4Panel({ account }) {
     if (!item) { setError("Select an outstanding purchase-order item."); return; }
     run(async () => {
       await call({ action: "mutate", operation: "receive_purchase_order", values: {
-        purchase_order_id: receipt.order_id, warehouse_id: receipt.warehouse_id, idempotency_key: uid(),
+        purchase_order_id: receipt.order_id, warehouse_id: receipt.warehouse_id, idempotency_key: receiptKey,
         items: [{ purchase_order_item_id: item.id, quantity: Number(receipt.quantity),
           batch_number: receipt.batch_number.trim() || null, expires_on: receipt.expires_on || null }],
       }});
+      setReceiptKey(uid());
       setReceipt({ order_id: receipt.order_id, warehouse_id: receipt.warehouse_id, item_id: "", quantity: "", batch_number: "", expires_on: "" });
     }, "Goods received. Warehouse stock and movement history updated.");
   };
@@ -170,7 +181,7 @@ export default function GlobalPart4Panel({ account }) {
         <input required className={input} placeholder="Interaction notes" value={activity.body} onChange={(e) => setActivity({ ...activity, body: e.target.value })}/>
         <button disabled={busy || !data.leads.length} className={button+" sm:col-span-3"}>Add activity</button>
       </form>
-      <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500"><tr>{["Lead","Company","Stage","Score","Value","Next follow-up"].map((x)=><th key={x} className="whitespace-nowrap px-3 py-3">{x}</th>)}</tr></thead><tbody className="divide-y">{data.leads.map((x)=><tr key={x.id}><td className="px-3 py-3 font-medium">{x.name}</td><td className="px-3 py-3">{x.company || "—"}</td><td className="px-3 py-3 capitalize">{x.stage}</td><td className="px-3 py-3">{x.score}/100</td><td className="px-3 py-3">{money(x.estimated_value_minor, x.currency_code)}</td><td className="px-3 py-3">{x.next_follow_up_at ? new Date(x.next_follow_up_at).toLocaleDateString() : "—"}</td></tr>)}</tbody></table>{!data.leads.length && <p className="p-6 text-center text-sm text-slate-500">No leads yet.</p>}</div>
+      <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500"><tr>{["Lead","Company","Stage","Score","Value","Next follow-up"].map((x)=><th key={x} className="whitespace-nowrap px-3 py-3">{x}</th>)}</tr></thead><tbody className="divide-y">{data.leads.map((x)=><tr key={x.id}><td className="px-3 py-3 font-medium">{x.name}</td><td className="px-3 py-3">{x.company || "—"}</td><td className="px-3 py-3"><select className="rounded border border-slate-200 bg-white p-1 capitalize" value={x.stage} disabled={busy} onChange={(e)=>updateLead(x.id,{stage:e.target.value})}>{["new","qualified","proposal","negotiation","won","lost"].map((stage)=><option key={stage} value={stage}>{stage}</option>)}</select></td><td className="px-3 py-3">{x.score}/100</td><td className="px-3 py-3">{money(x.estimated_value_minor, x.currency_code)}</td><td className="px-3 py-3">{x.next_follow_up_at ? new Date(x.next_follow_up_at).toLocaleDateString() : "—"}</td></tr>)}</tbody></table>{!data.leads.length && <p className="p-6 text-center text-sm text-slate-500">No leads yet.</p>}</div>
     </>}
 
     {section === "warehouses" && <>
@@ -181,7 +192,7 @@ export default function GlobalPart4Panel({ account }) {
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={warehouse.is_default} onChange={(e) => setWarehouse({ ...warehouse, is_default: e.target.checked })}/> Default warehouse</label>
         <button disabled={busy} className={button}>Create warehouse</button>
       </form>
-      <div className="grid gap-3 sm:grid-cols-2">{data.warehouses.map((w)=><div key={w.id} className="rounded-xl border bg-white p-4"><div className="font-semibold">{w.name} {w.is_default && <span className="text-xs text-violet-700">· Default</span>}</div><p className="mt-1 text-sm text-slate-500">{w.code} · {w.is_active ? "Active" : "Inactive"}</p><p className="mt-2 text-sm">Stock lines: {data.stock.filter((s)=>s.warehouse_id===w.id).length}</p></div>)}</div>
+      <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl border bg-white p-4"><p className="text-sm text-slate-500">Inventory valuation</p><p className="mt-1 text-2xl font-bold">{money(data.stock.reduce((sum,s)=>sum+Number(s.quantity||0)*Number(productMap.get(s.product_id)?.purchase_cost_minor||0),0),account.currency_code)}</p></div>{data.warehouses.map((w)=><div key={w.id} className="rounded-xl border bg-white p-4"><div className="font-semibold">{w.name} {w.is_default && <span className="text-xs text-violet-700">· Default</span>}</div><p className="mt-1 text-sm text-slate-500">{w.code} · {w.is_active ? "Active" : "Inactive"}</p><p className="mt-2 text-sm">Stock lines: {data.stock.filter((s)=>s.warehouse_id===w.id).length}</p></div>)}</div>
       <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm"><thead className="bg-slate-50"><tr><th className="p-3 text-left">Product</th><th className="p-3 text-left">Warehouse</th><th className="p-3 text-left">Quantity</th><th className="p-3 text-left">Reorder level</th></tr></thead><tbody className="divide-y">{data.stock.map((s)=><tr key={s.warehouse_id+s.product_id}><td className="p-3">{productMap.get(s.product_id)?.name || s.product_id}</td><td className="p-3">{data.warehouses.find((w)=>w.id===s.warehouse_id)?.name || "—"}</td><td className="p-3">{s.quantity}</td><td className="p-3">{s.reorder_level}</td></tr>)}</tbody></table></div>
     </>}
 
@@ -218,7 +229,7 @@ export default function GlobalPart4Panel({ account }) {
         <input type="date" className={input} value={receipt.expires_on} onChange={(e)=>setReceipt({...receipt,expires_on:e.target.value})}/>
         <button disabled={busy || !selectedOrderItems.length || !receipt.warehouse_id} className={button+" sm:col-span-2 lg:col-span-3"}>Receive goods</button>
       </form>
-      <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm"><thead className="bg-slate-50"><tr><th className="p-3 text-left">Supplier</th><th className="p-3 text-left">Date</th><th className="p-3 text-left">Status</th></tr></thead><tbody className="divide-y">{data.orders.map((o)=><tr key={o.id}><td className="p-3 font-medium">{o.supplier_name}</td><td className="p-3">{o.order_date}</td><td className="p-3 capitalize">{o.status.replaceAll("_"," ")}</td></tr>)}</tbody></table></div>
+      <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm"><thead className="bg-slate-50"><tr><th className="p-3 text-left">Supplier</th><th className="p-3 text-left">Date</th><th className="p-3 text-left">Order value</th><th className="p-3 text-left">Status</th></tr></thead><tbody className="divide-y">{data.orders.map((o)=><tr key={o.id}><td className="p-3 font-medium">{o.supplier_name}</td><td className="p-3">{o.order_date}</td><td className="p-3">{money(o.subtotal_minor, o.currency_code)}</td><td className="p-3 capitalize">{o.status.replaceAll("_"," ")}</td></tr>)}</tbody></table></div>
     </>}
 
     {section === "movements" && <>
