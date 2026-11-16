@@ -52,6 +52,26 @@ create table if not exists global.inventory_batches (
 create index if not exists global_inventory_batches_expiry_idx
   on global.inventory_batches(workspace_id,warehouse_id,expires_on) where quantity>0 and expires_on is not null;
 
+create table if not exists global.warehouse_stock_movements (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null,
+  warehouse_id uuid not null,
+  product_id uuid not null,
+  movement_type text not null check(movement_type in ('receipt','transfer_in','transfer_out','adjustment')),
+  quantity_delta numeric(18,4) not null check(quantity_delta<>0),
+  reference_type text not null check(reference_type in ('purchase_receipt','stock_transfer','manual_adjustment')),
+  reference_id uuid not null,
+  idempotency_key uuid,
+  notes text,
+  created_by uuid not null references auth.users(id) on delete restrict,
+  created_at timestamptz not null default now(),
+  foreign key(workspace_id,warehouse_id) references global.warehouses(workspace_id,id) on delete restrict,
+  foreign key(workspace_id,product_id) references global.products(workspace_id,id) on delete restrict,
+  unique(workspace_id,idempotency_key)
+);
+create index if not exists global_warehouse_stock_movements_timeline_idx
+  on global.warehouse_stock_movements(workspace_id,warehouse_id,product_id,created_at desc);
+
 create table if not exists global.stock_transfers (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references global.workspaces(id) on delete cascade,
@@ -59,6 +79,7 @@ create table if not exists global.stock_transfers (
   to_warehouse_id uuid not null,
   status text not null default 'completed' check(status in ('completed','cancelled')),
   idempotency_key uuid not null,
+  request_fingerprint text not null,
   notes text,
   created_by uuid not null references auth.users(id) on delete restrict,
   created_at timestamptz not null default now(),
@@ -147,7 +168,7 @@ create index if not exists global_crm_activities_timeline_idx on global.crm_acti
 do $$
 declare t text;
 begin
-  foreach t in array array['warehouses','warehouse_stock_levels','inventory_batches','stock_transfers','stock_transfer_items','purchase_orders','purchase_order_items','crm_leads','crm_activities'] loop
+  foreach t in array array['warehouses','warehouse_stock_levels','inventory_batches','warehouse_stock_movements','stock_transfers','stock_transfer_items','purchase_orders','purchase_order_items','crm_leads','crm_activities'] loop
     execute format('alter table global.%I enable row level security',t);
     execute format('drop policy if exists %I on global.%I', 'global_'||t||'_select_member',t);
     execute format('create policy %I on global.%I for select to authenticated using (global.is_workspace_member(workspace_id))','global_'||t||'_select_member',t);
@@ -155,7 +176,7 @@ begin
 end $$;
 
 grant select on global.warehouses,global.warehouse_stock_levels,global.inventory_batches,
-  global.stock_transfers,global.stock_transfer_items,global.purchase_orders,global.purchase_order_items,
+  global.warehouse_stock_movements,global.warehouse_stock_movements,global.stock_transfers,global.stock_transfer_items,global.purchase_orders,global.purchase_order_items,
   global.crm_leads,global.crm_activities to authenticated;
 grant all on global.warehouses,global.warehouse_stock_levels,global.inventory_batches,
   global.stock_transfers,global.stock_transfer_items,global.purchase_orders,global.purchase_order_items,
@@ -191,7 +212,7 @@ create or replace function public.global_part4_transfer_stock(
  p_user_id uuid,p_workspace_id uuid,p_from uuid,p_to uuid,p_items jsonb,p_idempotency_key uuid,p_notes text default null
 ) returns jsonb language plpgsql security definer set search_path=pg_catalog,global
 as $$
-declare v_role text; v_transfer global.stock_transfers%rowtype; v_item jsonb; v_product uuid; v_qty numeric(18,4); v_balance numeric(18,4); v_existing global.stock_transfers%rowtype;
+declare v_role text; v_transfer global.stock_transfers%rowtype; v_item jsonb; v_product uuid; v_qty numeric(18,4); v_balance numeric(18,4); v_existing global.stock_transfers%rowtype; v_fingerprint text;
 begin
  if p_user_id is null or p_workspace_id is null or p_from is null or p_to is null or p_from=p_to or p_idempotency_key is null or jsonb_typeof(p_items)<>'array' or jsonb_array_length(p_items)=0 or jsonb_array_length(p_items)>200 then
   return jsonb_build_object('ok',false,'reason','invalid_request');
@@ -199,16 +220,17 @@ begin
  select role into v_role from global.workspace_members where workspace_id=p_workspace_id and user_id=p_user_id and status='active' limit 1;
  if v_role is null then return jsonb_build_object('ok',false,'reason','access_denied'); end if;
  if v_role not in ('owner','admin','manager') then return jsonb_build_object('ok',false,'reason','forbidden'); end if;
+ v_fingerprint := md5(p_from::text||':'||p_to::text||':'||p_items::text||':'||coalesce(p_notes,''));
  perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text||':'||p_idempotency_key::text,0));
  select * into v_existing from global.stock_transfers where workspace_id=p_workspace_id and idempotency_key=p_idempotency_key;
  if found then
-   if v_existing.created_by<>p_user_id or v_existing.from_warehouse_id<>p_from or v_existing.to_warehouse_id<>p_to then return jsonb_build_object('ok',false,'reason','idempotency_conflict'); end if;
+   if v_existing.created_by<>p_user_id or v_existing.from_warehouse_id<>p_from or v_existing.to_warehouse_id<>p_to or v_existing.request_fingerprint<>v_fingerprint then return jsonb_build_object('ok',false,'reason','idempotency_conflict'); end if;
    return jsonb_build_object('ok',true,'duplicate',true,'transfer_id',v_existing.id);
  end if;
  if not exists(select 1 from global.warehouses where workspace_id=p_workspace_id and id=p_from and is_active)
  or not exists(select 1 from global.warehouses where workspace_id=p_workspace_id and id=p_to and is_active) then return jsonb_build_object('ok',false,'reason','warehouse_not_found'); end if;
- insert into global.stock_transfers(workspace_id,from_warehouse_id,to_warehouse_id,idempotency_key,notes,created_by)
- values(p_workspace_id,p_from,p_to,p_idempotency_key,nullif(trim(p_notes),''),p_user_id) returning * into v_transfer;
+ insert into global.stock_transfers(workspace_id,from_warehouse_id,to_warehouse_id,idempotency_key,request_fingerprint,notes,created_by)
+ values(p_workspace_id,p_from,p_to,p_idempotency_key,v_fingerprint,nullif(trim(p_notes),''),p_user_id) returning * into v_transfer;
  for v_item in select value from jsonb_array_elements(p_items) loop
    v_product := (v_item->>'product_id')::uuid; v_qty := (v_item->>'quantity')::numeric;
    if v_product is null or v_qty is null or v_qty<=0 or v_qty<>round(v_qty,4) then raise exception 'invalid_transfer_item'; end if;
@@ -221,6 +243,9 @@ begin
    update global.warehouse_stock_levels set quantity=quantity-v_qty,updated_at=now() where workspace_id=p_workspace_id and warehouse_id=p_from and product_id=v_product;
    update global.warehouse_stock_levels set quantity=quantity+v_qty,updated_at=now() where workspace_id=p_workspace_id and warehouse_id=p_to and product_id=v_product;
    insert into global.stock_transfer_items(workspace_id,transfer_id,product_id,quantity) values(p_workspace_id,v_transfer.id,v_product,v_qty);
+   insert into global.warehouse_stock_movements(workspace_id,warehouse_id,product_id,movement_type,quantity_delta,reference_type,reference_id,idempotency_key,notes,created_by)
+   values(p_workspace_id,p_from,v_product,'transfer_out',-v_qty,'stock_transfer',v_transfer.id,gen_random_uuid(),nullif(trim(p_notes),''),p_user_id),
+         (p_workspace_id,p_to,v_product,'transfer_in',v_qty,'stock_transfer',v_transfer.id,gen_random_uuid(),nullif(trim(p_notes),''),p_user_id);
  end loop;
  return jsonb_build_object('ok',true,'duplicate',false,'transfer_id',v_transfer.id);
 exception when others then
