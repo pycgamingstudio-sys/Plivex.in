@@ -91,15 +91,24 @@ BEGIN
     RAISE EXCEPTION 'Legacy base-currency expense insert did not populate transaction fields: %',legacy_expense;
   END IF;
 
+END
+$global_multicurrency_expense$;
+RESET ROLE;
+
+DO $fx_history_assertion$
+DECLARE v_snapshot_id uuid; history_count bigint; snapshot_count bigint;
+BEGIN
+  SELECT e.fx_snapshot_id INTO v_snapshot_id FROM global.expenses e
+    WHERE e.workspace_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+      AND e.creation_idempotency_key='88888888-eeee-4888-8888-888888888888';
   SELECT count(*) INTO history_count FROM global.currency_conversion_history
-    WHERE workspace_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc' AND snapshot_id=(foreign_expense->'record'->>'fx_snapshot_id')::uuid;
-  SELECT count(*) INTO snapshot_count FROM global.exchange_rate_snapshots
-    WHERE id=(foreign_expense->'record'->>'fx_snapshot_id')::uuid;
-  IF history_count<>1 OR snapshot_count<>1 THEN
+    WHERE workspace_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc' AND snapshot_id=v_snapshot_id;
+  SELECT count(*) INTO snapshot_count FROM global.exchange_rate_snapshots WHERE id=v_snapshot_id;
+  IF v_snapshot_id IS NULL OR history_count<>1 OR snapshot_count<>1 THEN
     RAISE EXCEPTION 'FX snapshot and immutable conversion history were not stored exactly once';
   END IF;
 END
-$global_multicurrency_expense$;
+$fx_history_assertion$;
 RESET ROLE;
 
 SET ROLE authenticated;
