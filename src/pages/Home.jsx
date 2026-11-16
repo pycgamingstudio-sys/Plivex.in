@@ -18,6 +18,7 @@ import GlobalTaxEditor from "@/components/invoice/GlobalTaxEditor";
 import { calculateInvoiceGlobalTax, GLOBAL_COUNTRY_CURRENCIES, resolveInvoiceCurrencyForWorkspace } from "@/global/tax/invoice-tax-integration.js";
 import { getCountryByCode } from "@/global/countries/country-registry.js";
 import { getCountryExperience } from "@/global/countries/country-experience.js";
+import { getGlobalInvoiceTaxValidationError } from "@/global/tax/invoice-export-policy.js";
 import {
   AlertCircle,
   BadgeCheck,
@@ -607,7 +608,7 @@ export default function Home() {
     } catch { /* ignore malformed pending client */ }
   }, []);
   const notify = (message, kind = "success", duration = 3200) => { setToast({ message, kind }); if (toastTimer.current) window.clearTimeout(toastTimer.current); toastTimer.current = duration > 0 ? window.setTimeout(() => setToast(null), duration) : undefined; };
-  const validate = () => {
+  const validate = ({ allowGlobalDraftExport = false } = {}) => {
     const next = {};
     if (!invoice.business.name.trim()) next.businessName = "This field is required";
     if (!invoice.client.name.trim()) next.clientName = "This field is required";
@@ -616,13 +617,18 @@ export default function Home() {
       if (item.rate === "" || item.rate === null || item.rate === undefined) next[`item.${item.id}.rate`] = "Please enter rate";
     });
     if (!invoice.issueDate) next.issueDate = "Please select an invoice date";
-    if (workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN" && !globalTaxCalculation?.ok) next.globalTax = globalTaxCalculation?.message || "Complete the tax details before generating this invoice.";
+    const globalTaxError = getGlobalInvoiceTaxValidationError({
+      countryCode: workspaceTaxProfile?.countryCode,
+      taxCalculation: globalTaxCalculation,
+      allowDraftExport: allowGlobalDraftExport,
+    });
+    if (globalTaxError) next.globalTax = globalTaxError;
     if (!invoice.items.length) next.items = "Add at least one item";
     setErrors(next);
     return Object.keys(next).length === 0;
   };
-  const requireValid = () => {
-    const valid = validate();
+  const requireValid = (options = {}) => {
+    const valid = validate(options);
     if (!valid) {
       notify("Please fill all required fields before generating the invoice.", "error");
       setMobileTab("edit");
@@ -738,7 +744,7 @@ export default function Home() {
           } catch {
             // A missing migration or undeployed Edge Function keeps this invoice draft-only.
           }
-          if (capabilities?.data?.issuance_ready === true) {
+          if (capabilities?.data?.issuance_ready === true && globalTaxCalculation?.ok === true) {
             const tax = invoiceForPreview.globalTax || {};
             const issueResponse = await backend.functions.invoke("globalInvoices", {
               action:"issue",
@@ -809,7 +815,8 @@ export default function Home() {
   const download = async () => {
     if (pdfDownloading) return;
     if (Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0 || Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0) { openPaywall("Invoice limit reached for your current plan."); return; }
-    if (!requireValid()) return;
+    const isGlobalDraftExport = Boolean(workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN");
+    if (!requireValid({ allowGlobalDraftExport: isGlobalDraftExport })) return;
     setPdfDownloading(true);
     notify("Download pending — your invoice is being prepared…", "info", 0);
     try { await generatePdf(false); }
