@@ -13,16 +13,19 @@ alter table public.leads
 create index if not exists leads_workspace_followup_idx
   on public.leads(workspace_id,next_follow_up_at) where next_follow_up_at is not null;
 
+create unique index if not exists leads_workspace_id_uidx on public.leads(workspace_id,id);
+
 create table if not exists public.lead_activities (
  id uuid primary key default gen_random_uuid(),
  workspace_id text not null,
- lead_id uuid not null references public.leads(id) on delete cascade,
+ lead_id uuid not null,
  activity_type text not null check(activity_type in ('note','call','email','meeting','stage_change','follow_up')),
  body text not null check(length(btrim(body)) between 1 and 4000),
  due_at timestamptz,
  completed_at timestamptz,
  created_by uuid not null references auth.users(id) on delete restrict,
- created_at timestamptz not null default now()
+ created_at timestamptz not null default now(),
+ foreign key(workspace_id,lead_id) references public.leads(workspace_id,id) on delete cascade
 );
 create index if not exists lead_activities_workspace_lead_idx on public.lead_activities(workspace_id,lead_id,created_at desc);
 alter table public.lead_activities enable row level security;
@@ -70,11 +73,13 @@ begin
 end $$;
 create index if not exists stock_workspace_warehouse_idx on public.stock(workspace_id,warehouse_id);
 
+create unique index if not exists stock_workspace_id_uidx on public.stock(workspace_id,id);
+
 create table if not exists public.stock_movements (
  id uuid primary key default gen_random_uuid(),
  workspace_id text not null,
  warehouse_id uuid not null,
- stock_id uuid not null references public.stock(id) on delete restrict,
+ stock_id uuid not null,
  movement_type text not null check(movement_type in ('opening','receipt','sale','return','adjustment','transfer_in','transfer_out')),
  quantity_delta numeric(18,4) not null check(quantity_delta<>0),
  reference_type text,
@@ -84,6 +89,7 @@ create table if not exists public.stock_movements (
  created_by uuid not null references auth.users(id) on delete restrict,
  created_at timestamptz not null default now(),
  foreign key(workspace_id,warehouse_id) references public.warehouses(workspace_id,id) on delete restrict,
+ foreign key(workspace_id,stock_id) references public.stock(workspace_id,id) on delete restrict,
  unique(workspace_id,idempotency_key)
 );
 create index if not exists stock_movements_workspace_stock_date_idx on public.stock_movements(workspace_id,stock_id,created_at desc);
@@ -108,11 +114,13 @@ create table if not exists public.purchase_order_items (
  id uuid primary key default gen_random_uuid(),
  workspace_id text not null,
  purchase_order_id uuid not null,
- stock_id uuid not null references public.stock(id) on delete restrict,
+ stock_id uuid not null,
  quantity_ordered numeric(18,4) not null check(quantity_ordered>0),
  quantity_received numeric(18,4) not null default 0 check(quantity_received>=0 and quantity_received<=quantity_ordered),
  unit_cost numeric(18,4) not null check(unit_cost>=0),
- foreign key(workspace_id,purchase_order_id) references public.purchase_orders(workspace_id,id) on delete cascade
+ unique(workspace_id,id),
+ foreign key(workspace_id,purchase_order_id) references public.purchase_orders(workspace_id,id) on delete cascade,
+ foreign key(workspace_id,stock_id) references public.stock(workspace_id,id) on delete restrict
 );
 create table if not exists public.purchase_receipts (
  id uuid primary key default gen_random_uuid(),
@@ -122,6 +130,7 @@ create table if not exists public.purchase_receipts (
  idempotency_key uuid not null,
  received_by uuid not null references auth.users(id) on delete restrict,
  received_at timestamptz not null default now(),
+ unique(workspace_id,id),
  unique(workspace_id,idempotency_key),
  foreign key(workspace_id,purchase_order_id) references public.purchase_orders(workspace_id,id) on delete restrict,
  foreign key(workspace_id,warehouse_id) references public.warehouses(workspace_id,id) on delete restrict
@@ -129,12 +138,15 @@ create table if not exists public.purchase_receipts (
 create table if not exists public.purchase_receipt_items (
  id uuid primary key default gen_random_uuid(),
  workspace_id text not null,
- receipt_id uuid not null references public.purchase_receipts(id) on delete cascade,
- purchase_order_item_id uuid not null references public.purchase_order_items(id) on delete restrict,
- stock_id uuid not null references public.stock(id) on delete restrict,
+ receipt_id uuid not null,
+ purchase_order_item_id uuid not null,
+ stock_id uuid not null,
  quantity numeric(18,4) not null check(quantity>0),
  batch_number text,
- expires_on date
+ expires_on date,
+ foreign key(workspace_id,receipt_id) references public.purchase_receipts(workspace_id,id) on delete cascade,
+ foreign key(workspace_id,purchase_order_item_id) references public.purchase_order_items(workspace_id,id) on delete restrict,
+ foreign key(workspace_id,stock_id) references public.stock(workspace_id,id) on delete restrict
 );
 
 do $$
