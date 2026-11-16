@@ -15,7 +15,7 @@ const localOnly = manifest.local_only_files || [];
 if (manifest.remote_ledger_entries !== 52 || history.length !== 39 || missing.length !== 35
   || manifest.local_migration_files !== 38 || pairs.length !== 17
   || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 21) {
-  fail("Migration reconciliation counts differ from the reviewed 52/39/35/35/17/13/4/18 manifest");
+  fail("Migration reconciliation counts differ from the reviewed archive with 52 remote entries, 39 historical sources and 21 local-only migrations");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
 
@@ -44,7 +44,7 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 73 || new Set(candidatePlan.map((x) => x.path)).size !== 70) {
+if (candidatePlan.length !== 73 || new Set(candidatePlan.map((x) => x.path)).size !== 73) {
   fail("Candidate replay plan must contain 35 recovered historical and all 38 current local migrations");
 }
 
