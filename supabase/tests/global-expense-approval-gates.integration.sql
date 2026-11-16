@@ -37,6 +37,12 @@ BEGIN
   IF result->>'ok' <> 'true' THEN RAISE EXCEPTION 'Approval request failed: %',result; END IF;
   request_id := (result->>'requestId')::uuid;
 
+  result := public.global_enterprise_action(requester,ws,'approval.decide',
+    jsonb_build_object('requestId',request_id::text,'decision','approved','note','Self approval must fail'));
+  IF result->>'code' <> 'REQUEST_NOT_DECIDABLE' THEN
+    RAISE EXCEPTION 'Requester was able to self-approve: %',result;
+  END IF;
+
   result := public.global_enterprise_action(approver,ws,'approval.decide',
     jsonb_build_object('requestId',request_id::text,'decision','approved','note','Verified expense'));
   IF result->>'ok' <> 'true' THEN RAISE EXCEPTION 'Approval decision failed: %',result; END IF;
