@@ -92,7 +92,7 @@ Deno.serve(async (req: Request) => {
       return globalJson(data,200,origin);
     }
 
-    const integerField=(value:unknown)=>Number.isSafeInteger(value)&&Number(value)>=0;
+    const integerField=(value:unknown)=>typeof value==="number"&&Number.isSafeInteger(value)&&value>=0;
     const purchaseMutations:Record<string,{rpc:string,args:Record<string,unknown>}> = {};
     if (action==="create_purchase_bill") {
       const lines=body.lines;
