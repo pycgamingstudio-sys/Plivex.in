@@ -83,7 +83,7 @@ test("Refund retries are serialized and invoice balance is locked before calcula
   assert.ok(advisoryLock >= 0 && advisoryLock < idempotencyRead, "same-key retries must serialize before duplicate lookup");
   assert.ok(idempotencyRead >= 0 && invoiceLock > idempotencyRead, "duplicate lookup must precede the new-refund invoice lock");
   assert.ok(invoiceLock >= 0 && invoiceLock < balanceCalculation, "invoice row must be locked before refund balance is calculated");
-  assert.match(migration, /unique \(workspace_id, idempotency_key\)/);
+  assert.match(migration, /unique\s*\(\s*workspace_id\s*,\s*idempotency_key\s*\)/i);
   assert.match(refundFunction, /'duplicate',true/);
   assert.match(refundFunction, /'idempotency_conflict'/);
 });
