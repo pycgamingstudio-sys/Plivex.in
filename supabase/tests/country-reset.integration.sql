@@ -278,9 +278,7 @@ $global_to_india$;
 
 -- Global to Global uses a new workspace and country-specific currency, without preserving old business rows.
 SELECT set_config('request.jwt.claim.sub','88888888-8888-4888-8888-888888888888',false);
-INSERT INTO auth.users(id,email,raw_user_meta_data,raw_app_meta_data)
-VALUES ('88888888-8888-4888-8888-888888888888','country-reset-global-global@example.test','{"full_name":"Global to Global"}'::jsonb,'{}'::jsonb)
-ON CONFLICT (id) DO NOTHING;
+-- The Global-to-Global identity was seeded at the top of this disposable test.
 INSERT INTO global.workspaces(id,name,country_code,locale_code,currency_code,created_by)
 VALUES ('d8888888-8888-4888-8888-888888888888','Global to Global Fixture','US','en-US','USD','88888888-8888-4888-8888-888888888888');
 INSERT INTO global.user_profiles(user_id,email,full_name,default_workspace_id)
