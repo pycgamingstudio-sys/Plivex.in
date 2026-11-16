@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 
 const root = process.cwd();
@@ -15,7 +15,7 @@ const localOnly = manifest.local_only_files || [];
 if (manifest.remote_ledger_entries !== 52 || history.length !== 39 || missing.length !== 35
   || manifest.local_migration_files !== 47 || pairs.length !== 17
   || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 30) {
-  fail("Migration reconciliation counts differ from the reviewed remote-history and local migration manifest counts");
+  fail("Migration reconciliation counts differ from the reviewed archive with 52 remote entries, 39 historical sources and 22 local-only migrations");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
 
@@ -113,22 +113,27 @@ function assertRls(port, includeGlobal) {
   if (unsafe) fail("Required public tables missing or without RLS: " + unsafe);
 }
 function assertGlobalFoundation(port) {
-  const missing = query(port, "plivex_migration_replay", "SELECT string_agg(t.name, ',') FROM (VALUES ('workspaces'),('user_profiles'),('workspace_members'),('business_profiles'),('clients'),('products'),('stock_levels'),('stock_movements'),('invoices'),('invoice_items'),('invoice_payments'),('expenses'),('invoice_refunds'),('invoice_number_sequences')) AS t(name) WHERE to_regclass('global.' || t.name) IS NULL OR NOT COALESCE((SELECT c.relrowsecurity FROM pg_class c WHERE c.oid = to_regclass('global.' || t.name)), false);");
+  const missing = query(port, "plivex_migration_replay", "SELECT string_agg(t.name, ',') FROM (VALUES ('workspaces'),('user_profiles'),('workspace_members'),('business_profiles'),('clients'),('products'),('stock_levels'),('stock_movements'),('invoices'),('invoice_items'),('invoice_payments'),('expenses')) AS t(name) WHERE to_regclass('global.' || t.name) IS NULL OR NOT COALESCE((SELECT c.relrowsecurity FROM pg_class c WHERE c.oid = to_regclass('global.' || t.name)), false);");
   if (missing) fail("Global foundation tables missing or RLS disabled: " + missing);
   const usage = query(port, "plivex_migration_replay", "SELECT has_schema_privilege('authenticated','global','USAGE')::text || '|' || has_schema_privilege('anon','global','USAGE')::text;");
   if (usage !== "true|false") fail("Global schema grants are not least-privilege: " + usage);
   const inventoryCatalog = query(port, "plivex_migration_replay", "SELECT (to_regprocedure('public.global_record_stock_movement(uuid,uuid,uuid,text,numeric,text,uuid)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='stock_movements' AND column_name='idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_products_create_stock_level' AND NOT tgisinternal)::text");
   if (inventoryCatalog !== "true|true|true") fail("Global inventory RPC, idempotency column or product stock trigger missing: " + inventoryCatalog);
   if (query(port, "plivex_migration_replay", "SELECT has_function_privilege('authenticated','public.global_record_stock_movement(uuid,uuid,uuid,text,numeric,text,uuid)','EXECUTE')::text || '|' || has_function_privilege('service_role','public.global_record_stock_movement(uuid,uuid,uuid,text,numeric,text,uuid)','EXECUTE')::text") !== "false|true") fail("Global inventory RPC is not service-role-only");
-  const invoiceCatalog = query(port, "plivex_migration_replay", "SELECT (to_regprocedure('public.global_create_invoice_draft(uuid,uuid,uuid,text,date,date,text,jsonb,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_record_invoice_payment(uuid,uuid,uuid,bigint,text,date,text,text,text,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_issue_invoice(uuid,uuid,uuid,jsonb,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_record_invoice_refund(uuid,uuid,uuid,bigint,text,date,text,text,text,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_list_invoice_reconciliation(uuid,uuid,integer)') IS NOT NULL)::text || '|' || (to_regclass('global.invoice_reconciliation') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoices' AND column_name='creation_idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoices' AND column_name='amount_refunded_minor')::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoice_payments' AND column_name='idempotency_key')::text");
-  if (invoiceCatalog !== "true|true|true|true|true|true|true|true|true") fail("Global invoice/payment ledger RPC or idempotency columns missing: " + invoiceCatalog);
+  const invoiceCatalog = query(port, "plivex_migration_replay", "SELECT (to_regprocedure('public.global_create_invoice_draft(uuid,uuid,uuid,text,date,date,text,jsonb,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_record_invoice_payment(uuid,uuid,uuid,bigint,text,date,text,text,text,uuid)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoices' AND column_name='creation_idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoice_payments' AND column_name='idempotency_key')::text");
+  if (invoiceCatalog !== "true|true|true|true") fail("Global invoice/payment ledger RPC or idempotency columns missing: " + invoiceCatalog);
+  const fxExpenseCatalog = query(port, "plivex_migration_replay", "SELECT (to_regprocedure('public.global_create_expense_with_fx(uuid,uuid,text,text,bigint,text,date,uuid,numeric,numeric,text,text,timestamp with time zone,text)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='expenses' AND column_name='transaction_amount_minor')::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='expenses' AND column_name='fx_snapshot_id')::text || '|' || EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='global' AND indexname='global_expenses_idempotency_idx')::text");
+  if (fxExpenseCatalog !== "true|true|true|true") fail("Global multi-currency expense RPC, provenance columns or idempotency index missing: " + fxExpenseCatalog);
+  const taxAuditCatalog = query(port, "plivex_migration_replay", "SELECT (to_regprocedure('public.global_publish_tax_rule_version(uuid,text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_append_tax_calculation_audit(uuid,uuid,uuid,integer,jsonb)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='global' AND table_name='tax_calculation_audit')::text");
+  if (taxAuditCatalog !== "true|true|true") fail("Global tax-rule publication or append-only tax audit storage missing: " + taxAuditCatalog);
   console.log("PASS Global foundation table/RLS/grant and inventory RPC catalog assertions");
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-isolation-foundation.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-owner-provisioning.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-business-data.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-invoice-ledger.integration.sql")]);
-  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-invoice-issuance.integration.sql")]);
-  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/country-reset.integration.sql")]);
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-multicurrency-expense.integration.sql")]);
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-tax-audit.integration.sql")]);
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-enterprise-controls.integration.sql")]);
 }
 function applyForcedMigrationRollback(port, db, migrationPath) {
   const migration = readFileSync(migrationPath, "utf8")
@@ -207,16 +212,28 @@ function assertGlobalMigrationRollback(port) {
     if (invoiceLedgerRollback.status === 0) fail("Global invoice/payment migration rollback probe unexpectedly committed");
     const invoiceLedgerResidue = query(port, db, "SELECT (to_regprocedure('public.global_create_invoice_draft(uuid,uuid,uuid,text,date,date,text,jsonb,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_record_invoice_payment(uuid,uuid,uuid,bigint,text,date,text,text,text,uuid)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoices' AND column_name='creation_idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='global' AND indexname='global_invoices_creation_idempotency_idx')::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoice_payments' AND column_name='idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='global' AND indexname='global_invoice_payments_idempotency_idx')::text");
     if (invoiceLedgerResidue !== "false|false|false|false|false|false") fail("Global invoice/payment rollback left functions, columns or indexes behind: " + invoiceLedgerResidue);
-
-    psql(port, db, ["-f", invoiceLedgerPath]);
-    // Verify the Part 5 issuance/refund migration rolls back its functions,
-    // immutable guards, views, sequence table, refund table and invoice columns.
-    const issuancePath = resolve(root, "supabase/migrations/202611150011_global_invoice_issuance_and_refunds.sql");
-    const issuanceRollback = applyForcedMigrationRollback(port, db, issuancePath);
-    if (issuanceRollback.status === 0) fail("Global invoice issuance migration rollback probe unexpectedly committed");
-    const issuanceResidue = query(port, db, "SELECT (to_regprocedure('public.global_issue_invoice(uuid,uuid,uuid,jsonb,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_record_invoice_refund(uuid,uuid,uuid,bigint,text,date,text,text,text,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_list_invoice_reconciliation(uuid,uuid,integer)') IS NOT NULL)::text || '|' || (to_regclass('global.invoice_number_sequences') IS NOT NULL)::text || '|' || (to_regclass('global.invoice_refunds') IS NOT NULL)::text || '|' || (to_regclass('global.invoice_reconciliation') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoices' AND column_name='amount_refunded_minor')::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_invoice_immutability_guard' AND NOT tgisinternal)::text || '|' || (to_regprocedure('global.guard_issued_invoice_immutability()') IS NOT NULL)::text || '|' || (to_regprocedure('global.guard_issued_invoice_items()') IS NOT NULL)::text || '|' || (to_regprocedure('global.guard_invoice_payment_append_only()') IS NOT NULL)::text || '|' || (to_regprocedure('global.guard_invoice_refund_append_only()') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_invoice_items_immutability_guard' AND NOT tgisinternal)::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_invoice_payments_append_only' AND NOT tgisinternal)::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_invoice_refunds_append_only' AND NOT tgisinternal)::text");
-    if (issuanceResidue !== "false|false|false|false|false|false|false|false|false|false|false|false|false|false|false") fail("Global invoice issuance rollback left objects behind: " + issuanceResidue);
-    console.log("PASS actual DDL rollback for Global foundation, inventory, invoice/payment and Part 5 issuance migrations");
+    // Part 7 migrations are independently replayed and transactionally rolled back.
+    const enterprisePath = resolve(root, "supabase/migrations/202611160001_global_enterprise_controls.sql");
+    const taxAuditPath = resolve(root, "supabase/migrations/202611160002_global_tax_audit_and_publication.sql");
+    const fxExpensePath = resolve(root, "supabase/migrations/202611160003_global_multicurrency_expenses.sql");
+    const enterpriseHardeningPath = resolve(root, "supabase/migrations/202611160004_global_enterprise_hardening.sql");
+    psql(port, db, ["-f", enterprisePath]);
+    const taxAuditRollback = applyForcedMigrationRollback(port, db, taxAuditPath);
+    if (taxAuditRollback.status === 0) fail("Global tax-audit migration rollback probe unexpectedly committed");
+    const taxAuditResidue = query(port, db, "SELECT (to_regprocedure('public.global_publish_tax_rule_version(uuid,text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_append_tax_calculation_audit(uuid,uuid,uuid,integer,jsonb)') IS NOT NULL)::text || '|' || (to_regclass('global.tax_calculation_audit') IS NOT NULL)::text");
+    if (taxAuditResidue !== "false|false|false") fail("Global tax-audit rollback left functions or table behind: " + taxAuditResidue);
+    psql(port, db, ["-f", taxAuditPath]);
+    const fxRollback = applyForcedMigrationRollback(port, db, fxExpensePath);
+    if (fxRollback.status === 0) fail("Global multi-currency expense migration rollback probe unexpectedly committed");
+    const fxResidue = query(port, db, "SELECT (to_regprocedure('public.global_create_expense_with_fx(uuid,uuid,text,text,bigint,text,date,uuid,numeric,numeric,text,text,timestamp with time zone,text)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='expenses' AND column_name='transaction_amount_minor')::text");
+    if (fxResidue !== "false|false") fail("Global FX expense rollback left its RPC or columns behind: " + fxResidue);
+    psql(port, db, ["-f", fxExpensePath]);
+    const enterpriseHardeningRollback = applyForcedMigrationRollback(port, db, enterpriseHardeningPath);
+    if (enterpriseHardeningRollback.status === 0) fail("Global enterprise hardening migration rollback probe unexpectedly committed");
+    const hardeningResidue = query(port, db, "SELECT (to_regprocedure('public.global_can_export(uuid,uuid,text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_cancel_approval_request(uuid,uuid,uuid)') IS NOT NULL)::text || '|' || (SELECT position('DELETE' in pg_get_triggerdef(t.oid)) > 0 FROM pg_trigger t WHERE t.tgname='audit_events_immutable')::text");
+    if (hardeningResidue !== "false|false|false") fail("Global enterprise hardening rollback left functions or trigger changes behind: " + hardeningResidue);
+    psql(port, db, ["-f", enterpriseHardeningPath]);
+    console.log("PASS actual DDL rollback for Global foundation, inventory, invoice, tax-audit, FX-expense and enterprise-hardening migrations");
   } finally {
     const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], {
       cwd: root, env: envFor(port, "postgres"), encoding: "utf8",
@@ -224,6 +241,42 @@ function assertGlobalMigrationRollback(port) {
     if (drop.status !== 0) console.error("WARN: disposable rollback database cleanup failed:", drop.stderr || "");
   }
 }
+function assertGlobalBackupRestore(port) {
+  const sourceDb = "plivex_migration_replay";
+  const restoredDb = "plivex_global_restore_drill";
+  const tempDir = mkdtempSync(resolve(process.env.TMPDIR || "/tmp", "plivex-global-restore-"));
+  const dumpPath = resolve(tempDir, "candidate.dump");
+  const create = spawnSync("createdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",restoredDb], {
+    cwd: root, env: envFor(port, "postgres"), encoding: "utf8",
+  });
+  if (create.status !== 0) fail("Could not create disposable restore-drill database: " + (create.stderr || ""));
+  try {
+    const dump = spawnSync("pg_dump", ["-Fc","--no-owner","--no-privileges","--exclude-extension=pg_cron","-f",dumpPath,sourceDb], {
+      cwd: root, env: envFor(port, sourceDb), encoding: "utf8",
+    });
+    if (dump.status !== 0) fail("Disposable candidate backup failed: " + (dump.stderr || ""));
+    const restore = spawnSync("pg_restore", ["--exit-on-error","--no-owner","--no-privileges","-d",restoredDb,dumpPath], {
+      cwd: root, env: envFor(port, restoredDb), encoding: "utf8",
+    });
+    if (restore.status !== 0) fail("Disposable candidate restore failed: " + (restore.stderr || ""));
+    const sourceSummary = query(port, sourceDb, "SELECT concat_ws('|',(SELECT count(*) FROM global.workspaces),(SELECT count(*) FROM global.workspace_members),(SELECT count(*) FROM global.invoices),(SELECT count(*) FROM global.expenses),(SELECT count(*) FROM pg_policies WHERE schemaname='global'),(SELECT count(*) FROM public.subscriptions WHERE id='22222222-2222-4222-8222-222222222222'))");
+    const restoredSummary = query(port, restoredDb, "SELECT concat_ws('|',(SELECT count(*) FROM global.workspaces),(SELECT count(*) FROM global.workspace_members),(SELECT count(*) FROM global.invoices),(SELECT count(*) FROM global.expenses),(SELECT count(*) FROM pg_policies WHERE schemaname='global'),(SELECT count(*) FROM public.subscriptions WHERE id='22222222-2222-4222-8222-222222222222'))");
+    if (!sourceSummary || sourceSummary !== restoredSummary) {
+      fail("Global backup/restore verification mismatch: source=" + sourceSummary + " restored=" + restoredSummary);
+    }
+    const sourceIndia = query(port, sourceDb, "SELECT concat_ws('|',gateway,txnid,amount_minor_units::text,currency) FROM public.payment_logs WHERE source='stage4-migration-replay'");
+    const restoredIndia = query(port, restoredDb, "SELECT concat_ws('|',gateway,txnid,amount_minor_units::text,currency) FROM public.payment_logs WHERE source='stage4-migration-replay'");
+    if (sourceIndia !== restoredIndia || !sourceIndia) fail("India payment-log data changed during disposable Global restore drill");
+    console.log("PASS disposable PostgreSQL custom-format backup/restore, Global RLS policy counts and India payment-log integrity");
+  } finally {
+    const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",restoredDb], {
+      cwd: root, env: envFor(port, "postgres"), encoding: "utf8",
+    });
+    rmSync(tempDir, { recursive: true, force: true });
+    if (drop.status !== 0) console.error("WARN: disposable restore-drill database cleanup failed:", drop.stderr || "");
+  }
+}
+
 function assertRemoteIndia(port) {
   const sub = query(port, "plivex_migration_replay", `
     SELECT concat_ws('|',gateway,provider,txnid,payu_txnid,status::text,tier::text,amount::text,currency)
@@ -294,5 +347,6 @@ assertCandidateIndia(candidatePort);
 assertGlobalFoundation(candidatePort);
 assertRollback(candidatePort);
 assertGlobalMigrationRollback(candidatePort);
-console.log("PASS global-dev candidate replay 35 recovered + 39 local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
+assertGlobalBackupRestore(candidatePort);
+console.log("PASS global-dev candidate replay 35 recovered + 38 local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
 console.log("PASS archive hashes, version ordering, replay, Global workspace isolation, migration rollback, RLS and India data-integrity checks.");
