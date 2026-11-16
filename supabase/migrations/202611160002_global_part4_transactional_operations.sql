@@ -1,6 +1,8 @@
 -- Part 4 transactional write operations for Global CRM, warehouses and purchasing.
 begin;
 
+create unique index if not exists global_purchase_order_items_workspace_id_uidx on global.purchase_order_items(workspace_id,id);
+
 create table if not exists global.purchase_receipts (
  id uuid primary key default gen_random_uuid(),
  workspace_id uuid not null,
@@ -9,6 +11,7 @@ create table if not exists global.purchase_receipts (
  idempotency_key uuid not null,
  received_by uuid not null references auth.users(id) on delete restrict,
  received_at timestamptz not null default now(),
+ unique(workspace_id,id),
  unique(workspace_id,idempotency_key),
  foreign key(workspace_id,purchase_order_id) references global.purchase_orders(workspace_id,id) on delete restrict,
  foreign key(workspace_id,warehouse_id) references global.warehouses(workspace_id,id) on delete restrict
