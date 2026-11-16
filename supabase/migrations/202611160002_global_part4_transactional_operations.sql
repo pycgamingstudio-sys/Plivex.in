@@ -9,6 +9,7 @@ create table if not exists global.purchase_receipts (
  purchase_order_id uuid not null,
  warehouse_id uuid not null,
  idempotency_key uuid not null,
+ request_fingerprint text not null,
  received_by uuid not null references auth.users(id) on delete restrict,
  received_at timestamptz not null default now(),
  unique(workspace_id,id),
@@ -45,7 +46,7 @@ as $$
 declare
  v_role text; v_currency text; v_id uuid; v_row jsonb; v_item jsonb; v_order global.purchase_orders%rowtype;
  v_receipt global.purchase_receipts%rowtype; v_po_item global.purchase_order_items%rowtype;
- v_qty numeric(18,4); v_batch text; v_expiry date; v_received numeric(18,4);
+ v_qty numeric(18,4); v_batch text; v_expiry date; v_received numeric(18,4); v_fingerprint text;
 begin
  if p_user_id is null or p_workspace_id is null or jsonb_typeof(p_values)<>'object' then return jsonb_build_object('ok',false,'reason','invalid_request'); end if;
  select role into v_role from global.workspace_members where workspace_id=p_workspace_id and user_id=p_user_id and status='active' limit 1;
@@ -109,14 +110,20 @@ begin
    if nullif(p_values->>'purchase_order_id','') is null or nullif(p_values->>'warehouse_id','') is null
      or nullif(p_values->>'idempotency_key','') is null or jsonb_typeof(p_values->'items')<>'array'
      or jsonb_array_length(p_values->'items')=0 or jsonb_array_length(p_values->'items')>200 then return jsonb_build_object('ok',false,'reason','invalid_receipt'); end if;
+   v_fingerprint := md5(p_values::text);
    perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text||':'||(p_values->>'idempotency_key'),0));
    select * into v_order from global.purchase_orders where workspace_id=p_workspace_id and id=(p_values->>'purchase_order_id')::uuid for update;
    if not found then return jsonb_build_object('ok',false,'reason','purchase_order_not_found'); end if;
    if not exists(select 1 from global.warehouses where workspace_id=p_workspace_id and id=(p_values->>'warehouse_id')::uuid and is_active) then return jsonb_build_object('ok',false,'reason','warehouse_not_found'); end if;
    select * into v_receipt from global.purchase_receipts where workspace_id=p_workspace_id and idempotency_key=(p_values->>'idempotency_key')::uuid;
-   if found then return jsonb_build_object('ok',true,'duplicate',true,'receipt_id',v_receipt.id); end if;
-   insert into global.purchase_receipts(workspace_id,purchase_order_id,warehouse_id,idempotency_key,received_by)
-   values(p_workspace_id,v_order.id,(p_values->>'warehouse_id')::uuid,(p_values->>'idempotency_key')::uuid,p_user_id) returning * into v_receipt;
+   if found then
+     if v_receipt.received_by<>p_user_id or v_receipt.purchase_order_id<>v_order.id or v_receipt.warehouse_id<>(p_values->>'warehouse_id')::uuid or v_receipt.request_fingerprint<>v_fingerprint then
+       return jsonb_build_object('ok',false,'reason','idempotency_conflict');
+     end if;
+     return jsonb_build_object('ok',true,'duplicate',true,'receipt_id',v_receipt.id);
+   end if;
+   insert into global.purchase_receipts(workspace_id,purchase_order_id,warehouse_id,idempotency_key,request_fingerprint,received_by)
+   values(p_workspace_id,v_order.id,(p_values->>'warehouse_id')::uuid,(p_values->>'idempotency_key')::uuid,v_fingerprint,p_user_id) returning * into v_receipt;
    for v_item in select value from jsonb_array_elements(p_values->'items') loop
      v_qty := (v_item->>'quantity')::numeric;
      if v_qty is null or v_qty<=0 or v_qty<>round(v_qty,4) then raise exception 'invalid_receipt_item'; end if;
@@ -134,6 +141,8 @@ begin
      end if;
      insert into global.purchase_receipt_items(workspace_id,receipt_id,purchase_order_item_id,product_id,quantity,batch_number,expires_on)
      values(p_workspace_id,v_receipt.id,v_po_item.id,v_po_item.product_id,v_qty,v_batch,v_expiry);
+     insert into global.warehouse_stock_movements(workspace_id,warehouse_id,product_id,movement_type,quantity_delta,reference_type,reference_id,idempotency_key,notes,created_by)
+     values(p_workspace_id,v_receipt.warehouse_id,v_po_item.product_id,'receipt',v_qty,'purchase_receipt',v_receipt.id,gen_random_uuid(),nullif(trim(v_order.notes),''),p_user_id);
    end loop;
    update global.purchase_orders po set status=case when not exists(select 1 from global.purchase_order_items i where i.workspace_id=p_workspace_id and i.purchase_order_id=po.id and i.quantity_received<i.quantity_ordered) then 'received'
      when exists(select 1 from global.purchase_order_items i where i.workspace_id=p_workspace_id and i.purchase_order_id=po.id and i.quantity_received>0) then 'partially_received' else po.status end
