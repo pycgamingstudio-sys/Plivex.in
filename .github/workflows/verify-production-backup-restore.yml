@@ -11,6 +11,11 @@ on:
     workflows: ["Manual production database backup"]
     types: [completed]
     branches: [main]
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/verify-production-backup-restore.yml
+      - scripts/verify-production-baseline-replay.sh
 
 permissions:
   actions: read
@@ -36,6 +41,23 @@ jobs:
           test -n "$BACKUP_ENCRYPTION_KEY" || { echo "::error::Missing BACKUP_ENCRYPTION_KEY repository secret."; exit 1; }
           test -n "$SUPABASE_DB_URL" || { echo "::error::Missing SUPABASE_DB_URL repository secret."; exit 1; }
 
+      - name: Select latest successful production backup for push-triggered verification
+        id: select-backup
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GH_REPOSITORY/actions/workflows/manual-production-db-backup.yml/runs?branch=main&status=success&per_page=10")"
+          run_id="$(printf '%s' "$response" | jq -r '.workflow_runs[0].id // empty')"
+          test -n "$run_id" || { echo "::error::No successful production backup run is available."; exit 1; }
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
@@ -45,7 +67,7 @@ jobs:
           name: plivex-production-db-backup
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
-          run-id: ${{ github.event.workflow_run.id || inputs.backup_run_id }}
+          run-id: ${{ github.event.workflow_run.id || inputs.backup_run_id || steps.select-backup.outputs.run_id }}
           path: backup-artifact
 
       - name: Verify checksum and decrypt backup
