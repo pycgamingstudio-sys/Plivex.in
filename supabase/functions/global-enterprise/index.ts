@@ -1,6 +1,7 @@
 import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowed } from "../_shared/global.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const APPROVER_ROLES = new Set(["owner", "admin", "manager", "employee", "accountant", "viewer"]);
 const ALLOWED_ACTIONS = new Set([
   "branch.create", "branch.archive", "branch.list", "health.read", "fx.snapshot.create", "fx.convert", "permission.set", "approval.request", "approval.list",
   "approval.decide", "approval.cancel", "approval.policy.set", "audit.list", "export.request", "retention.set",
@@ -20,6 +21,17 @@ Deno.serve(async (req: Request) => {
     if (!body || typeof body !== "object" || Array.isArray(body)
       || !UUID.test(body.workspaceId || "") || !ALLOWED_ACTIONS.has(body.action)) {
       return globalJson({ error: "Invalid request" }, 400, origin);
+    }
+    if (body.action === "approval.policy.set") {
+      if (!["expense.create", "expense.update"].includes(body.actionType)
+        || typeof body.enabled !== "boolean"
+        || !Number.isSafeInteger(body.minimumAmountMinor) || body.minimumAmountMinor < 0
+        || !Array.isArray(body.approverRoles) || body.approverRoles.length < 1
+        || body.approverRoles.length > 6
+        || body.approverRoles.some((role: unknown) => typeof role !== "string" || !APPROVER_ROLES.has(role))
+        || typeof body.preventSelfApproval !== "boolean") {
+        return globalJson({ error: "Invalid approval policy." }, 400, origin);
+      }
     }
     const { data: limited, error: limitError } = await auth.admin.rpc("global_consume_enterprise_rate_limit", {
       p_key: auth.user.id, p_limit: 60, p_window_seconds: 60,
