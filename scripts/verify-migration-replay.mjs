@@ -215,16 +215,16 @@ function assertGlobalMigrationRollback(port) {
     const taxAuditPath = resolve(root, "supabase/migrations/202611160002_global_tax_audit_and_publication.sql");
     const fxExpensePath = resolve(root, "supabase/migrations/202611160003_global_multicurrency_expenses.sql");
     psql(port, db, ["-f", enterprisePath]);
+    const taxAuditRollback = applyForcedMigrationRollback(port, db, taxAuditPath);
+    if (taxAuditRollback.status === 0) fail("Global tax-audit migration rollback probe unexpectedly committed");
+    const taxAuditResidue = query(port, db, "SELECT (to_regprocedure('public.global_publish_tax_rule_version(uuid,text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_append_tax_calculation_audit(uuid,uuid,uuid,integer,jsonb)') IS NOT NULL)::text || '|' || (to_regclass('global.tax_calculation_audit') IS NOT NULL)::text");
+    if (taxAuditResidue !== "false|false|false") fail("Global tax-audit rollback left functions or table behind: " + taxAuditResidue);
     psql(port, db, ["-f", taxAuditPath]);
     const fxRollback = applyForcedMigrationRollback(port, db, fxExpensePath);
     if (fxRollback.status === 0) fail("Global multi-currency expense migration rollback probe unexpectedly committed");
     const fxResidue = query(port, db, "SELECT (to_regprocedure('public.global_create_expense_with_fx(uuid,uuid,text,text,bigint,text,date,uuid,numeric,numeric,text,text,timestamp with time zone,text)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='expenses' AND column_name='transaction_amount_minor')::text");
     if (fxResidue !== "false|false") fail("Global FX expense rollback left its RPC or columns behind: " + fxResidue);
     psql(port, db, ["-f", fxExpensePath]);
-    const taxAuditRollback = applyForcedMigrationRollback(port, db, taxAuditPath);
-    if (taxAuditRollback.status === 0) fail("Global tax-audit migration rollback probe unexpectedly committed");
-    const taxAuditResidue = query(port, db, "SELECT (to_regprocedure('public.global_publish_tax_rule_version(uuid,text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_append_tax_calculation_audit(uuid,uuid,uuid,integer,jsonb)') IS NOT NULL)::text || '|' || (to_regclass('global.tax_calculation_audit') IS NOT NULL)::text");
-    if (taxAuditResidue !== "false|false|false") fail("Global tax-audit rollback left functions or table behind: " + taxAuditResidue);
     console.log("PASS actual DDL rollback for Global foundation, inventory, invoice, tax-audit and FX-expense migrations");
   } finally {
     const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], {
