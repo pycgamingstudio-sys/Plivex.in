@@ -120,8 +120,8 @@ const MAPPERS = {
     toDb: (i) => ({ name: str(i.name), rate: num(i.rate), gst_rate: num(i.gstRate), description: str(i.description) }),
   },
   leads: {
-    toUi: (r) => ({ id: r.id, name: str(r.name), phone: str(r.phone), requirement: str(r.requirement), value: num(r.value), stage: str(r.stage) }),
-    toDb: (i) => ({ name: str(i.name), phone: str(i.phone), requirement: str(i.requirement), value: num(i.value), stage: str(i.stage) }),
+    toUi: (r) => ({ id: r.id, name: str(r.name), phone: str(r.phone), email: str(r.email), company: str(r.company), source: str(r.source), requirement: str(r.requirement), value: num(r.value), stage: str(r.stage), score: num(r.score), nextFollowUpAt: str(r.next_follow_up_at), ownerId: str(r.owner_id) }),
+    toDb: (i) => ({ name: str(i.name), phone: str(i.phone), email: str(i.email), company: str(i.company), source: str(i.source), requirement: str(i.requirement), value: num(i.value), stage: str(i.stage), score: Math.max(0, Math.min(100, num(i.score))), next_follow_up_at: dateOrNull(i.nextFollowUpAt), owner_id: i.ownerId || null }),
   },
   quotations: {
     toUi: (r) => ({ id: r.id, number: str(r.number), clientName: str(r.client_name), date: str(r.date).slice(0, 10), total: num(r.total), status: str(r.status) || "draft", taxRate: num(r.tax_rate), items: Array.isArray(r.items) ? r.items : [] }),
