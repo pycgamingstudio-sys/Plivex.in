@@ -14,7 +14,7 @@ export default function IndiaPart4Tab({ user }) {
   const [stock,setStock]=useState([]);
   const [orders,setOrders]=useState([]);
   const [orderItems,setOrderItems]=useState([]);
-  const [movements,setMovements]=useState([]);
+  const [movements,setMovements]=useState([]);\n  const [batches,setBatches]=useState([]);
   const [transfers,setTransfers]=useState([]);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
@@ -28,7 +28,7 @@ export default function IndiaPart4Tab({ user }) {
 
   const refresh = useCallback(async () => {
     if (!workspaceId) return;
-    const tables=["warehouses","stock","purchase_orders","purchase_order_items","stock_movements","stock_transfers"];
+    const tables=["warehouses","stock","purchase_orders","purchase_order_items","stock_movements","stock_transfers","inventory_batches"];
     const results=await Promise.all(tables.map(async (table)=>{
       const {data,error}=await supabase.from(table).select("*").eq("workspace_id",workspaceId).order(table==="purchase_order_items"?"id":"created_at",{ascending:false}).limit(500);
       if(error) throw error;
@@ -36,7 +36,7 @@ export default function IndiaPart4Tab({ user }) {
     }));
     const m=Object.fromEntries(results);
     setWarehouses(m.warehouses);setStock(m.stock);setOrders(m.purchase_orders);
-    setOrderItems(m.purchase_order_items);setMovements(m.stock_movements);setTransfers(m.stock_transfers);
+    setOrderItems(m.purchase_order_items);setMovements(m.stock_movements);setTransfers(m.stock_transfers);setBatches(m.inventory_batches);
   },[workspaceId]);
 
   useEffect(()=>{
@@ -117,7 +117,7 @@ export default function IndiaPart4Tab({ user }) {
     },"Stock transferred. Both warehouse movements were recorded.");
   };
 
-  const valuation=useMemo(()=>stock.reduce((sum,row)=>sum+Number(row.quantity||0)*Number(row.price||0),0),[stock]);
+  const valuation=useMemo(()=>stock.reduce((sum,row)=>sum+Number(row.quantity||0)*Number(row.purchase_cost||0),0),[stock]);
   const tabs=[["purchasing","Purchase orders"],["warehouses","Warehouses"],["transfers","Stock transfers"],["history","Movement history"]];
 
   return <div className="space-y-5">
@@ -128,7 +128,7 @@ export default function IndiaPart4Tab({ user }) {
     <div className="grid gap-3 sm:grid-cols-3">
       <div className="rounded-xl border bg-white p-4"><p className="text-sm text-slate-500">Stock items</p><p className="mt-1 text-2xl font-bold">{stock.length}</p></div>
       <div className="rounded-xl border bg-white p-4"><p className="text-sm text-slate-500">Warehouses</p><p className="mt-1 text-2xl font-bold">{warehouses.length}</p></div>
-      <div className="rounded-xl border bg-white p-4"><p className="text-sm text-slate-500">Stock valuation*</p><p className="mt-1 text-2xl font-bold">₹{valuation.toLocaleString("en-IN",{maximumFractionDigits:2})}</p><p className="text-xs text-slate-400">Based on the current stock price field</p></div>
+      <div className="rounded-xl border bg-white p-4"><p className="text-sm text-slate-500">Recorded purchase-cost valuation</p><p className="mt-1 text-2xl font-bold">₹{valuation.toLocaleString("en-IN",{maximumFractionDigits:2})}</p><p className="text-xs text-slate-400">Based on the current stock price field</p></div>
     </div>
     <div className="flex flex-wrap gap-2">{tabs.map(([id,label])=><button key={id} onClick={()=>setTab(id)} className={tab===id?primary:secondary}>{label}</button>)}</div>
     {error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
@@ -178,6 +178,6 @@ export default function IndiaPart4Tab({ user }) {
       <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm"><thead className="bg-slate-50"><tr>{["Date","From","To","Reference"].map(x=><th key={x} className="p-3 text-left">{x}</th>)}</tr></thead><tbody className="divide-y">{transfers.map(t=><tr key={t.id}><td className="p-3">{new Date(t.created_at).toLocaleString()}</td><td className="p-3">{warehouses.find(w=>w.id===t.from_warehouse_id)?.name||"—"}</td><td className="p-3">{warehouses.find(w=>w.id===t.to_warehouse_id)?.name||"—"}</td><td className="p-3">{t.id.slice(0,8)}</td></tr>)}</tbody></table></div>
     </>}
 
-    {tab==="history"&&<div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm"><thead className="bg-slate-50"><tr>{["Date","Item","Warehouse","Movement","Change","Reference"].map(x=><th key={x} className="whitespace-nowrap p-3 text-left">{x}</th>)}</tr></thead><tbody className="divide-y">{movements.map(m=><tr key={m.id}><td className="whitespace-nowrap p-3">{new Date(m.created_at).toLocaleString()}</td><td className="p-3">{productName(m.stock_id)}</td><td className="p-3">{warehouses.find(w=>w.id===m.warehouse_id)?.name||"—"}</td><td className="p-3">{m.movement_type.replaceAll("_"," ")}</td><td className="p-3">{m.quantity_delta>0?"+":""}{m.quantity_delta}</td><td className="p-3">{m.reference_type||"—"}</td></tr>)}</tbody></table>{!movements.length&&<p className="p-5 text-center text-sm text-slate-500">No movements recorded yet.</p>}</div>}
+    {tab==="history"&&<><div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm"><thead className="bg-slate-50"><tr>{["Date","Item","Warehouse","Movement","Change","Reference"].map(x=><th key={x} className="whitespace-nowrap p-3 text-left">{x}</th>)}</tr></thead><tbody className="divide-y">{movements.map(m=><tr key={m.id}><td className="whitespace-nowrap p-3">{new Date(m.created_at).toLocaleString()}</td><td className="p-3">{productName(m.stock_id)}</td><td className="p-3">{warehouses.find(w=>w.id===m.warehouse_id)?.name||"—"}</td><td className="p-3">{m.movement_type.replaceAll("_"," ")}</td><td className="p-3">{m.quantity_delta>0?"+":""}{m.quantity_delta}</td><td className="p-3">{m.reference_type||"—"}</td></tr>)}</tbody></table>{!movements.length&&<p className="p-5 text-center text-sm text-slate-500">No movements recorded yet.</p>}</div><div className="mt-4 overflow-x-auto rounded-xl border bg-white"><h3 className="border-b p-3 font-semibold">Batch & expiry tracking</h3><table className="w-full text-sm"><thead className="bg-slate-50"><tr>{["Item","Warehouse","Batch","Quantity","Expiry"].map(x=><th key={x} className="p-3 text-left">{x}</th>)}</tr></thead><tbody className="divide-y">{batches.map(b=><tr key={b.id}><td className="p-3">{productName(b.stock_id)}</td><td className="p-3">{warehouses.find(w=>w.id===b.warehouse_id)?.name||"—"}</td><td className="p-3">{b.batch_number}</td><td className="p-3">{b.quantity}</td><td className="p-3">{b.expires_on||"—"}</td></tr>)}</tbody></table>{!batches.length&&<p className="p-4 text-center text-sm text-slate-500">No batch records yet.</p>}</div></>}
   </div>;
 }
