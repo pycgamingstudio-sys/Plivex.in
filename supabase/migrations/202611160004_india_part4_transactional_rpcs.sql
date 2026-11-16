@@ -9,13 +9,13 @@ alter table public.stock
  add column if not exists variant_of uuid,
  add column if not exists variant_label text;
 
-do $
+do $$
 begin
  if not exists(select 1 from pg_constraint where conname='stock_workspace_variant_fk') then
   alter table public.stock add constraint stock_workspace_variant_fk
    foreign key(workspace_id,variant_of) references public.stock(workspace_id,id) on delete restrict;
  end if;
-end $;
+end $$;
 create unique index if not exists stock_workspace_barcode_uidx on public.stock(workspace_id,warehouse_id,barcode) where barcode is not null and length(btrim(barcode))>0;
 create index if not exists stock_workspace_variant_idx on public.stock(workspace_id,variant_of) where variant_of is not null;
 
