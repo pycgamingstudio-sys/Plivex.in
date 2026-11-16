@@ -4,7 +4,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const APPROVER_ROLES = new Set(["owner", "admin", "manager", "employee", "accountant", "viewer"]);
 const ALLOWED_ACTIONS = new Set([
   "branch.create", "branch.archive", "branch.list", "health.read", "fx.snapshot.create", "fx.convert", "permission.set", "approval.request", "approval.list",
-  "approval.decide", "approval.cancel", "approval.policy.set", "audit.list", "export.request", "retention.set",
+  "approval.decide", "approval.cancel", "approval.policy.set", "approval.policy.list", "audit.list", "export.request", "retention.set",
 ]);
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
@@ -40,10 +40,13 @@ Deno.serve(async (req: Request) => {
     if (limited !== true) return globalJson({ error: "Rate limit exceeded" }, 429, origin);
 
     const rpcName = body.action === "approval.cancel" ? "global_cancel_approval_request"
-      : body.action === "approval.policy.set" ? "global_set_approval_policy" : "global_enterprise_action";
+      : body.action === "approval.policy.set" ? "global_set_approval_policy"
+        : body.action === "approval.policy.list" ? "global_list_approval_policies" : "global_enterprise_action";
     const rpcArgs = body.action === "approval.cancel"
       ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_request_id: body.requestId }
-      : body.action === "approval.policy.set"
+      : body.action === "approval.policy.list"
+        ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId }
+        : body.action === "approval.policy.set"
         ? {
           p_user_id: auth.user.id,
           p_workspace_id: body.workspaceId,
