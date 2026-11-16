@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 const migration = await readFile(new URL("../../../supabase/migrations/202611160001_global_part4_crm_warehouse_procurement.sql", import.meta.url), "utf8");
 const operations = await readFile(new URL("../../../supabase/migrations/202611160002_global_part4_transactional_operations.sql", import.meta.url), "utf8");
 const endpoint = await readFile(new URL("../../../supabase/functions/global-part4/index.ts", import.meta.url), "utf8");
+const indiaMigration = await readFile(new URL("../../../supabase/migrations/202611160003_india_part4_warehouse_crm_purchase.sql", import.meta.url), "utf8");
 
 test("Part 4 adds Global CRM, warehouses, batches and purchasing without altering India tables", () => {
   for (const table of ["warehouses","warehouse_stock_levels","inventory_batches","stock_transfers","purchase_orders","purchase_order_items","crm_leads","crm_activities"]) {
@@ -48,4 +49,22 @@ test("Part 4 edge endpoint authenticates, validates tenant IDs and restricts act
   assert.match(endpoint, /global_part4_transfer_stock/);
   assert.match(endpoint, /global_part4_mutate/);
   assert.match(endpoint, /MAX_BODY/);
+});
+
+test("India CRM and procurement additions are additive and enforce workspace-composite references", () => {
+  assert.match(indiaMigration, /add column if not exists score smallint/);
+  assert.match(indiaMigration, /next_follow_up_at timestamptz/);
+  assert.match(indiaMigration, /create table if not exists public\.warehouses/);
+  assert.match(indiaMigration, /create table if not exists public\.purchase_orders/);
+  assert.match(indiaMigration, /foreign key\(workspace_id,lead_id\) references public\.leads\(workspace_id,id\)/);
+  assert.match(indiaMigration, /foreign key\(workspace_id,stock_id\) references public\.stock\(workspace_id,id\)/);
+  assert.match(indiaMigration, /enable row level security/);
+  assert.doesNotMatch(indiaMigration, /drop table/i);
+});
+
+test("warehouse transfer and receipt ledgers retain idempotency fingerprints", () => {
+  assert.match(migration, /warehouse_stock_movements/);
+  assert.match(migration, /request_fingerprint text not null/);
+  assert.match(operations, /request_fingerprint<>v_fingerprint/);
+  assert.match(operations, /movement_type,quantity_delta,reference_type/);
 });
