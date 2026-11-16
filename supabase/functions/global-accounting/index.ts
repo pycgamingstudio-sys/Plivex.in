@@ -92,6 +92,102 @@ Deno.serve(async (req: Request) => {
       return globalJson(data,200,origin);
     }
 
+    const integerField=(value:unknown)=>Number.isSafeInteger(value)&&Number(value)>=0;
+    const purchaseMutations:Record<string,{rpc:string,args:Record<string,unknown>}> = {};
+    if (action==="create_purchase_bill") {
+      const lines=body.lines;
+      const required=["supplier_name","supplier_invoice_number","purchase_date","currency_code","fx_rate_date","fx_rate_source","idempotency_key"];
+      if (required.some((key)=>typeof body[key]!=="string" || !String(body[key]).trim())
+        || !validDate(body.purchase_date) || !validDate(body.fx_rate_date) || !CURRENCY.test(String(body.currency_code))
+        || !validUuid(body.idempotency_key) || !integerField(body.subtotal_minor) || Number(body.subtotal_minor)<=0
+        || !integerField(body.tax_minor) || !integerField(body.tax_recoverable_minor)
+        || !integerField(body.base_subtotal_minor) || Number(body.base_subtotal_minor)<=0
+        || !integerField(body.base_tax_minor) || !integerField(body.base_tax_recoverable_minor)
+        || !Number.isSafeInteger(body.fx_rate_numerator) || Number(body.fx_rate_numerator)<=0
+        || !Number.isSafeInteger(body.fx_rate_denominator) || Number(body.fx_rate_denominator)<=0
+        || !Array.isArray(lines) || lines.length<1 || lines.length>100) {
+        return globalJson({error:"Supplier, bill details, FX evidence, totals and 1–100 purchase lines are required."},400,origin);
+      }
+      for (const line of lines) {
+        if (!isObject(line) || !validUuid(line.product_id) || typeof line.quantity!=="number" || !Number.isFinite(line.quantity)
+          || line.quantity<=0 || !integerField(line.unit_cost_minor) || Number(line.unit_cost_minor)<=0
+          || !integerField(line.line_total_minor) || Number(line.line_total_minor)<=0
+          || !integerField(line.base_line_total_minor) || Number(line.base_line_total_minor)<=0
+          || (line.description!==undefined && line.description!==null && (typeof line.description!=="string" || line.description.length>300))) {
+          return globalJson({error:"Each purchase line needs a product, positive quantity and reconciled source/base amounts."},400,origin);
+        }
+      }
+      purchaseMutations.create_purchase_bill={rpc:"global_create_purchase_bill",args:{
+        p_user_id:auth.user.id,p_workspace_id:workspaceId,p_supplier_name:body.supplier_name,
+        p_supplier_email:body.supplier_email||null,p_supplier_tax_id:body.supplier_tax_id||null,
+        p_supplier_invoice_number:body.supplier_invoice_number,p_purchase_date:body.purchase_date,p_due_date:body.due_date||null,
+        p_currency_code:body.currency_code,p_subtotal_minor:body.subtotal_minor,p_tax_minor:body.tax_minor,
+        p_tax_recoverable_minor:body.tax_recoverable_minor,p_base_subtotal_minor:body.base_subtotal_minor,
+        p_base_tax_minor:body.base_tax_minor,p_base_tax_recoverable_minor:body.base_tax_recoverable_minor,
+        p_fx_rate_numerator:body.fx_rate_numerator,p_fx_rate_denominator:body.fx_rate_denominator,
+        p_fx_rate_date:body.fx_rate_date,p_fx_rate_source:body.fx_rate_source,p_lines:lines,
+        p_memo:body.memo||null,p_idempotency_key:body.idempotency_key,
+      }};
+    } else if (action==="post_purchase_bill") {
+      if (!validUuid(body.purchase_bill_id)) return globalJson({error:"A valid purchase_bill_id is required."},400,origin);
+      purchaseMutations.post_purchase_bill={rpc:"global_post_purchase_bill",args:{p_user_id:auth.user.id,p_workspace_id:workspaceId,p_purchase_bill_id:body.purchase_bill_id}};
+    } else if (action==="record_purchase_payment") {
+      if (!validUuid(body.purchase_bill_id)||!validUuid(body.idempotency_key)||!validDate(body.payment_date)||!validDate(body.fx_rate_date)
+        || typeof body.currency_code!=="string"||!CURRENCY.test(body.currency_code)
+        || !integerField(body.amount_minor)||Number(body.amount_minor)<=0||!integerField(body.base_amount_minor)||Number(body.base_amount_minor)<=0
+        || !Number.isSafeInteger(body.fx_rate_numerator)||Number(body.fx_rate_numerator)<=0
+        || !Number.isSafeInteger(body.fx_rate_denominator)||Number(body.fx_rate_denominator)<=0
+        || typeof body.fx_rate_source!=="string"||!body.fx_rate_source.trim()||body.fx_rate_source.length>240) {
+        return globalJson({error:"Purchase payment amount, currency, FX rate evidence, date and idempotency key are required."},400,origin);
+      }
+      purchaseMutations.record_purchase_payment={rpc:"global_record_purchase_payment",args:{
+        p_user_id:auth.user.id,p_workspace_id:workspaceId,p_purchase_bill_id:body.purchase_bill_id,
+        p_amount_minor:body.amount_minor,p_currency_code:body.currency_code,p_base_amount_minor:body.base_amount_minor,
+        p_fx_rate_numerator:body.fx_rate_numerator,p_fx_rate_denominator:body.fx_rate_denominator,
+        p_fx_rate_date:body.fx_rate_date,p_fx_rate_source:body.fx_rate_source,p_payment_date:body.payment_date,
+        p_method:body.method||null,p_reference:body.reference||null,p_idempotency_key:body.idempotency_key,
+      }};
+    } else if (action==="revalue_purchase_bill") {
+      if (!validUuid(body.purchase_bill_id)||!validUuid(body.idempotency_key)||!validDate(body.revaluation_date)
+        || !Number.isSafeInteger(body.fx_rate_numerator)||Number(body.fx_rate_numerator)<=0
+        || !Number.isSafeInteger(body.fx_rate_denominator)||Number(body.fx_rate_denominator)<=0
+        || typeof body.fx_rate_source!=="string"||!body.fx_rate_source.trim()||body.fx_rate_source.length>240) {
+        return globalJson({error:"Purchase bill, revaluation date, positive FX rate and rate source are required."},400,origin);
+      }
+      purchaseMutations.revalue_purchase_bill={rpc:"global_revalue_purchase_bill",args:{
+        p_user_id:auth.user.id,p_workspace_id:workspaceId,p_purchase_bill_id:body.purchase_bill_id,
+        p_revaluation_date:body.revaluation_date,p_fx_rate_numerator:body.fx_rate_numerator,
+        p_fx_rate_denominator:body.fx_rate_denominator,p_fx_rate_source:body.fx_rate_source,
+        p_idempotency_key:body.idempotency_key,
+      }};
+    } else if (action==="list_purchase_bills") {
+      const limit=Number(body.limit||100);
+      if (!Number.isInteger(limit)||limit<1||limit>200) return globalJson({error:"Purchase bill limit must be between 1 and 200."},400,origin);
+      const {data,error}=await userClient.rpc("global_list_purchase_bills",{p_user_id:auth.user.id,p_workspace_id:workspaceId,p_limit:limit});
+      if(error){console.error("Global purchase list failed",{code:error.code});return globalJson({error:"Purchase bills are temporarily unavailable."},503,origin);}
+      return globalJson(data,200,origin);
+    }
+    const purchaseMutation=purchaseMutations[String(action||"")];
+    if(purchaseMutation){
+      const {data,error}=await auth.admin.rpc(purchaseMutation.rpc,purchaseMutation.args);
+      if(error){console.error("Global purchase accounting RPC failed",{rpc:purchaseMutation.rpc,code:error.code});return globalJson({error:"Purchase accounting service is temporarily unavailable."},503,origin);}
+      if(!data?.ok){
+        const reason=String(data?.reason||"request_failed");
+        const messages:Record<string,string>={
+          access_denied:"You do not have access to this workspace.",
+          forbidden:"Your workspace role cannot perform this purchase action.",
+          idempotency_conflict:"This request key was already used for different purchase data.",
+          fx_conversion_mismatch:"The base-currency amount does not match the supplied FX rate.",
+          overpayment:"The payment exceeds the outstanding supplier balance.",
+          purchase_not_found:"Purchase bill was not found.",
+          purchase_not_payable:"This purchase bill is not payable.",
+          purchase_not_open:"This purchase bill has no open foreign-currency balance.",
+        };
+        return globalJson({error:messages[reason]||"Purchase accounting action could not be completed.",reason},errorStatus(reason),origin);
+      }
+      return globalJson(data,200,origin);
+    }
+
     const reportArgs:Record<string,unknown>={p_workspace_id:workspaceId};
     let rpcName:string;
     if (action === "trial_balance") {
