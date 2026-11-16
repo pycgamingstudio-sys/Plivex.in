@@ -16,6 +16,12 @@ async function responseError(error, fallback) {
 export default function GlobalEnterprisePanel({ workspaceId }) {
   const [branches, setBranches] = useState([]);
   const [approvals, setApprovals] = useState([]);
+  const [approvalPolicies, setApprovalPolicies] = useState([]);
+  const [approvalPolicyAction, setApprovalPolicyAction] = useState("expense.create");
+  const [approvalPolicyEnabled, setApprovalPolicyEnabled] = useState(true);
+  const [approvalMinimumAmount, setApprovalMinimumAmount] = useState("0");
+  const [approvalRoles, setApprovalRoles] = useState(["owner", "admin", "accountant"]);
+  const [preventSelfApproval, setPreventSelfApproval] = useState(true);
   const [events, setEvents] = useState([]);
   const [health, setHealth] = useState(null);
   const [branchCode, setBranchCode] = useState("");
@@ -49,18 +55,28 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
     const results = await Promise.allSettled([
       enterprise("branch.list"),
       enterprise("approval.list"),
+      enterprise("approval.policy.list"),
       enterprise("audit.list", { limit: 50 }),
       enterprise("health.read"),
     ]);
     if (results[0].status === "fulfilled") setBranches(results[0].value.branches || []);
     if (results[1].status === "fulfilled") setApprovals(results[1].value.requests || []);
-    if (results[2].status === "fulfilled") setEvents(results[2].value.events || []);
-    if (results[3].status === "fulfilled") setHealth(results[3].value.health || null);
+    if (results[2].status === "fulfilled") setApprovalPolicies(results[2].value.policies || []);
+    if (results[3].status === "fulfilled") setEvents(results[3].value.events || []);
+    if (results[4].status === "fulfilled") setHealth(results[4].value.health || null);
     const denied = results.find((result) => result.status === "rejected");
     if (denied) setError(denied.reason?.message || "Some enterprise information could not be loaded. Your role may not have access.");
   }, [enterprise, workspaceId]);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  useEffect(() => {
+    const policy = approvalPolicies.find((item) => item.action_type === approvalPolicyAction);
+    setApprovalPolicyEnabled(policy?.enabled ?? false);
+    setApprovalMinimumAmount(String(policy?.minimum_amount_minor ?? 0));
+    setApprovalRoles(policy?.approver_roles || ["owner", "admin", "accountant"]);
+    setPreventSelfApproval(policy?.prevent_self_approval ?? true);
+  }, [approvalPolicies, approvalPolicyAction]);
 
   const perform = async (work, successMessage) => {
     setBusy(true); setError(""); setNotice("");
@@ -95,6 +111,23 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
       });
       setResourceId("");
     }, "Approval request submitted.");
+  };
+
+  const saveApprovalPolicy = (event) => {
+    event.preventDefault();
+    perform(() => enterprise("approval.policy.set", {
+      actionType: approvalPolicyAction,
+      enabled: approvalPolicyEnabled,
+      minimumAmountMinor: Number(approvalMinimumAmount),
+      approverRoles: approvalRoles,
+      preventSelfApproval,
+    }), "Expense approval policy saved.");
+  };
+
+  const toggleApproverRole = (role) => {
+    setApprovalRoles((current) => current.includes(role)
+      ? current.filter((item) => item !== role)
+      : [...current, role]);
   };
 
   const setPermission = (event) => {
@@ -174,7 +207,46 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
               </div>
             ))}
           </div>
-          <p className="mt-2 text-xs text-amber-700">Approval requests can be submitted, decided or cancelled. They do not yet automatically block invoice or expense writes.</p>
+          <p className="mt-2 text-xs text-slate-500">Approved requests are consumed by the Global expense write gate when a matching workspace policy is enabled. Invoice and India write gates are not included in this candidate.</p>
+        </section>
+
+        <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="font-semibold text-slate-900">Expense approval policy</h2>
+          <p className="mt-1 text-xs text-slate-500">Configure which Global expense actions require a separate approval before the write can be saved.</p>
+          <form onSubmit={saveApprovalPolicy} className="mt-3 space-y-3">
+            <label className="block text-sm font-medium text-slate-700">
+              Protected action
+              <select className={inputClass + " mt-1 w-full"} value={approvalPolicyAction} onChange={(e) => setApprovalPolicyAction(e.target.value)}>
+                <option value="expense.create">Create expense</option>
+                <option value="expense.update">Change expense</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={approvalPolicyEnabled} onChange={(e) => setApprovalPolicyEnabled(e.target.checked)} />
+              Require approval for matching expenses
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Minimum amount (workspace base-currency minor units)
+              <input className={inputClass + " mt-1 w-full"} type="number" min="0" max="9000000000000000" step="1" required value={approvalMinimumAmount} onChange={(e) => setApprovalMinimumAmount(e.target.value)} />
+            </label>
+            <fieldset>
+              <legend className="text-sm font-medium text-slate-700">Allowed approver roles</legend>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-slate-700">
+                {["owner", "admin", "manager", "accountant", "employee", "viewer"].map((role) => (
+                  <label key={role} className="flex items-center gap-2">
+                    <input type="checkbox" checked={approvalRoles.includes(role)} onChange={() => toggleApproverRole(role)} />
+                    {role}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={preventSelfApproval} onChange={(e) => setPreventSelfApproval(e.target.checked)} />
+              Prevent requesters from approving their own expense
+            </label>
+            <button className={buttonClass} disabled={busy || approvalRoles.length === 0 || !Number.isSafeInteger(Number(approvalMinimumAmount)) || Number(approvalMinimumAmount) < 0}>Save approval policy</button>
+          </form>
+          <p className="mt-2 text-xs text-slate-500">{approvalPolicies.length} saved policy rule(s). Owner/admin authorization is enforced by the server.</p>
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white p-4">
