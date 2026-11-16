@@ -212,7 +212,7 @@ create or replace function public.global_part4_transfer_stock(
  p_user_id uuid,p_workspace_id uuid,p_from uuid,p_to uuid,p_items jsonb,p_idempotency_key uuid,p_notes text default null
 ) returns jsonb language plpgsql security definer set search_path=pg_catalog,global
 as $$
-declare v_role text; v_transfer global.stock_transfers%rowtype; v_item jsonb; v_product uuid; v_qty numeric(18,4); v_balance numeric(18,4); v_existing global.stock_transfers%rowtype; v_fingerprint text;
+declare v_role text; v_transfer global.stock_transfers%rowtype; v_item jsonb; v_product uuid; v_qty numeric(18,4); v_balance numeric(18,4); v_existing global.stock_transfers%rowtype; v_fingerprint text; v_batch global.inventory_batches%rowtype; v_batch_remaining numeric(18,4); v_batch_take numeric(18,4);
 begin
  if p_user_id is null or p_workspace_id is null or p_from is null or p_to is null or p_from=p_to or p_idempotency_key is null or jsonb_typeof(p_items)<>'array' or jsonb_array_length(p_items)=0 or jsonb_array_length(p_items)>200 then
   return jsonb_build_object('ok',false,'reason','invalid_request');
@@ -242,6 +242,20 @@ begin
    if v_balance<v_qty then raise exception 'insufficient_stock'; end if;
    update global.warehouse_stock_levels set quantity=quantity-v_qty,updated_at=now() where workspace_id=p_workspace_id and warehouse_id=p_from and product_id=v_product;
    update global.warehouse_stock_levels set quantity=quantity+v_qty,updated_at=now() where workspace_id=p_workspace_id and warehouse_id=p_to and product_id=v_product;
+   v_batch_remaining:=v_qty;
+   for v_batch in
+     select * from global.inventory_batches where workspace_id=p_workspace_id and warehouse_id=p_from
+       and product_id=v_product and quantity>0 order by expires_on nulls last,created_at,id for update
+   loop
+     exit when v_batch_remaining<=0;
+     v_batch_take:=least(v_batch.quantity,v_batch_remaining);
+     update global.inventory_batches set quantity=quantity-v_batch_take where id=v_batch.id;
+     insert into global.inventory_batches(workspace_id,warehouse_id,product_id,batch_number,quantity,unit_cost_minor,expires_on)
+     values(p_workspace_id,p_to,v_product,v_batch.batch_number,v_batch_take,v_batch.unit_cost_minor,v_batch.expires_on)
+     on conflict(workspace_id,warehouse_id,product_id,batch_number) do update
+       set quantity=global.inventory_batches.quantity+excluded.quantity;
+     v_batch_remaining:=v_batch_remaining-v_batch_take;
+   end loop;
    insert into global.stock_transfer_items(workspace_id,transfer_id,product_id,quantity) values(p_workspace_id,v_transfer.id,v_product,v_qty);
    insert into global.warehouse_stock_movements(workspace_id,warehouse_id,product_id,movement_type,quantity_delta,reference_type,reference_id,idempotency_key,notes,created_by)
    values(p_workspace_id,p_from,v_product,'transfer_out',-v_qty,'stock_transfer',v_transfer.id,gen_random_uuid(),nullif(trim(p_notes),''),p_user_id),
