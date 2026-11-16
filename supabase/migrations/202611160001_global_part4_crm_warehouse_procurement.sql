@@ -192,7 +192,7 @@ begin
   select role into v_role from global.workspace_members
   where workspace_id=p_workspace_id and user_id=p_user_id and status='active' limit 1;
   if v_role is null then return jsonb_build_object('ok',false,'reason','access_denied'); end if;
-  if p_resource not in ('warehouses','warehouse_stock_levels','inventory_batches','stock_transfers','purchase_orders','purchase_order_items','crm_leads','crm_activities') then
+  if p_resource not in ('warehouses','warehouse_stock_levels','inventory_batches','warehouse_stock_movements','stock_transfers','purchase_orders','purchase_order_items','crm_leads','crm_activities') then
     return jsonb_build_object('ok',false,'reason','unsupported_resource');
   end if;
   case p_resource
