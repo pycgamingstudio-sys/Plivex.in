@@ -6,7 +6,7 @@ VALUES ('77777777-7777-4777-8777-777777777777','Part 3B FX Accounting Test','GB'
 INSERT INTO global.workspace_members(workspace_id,user_id,role,status)
 VALUES
  ('77777777-7777-4777-8777-777777777777','66666666-6666-4666-8666-666666666666','owner','active'),
- ('77777777-7777-4777-8777-777777777777','b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b22','accountant','active'),
+ ('77777777-7777-4777-8777-777777777777','b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2','accountant','active'),
  ('77777777-7777-4777-8777-777777777777','88888888-8888-4888-8888-888888888888','manager','active');
 INSERT INTO global.products(id,workspace_id,name,sku,unit,sale_price_minor,purchase_cost_minor,currency_code,created_by)
 VALUES ('77777777-aaaa-4777-8777-777777777777','77777777-7777-4777-8777-777777777777',
