@@ -9,7 +9,7 @@ const FIELDS: Record<string, string[]> = {
   expenses: ["vendor","category","amount","date","status","method","notes"],
   stock: ["name","sku","quantity","unit","price","low_stock"],
   services: ["name","rate","gst_rate","description"],
-  leads: ["name","phone","requirement","value","stage"],
+  leads: ["name","phone","requirement","value","stage","company","email","source","score","next_follow_up_at","owner_id"],
   quotations: ["number","client_name","date","total","status","tax_rate","items"],
   business_profile: ["name","email","phone","gstin","address","logo_url","upi_id","country_code","locale_code","tax_registration_number","tax_registration_type","tax_registration_status","tax_registration_effective_from","tax_jurisdiction_code"],
 };
