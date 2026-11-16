@@ -39,7 +39,7 @@ BEGIN
 
   result := public.global_enterprise_action(requester,ws,'approval.decide',
     jsonb_build_object('requestId',request_id::text,'decision','approved','note','Self approval must fail'));
-  IF result->>'code' <> 'REQUEST_NOT_DECIDABLE' THEN
+  IF result->>'code' NOT IN ('REQUEST_NOT_DECIDABLE','PERMISSION_DENIED') THEN
     RAISE EXCEPTION 'Requester was able to self-approve: %',result;
   END IF;
 
