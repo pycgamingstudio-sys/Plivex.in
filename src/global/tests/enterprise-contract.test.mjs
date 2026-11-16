@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const migration = readFileSync(new URL("../../../supabase/migrations/202611160001_global_enterprise_controls.sql", import.meta.url), "utf8");
 const edge = readFileSync(new URL("../../../supabase/functions/global-enterprise/index.ts", import.meta.url), "utf8");
+const exportEdge = readFileSync(new URL("../../../supabase/functions/global-export/index.ts", import.meta.url), "utf8");
 
 test("enterprise migration keeps Global data in private schema and enables RLS", () => {
   for (const table of ["workspace_branches", "workspace_permission_overrides", "approval_requests", "audit_events", "export_jobs", "workspace_retention_policies", "exchange_rate_snapshots", "currency_conversion_history", "tax_rule_versions"]) {
@@ -23,4 +24,15 @@ test("enterprise edge function authenticates, rate-limits and delegates to guard
   assert.match(edge, /global_consume_enterprise_rate_limit/);
   assert.match(edge, /global_enterprise_action/);
   assert.doesNotMatch(edge, /schema\(["']global["']\)/);
+});
+
+test("export worker is JWT-protected, private-storage-only and checks ownership before signed download", () => {
+  assert.match(exportEdge, /authenticateGlobal/);
+  assert.match(exportEdge, /public:\s*false/);
+  assert.match(exportEdge, /global_export_claim/);
+  assert.match(exportEdge, /global_export_dataset/);
+  assert.match(exportEdge, /global_export_download_path/);
+  assert.match(exportEdge, /createSignedUrl/);
+  assert.match(migration, /global_export_complete/);
+  assert.match(migration, /global_export_fail/);
 });

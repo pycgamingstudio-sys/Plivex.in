@@ -23,3 +23,6 @@ verify_jwt = true
 # Global enterprise workspace controls require a verified Supabase JWT.
 [functions.global-enterprise]
 verify_jwt = true
+
+[functions.global-export]
+verify_jwt = true

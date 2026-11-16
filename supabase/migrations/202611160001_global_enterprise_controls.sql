@@ -495,8 +495,16 @@ begin
         order by occurred_at desc limit v_limit) e;
     return jsonb_build_object('ok',true,'events',coalesce(v_events,'[]'::jsonb));
   elsif p_action = 'export.request' then
+    if p_payload->>'exportType' = 'full_account' and not v_admin then
+      return jsonb_build_object('ok',false,'code','ADMIN_REQUIRED');
+    end if;
+    if p_payload->>'exportType' = 'audit_log' and not (v_admin or v_member.role = 'accountant'
+      or exists (select 1 from global.workspace_permission_overrides where workspace_id=p_workspace_id
+        and member_id=v_member.id and permission_key='audit.read' and effect='grant')) then
+      return jsonb_build_object('ok',false,'code','PERMISSION_DENIED');
+    end if;
     if coalesce(p_payload->>'exportType','') not in ('invoices','clients','products','expenses','audit_log','full_account')
-      or coalesce(p_payload->>'format','') not in ('csv','xlsx','json','pdf') then
+      or coalesce(p_payload->>'format','') not in ('csv','json') then
       return jsonb_build_object('ok',false,'code','INVALID_EXPORT');
     end if;
     insert into global.export_jobs(workspace_id,requested_by,export_type,format)
@@ -528,5 +536,147 @@ end;
 $function$;
 revoke all on function public.global_enterprise_action(uuid,uuid,text,jsonb) from public, anon, authenticated;
 grant execute on function public.global_enterprise_action(uuid,uuid,text,jsonb) to service_role;
+
+
+create or replace function public.global_export_claim(
+  p_user_id uuid, p_workspace_id uuid, p_job_id uuid
+) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, global
+as $function$
+declare v_job global.export_jobs%rowtype;
+begin
+  if p_user_id is null or p_workspace_id is null or p_job_id is null then
+    return jsonb_build_object('ok',false,'code','INVALID_EXPORT_IDENTITY');
+  end if;
+  if not exists (select 1 from global.workspace_members
+    where workspace_id=p_workspace_id and user_id=p_user_id and status='active') then
+    return jsonb_build_object('ok',false,'code','ACCESS_DENIED');
+  end if;
+  select * into v_job from global.export_jobs
+    where id=p_job_id and workspace_id=p_workspace_id and requested_by=p_user_id and status='queued'
+    for update;
+  if v_job.id is null then return jsonb_build_object('ok',false,'code','EXPORT_NOT_QUEUED'); end if;
+  update global.export_jobs set status='processing' where id=v_job.id and status='queued';
+  return jsonb_build_object('ok',true,'jobId',v_job.id,'exportType',v_job.export_type,'format',v_job.format);
+end;
+$function$;
+
+create or replace function public.global_export_dataset(
+  p_user_id uuid, p_workspace_id uuid, p_job_id uuid
+) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, global
+as $function$
+declare v_job global.export_jobs%rowtype; v_data jsonb;
+begin
+  if not exists (select 1 from global.workspace_members
+    where workspace_id=p_workspace_id and user_id=p_user_id and status='active') then
+    return jsonb_build_object('ok',false,'code','ACCESS_DENIED');
+  end if;
+  select * into v_job from global.export_jobs
+    where id=p_job_id and workspace_id=p_workspace_id and requested_by=p_user_id and status='processing';
+  if v_job.id is null then return jsonb_build_object('ok',false,'code','EXPORT_NOT_PROCESSING'); end if;
+
+  if v_job.export_type = 'clients' then
+    select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) into v_data
+      from (select id,name,email,phone,tax_registration_number,billing_address,shipping_address,status,created_at
+        from global.clients where workspace_id=p_workspace_id order by created_at desc limit 1000) t;
+  elsif v_job.export_type = 'products' then
+    select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) into v_data
+      from (select id,name,sku,description,unit,sale_price_minor,purchase_cost_minor,currency_code,tax_code,is_active,created_at
+        from global.products where workspace_id=p_workspace_id order by created_at desc limit 1000) t;
+  elsif v_job.export_type = 'expenses' then
+    select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) into v_data
+      from (select id,category,vendor,amount_minor,currency_code,expense_date,payment_method,reference,notes,created_at
+        from global.expenses where workspace_id=p_workspace_id order by expense_date desc,created_at desc limit 1000) t;
+  elsif v_job.export_type = 'invoices' then
+    select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) into v_data
+      from (select id,client_id,invoice_number,status,currency_code,issue_date,due_date,subtotal_minor,discount_minor,tax_minor,total_minor,amount_paid_minor,notes,created_at
+        from global.invoices where workspace_id=p_workspace_id order by issue_date desc,created_at desc limit 1000) t;
+  elsif v_job.export_type = 'audit_log' then
+    select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) into v_data
+      from (select id,actor_id,action,entity_type,entity_id,metadata,occurred_at
+        from global.audit_events where workspace_id=p_workspace_id order by occurred_at desc limit 1000) t;
+  elsif v_job.export_type = 'full_account' then
+    select jsonb_build_object(
+      'clients',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,name,email,phone,status,created_at from global.clients where workspace_id=p_workspace_id order by created_at desc limit 1000) t),
+      'products',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,name,sku,unit,sale_price_minor,purchase_cost_minor,currency_code,is_active,created_at from global.products where workspace_id=p_workspace_id order by created_at desc limit 1000) t),
+      'expenses',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,category,vendor,amount_minor,currency_code,expense_date,payment_method,reference,created_at from global.expenses where workspace_id=p_workspace_id order by expense_date desc limit 1000) t),
+      'invoices',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,invoice_number,status,currency_code,issue_date,due_date,total_minor,amount_paid_minor,created_at from global.invoices where workspace_id=p_workspace_id order by issue_date desc limit 1000) t),
+      'audit_log',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,actor_id,action,entity_type,entity_id,occurred_at from global.audit_events where workspace_id=p_workspace_id order by occurred_at desc limit 1000) t)
+    ) into v_data;
+  else
+    return jsonb_build_object('ok',false,'code','UNSUPPORTED_EXPORT');
+  end if;
+  return jsonb_build_object('ok',true,'data',coalesce(v_data,'[]'::jsonb),'max_records_per_table',1000);
+end;
+$function$;
+
+create or replace function public.global_export_complete(
+  p_user_id uuid, p_workspace_id uuid, p_job_id uuid, p_storage_path text, p_sha256 text
+) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, global
+as $function$
+declare v_retention integer := 7;
+begin
+  if p_storage_path is null or p_storage_path !~ ('^' || p_workspace_id::text || '/' || p_job_id::text || '[.]')
+    or p_sha256 is null or p_sha256 !~ '^[a-f0-9]{64}$' then
+    return jsonb_build_object('ok',false,'code','INVALID_EXPORT_ARTIFACT');
+  end if;
+  if not exists (select 1 from global.workspace_members
+    where workspace_id=p_workspace_id and user_id=p_user_id and status='active') then
+    return jsonb_build_object('ok',false,'code','ACCESS_DENIED');
+  end if;
+  select export_retention_days into v_retention from global.workspace_retention_policies where workspace_id=p_workspace_id;
+  update global.export_jobs set status='completed',storage_path=p_storage_path,file_sha256=p_sha256,
+    completed_at=now(),expires_at=now()+make_interval(days=>coalesce(v_retention,7))
+    where id=p_job_id and workspace_id=p_workspace_id and requested_by=p_user_id and status='processing';
+  if not found then return jsonb_build_object('ok',false,'code','EXPORT_STATE_CONFLICT'); end if;
+  insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
+    values (p_workspace_id,p_user_id,'export.completed','export_job',p_job_id::text,jsonb_build_object('sha256',p_sha256));
+  return jsonb_build_object('ok',true);
+end;
+$function$;
+
+create or replace function public.global_export_fail(
+  p_user_id uuid, p_workspace_id uuid, p_job_id uuid, p_error_code text
+) returns boolean
+language plpgsql security definer set search_path = pg_catalog, global
+as $function$
+begin
+  update global.export_jobs set status='failed',error_code=left(coalesce(p_error_code,'EXPORT_FAILED'),80)
+    where id=p_job_id and workspace_id=p_workspace_id and requested_by=p_user_id and status='processing';
+  return found;
+end;
+$function$;
+
+create or replace function public.global_export_download_path(
+  p_user_id uuid, p_workspace_id uuid, p_job_id uuid
+) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, global
+as $function$
+declare v_path text;
+begin
+  if not exists (select 1 from global.workspace_members
+    where workspace_id=p_workspace_id and user_id=p_user_id and status='active') then
+    return jsonb_build_object('ok',false,'code','ACCESS_DENIED');
+  end if;
+  select storage_path into v_path from global.export_jobs
+    where id=p_job_id and workspace_id=p_workspace_id and requested_by=p_user_id
+      and status='completed' and expires_at > now();
+  if v_path is null then return jsonb_build_object('ok',false,'code','EXPORT_NOT_AVAILABLE'); end if;
+  return jsonb_build_object('ok',true,'storagePath',v_path);
+end;
+$function$;
+
+revoke all on function public.global_export_claim(uuid,uuid,uuid) from public, anon, authenticated;
+revoke all on function public.global_export_dataset(uuid,uuid,uuid) from public, anon, authenticated;
+revoke all on function public.global_export_complete(uuid,uuid,uuid,text,text) from public, anon, authenticated;
+revoke all on function public.global_export_fail(uuid,uuid,uuid,text) from public, anon, authenticated;
+revoke all on function public.global_export_download_path(uuid,uuid,uuid) from public, anon, authenticated;
+grant execute on function public.global_export_claim(uuid,uuid,uuid) to service_role;
+grant execute on function public.global_export_dataset(uuid,uuid,uuid) to service_role;
+grant execute on function public.global_export_complete(uuid,uuid,uuid,text,text) to service_role;
+grant execute on function public.global_export_fail(uuid,uuid,uuid,text) to service_role;
+grant execute on function public.global_export_download_path(uuid,uuid,uuid) to service_role;
 
 commit;
