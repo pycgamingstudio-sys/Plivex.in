@@ -197,7 +197,7 @@ begin
    select * into v_stock from public.stock where workspace_id=v_workspace and id=v_po_item.stock_id;
    if not found then raise exception 'stock_item_not_found'; end if;
    select * into v_dest from public.stock where workspace_id=v_workspace and warehouse_id=p_warehouse_id
-     and ((v_stock.sku is not null and sku=v_stock.sku) or (v_stock.sku is null and name=v_stock.name and unit is not distinct from v_stock.unit))
+     and ((v_stock.sku is not null and sku=v_stock.sku) or (v_stock.sku is null and name=v_stock.name and unit is not distinct from v_stock.unit and coalesce(variant_label,'')=coalesce(v_stock.variant_label,'')))
      order by created_at limit 1 for update;
    if v_dest.id is null then
      insert into public.stock(workspace_id,name,sku,quantity,unit,price,low_stock,client_id,warehouse_id,purchase_cost,barcode,variant_of,variant_label)
@@ -255,7 +255,7 @@ begin
  if v_source.quantity<p_quantity then return jsonb_build_object('ok',false,'reason','insufficient_stock'); end if;
  if not exists(select 1 from public.warehouses where workspace_id=v_workspace and id=p_to_warehouse_id and is_active) then return jsonb_build_object('ok',false,'reason','warehouse_not_found'); end if;
  select * into v_dest from public.stock where workspace_id=v_workspace and warehouse_id=p_to_warehouse_id
-   and ((v_source.sku is not null and sku=v_source.sku) or (v_source.sku is null and name=v_source.name and unit is not distinct from v_source.unit))
+   and ((v_source.sku is not null and sku=v_source.sku) or (v_source.sku is null and name=v_source.name and unit is not distinct from v_source.unit and coalesce(variant_label,'')=coalesce(v_source.variant_label,'')))
    order by created_at limit 1 for update;
  insert into public.stock_transfers(workspace_id,from_warehouse_id,to_warehouse_id,idempotency_key,request_fingerprint,created_by)
  values(v_workspace,v_source.warehouse_id,p_to_warehouse_id,p_idempotency_key,v_fingerprint,v_user) returning * into v_transfer;
