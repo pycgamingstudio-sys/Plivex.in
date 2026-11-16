@@ -78,6 +78,28 @@ $function$;
 revoke all on function public.global_set_approval_policy(uuid,uuid,text,boolean,bigint,text[],boolean) from public, anon, authenticated;
 grant execute on function public.global_set_approval_policy(uuid,uuid,text,boolean,bigint,text[],boolean) to service_role;
 
+create or replace function public.global_list_approval_policies(
+  p_user_id uuid, p_workspace_id uuid
+) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, global
+as $function$
+declare
+  v_policies jsonb;
+begin
+  if p_user_id is null or p_workspace_id is null
+    or not exists (select 1 from global.workspace_members
+      where workspace_id=p_workspace_id and user_id=p_user_id and status='active') then
+    return jsonb_build_object('ok',false,'code','ACCESS_DENIED');
+  end if;
+  select coalesce(jsonb_agg(to_jsonb(p) order by p.action_type),'[]'::jsonb)
+    into v_policies
+  from global.approval_policies p where p.workspace_id=p_workspace_id;
+  return jsonb_build_object('ok',true,'policies',coalesce(v_policies,'[]'::jsonb));
+end;
+$function$;
+revoke all on function public.global_list_approval_policies(uuid,uuid) from public, anon, authenticated;
+grant execute on function public.global_list_approval_policies(uuid,uuid) to service_role;
+
 create index if not exists global_approval_policy_workspace_enabled_idx
   on global.approval_policies(workspace_id, resource_type, action_type) where enabled;
 create index if not exists global_approval_request_resource_status_idx
