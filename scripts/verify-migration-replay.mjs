@@ -44,8 +44,8 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 75 || new Set(candidatePlan.map((x) => x.path)).size !== 75) {
-  fail("Candidate replay plan must contain 35 recovered historical and all 40 current local migrations");
+if (candidatePlan.length !== 76 || new Set(candidatePlan.map((x) => x.path)).size !== 76) {
+  fail("Candidate replay plan must contain 35 recovered historical and all 41 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -132,7 +132,7 @@ function assertGlobalFoundation(port) {
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-business-data.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-invoice-ledger.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-invoice-issuance.integration.sql")]);
-  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-accounting.integration.sql")]);
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-accounting.integration.sql")]);\n  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-accounting-part3b.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/country-reset.integration.sql")]);
 }
 function applyForcedMigrationRollback(port, db, migrationPath) {
@@ -223,11 +223,17 @@ function assertGlobalMigrationRollback(port) {
     if (issuanceResidue !== "false|false|false|false|false|false|false|false|false|false|false|false|false|false|false") fail("Global invoice issuance rollback left objects behind: " + issuanceResidue);
     psql(port, db, ["-f", issuancePath]);
     const accountingPath = resolve(root, "supabase/migrations/20261116100000_global_accounting_double_entry.sql");
+    psql(port, db, ["-f", accountingPath]);
+    const accountingPart3bPath = resolve(root, "supabase/migrations/20261116110000_global_accounting_part3b_fx_purchases_refunds.sql");
+    const accountingPart3bRollback = applyForcedMigrationRollback(port, db, accountingPart3bPath);
+    if (accountingPart3bRollback.status === 0) fail("Global accounting Part 3B migration rollback probe unexpectedly committed");
+    const part3bResidue = query(port, db, "SELECT (to_regclass('global.suppliers') IS NOT NULL)::text || '|' || (to_regclass('global.purchase_bills') IS NOT NULL)::text || '|' || (to_regclass('global.purchase_bill_lines') IS NOT NULL)::text || '|' || (to_regclass('global.purchase_bill_payments') IS NOT NULL)::text || '|' || (to_regclass('global.purchase_fx_revaluations') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_create_purchase_bill(uuid,uuid,text,text,text,text,date,date,text,bigint,bigint,bigint,bigint,bigint,bigint,bigint,bigint,date,text,jsonb,text,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_post_purchase_bill(uuid,uuid,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_record_purchase_payment(uuid,uuid,uuid,bigint,text,bigint,bigint,bigint,date,text,date,text,text,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_revalue_purchase_bill(uuid,uuid,uuid,date,bigint,bigint,text,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_list_purchase_bills(uuid,uuid,integer)') IS NOT NULL)::text || '|' || (to_regprocedure('global.accounting_after_invoice_refund()') IS NOT NULL)::text || '|' || (to_regprocedure('global.accounting_after_purchase_posted()') IS NOT NULL)::text || '|' || (to_regprocedure('global.accounting_after_purchase_payment()') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_invoice_refund_accounting' AND NOT tgisinternal)::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_purchase_post_accounting' AND NOT tgisinternal)::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_purchase_payment_accounting' AND NOT tgisinternal)::text");
+    if (part3bResidue !== "false|false|false|false|false|false|false|false|false|false|false|false|false|false|false") fail("Global accounting Part 3B rollback left objects behind: " + part3bResidue);
     const accountingRollback = applyForcedMigrationRollback(port, db, accountingPath);
     if (accountingRollback.status === 0) fail("Global accounting migration rollback probe unexpectedly committed");
     const accountingResidue = query(port, db, "SELECT (to_regclass('global.accounting_accounts') IS NOT NULL)::text || '|' || (to_regclass('global.journal_entries') IS NOT NULL)::text || '|' || (to_regclass('global.journal_entry_lines') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_post_journal_entry(uuid,uuid,date,text,text,text,uuid,jsonb,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_get_trial_balance(uuid,date,date,text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_get_general_ledger(uuid,text,date,date,text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_get_financial_statements(uuid,date,date,text)') IS NOT NULL)::text || '|' || (to_regprocedure('global.accounting_after_invoice_issued()') IS NOT NULL)::text || '|' || (to_regprocedure('global.accounting_after_invoice_payment()') IS NOT NULL)::text || '|' || (to_regprocedure('global.accounting_after_expense()') IS NOT NULL)::text || '|' || (to_regprocedure('global.guard_accounted_expense_changes()') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_workspace_seed_chart_of_accounts' AND NOT tgisinternal)::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_invoice_issued_accounting' AND NOT tgisinternal)::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_invoice_payment_accounting' AND NOT tgisinternal)::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_expense_accounting' AND NOT tgisinternal)::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_accounted_expense_guard' AND NOT tgisinternal)::text");
     if (accountingResidue !== "false|false|false|false|false|false|false|false|false|false|false|false|false|false|false|false") fail("Global accounting rollback left tables, functions or triggers behind: " + accountingResidue);
-    console.log("PASS actual DDL rollback for Global foundation, inventory, invoice/payment, issuance and accounting migrations");
+    console.log("PASS actual DDL rollback for Global foundation, inventory, invoice/payment, issuance, accounting and Part 3B migrations");
   } finally {
     const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], {
       cwd: root, env: envFor(port, "postgres"), encoding: "utf8",
@@ -291,7 +297,7 @@ function summary(port, remote) {
 
 const remotePort = Number(process.env.REMOTE_PGPORT || 5433);
 const candidatePort = Number(process.env.CANDIDATE_PGPORT || 5434);
-console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 75 candidate replay entries.");
+console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 76 candidate replay entries.");
 resetDb(remotePort);
 replay(remotePort, remotePlan, true);
 assertRls(remotePort, false);
@@ -305,5 +311,5 @@ assertCandidateIndia(candidatePort);
 assertGlobalFoundation(candidatePort);
 assertRollback(candidatePort);
 assertGlobalMigrationRollback(candidatePort);
-console.log("PASS global-dev candidate replay 35 recovered + 39 local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
+console.log("PASS global-dev candidate replay 35 recovered + 40 local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
 console.log("PASS archive hashes, version ordering, replay, Global workspace isolation, migration rollback, RLS and India data-integrity checks.");
