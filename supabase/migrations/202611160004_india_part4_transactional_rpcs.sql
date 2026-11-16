@@ -40,6 +40,19 @@ create policy "stock transfer items read" on public.stock_transfer_items for sel
  using(has_ws_role(workspace_id,ARRAY['admin'::app_role,'manager'::app_role,'storekeeper'::app_role]));
 grant select on public.stock_transfers,public.stock_transfer_items to authenticated;
 
+drop policy if exists "purchase orders read" on public.purchase_orders;
+create policy "purchase orders read" on public.purchase_orders for select to authenticated
+ using(has_ws_role(workspace_id,ARRAY['admin'::app_role,'manager'::app_role,'accountant'::app_role,'storekeeper'::app_role]));
+drop policy if exists "purchase order items read" on public.purchase_order_items;
+create policy "purchase order items read" on public.purchase_order_items for select to authenticated
+ using(has_ws_role(workspace_id,ARRAY['admin'::app_role,'manager'::app_role,'accountant'::app_role,'storekeeper'::app_role]));
+drop policy if exists "purchase receipts read" on public.purchase_receipts;
+create policy "purchase receipts read" on public.purchase_receipts for select to authenticated
+ using(has_ws_role(workspace_id,ARRAY['admin'::app_role,'manager'::app_role,'accountant'::app_role,'storekeeper'::app_role]));
+drop policy if exists "purchase receipt items read" on public.purchase_receipt_items;
+create policy "purchase receipt items read" on public.purchase_receipt_items for select to authenticated
+ using(has_ws_role(workspace_id,ARRAY['admin'::app_role,'manager'::app_role,'accountant'::app_role,'storekeeper'::app_role]));
+
 -- Existing StockTab inserts do not know about warehouse_id. The trigger assigns
 -- the workspace's default warehouse and creates it safely on the first stock row.
 create or replace function public.ensure_stock_default_warehouse()
