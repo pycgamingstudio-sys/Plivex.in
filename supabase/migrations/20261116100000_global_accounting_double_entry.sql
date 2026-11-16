@@ -375,10 +375,104 @@ begin
 end;
 $function$;
 
+create or replace function public.global_get_financial_statements(
+  p_workspace_id uuid,p_period_from date,p_as_of date,p_currency_code text default null
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = pg_catalog,global
+as $function$
+declare
+  v_income jsonb;
+  v_balance jsonb;
+  v_revenue numeric := 0;
+  v_expenses numeric := 0;
+  v_assets numeric := 0;
+  v_liabilities numeric := 0;
+  v_equity numeric := 0;
+  v_unclosed_earnings numeric := 0;
+  v_currency text;
+begin
+  if auth.uid() is null or not global.is_workspace_member(p_workspace_id) then
+    raise exception using errcode='42501',message='Workspace access denied';
+  end if;
+  if p_as_of is null or (p_period_from is not null and p_as_of<p_period_from) then
+    raise exception using errcode='22023',message='Invalid financial statement date range';
+  end if;
+  select currency_code into v_currency from global.workspaces where id=p_workspace_id;
+  if p_currency_code is not null and upper(p_currency_code)<>v_currency then
+    raise exception using errcode='22023',message='Currency conversion is not configured for this workspace';
+  end if;
+
+  with balances as (
+    select a.id,a.code,a.name,a.account_type,a.normal_balance,
+      coalesce(sum(l.debit_minor) filter(where e.entry_date>=coalesce(p_period_from,'0001-01-01'::date)),0) debit_minor,
+      coalesce(sum(l.credit_minor) filter(where e.entry_date>=coalesce(p_period_from,'0001-01-01'::date)),0) credit_minor
+    from global.accounting_accounts a
+    left join global.journal_entry_lines l on l.workspace_id=a.workspace_id and l.account_id=a.id
+    left join global.journal_entries e on e.workspace_id=l.workspace_id and e.id=l.journal_entry_id
+      and e.entry_date<=p_as_of and (p_currency_code is null or e.currency_code=upper(p_currency_code))
+    where a.workspace_id=p_workspace_id and a.is_active=true
+    group by a.id,a.code,a.name,a.account_type,a.normal_balance
+  )
+  select
+    coalesce(jsonb_agg(jsonb_build_object(
+      'code',code,'name',name,'account_type',account_type,
+      'amount_minor',case when account_type='revenue' then credit_minor-debit_minor else debit_minor-credit_minor end
+    ) order by code) filter(where account_type in ('revenue','expense')),'[]'::jsonb),
+    coalesce(sum(credit_minor-debit_minor) filter(where account_type='revenue'),0),
+    coalesce(sum(debit_minor-credit_minor) filter(where account_type='expense'),0)
+  into v_income,v_revenue,v_expenses
+  from balances;
+
+  with balances as (
+    select a.id,a.code,a.name,a.account_type,a.normal_balance,
+      coalesce(sum(l.debit_minor),0) debit_minor,
+      coalesce(sum(l.credit_minor),0) credit_minor
+    from global.accounting_accounts a
+    left join global.journal_entry_lines l on l.workspace_id=a.workspace_id and l.account_id=a.id
+    left join global.journal_entries e on e.workspace_id=l.workspace_id and e.id=l.journal_entry_id
+      and e.entry_date<=p_as_of and (p_currency_code is null or e.currency_code=upper(p_currency_code))
+    where a.workspace_id=p_workspace_id and a.is_active=true
+    group by a.id,a.code,a.name,a.account_type,a.normal_balance
+  )
+  select
+    coalesce(jsonb_agg(jsonb_build_object(
+      'code',code,'name',name,'account_type',account_type,
+      'balance_minor',case when normal_balance='debit' then debit_minor-credit_minor else credit_minor-debit_minor end
+    ) order by code) filter(where account_type in ('asset','liability','equity')),'[]'::jsonb),
+    coalesce(sum(debit_minor-credit_minor) filter(where account_type='asset'),0),
+    coalesce(sum(credit_minor-debit_minor) filter(where account_type='liability'),0),
+    coalesce(sum(credit_minor-debit_minor) filter(where account_type='equity'),0),
+    coalesce(sum(credit_minor-debit_minor) filter(where account_type='revenue'),0)
+      - coalesce(sum(debit_minor-credit_minor) filter(where account_type='expense'),0)
+  into v_balance,v_assets,v_liabilities,v_equity,v_unclosed_earnings
+  from balances;
+
+  return jsonb_build_object(
+    'currency_code',v_currency,'period_from',p_period_from,'as_of',p_as_of,
+    'income_statement',jsonb_build_object(
+      'accounts',v_income,'revenue_minor',v_revenue,'expenses_minor',v_expenses,
+      'net_income_minor',v_revenue-v_expenses
+    ),
+    'balance_sheet',jsonb_build_object(
+      'accounts',v_balance,'assets_minor',v_assets,'liabilities_minor',v_liabilities,
+      'equity_minor',v_equity,'unclosed_earnings_minor',v_unclosed_earnings,
+      'total_equity_and_liabilities_minor',v_liabilities+v_equity+v_unclosed_earnings,
+      'balanced',v_assets=v_liabilities+v_equity+v_unclosed_earnings
+    )
+  );
+end;
+$function$;
+
 revoke all on function public.global_get_trial_balance(uuid,date,date,text) from public,anon;
 revoke all on function public.global_get_general_ledger(uuid,text,date,date,text) from public,anon;
+revoke all on function public.global_get_financial_statements(uuid,date,date,text) from public,anon;
 grant execute on function public.global_get_trial_balance(uuid,date,date,text) to authenticated,service_role;
 grant execute on function public.global_get_general_ledger(uuid,text,date,date,text) to authenticated,service_role;
+grant execute on function public.global_get_financial_statements(uuid,date,date,text) to authenticated,service_role;
 
 drop trigger if exists global_accounting_accounts_set_updated_at on global.accounting_accounts;
 create trigger global_accounting_accounts_set_updated_at before update on global.accounting_accounts
@@ -393,5 +487,7 @@ comment on function public.global_get_trial_balance(uuid,date,date,text) is
   'Workspace-member-only trial balance, grouped by account and filtered to one currency and date range.';
 comment on function public.global_get_general_ledger(uuid,text,date,date,text) is
   'Workspace-member-only account ledger with chronological running debit-minus-credit balance.';
+comment on function public.global_get_financial_statements(uuid,date,date,text) is
+  'Workspace-member-only income statement and balance sheet with unclosed earnings; no cross-currency conversion is inferred.';
 
 commit;
