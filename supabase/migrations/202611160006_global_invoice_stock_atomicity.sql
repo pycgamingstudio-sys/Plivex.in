@@ -78,6 +78,8 @@ alter table global.warehouse_stock_movements drop constraint if exists warehouse
 alter table global.warehouse_stock_movements add constraint warehouse_stock_movements_reference_type_check
  check(reference_type in ('purchase_receipt','stock_transfer','manual_adjustment','sales_invoice'));
 
+create unique index if not exists global_invoice_items_invoice_id_uidx on global.invoice_items(invoice_id,id);
+
 create table if not exists global.invoice_stock_allocations (
  id uuid primary key default gen_random_uuid(),
  workspace_id uuid not null,
