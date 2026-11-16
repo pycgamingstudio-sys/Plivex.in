@@ -12,14 +12,12 @@ DECLARE
   approver uuid := '66666666-6666-4666-8666-666666666666';
   blocked boolean := false;
 BEGIN
-  INSERT INTO global.approval_policies(
-    workspace_id,resource_type,action_type,enabled,minimum_amount_minor,approver_roles,prevent_self_approval,created_by
-  ) VALUES
-    (ws,'expense','expense.create',true,1000,array['owner','admin']::text[],true,approver),
-    (ws,'expense','expense.update',true,1000,array['owner','admin']::text[],true,approver)
-  ON CONFLICT (workspace_id,resource_type,action_type) DO UPDATE SET
-    enabled=true,minimum_amount_minor=1000,approver_roles=array['owner','admin']::text[],
-    prevent_self_approval=true,updated_at=now();
+  result := public.global_set_approval_policy(requester,ws,'expense.create',true,1000,array['owner','admin']::text[],true);
+  IF result->>'code' <> 'ADMIN_REQUIRED' THEN RAISE EXCEPTION 'Non-admin changed approval policy: %',result; END IF;
+  result := public.global_set_approval_policy(approver,ws,'expense.create',true,1000,array['owner','admin']::text[],true);
+  IF result->>'ok' <> 'true' THEN RAISE EXCEPTION 'Admin could not set create policy: %',result; END IF;
+  result := public.global_set_approval_policy(approver,ws,'expense.update',true,1000,array['owner','admin']::text[],true);
+  IF result->>'ok' <> 'true' THEN RAISE EXCEPTION 'Admin could not set update policy: %',result; END IF;
 
   BEGIN
     INSERT INTO global.expenses(workspace_id,category,vendor,amount_minor,currency_code,expense_date,created_by,
