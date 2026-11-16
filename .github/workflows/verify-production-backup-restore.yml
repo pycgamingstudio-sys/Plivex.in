@@ -92,6 +92,8 @@ jobs:
           test -s ../backup/data.sql
           cd ..
           echo "Encrypted artifact checksum, decryption and archive structure verified."
+          echo "Schema dump custom-type declarations:"
+          grep -n -C 2 -E 'app_role|CREATE TYPE' backup/schema.sql | head -80 || true
 
       - name: Compare archived migration ledger with current production
         shell: bash
