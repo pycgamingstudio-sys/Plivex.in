@@ -299,7 +299,10 @@ declare
   v_result jsonb;
   v_revenue bigint;
 begin
-  if old.status='draft' and new.status='issued' and new.total_minor>0 then
+  if new.total_minor>0 and (
+    (tg_op='INSERT' and new.status='issued')
+    or (tg_op='UPDATE' and old.status='draft' and new.status='issued')
+  ) then
     v_revenue:=new.total_minor-new.tax_minor;
     v_lines:=jsonb_build_array(jsonb_build_object(
       'account_code','1100','debit_minor',new.total_minor,'credit_minor',0,'description','Accounts receivable'
@@ -392,7 +395,7 @@ revoke all on function global.accounting_after_expense() from public,anon,authen
 
 drop trigger if exists global_invoice_issued_accounting on global.invoices;
 create trigger global_invoice_issued_accounting
-  after update of status on global.invoices
+  after insert or update of status on global.invoices
   for each row execute function global.accounting_after_invoice_issued();
 drop trigger if exists global_invoice_payment_accounting on global.invoice_payments;
 create trigger global_invoice_payment_accounting
