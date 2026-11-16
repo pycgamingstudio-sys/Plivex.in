@@ -1,0 +1,185 @@
+name: Verify production backup restore
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_run_id:
+        description: "GitHub Actions run ID that created the encrypted production backup"
+        required: true
+        type: string
+        default: "43932273781"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  restore-verification:
+    name: Decrypt and restore into disposable Supabase PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        shell: bash
+        env:
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$BACKUP_ENCRYPTION_KEY" || { echo "::error::Missing BACKUP_ENCRYPTION_KEY repository secret."; exit 1; }
+          test -n "$SUPABASE_DB_URL" || { echo "::error::Missing SUPABASE_DB_URL repository secret."; exit 1; }
+
+      - name: Download the selected encrypted backup artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: plivex-production-db-backup
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.backup_run_id }}
+          path: backup-artifact
+
+      - name: Verify checksum and decrypt backup
+        shell: bash
+        env:
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          set -euo pipefail
+          cd backup-artifact
+          sha256sum -c production-db-backup.tar.gz.enc.sha256
+          openssl enc -d -aes-256-cbc -pbkdf2 -in production-db-backup.tar.gz.enc -out production-db-backup.tar.gz -pass env:BACKUP_ENCRYPTION_KEY
+          tar -tzf production-db-backup.tar.gz
+          mkdir -p ../backup
+          tar -xzf production-db-backup.tar.gz -C ../backup
+          test -s ../backup/roles.sql
+          test -s ../backup/schema.sql
+          test -s ../backup/data.sql
+          cd ..
+          echo "Encrypted artifact checksum, decryption and archive structure verified."
+
+      - name: Start disposable Supabase PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach --name plivex-production-restore-test \
+            --publish 5432:5432 \
+            --env POSTGRES_USER=postgres \
+            --env POSTGRES_PASSWORD=restore-test-only \
+            --env POSTGRES_DB=postgres \
+            supabase/postgres:17.6.1.136 \
+            postgres -c config_file=/etc/postgresql/postgresql.conf \
+              -c shared_preload_libraries=pg_cron,pg_net \
+              -c cron.database_name=postgres
+          ready=0
+          for attempt in $(seq 1 90); do
+            if docker exec -u postgres plivex-production-restore-test \
+              psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -Atqc 'SELECT 1' 2>/dev/null | grep -qx '1'; then
+              sleep 2
+              if docker exec -u postgres plivex-production-restore-test \
+                psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -Atqc 'SELECT 1' 2>/dev/null | grep -qx '1'; then
+                ready=1
+                break
+              fi
+            fi
+            sleep 2
+          done
+          if [ "$ready" != "1" ]; then docker logs plivex-production-restore-test; exit 1; fi
+
+      - name: Prepare Supabase-managed auth and storage prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec -i -u postgres plivex-production-restore-test \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f /dev/stdin \
+            < supabase/tests/migration-replay-bootstrap.sql
+
+      - name: Restore roles, schema and data into the disposable database
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Supabase's role-only dump may contain CREATE ROLE statements for roles
+          # already present in the Supabase Postgres image. Allow only those
+          # expected duplicate-role notices; fail on every other SQL error.
+          set +e
+          docker exec -i -u postgres plivex-production-restore-test \
+            psql -X -U postgres -d postgres -f /dev/stdin \
+            < backup/roles.sql > /tmp/plivex-restore-roles.log 2>&1
+          role_status=$?
+          set -e
+          if grep -E 'ERROR:' /tmp/plivex-restore-roles.log | grep -Ev 'already exists' >/tmp/plivex-unexpected-role-errors.log; then
+            cat /tmp/plivex-unexpected-role-errors.log
+            exit 1
+          fi
+          if [ "$role_status" -ne 0 ] && [ -s /tmp/plivex-unexpected-role-errors.log ]; then
+            exit "$role_status"
+          fi
+          docker exec -i -u postgres plivex-production-restore-test \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f /dev/stdin \
+            < backup/schema.sql
+          docker exec -i -u postgres plivex-production-restore-test \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f /dev/stdin \
+            < backup/data.sql
+          echo "Roles, schema and data restore commands completed."
+
+      - name: Verify restored application schema, RLS and row counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec -i -u postgres plivex-production-restore-test \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f /dev/stdin <<'SQL'
+          DO $verify$
+          DECLARE
+            missing text;
+            unprotected text;
+          BEGIN
+            SELECT string_agg(x.name, ', ')
+              INTO missing
+            FROM (VALUES
+              ('public.profiles'),('public.subscriptions'),('public.payment_logs'),
+              ('public.plan_limits'),('public.plan_features'),('public.usage_counters'),
+              ('public.invoice_share_links'),('global.workspaces'),('global.workspace_members'),
+              ('global.clients'),('global.products'),('global.stock_levels'),
+              ('global.stock_movements'),('global.invoices'),('global.invoice_items'),
+              ('global.invoice_payments'),('global.expenses')
+            ) AS x(name)
+            WHERE to_regclass(x.name) IS NULL;
+            IF missing IS NOT NULL THEN
+              RAISE EXCEPTION 'Restore is missing required application tables: %', missing;
+            END IF;
+
+            SELECT string_agg(x.name, ', ')
+              INTO unprotected
+            FROM (VALUES
+              ('public.profiles'),('public.subscriptions'),('public.payment_logs'),
+              ('public.plan_limits'),('public.plan_features'),('public.usage_counters'),
+              ('public.invoice_share_links'),('global.workspaces'),('global.workspace_members'),
+              ('global.clients'),('global.products'),('global.stock_levels'),
+              ('global.stock_movements'),('global.invoices'),('global.invoice_items'),
+              ('global.invoice_payments'),('global.expenses')
+            ) AS x(name)
+            WHERE NOT COALESCE((
+              SELECT c.relrowsecurity
+              FROM pg_class c
+              WHERE c.oid = to_regclass(x.name)
+            ), false);
+            IF unprotected IS NOT NULL THEN
+              RAISE EXCEPTION 'Restore contains application tables without RLS: %', unprotected;
+            END IF;
+          END
+          $verify$;
+
+          SELECT 'profiles' AS table_name, count(*) AS rows FROM public.profiles
+          UNION ALL SELECT 'subscriptions', count(*) FROM public.subscriptions
+          UNION ALL SELECT 'payment_logs', count(*) FROM public.payment_logs
+          UNION ALL SELECT 'global.workspaces', count(*) FROM global.workspaces
+          UNION ALL SELECT 'global.invoices', count(*) FROM global.invoices
+          UNION ALL SELECT 'global.products', count(*) FROM global.products
+          UNION ALL SELECT 'global.expenses', count(*) FROM global.expenses
+          ORDER BY table_name;
+          SQL
+
+      - name: Always stop disposable database
+        if: always()
+        run: docker rm --force plivex-production-restore-test || true
