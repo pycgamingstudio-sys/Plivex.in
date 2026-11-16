@@ -6,7 +6,7 @@ The accounting engine is additive and isolated in the private `global` schema. I
 
 ## Chart of accounts
 
-Every new Global workspace receives a standard chart of accounts. Existing Global workspaces receive only missing standard account definitions; no opening balances or financial entries are fabricated.
+Every new Global workspace receives a standard chart of accounts. Existing Global workspaces receive only missing standard account definitions; no opening balances or financial entries are fabricated. The chart includes 17 system accounts, including recoverable purchase tax, sales returns, and FX gain/loss.
 
 | Code | Account | Class | Normal balance |
 |---|---|---|---|
@@ -14,15 +14,19 @@ Every new Global workspace receives a standard chart of accounts. Existing Globa
 | 1010 | Bank Account | Asset | Debit |
 | 1100 | Accounts Receivable | Asset | Debit |
 | 1200 | Inventory | Asset | Debit |
+| 1300 | Recoverable Purchase Tax | Asset | Debit |
 | 2000 | Accounts Payable | Liability | Credit |
 | 2100 | Tax Payable | Liability | Credit |
 | 3000 | Owner Equity | Equity | Credit |
 | 3100 | Retained Earnings | Equity | Credit |
 | 4000 | Sales Revenue | Revenue | Credit |
+| 4050 | Sales Returns & Allowances | Revenue | Credit |
 | 4100 | Other Income | Revenue | Credit |
+| 4200 | Foreign Exchange Gain | Revenue | Credit |
 | 5000 | Cost of Goods Sold | Expense | Debit |
 | 6000 | Operating Expenses | Expense | Debit |
 | 6100 | Bank & Payment Fees | Expense | Debit |
+| 6200 | Foreign Exchange Loss | Expense | Debit |
 
 ## Posting rules
 
@@ -64,7 +68,7 @@ An accounting failure aborts the source write, avoiding a business record that h
 
 ## Explicit limitations
 
-- Posting and reports currently use the workspace base currency only. Foreign-currency conversion, FX gain/loss accounting, and multi-currency revaluation are not inferred.
+- Financial statements and journal lines are reported in the workspace base currency. Supplier purchase bills retain source-currency amounts and rate evidence; realized and unrealized FX differences are posted in base currency. This is not a general multi-currency ledger or automatic revaluation service for every asset/liability.
 - No opening balances are created automatically; they require reviewed, balanced opening journal entries.
-- Refunds and purchases are not yet automatically journal-posted. Refund tax allocation and purchase/stock valuation need dedicated reviewed workflows before they can affect financial statements.
+- Purchase bills, supplier payments, FX revaluations and invoice refunds have automatic journals and integration coverage. Other source workflows (for example, payroll, fixed assets, depreciation and bank-feed reconciliation) are outside this Part 3 scope.
 - The first release is an accounting ledger foundation, not a claim of jurisdiction-specific statutory accounting or tax compliance.
