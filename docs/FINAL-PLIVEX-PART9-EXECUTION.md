@@ -57,6 +57,18 @@ Status: execution backlog; NOT a completion claim.
 ### Global readiness
 - Country-by-country verified tax/document/payment capability matrix, jurisdiction-effective rules, local formats, language/date/number/address behavior and clear unsupported-country handling.
 
+## Implemented candidate slice — Global expense approval gates
+
+Implemented on this Part 9 branch in `20261116170000_part9_expense_approval_gates.sql`:
+- Workspace-scoped approval policies for expense creation and material expense updates.
+- Configurable minimum amount, eligible approver roles and self-approval prevention.
+- Database BEFORE triggers enforce the gate for all write paths, including direct service-role RPC inserts/updates; a UI-only check cannot bypass it.
+- Approval must match the resource key, action, amount, category, vendor, expense date and currency, and must be decided by an active member with an allowed role.
+- Disposable integration test covers blocked unapproved create/update and successful approved create/update.
+- Candidate migration is included in migration replay manifest and replay test script.
+
+**Scope:** this slice currently covers Global expense create/update only. It does not yet gate invoice issue/payment, India routes, or every other protected mutation. A workspace policy must be configured to enable the gate. The Part 9 branch remains unreleased.
+
 ## Required execution protocol
 For each candidate feature:
 1. Trace existing frontend, database, RLS, Edge Functions, integrations and tests.
