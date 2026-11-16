@@ -2,7 +2,7 @@ import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowe
 
 const TABLE_FIELDS: Record<string, readonly string[]> = {
   clients: ["name", "email", "phone", "tax_registration_number", "billing_address", "shipping_address", "notes", "status"],
-  products: ["name", "sku", "description", "unit", "sale_price_minor", "purchase_cost_minor", "currency_code", "tax_code", "is_active"],
+  products: ["name", "sku", "barcode", "variant_of", "variant_label", "description", "unit", "sale_price_minor", "purchase_cost_minor", "currency_code", "tax_code", "is_active"],
   expenses: ["category", "vendor", "amount_minor", "currency_code", "expense_date", "payment_method", "reference", "notes", "attachment_url"],
   business_profiles: ["legal_name", "display_name", "email", "phone", "address", "tax_registration_number", "tax_registration_type", "tax_registration_status", "tax_registration_effective_from", "tax_jurisdiction_code"],
 };
@@ -23,7 +23,7 @@ function validateValues(table: string, values: Record<string, unknown>, creating
 
   const textLimits: Record<string, number> = {
     name: 200, email: 254, phone: 40, tax_registration_number: 80,
-    notes: 4000, sku: 80, description: 4000, unit: 32, tax_code: 64,
+    notes: 4000, sku: 80, barcode: 100, variant_label: 120, description: 4000, unit: 32, tax_code: 64,
     category: 100, vendor: 200, payment_method: 80, reference: 160, attachment_url: 2000,
     legal_name: 200, display_name: 200, tax_registration_type: 32, tax_jurisdiction_code: 32, address: 2000,
   };
@@ -45,6 +45,7 @@ function validateValues(table: string, values: Record<string, unknown>, creating
     if (creating && (typeof values.name !== "string" || !values.name.trim())) return "Product name is required.";
     if (values.name !== undefined && (typeof values.name !== "string" || !values.name.trim())) return "Product name is required.";
     if (values.unit !== undefined && (typeof values.unit !== "string" || !values.unit.trim())) return "Unit is required.";
+    if (values.variant_of !== undefined && values.variant_of !== null && (typeof values.variant_of !== "string" || !UUID.test(values.variant_of))) return "Choose a valid parent product for this variant.";
     for (const key of ["sale_price_minor", "purchase_cost_minor"]) {
       const value = values[key];
       if (value !== undefined && (!Number.isSafeInteger(value) || Number(value) < 0)) return `${key} must be a non-negative integer.`;
