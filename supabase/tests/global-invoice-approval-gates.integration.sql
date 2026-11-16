@@ -67,7 +67,6 @@ BEGIN
 
   DELETE FROM global.invoice_payments WHERE id=payment_id AND workspace_id=ws;
   DELETE FROM global.invoices WHERE id=invoice_id AND workspace_id=ws;
-  DELETE FROM global.approval_requests WHERE workspace_id=ws AND resource_type='invoice' AND resource_id=invoice_id::text;
   DELETE FROM global.approval_policies WHERE workspace_id=ws AND resource_type='invoice';
 END
 $part9_invoice_approval$;
