@@ -3,7 +3,7 @@
   "captured_at": "2026-11-14",
   "source": "read-only SELECT from supabase_migrations.schema_migrations (version,name,statements)",
   "remote_ledger_entries": 52,
-  "local_migration_files": 39,
+  "local_migration_files": 47,
   "exact_version_matches": 0,
   "basename_matches": [
     {
@@ -360,7 +360,15 @@
     "202611150011_global_invoice_issuance_and_refunds.sql",
     "20261115190000_self_service_country_reset.sql",
     "20261115191500_country_reset_region_alignment.sql",
-    "20261115131630_global_workspace_country_change_part7.sql"
+    "20261115131630_global_workspace_country_change_part7.sql",
+    "202611160001_global_part4_crm_warehouse_procurement.sql",
+    "202611160002_global_part4_transactional_operations.sql",
+    "202611160003_india_part4_warehouse_crm_purchase.sql",
+    "202611160004_india_part4_transactional_rpcs.sql",
+    "202611160005_india_invoice_stock_atomicity.sql",
+    "202611160006_global_invoice_stock_atomicity.sql",
+    "20261116100000_global_accounting_double_entry.sql",
+    "20261116110000_global_accounting_part3b_fx_purchases_refunds.sql"
   ],
   "notes": [
     "Recovered SQL is copied from the production migration ledger statements column.",
@@ -379,7 +387,8 @@
     "202611150008_global_invoice_draft_and_payment_ledger.sql adds service-role-only Global draft invoice creation and idempotent external-payment recording; draft invoices are explicitly marked tax-not-calculated and cannot be issued as tax invoices.",
     "20261115190000_self_service_country_reset.sql adds the service-role-only atomic country reset RPC, private cooldown/audit state, and safe historical Global country-event FK behavior; included in disposable candidate replay.",
     "20261115191500_country_reset_region_alignment.sql aligns India country/locale with canonical public.profiles fields, adds secure locale-only updates, and replaces the reset RPC; country-reset transition, cooldown, owner guard, subscription preservation and rollback tests run only in the disposable candidate database.",
-    "20261115131630_global_workspace_country_change_part7.sql is reconstructed from the exact production migration-ledger statements for the already-applied Global workspace country-change Part 7 migration; tracked locally so disposable replay creates the country-change audit table before the country-reset migration alters its deletion behavior."
+    "20261115131630_global_workspace_country_change_part7.sql is reconstructed from the exact production migration-ledger statements for the already-applied Global workspace country-change Part 7 migration; tracked locally so disposable replay creates the country-change audit table before the country-reset migration alters its deletion behavior.",
+    "Part 4–6 migrations and the Global accounting migrations are included in the combined disposable candidate replay; the manifest count includes all 47 current local migration files. No production migration is applied by this branch."
   ],
   "recovered_historical_sources": [
     {
