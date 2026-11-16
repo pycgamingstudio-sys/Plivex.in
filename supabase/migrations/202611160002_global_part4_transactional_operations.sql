@@ -46,7 +46,7 @@ as $$
 declare
  v_role text; v_currency text; v_id uuid; v_row jsonb; v_item jsonb; v_order global.purchase_orders%rowtype;
  v_receipt global.purchase_receipts%rowtype; v_po_item global.purchase_order_items%rowtype;
- v_qty numeric(18,4); v_batch text; v_expiry date; v_received numeric(18,4); v_fingerprint text;
+ v_qty numeric(18,4); v_batch text; v_expiry date; v_received numeric(18,4); v_fingerprint text; v_subtotal numeric(20,0);
 begin
  if p_user_id is null or p_workspace_id is null or jsonb_typeof(p_values)<>'object' then return jsonb_build_object('ok',false,'reason','invalid_request'); end if;
  select role into v_role from global.workspace_members where workspace_id=p_workspace_id and user_id=p_user_id and status='active' limit 1;
@@ -79,6 +79,19 @@ begin
    return jsonb_build_object('ok',true,'record',v_row);
  end if;
 
+ if p_action='update_lead' then
+   if nullif(p_values->>'lead_id','') is null then return jsonb_build_object('ok',false,'reason','invalid_lead'); end if;
+   update global.crm_leads set
+     stage=coalesce(nullif(p_values->>'stage',''),stage),
+     next_follow_up_at=case when p_values ? 'next_follow_up_at' then nullif(p_values->>'next_follow_up_at','')::timestamptz else next_follow_up_at end,
+     score=case when p_values ? 'score' then least(100,greatest(0,(p_values->>'score')::integer)) else score end,
+     updated_at=now()
+   where workspace_id=p_workspace_id and id=(p_values->>'lead_id')::uuid
+   returning id,to_jsonb(crm_leads) into v_id,v_row;
+   if v_id is null then return jsonb_build_object('ok',false,'reason','lead_not_found'); end if;
+   return jsonb_build_object('ok',true,'record',v_row);
+ end if;
+
  if p_action='add_lead_activity' then
    if nullif(p_values->>'lead_id','') is null or length(btrim(coalesce(p_values->>'body','')))=0 then return jsonb_build_object('ok',false,'reason','invalid_activity'); end if;
    insert into global.crm_activities(workspace_id,lead_id,activity_type,body,due_at,created_by)
@@ -97,13 +110,16 @@ begin
    values(p_workspace_id,trim(p_values->>'supplier_name'),p_values->>'supplier_reference','ordered',v_currency,
      coalesce(nullif(p_values->>'order_date','')::date,current_date),nullif(p_values->>'expected_date','')::date,p_values->>'notes',p_user_id)
    returning * into v_order;
+   v_subtotal := 0;
    for v_item in select value from jsonb_array_elements(p_values->'items') loop
      if nullif(v_item->>'product_id','') is null or coalesce((v_item->>'quantity_ordered')::numeric,0)<=0
        or coalesce((v_item->>'unit_cost_minor')::bigint,-1)<0 then raise exception 'invalid_purchase_item'; end if;
+     v_subtotal := v_subtotal + round((v_item->>'quantity_ordered')::numeric * (v_item->>'unit_cost_minor')::numeric);
      insert into global.purchase_order_items(workspace_id,purchase_order_id,product_id,quantity_ordered,unit_cost_minor)
      values(p_workspace_id,v_order.id,(v_item->>'product_id')::uuid,(v_item->>'quantity_ordered')::numeric,(v_item->>'unit_cost_minor')::bigint);
    end loop;
-   return jsonb_build_object('ok',true,'purchase_order_id',v_order.id);
+   update global.purchase_orders set subtotal_minor=v_subtotal where id=v_order.id;
+   return jsonb_build_object('ok',true,'purchase_order_id',v_order.id,'subtotal_minor',v_subtotal);
  end if;
 
  if p_action='receive_purchase_order' then
