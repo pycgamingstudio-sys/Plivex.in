@@ -12,6 +12,8 @@ jobs:
         with:
           node-version: 20
       - run: npm install --no-audit --no-fund
+      - name: Validate production-baseline replay script syntax
+        run: bash -n scripts/verify-production-baseline-replay.sh
       - run: npm run test:membership
       - run: npm run test:global
       - run: npm run build
