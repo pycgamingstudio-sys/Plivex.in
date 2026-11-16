@@ -10,7 +10,7 @@ const base = {
   taxCategory: "standard-rated", treatment: "standard", priceMode: "exclusive",
   rule: {
     id: "GB-STD", version: "1", countryCode: "GB", currencyCode: "GBP", treatment: "standard",
-    verified: true, effectiveFrom: "2026-01-01", source: "https://www.gov.uk/vat-rates",
+    verified: true, effectiveFrom: "2026-01-01", reviewedOn: "2026-11-16", reviewedBy: "Plivex tax review", source: "https://www.gov.uk/vat-rates",
     components: [{ id: "VAT", rateBps: 2000, source: "https://www.gov.uk/vat-rates" }],
   },
 };
@@ -28,4 +28,13 @@ test("fails closed for invalid currency, unsupported treatment and expired regis
 test("rejects unofficial rule source and safely rejects total overflow", () => {
   assert.equal(calculateVerifiedTaxRule({ ...base, rule: { ...base.rule, source: "https://example.com" } }).code, "INVALID_OR_INACTIVE_RULE");
   assert.equal(calculateVerifiedTaxRule({ ...base, amountMinor: Number.MAX_SAFE_INTEGER }).code, "AMOUNT_OUT_OF_RANGE");
+});
+
+test("rejects a rule marked verified without reviewer and review date", () => {
+  const { reviewedOn, reviewedBy, ...unreviewed } = base.rule;
+  assert.equal(calculateVerifiedTaxRule({ ...base, rule: unreviewed }).code, "INVALID_OR_INACTIVE_RULE");
+  assert.equal(calculateVerifiedTaxRule({ ...base, rule: { ...base.rule, reviewedOn: "2026-11-17" } }).code, "INVALID_OR_INACTIVE_RULE");
+});
+test("rejects malformed effective-date ranges", () => {
+  assert.equal(calculateVerifiedTaxRule({ ...base, rule: { ...base.rule, effectiveTo: "2025-12-31" } }).code, "INVALID_OR_INACTIVE_RULE");
 });
