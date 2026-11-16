@@ -176,10 +176,10 @@ begin
 end $$;
 
 grant select on global.warehouses,global.warehouse_stock_levels,global.inventory_batches,
-  global.warehouse_stock_movements,global.warehouse_stock_movements,global.stock_transfers,global.stock_transfer_items,global.purchase_orders,global.purchase_order_items,
+  global.warehouse_stock_movements,global.stock_transfers,global.stock_transfer_items,global.purchase_orders,global.purchase_order_items,
   global.crm_leads,global.crm_activities to authenticated;
 grant all on global.warehouses,global.warehouse_stock_levels,global.inventory_batches,
-  global.stock_transfers,global.stock_transfer_items,global.purchase_orders,global.purchase_order_items,
+  global.warehouse_stock_movements,global.stock_transfers,global.stock_transfer_items,global.purchase_orders,global.purchase_order_items,
   global.crm_leads,global.crm_activities to service_role;
 
 create or replace function public.global_part4_list(
