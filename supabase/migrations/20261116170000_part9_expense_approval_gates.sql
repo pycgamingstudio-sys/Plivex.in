@@ -20,6 +20,7 @@ create table if not exists global.approval_policies (
 );
 
 alter table global.approval_policies enable row level security;
+alter table global.approval_requests add column if not exists consumed_at timestamptz;
 drop policy if exists global_approval_policies_admin_read on global.approval_policies;
 create policy global_approval_policies_admin_read on global.approval_policies
   for select to authenticated using (global.is_workspace_admin(workspace_id));
@@ -45,6 +46,8 @@ declare
   v_amount bigint;
   v_policy global.approval_policies%rowtype;
   v_approved boolean := false;
+  v_approval_id uuid;
+  v_requester_id uuid;
 begin
   if tg_op = 'INSERT' then
     v_action := 'expense.create';
@@ -73,8 +76,7 @@ begin
 
   if v_policy.id is null then return new; end if;
 
-  select exists (
-    select 1
+  select ar.id, ar.requester_id into v_approval_id, v_requester_id
     from global.approval_requests ar
     join global.workspace_members approver
       on approver.workspace_id = ar.workspace_id
@@ -85,6 +87,7 @@ begin
       and ar.action_type = v_action
       and ar.resource_id = v_resource_id
       and ar.status = 'approved'
+      and ar.consumed_at is null
       and approver.role = any(v_policy.approver_roles)
       and (not v_policy.prevent_self_approval or ar.requester_id <> ar.approver_id)
       and coalesce(ar.payload->>'amountMinor','') = v_amount::text
@@ -92,7 +95,11 @@ begin
       and coalesce(ar.payload->>'vendor','') = coalesce(new.vendor,'')
       and coalesce(ar.payload->>'expenseDate','') = to_char(new.expense_date,'YYYY-MM-DD')
       and coalesce(ar.payload->>'currencyCode','') = coalesce(new.currency_code,'')
-  ) into v_approved;
+      and (tg_op <> 'INSERT' or ar.requester_id = new.created_by)
+    order by ar.created_at desc
+    limit 1
+    for update of ar;
+  v_approved := v_approval_id is not null;
 
   if not v_approved then
     raise exception 'approval_required'
@@ -105,6 +112,14 @@ begin
         )::text;
   end if;
 
+  update global.approval_requests set consumed_at = now(), updated_at = now()
+    where id = v_approval_id and consumed_at is null;
+  if not found then
+    raise exception 'approval_already_consumed' using errcode = '42501';
+  end if;
+  insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
+    values (new.workspace_id, v_requester_id, 'approval.consumed', 'approval_request', v_approval_id::text,
+      jsonb_build_object('resourceType','expense','actionType',v_action,'resourceId',v_resource_id));
   return new;
 end;
 $function$;
