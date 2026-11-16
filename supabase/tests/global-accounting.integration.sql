@@ -1,6 +1,13 @@
 \set ON_ERROR_STOP on
 -- Synthetic journal fixtures run only against the disposable migration replay database.
 SET ROLE service_role;
+INSERT INTO global.workspaces(id,name,country_code,locale_code,currency_code,created_by)
+VALUES ('99999999-aaaa-4999-8999-999999999999','Accounting Test Workspace','GB','en-GB','GBP','66666666-6666-4666-8666-666666666666');
+INSERT INTO global.workspace_members(workspace_id,user_id,role,status)
+VALUES
+ ('99999999-aaaa-4999-8999-999999999999','66666666-6666-4666-8666-666666666666','owner','active'),
+ ('99999999-aaaa-4999-8999-999999999999','b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2','accountant','active'),
+ ('99999999-aaaa-4999-8999-999999999999','88888888-8888-4888-8888-888888888888','manager','active');
 DO $accounting_engine$
 DECLARE
   posted jsonb;
@@ -14,13 +21,13 @@ DECLARE
   entry_count bigint;
 BEGIN
   IF (SELECT count(*) FROM global.accounting_accounts
-      WHERE workspace_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc') < 13 THEN
+      WHERE workspace_id='99999999-aaaa-4999-8999-999999999999') < 13 THEN
     RAISE EXCEPTION 'Default chart of accounts was not seeded for existing workspace';
   END IF;
 
   posted := public.global_post_journal_entry(
     'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2',
-    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    '99999999-aaaa-4999-8999-999999999999',
     '2026-11-16','GBP','Test sales receipt','manual',NULL,
     jsonb_build_array(
       jsonb_build_object('account_code','1000','debit_minor',5000,'credit_minor',0,'description','Cash received'),
@@ -35,7 +42,7 @@ BEGIN
 
   retry := public.global_post_journal_entry(
     'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2',
-    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    '99999999-aaaa-4999-8999-999999999999',
     '2026-11-16','GBP','Test sales receipt','manual',NULL,
     jsonb_build_array(
       jsonb_build_object('account_code','1000','debit_minor',5000,'credit_minor',0,'description','Cash received'),
@@ -50,7 +57,7 @@ BEGIN
 
   conflict_result := public.global_post_journal_entry(
     'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2',
-    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    '99999999-aaaa-4999-8999-999999999999',
     '2026-11-16','GBP','Changed memo','manual',NULL,
     jsonb_build_array(
       jsonb_build_object('account_code','1000','debit_minor',5000,'credit_minor',0),
@@ -64,7 +71,7 @@ BEGIN
 
   unbalanced := public.global_post_journal_entry(
     'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2',
-    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    '99999999-aaaa-4999-8999-999999999999',
     '2026-11-16','GBP','Unbalanced','manual',NULL,
     jsonb_build_array(
       jsonb_build_object('account_code','1000','debit_minor',5000,'credit_minor',0),
@@ -78,7 +85,7 @@ BEGIN
 
   wrong_currency := public.global_post_journal_entry(
     'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2',
-    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    '99999999-aaaa-4999-8999-999999999999',
     '2026-11-16','USD','Wrong currency','manual',NULL,
     jsonb_build_array(
       jsonb_build_object('account_code','1000','debit_minor',100,'credit_minor',0),
@@ -92,7 +99,7 @@ BEGIN
 
   bad_account := public.global_post_journal_entry(
     'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2',
-    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    '99999999-aaaa-4999-8999-999999999999',
     '2026-11-16','GBP','Unknown account','manual',NULL,
     jsonb_build_array(
       jsonb_build_object('account_code','9999','debit_minor',100,'credit_minor',0),
@@ -106,7 +113,7 @@ BEGIN
 
   denied := public.global_post_journal_entry(
     '88888888-8888-4888-8888-888888888888',
-    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    '99999999-aaaa-4999-8999-999999999999',
     '2026-11-16','GBP','Manager denied','manual',NULL,
     jsonb_build_array(
       jsonb_build_object('account_code','1000','debit_minor',100,'credit_minor',0),
@@ -133,7 +140,7 @@ BEGIN
   END IF;
 
   SELECT count(*) INTO entry_count FROM global.journal_entries
-  WHERE workspace_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  WHERE workspace_id='99999999-aaaa-4999-8999-999999999999';
   IF entry_count<>1 THEN RAISE EXCEPTION 'Rejected or duplicate journal requests created rows: %',entry_count; END IF;
 
   BEGIN
@@ -148,7 +155,27 @@ BEGIN
   END;
 END
 $accounting_engine$;
+  IF NOT EXISTS (SELECT 1 FROM global.journal_entries WHERE workspace_id='99999999-aaaa-4999-8999-999999999999' AND source_type='manual' AND id=entry_id) THEN
+    RAISE EXCEPTION 'Posted manual journal source was not retained';
+  END IF;
+END
+$accounting_engine$;
 RESET ROLE;
+
+-- Prior Global business workflows must have produced accounting journals atomically.
+DO $source_journals$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM global.journal_entries WHERE workspace_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc' AND source_type='expense') THEN
+    RAISE EXCEPTION 'Global expense creation did not create its accounting journal';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM global.journal_entries WHERE workspace_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc' AND source_type='invoice_issued') THEN
+    RAISE EXCEPTION 'Global invoice issuance did not create its accounting journal';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM global.journal_entries WHERE workspace_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc' AND source_type='invoice_payment') THEN
+    RAISE EXCEPTION 'Global invoice payment did not create its accounting journal';
+  END IF;
+END
+$source_journals$;
 
 SET ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','66666666-6666-4666-8666-666666666666',false);
@@ -158,7 +185,7 @@ DECLARE
   ledger jsonb;
 BEGIN
   trial := public.global_get_trial_balance(
-    'cccccccc-cccc-4ccc-8ccc-cccccccccccc','2026-11-01','2026-11-30','GBP'
+    '99999999-aaaa-4999-8999-999999999999','2026-11-01','2026-11-30','GBP'
   );
   IF trial->>'total_debit_minor'<>'5000'
     OR trial->>'total_credit_minor'<>'5000'
@@ -170,7 +197,7 @@ BEGIN
   END IF;
 
   ledger := public.global_get_general_ledger(
-    'cccccccc-cccc-4ccc-8ccc-cccccccccccc','1000','2026-11-01','2026-11-30','GBP'
+    '99999999-aaaa-4999-8999-999999999999','1000','2026-11-01','2026-11-30','GBP'
   );
   IF jsonb_array_length(ledger->'entries')<>1
     OR ledger->'entries'->0->>'running_debit_minor'<>'5000' THEN
@@ -178,7 +205,7 @@ BEGIN
   END IF;
 
   statements := public.global_get_financial_statements(
-    'cccccccc-cccc-4ccc-8ccc-cccccccccccc','2026-11-01','2026-11-30','GBP'
+    '99999999-aaaa-4999-8999-999999999999','2026-11-01','2026-11-30','GBP'
   );
   IF statements->'income_statement'->>'revenue_minor'<>'5000'
     OR statements->'income_statement'->>'expenses_minor'<>'0'
