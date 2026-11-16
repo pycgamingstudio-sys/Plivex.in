@@ -251,7 +251,7 @@ function assertGlobalBackupRestore(port) {
   });
   if (create.status !== 0) fail("Could not create disposable restore-drill database: " + (create.stderr || ""));
   try {
-    const dump = spawnSync("pg_dump", ["-Fc","--no-owner","--no-privileges","-f",dumpPath,sourceDb], {
+    const dump = spawnSync("pg_dump", ["-Fc","--no-owner","--no-privileges","--exclude-extension=pg_cron","-f",dumpPath,sourceDb], {
       cwd: root, env: envFor(port, sourceDb), encoding: "utf8",
     });
     if (dump.status !== 0) fail("Disposable candidate backup failed: " + (dump.stderr || ""));
