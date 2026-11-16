@@ -177,6 +177,17 @@ BEGIN
     RAISE EXCEPTION 'General ledger detail or running balance is wrong: %',ledger;
   END IF;
 
+  statements := public.global_get_financial_statements(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc','2026-11-01','2026-11-30','GBP'
+  );
+  IF statements->'income_statement'->>'revenue_minor'<>'5000'
+    OR statements->'income_statement'->>'expenses_minor'<>'0'
+    OR statements->'balance_sheet'->>'assets_minor'<>'5000'
+    OR statements->'balance_sheet'->>'unclosed_earnings_minor'<>'5000'
+    OR statements->'balance_sheet'->>'balanced'<>'true' THEN
+    RAISE EXCEPTION 'Income statement or balance sheet is inconsistent: %',statements;
+  END IF;
+
   BEGIN
     PERFORM public.global_get_trial_balance('dddddddd-dddd-4ddd-8ddd-dddddddddddd',NULL,NULL,'USD');
     RAISE EXCEPTION 'Cross-workspace accounting report was allowed';
