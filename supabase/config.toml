@@ -19,3 +19,7 @@ verify_jwt = true
 # Global business records use their own schema and validate membership in the handler.
 [functions.global-business-records]
 verify_jwt = true
+
+# Global enterprise workspace controls require a verified Supabase JWT.
+[functions.global-enterprise]
+verify_jwt = true

@@ -13,6 +13,7 @@ test("enterprise migration keeps Global data in private schema and enables RLS",
 });
 test("enterprise RPC is service-role-only and rechecks workspace membership", () => {
   assert.match(migration, /global_enterprise_action/);
+  assert.match(migration, /exchange_rate_snapshots_immutable/);
   assert.match(migration, /status='active'/);
   assert.match(migration, /revoke all on function public\.global_enterprise_action[^;]+from public, anon, authenticated/i);
   assert.match(migration, /grant execute on function public\.global_enterprise_action[^;]+to service_role/i);

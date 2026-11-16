@@ -194,6 +194,9 @@ $$;
 drop trigger if exists tax_rule_versions_immutable on global.tax_rule_versions;
 create trigger tax_rule_versions_immutable before update or delete on global.tax_rule_versions
   for each row execute function global.reject_immutable_row_mutation();
+drop trigger if exists exchange_rate_snapshots_immutable on global.exchange_rate_snapshots;
+create trigger exchange_rate_snapshots_immutable before update or delete on global.exchange_rate_snapshots
+  for each row execute function global.reject_immutable_row_mutation();
 drop trigger if exists audit_events_immutable on global.audit_events;
 create trigger audit_events_immutable before update on global.audit_events
   for each row execute function global.reject_immutable_row_mutation();
@@ -254,10 +257,11 @@ begin
   if v_member.id is null then return jsonb_build_object('ok',false,'code','ACCESS_DENIED'); end if;
   v_admin := v_member.role in ('owner','admin');
 
-  if p_action in ('branch.create','branch.archive','permission.set','retention.set') then
+  if p_action in ('branch.create','branch.archive','permission.set','retention.set','fx.snapshot.create') then
     if not v_admin then return jsonb_build_object('ok',false,'code','ADMIN_REQUIRED'); end if;
-  elsif p_action in ('approval.request','approval.decide','approval.list','audit.list','export.request') then
+  elsif p_action in ('branch.list','approval.request','approval.decide','approval.list','audit.list','export.request') then
     v_permission := case p_action
+      when 'branch.list' then 'branch.read'
       when 'approval.request' then 'approval.request'
       when 'approval.decide' then 'approval.decide'
       when 'approval.list' then 'approval.read'
@@ -286,7 +290,36 @@ begin
     return jsonb_build_object('ok',false,'code','UNSUPPORTED_ACTION');
   end if;
 
-  if p_action = 'branch.create' then
+  if p_action = 'fx.snapshot.create' then
+    if coalesce(p_payload->>'baseCurrency','') not in ('INR','USD','EUR','GBP','AED','CAD','AUD','SGD','JPY','KRW','KWD','BHD','OMR','JOD')
+      or coalesce(p_payload->>'quoteCurrency','') not in ('INR','USD','EUR','GBP','AED','CAD','AUD','SGD','JPY','KRW','KWD','BHD','OMR','JOD')
+      or p_payload->>'baseCurrency' = p_payload->>'quoteCurrency'
+      or coalesce(p_payload->>'rateNumerator','') !~ '^[1-9][0-9]{0,37}$'
+      or coalesce(p_payload->>'rateDenominator','') !~ '^[1-9][0-9]{0,37}$'
+      or coalesce(p_payload->>'sourceUrl','') !~ '^https://'
+      or length(btrim(coalesce(p_payload->>'provider',''))) not between 1 and 100 then
+      return jsonb_build_object('ok',false,'code','INVALID_FX_SNAPSHOT');
+    end if;
+    if p_payload ? 'effectiveAt' and coalesce(p_payload->>'effectiveAt','') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$' then
+      return jsonb_build_object('ok',false,'code','INVALID_FX_TIMESTAMP');
+    end if;
+    insert into global.exchange_rate_snapshots(workspace_id,base_currency,quote_currency,rate_numerator,rate_denominator,
+      source_url,provider,effective_at,created_by)
+    values (p_workspace_id,p_payload->>'baseCurrency',p_payload->>'quoteCurrency',
+      (p_payload->>'rateNumerator')::numeric,(p_payload->>'rateDenominator')::numeric,
+      p_payload->>'sourceUrl',btrim(p_payload->>'provider'),
+      coalesce((p_payload->>'effectiveAt')::timestamptz,now()),p_user_id)
+    returning id into v_id;
+    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
+    values (p_workspace_id,p_user_id,'fx.snapshot_created','exchange_rate_snapshot',v_id::text,
+      jsonb_build_object('baseCurrency',p_payload->>'baseCurrency','quoteCurrency',p_payload->>'quoteCurrency'));
+    return jsonb_build_object('ok',true,'snapshotId',v_id);
+  elsif p_action = 'branch.list' then
+    select coalesce(jsonb_agg(to_jsonb(b) order by b.name),'[]'::jsonb) into v_events
+      from (select id,branch_code,name,address,status,created_at,updated_at
+        from global.workspace_branches where workspace_id=p_workspace_id order by name limit 100) b;
+    return jsonb_build_object('ok',true,'branches',coalesce(v_events,'[]'::jsonb));
+  elsif p_action = 'branch.create' then
     if coalesce(p_payload->>'branchCode','') !~ '^[A-Z0-9][A-Z0-9_-]{0,31}$'
       or length(btrim(coalesce(p_payload->>'name',''))) not between 1 and 160
       or (p_payload ? 'address' and jsonb_typeof(p_payload->'address') <> 'object') then
