@@ -3,7 +3,7 @@
   "captured_at": "2026-11-14",
   "source": "read-only SELECT from supabase_migrations.schema_migrations (version,name,statements)",
   "remote_ledger_entries": 52,
-  "local_migration_files": 47,
+  "local_migration_files": 53,
   "exact_version_matches": 0,
   "basename_matches": [
     {
@@ -368,7 +368,13 @@
     "202611160005_india_invoice_stock_atomicity.sql",
     "202611160006_global_invoice_stock_atomicity.sql",
     "20261116100000_global_accounting_double_entry.sql",
-    "20261116110000_global_accounting_part3b_fx_purchases_refunds.sql"
+    "20261116110000_global_accounting_part3b_fx_purchases_refunds.sql",
+    "202611150009_safe_workspace_country_migration_requests.sql",
+    "202611150010_harden_country_migration_request_rls.sql",
+    "202611150011_global_invoice_issuance_and_refunds.sql",
+    "20261115131630_global_workspace_country_change_part7.sql",
+    "20261115190000_self_service_country_reset.sql",
+    "20261115191500_country_reset_region_alignment.sql"
   ],
   "notes": [
     "Recovered SQL is copied from the production migration ledger statements column.",
@@ -388,7 +394,8 @@
     "202611160002_global_tax_audit_and_publication.sql adds service-role-only tax-rule publication and immutable workspace tax-calculation audit records; candidate replay only.",
     "202611160003_global_multicurrency_expenses.sql adds source-attributed foreign-currency expense posting with immutable FX snapshots/conversion history and idempotent retries; candidate replay only.",
     "202611160001_global_enterprise_controls.sql adds the Global tax-rule/FX snapshot registry and enterprise controls; candidate replay only.",
-    "Combined 90 Percent Blueprint replay includes Parts 4–6, Global accounting, and Parts 7–8 using unique ordered migration versions. All 51 local migration files are replayed only in disposable PostgreSQL validation; no production migration is applied by this branch."
+    "Combined 90 Percent Blueprint replay includes Parts 4–6, Global accounting, and Parts 7–8 using unique ordered migration versions. All 51 local migration files are replayed only in disposable PostgreSQL validation; no production migration is applied by this branch.",
+    "The disposable candidate replay includes the previously omitted country-request/reset migrations and Global invoice issuance/refund ledger migration. The duplicate local file 20261115072000_global_workspace_country_change.sql is intentionally not replayed because its SQL blob is byte-identical to the recorded 20261115131630_global_workspace_country_change_part7.sql source; the latter is replayed once under its recorded version."
   ],
   "recovered_historical_sources": [
     {
