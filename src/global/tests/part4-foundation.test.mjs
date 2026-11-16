@@ -15,7 +15,7 @@ test("Part 4 adds Global CRM, warehouses, batches and purchasing without alterin
 });
 
 test("all new Global Part 4 tables enable member-scoped RLS", () => {
-  assert.ok(migration.includes("foreach table_name in array array["));
+  assert.ok(migration.includes("foreach t in array array["));
   assert.ok(migration.includes("alter table global.%I enable row level security"));
   assert.ok(migration.includes("create policy global_%I_select_member"));
   for (const table of ["warehouses","warehouse_stock_levels","inventory_batches","stock_transfers","stock_transfer_items","purchase_orders","purchase_order_items","crm_leads","crm_activities"]) {
