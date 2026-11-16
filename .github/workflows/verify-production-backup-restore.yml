@@ -39,20 +39,8 @@ jobs:
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
-      - name: Verify production migration ledger still matches the backed-up baseline
-        shell: bash
-        env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        run: |
-          set -euo pipefail
-          actual="$(psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -A -t \
-            -c "SELECT count(*) || '|' || max(version) FROM supabase_migrations.schema_migrations;")"
-          expected="62|20261116091409"
-          if [ "$actual" != "$expected" ]; then
-            echo "::error::Production migration ledger changed. Expected $expected; received $actual. Reconcile the migration plan before replay."
-            exit 1
-          fi
-          echo "PASS: production migration ledger matches the 62-entry backup baseline."
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
       - name: Download the selected encrypted backup artifact
         uses: actions/download-artifact@v4
@@ -80,10 +68,24 @@ jobs:
           test -s ../backup/auth-data.sql
           test -s ../backup/storage-schema.sql
           test -s ../backup/storage-data.sql
+          test -s ../backup/migration-ledger.tsv
           test -s ../backup/schema.sql
           test -s ../backup/data.sql
           cd ..
           echo "Encrypted artifact checksum, decryption and archive structure verified."
+
+      - name: Compare archived migration ledger with current production
+        shell: bash
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -A -t -F '|' \
+            -c "SELECT version, name FROM supabase_migrations.schema_migrations ORDER BY version" \
+            > /tmp/plivex-live-migration-ledger.tsv
+          diff -u backup/migration-ledger.tsv /tmp/plivex-live-migration-ledger.tsv
+          echo "PASS: the encrypted backup's exact migration ledger matches production."
+
 
       - name: Start disposable Supabase PostgreSQL
         shell: bash
