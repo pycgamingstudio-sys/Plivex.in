@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/api/backendClient";
 import GlobalCountryOnboarding from "@/components/global/GlobalCountryOnboarding";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
+import GlobalEnterprisePanel from "@/components/global/GlobalEnterprisePanel";
 
 const NAV = [
   { id: "overview", label: "Overview" },
@@ -10,6 +11,7 @@ const NAV = [
   { id: "expenses", label: "Expenses" },
   { id: "inventory", label: "Inventory" },
   { id: "invoices", label: "Invoices" },
+  { id: "enterprise", label: "Enterprise" },
 ];
 const TABLES = { clients: "clients", products: "products", expenses: "expenses", inventory: "stock_levels", invoices: "invoices" };
 const localDate = () => {
@@ -413,7 +415,7 @@ export default function GlobalApp() {
         </nav>
         {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         {notice && <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
-        {tab === "overview" ? (
+        {tab === "enterprise" ? <GlobalEnterprisePanel workspaceId={account.workspace_id} /> : tab === "overview" ? (
           <>
             <div className="mt-6"><h1 className="text-2xl font-bold">Business overview</h1><p className="mt-1 text-sm text-slate-500">Your business workspace data.</p></div>
             <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
