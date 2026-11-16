@@ -6,6 +6,11 @@ const migration = await readFile(new URL("../../../supabase/migrations/202611160
 const operations = await readFile(new URL("../../../supabase/migrations/202611160002_global_part4_transactional_operations.sql", import.meta.url), "utf8");
 const endpoint = await readFile(new URL("../../../supabase/functions/global-part4/index.ts", import.meta.url), "utf8");
 const indiaMigration = await readFile(new URL("../../../supabase/migrations/202611160003_india_part4_warehouse_crm_purchase.sql", import.meta.url), "utf8");
+const indiaOperations = await readFile(new URL("../../../supabase/migrations/202611160004_india_part4_transactional_rpcs.sql", import.meta.url), "utf8");
+const globalUi = await readFile(new URL("../../../src/components/global/GlobalPart4Panel.jsx", import.meta.url), "utf8");
+const indiaUi = await readFile(new URL("../../../src/components/dashboard/IndiaPart4Tab.jsx", import.meta.url), "utf8");
+const globalApp = await readFile(new URL("../../../src/global/GlobalApp.jsx", import.meta.url), "utf8");
+const dashboard = await readFile(new URL("../../../src/pages/Dashboard.jsx", import.meta.url), "utf8");
 
 test("Part 4 adds Global CRM, warehouses, batches and purchasing without altering India tables", () => {
   for (const table of ["warehouses","warehouse_stock_levels","inventory_batches","stock_transfers","purchase_orders","purchase_order_items","crm_leads","crm_activities"]) {
@@ -67,4 +72,44 @@ test("warehouse transfer and receipt ledgers retain idempotency fingerprints", (
   assert.match(migration, /request_fingerprint text not null/);
   assert.match(operations, /request_fingerprint<>v_fingerprint/);
   assert.match(operations, /movement_type,quantity_delta,reference_type/);
+});
+
+
+test("Global Part 4 UI is wired to authenticated CRM, warehouse and procurement operations", () => {
+  assert.match(globalApp, /GlobalPart4Panel/);
+  for (const tab of ["crm","warehouses","transfers","purchasing","movements"]) assert.match(globalApp, new RegExp('id: "' + tab + '"'));
+  for (const operation of ["create_lead","update_lead","add_lead_activity","create_warehouse","create_purchase_order","receive_purchase_order"]) assert.ok(globalUi.includes(operation));
+  assert.match(globalUi, /idempotency_key: transferKey/);
+  assert.match(globalUi, /idempotency_key: receiptKey/);
+  assert.match(globalUi, /scoreLead/);
+  assert.match(globalUi, /warehouse_stock_movements/);
+});
+
+test("India Part 4 UI uses workspace-scoped reads and transactional database RPCs", () => {
+  assert.match(dashboard, /IndiaPart4Tab user=\{user\}/);
+  assert.match(dashboard, /id: "warehouses"/);
+  assert.match(indiaUi, /eq\("workspace_id",workspaceId\)/);
+  assert.match(indiaUi, /india_part4_create_purchase_order/);
+  assert.match(indiaUi, /india_part4_receive_purchase_order/);
+  assert.match(indiaUi, /india_part4_transfer_stock/);
+  assert.match(indiaUi, /idempotency_key:receiptKey/);
+  assert.match(indiaUi, /idempotency_key:transferKey/);
+});
+
+test("India stock inserts receive a default warehouse and opening balances enter the movement ledger", () => {
+  assert.match(indiaOperations, /ensure_stock_default_warehouse/);
+  assert.match(indiaOperations, /before insert or update of workspace_id,warehouse_id on public\.stock/);
+  assert.match(indiaOperations, /Opening balance migrated into warehouse ledger/);
+  assert.match(indiaOperations, /security definer/);
+});
+
+test("India purchase receipt and stock transfer RPCs are atomic, tenant-scoped and idempotent", () => {
+  assert.match(indiaOperations, /india_part4_create_purchase_order/);
+  assert.match(indiaOperations, /india_part4_receive_purchase_order/);
+  assert.match(indiaOperations, /india_part4_transfer_stock/);
+  assert.match(indiaOperations, /pg_advisory_xact_lock/);
+  assert.match(indiaOperations, /request_fingerprint/);
+  assert.match(indiaOperations, /has_ws_role\(v_workspace/);
+  assert.match(indiaOperations, /quantity_received\+v_qty>v_po_item\.quantity_ordered/);
+  assert.match(indiaOperations, /revoke all on function public\.india_part4_transfer_stock/);
 });
