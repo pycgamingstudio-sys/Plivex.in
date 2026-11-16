@@ -75,6 +75,40 @@ Deno.serve(async (req: Request) => {
       return globalJson(data, 200, origin);
     }
 
+    if (body.action === "mutate") {
+      const allowed = new Set(["create_warehouse","create_lead","add_lead_activity","create_purchase_order","receive_purchase_order"]);
+      if (typeof body.operation !== "string" || !allowed.has(body.operation) || !object(body.values)) {
+        return globalJson({ error: "Unsupported Part 4 operation or invalid values." }, 400, origin);
+      }
+      const { data, error } = await auth.admin.rpc("global_part4_mutate", {
+        p_user_id: auth.user.id, p_workspace_id: body.workspace_id,
+        p_action: body.operation, p_values: body.values,
+      });
+      if (error) {
+        console.error("Global Part 4 mutation RPC failed", { code: error.code });
+        return globalJson({ error: "Part 4 operation service is not ready." }, 503, origin);
+      }
+      if (!data?.ok) {
+        const reason = String(data?.reason || "request_failed");
+        const status = reason === "access_denied" || reason === "forbidden" ? 403
+          : reason === "purchase_order_not_found" || reason === "warehouse_not_found" || reason === "lead_not_found" ? 404
+          : reason === "idempotency_conflict" || reason === "receipt_quantity_exceeded" ? 409 : 400;
+        const messages: Record<string,string> = {
+          access_denied: "You do not have access to this workspace.",
+          forbidden: "Your workspace role cannot perform this operation.",
+          invalid_currency: "Purchase order currency must match the workspace currency.",
+          purchase_order_not_found: "Purchase order not found.",
+          warehouse_not_found: "Choose an active warehouse.",
+          lead_not_found: "Lead not found.",
+          receipt_quantity_exceeded: "Received quantity cannot exceed the outstanding purchase quantity.",
+          invalid_lead: "Lead name is required and must be 200 characters or fewer.",
+          invalid_warehouse: "Warehouse code and name are required.",
+        };
+        return globalJson({ error: messages[reason] || "Part 4 operation could not be completed.", reason }, status, origin);
+      }
+      return globalJson(data, 200, origin);
+    }
+
     return globalJson({ error: "Unsupported Part 4 action." }, 400, origin);
   } catch (error) {
     console.error("global-part4 failed", error);
