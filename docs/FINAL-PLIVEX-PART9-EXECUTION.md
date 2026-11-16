@@ -10,7 +10,7 @@ Status: execution backlog; NOT a completion claim.
 - Country support is enabled only when the exact tax/payment/document treatment is verified for that country and jurisdiction.
 
 ## Known carry-over from Part 8 report (must be closed or explicitly release-blocked)
-1. Approval requests are not yet blocking invoice/expense mutations.
+1. Global expense create/update and invoice issue/payment gates are now implemented in the candidate; India routes and additional protected mutations remain unaudited/ungated.
 2. Branch IDs are not attached to every business record; branch-level isolation is incomplete.
 3. Operational health is a request-time database snapshot, not continuous monitoring/alerting.
 4. Permission enforcement across every legacy/India business-record route is not claimed.
@@ -57,18 +57,18 @@ Status: execution backlog; NOT a completion claim.
 ### Global readiness
 - Country-by-country verified tax/document/payment capability matrix, jurisdiction-effective rules, local formats, language/date/number/address behavior and clear unsupported-country handling.
 
-## Implemented candidate slice — Global expense approval gates
+## Implemented candidate slice — Global expense and invoice approval gates
 
 Implemented on this Part 9 branch in `20261116170000_part9_expense_approval_gates.sql`:
-- Workspace-scoped approval policies for expense creation and material expense updates.
+- Workspace-scoped approval policies for expense creation, material expense updates, invoice issuance and invoice payment recording.
 - Owner/admin-only policy configuration through the authenticated Global Enterprise Edge Function, with validated minimum amount, eligible approver roles and self-approval prevention.
-- Database BEFORE triggers enforce the gate for all write paths, including direct service-role RPC inserts/updates; a UI-only check cannot bypass it.
-- Approval must match the resource key, action, amount, category, vendor, expense date and currency, and must be decided by an active member with an allowed role. Approved requests are atomically consumed once and cannot be replayed.
-- The Enterprise panel can request a create approval bound to the exact expense details, or an update approval bound to a specific expense ID.
-- Disposable integration test covers blocked unapproved create/update, successful approved create/update, self-approval denial, and replay prevention.
+- Database BEFORE triggers enforce the gate for all write paths, including direct service-role RPC inserts/updates and invoice status/payment mutations; a UI-only check cannot bypass it.
+- Expense approvals match the resource key, action, amount, category, vendor, expense date and currency. Invoice approvals match invoice ID, action, amount, currency and issue/payment date. Decisions require an active allowed-role approver, are atomically consumed once and cannot be replayed.
+- The Enterprise panel can configure both expense and invoice policies and submit matching expense or invoice approvals with exact amount/currency/date facts.
+- Disposable PostgreSQL integration tests cover blocked unapproved expense create/update and invoice issue/payment, successful approved mutations, self-approval denial and one-time approval consumption.
 - Candidate migration is included in migration replay manifest and replay test script.
 
-**Scope:** this slice currently covers Global expense create/update only. It does not yet gate invoice issue/payment, India routes, or every other protected mutation. A workspace policy must be configured to enable the gate. The Part 9 branch remains unreleased.
+**Scope:** these gates cover Global expense create/update and invoice issue/payment only. They do not cover India routes or every other protected mutation. A workspace policy must be configured to enable each gate; existing workspaces are not silently changed. The Part 9 branch remains unreleased.
 
 ## Required execution protocol
 For each candidate feature:
