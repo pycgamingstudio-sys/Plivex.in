@@ -34,6 +34,19 @@ end;
 $function$;
 revoke all on function global.seed_default_chart_of_accounts(uuid) from public,anon,authenticated;
 
+-- Preserve append-only journals while allowing the existing explicit workspace deletion/reset
+-- flow to cascade-remove that workspace's complete ledger. Direct row deletion remains blocked.
+create or replace function global.guard_posted_journal_entry()
+returns trigger language plpgsql set search_path=pg_catalog as $function$
+begin
+  if tg_op='DELETE' and not exists(select 1 from global.workspaces where id=old.workspace_id) then
+    return old;
+  end if;
+  raise exception using errcode='55000',message='Posted journal entries are immutable';
+end;
+$function$;
+revoke all on function global.guard_posted_journal_entry() from public,anon,authenticated;
+
 do $seed$
 declare r record;
 begin
