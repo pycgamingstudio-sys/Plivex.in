@@ -47,6 +47,15 @@ end;
 $function$;
 revoke all on function global.guard_posted_journal_entry() from public,anon,authenticated;
 
+-- Workspace deletion is the only permitted ledger purge. Let account/workspace cascades
+-- reach journal lines; the append-only trigger above still rejects direct row deletion.
+alter table global.journal_entry_lines
+  drop constraint if exists journal_entry_lines_workspace_id_account_id_fkey;
+alter table global.journal_entry_lines
+  add constraint journal_entry_lines_workspace_id_account_id_fkey
+  foreign key(workspace_id,account_id)
+  references global.accounting_accounts(workspace_id,id) on delete cascade;
+
 do $seed$
 declare r record;
 begin
