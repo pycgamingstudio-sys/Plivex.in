@@ -112,12 +112,18 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
     perform(async () => {
       const isExpenseApproval = resourceType.trim() === "expense"
         && ["expense.create", "expense.update"].includes(approvalAction.trim());
+      const isInvoiceApproval = resourceType.trim() === "invoice"
+        && ["invoice.issue", "invoice.payment.record"].includes(approvalAction.trim());
       const requestPayload = isExpenseApproval ? {
         amountMinor: String(Number(approvalExpenseAmount)),
         category: approvalExpenseCategory.trim(),
         vendor: approvalExpenseVendor.trim(),
         expenseDate: approvalExpenseDate,
         currencyCode: approvalExpenseCurrency.trim().toUpperCase(),
+      } : isInvoiceApproval ? {
+        amountMinor: String(Number(approvalExpenseAmount)),
+        currencyCode: approvalExpenseCurrency.trim().toUpperCase(),
+        eventDate: approvalExpenseDate,
       } : { source: "global-enterprise-panel" };
       await enterprise("approval.request", {
         actionType: approvalAction.trim(), resourceType: resourceType.trim(),
@@ -210,16 +216,23 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
             {!(resourceType === "expense" && approvalAction === "expense.create") && (
               <input className={inputClass + " sm:col-span-2"} required maxLength={160} placeholder="Resource ID / reference" value={resourceId} onChange={(e) => setResourceId(e.target.value)} />
             )}
-            {resourceType === "expense" && ["expense.create", "expense.update"].includes(approvalAction) && (
+            {(resourceType === "expense" && ["expense.create", "expense.update"].includes(approvalAction)
+              || resourceType === "invoice" && ["invoice.issue", "invoice.payment.record"].includes(approvalAction)) && (
               <>
-                <input className={inputClass} required type="number" min="1" max="9000000000000000" step="1" placeholder="Base-currency amount (minor units)" value={approvalExpenseAmount} onChange={(e) => setApprovalExpenseAmount(e.target.value)} />
-                <input className={inputClass} required maxLength={100} placeholder="Expense category" value={approvalExpenseCategory} onChange={(e) => setApprovalExpenseCategory(e.target.value)} />
-                <input className={inputClass} maxLength={200} placeholder="Vendor (optional)" value={approvalExpenseVendor} onChange={(e) => setApprovalExpenseVendor(e.target.value)} />
+                <input className={inputClass} required type="number" min="1" max="9000000000000000" step="1" placeholder="Amount (minor units)" value={approvalExpenseAmount} onChange={(e) => setApprovalExpenseAmount(e.target.value)} />
+                {resourceType === "expense" && <>
+                  <input className={inputClass} required maxLength={100} placeholder="Expense category" value={approvalExpenseCategory} onChange={(e) => setApprovalExpenseCategory(e.target.value)} />
+                  <input className={inputClass} maxLength={200} placeholder="Vendor (optional)" value={approvalExpenseVendor} onChange={(e) => setApprovalExpenseVendor(e.target.value)} />
+                </>}
                 <input className={inputClass} required type="date" value={approvalExpenseDate} onChange={(e) => setApprovalExpenseDate(e.target.value)} />
                 <input className={inputClass} required maxLength={3} minLength={3} placeholder="Currency code" value={approvalExpenseCurrency} onChange={(e) => setApprovalExpenseCurrency(e.target.value.toUpperCase())} />
               </>
             )}
-            <button className={buttonClass} disabled={busy || (resourceType === "expense" && ["expense.create", "expense.update"].includes(approvalAction) && (!Number.isSafeInteger(Number(approvalExpenseAmount)) || Number(approvalExpenseAmount) <= 0 || !approvalExpenseCategory.trim() || !/^[A-Z]{3}$/.test(approvalExpenseCurrency.toUpperCase())))}>Request approval</button>
+            <button className={buttonClass} disabled={busy || ((resourceType === "expense" && ["expense.create", "expense.update"].includes(approvalAction)
+              || resourceType === "invoice" && ["invoice.issue", "invoice.payment.record"].includes(approvalAction))
+              && (!Number.isSafeInteger(Number(approvalExpenseAmount)) || Number(approvalExpenseAmount) <= 0
+                || (resourceType === "expense" && !approvalExpenseCategory.trim())
+                || !/^[A-Z]{3}$/.test(approvalExpenseCurrency.toUpperCase())))}>Request approval</button>
           </form>
           <div className="mt-3 divide-y divide-slate-100">
             {approvals.length === 0 ? <p className="py-3 text-sm text-slate-500">No pending requests.</p> : approvals.map((item) => (
@@ -237,19 +250,21 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="font-semibold text-slate-900">Expense approval policy</h2>
-          <p className="mt-1 text-xs text-slate-500">Configure which Global expense actions require a separate approval before the write can be saved.</p>
+          <h2 className="font-semibold text-slate-900">Approval policies</h2>
+          <p className="mt-1 text-xs text-slate-500">Configure server-enforced approval before protected Global expense or invoice actions.</p>
           <form onSubmit={saveApprovalPolicy} className="mt-3 space-y-3">
             <label className="block text-sm font-medium text-slate-700">
               Protected action
               <select className={inputClass + " mt-1 w-full"} value={approvalPolicyAction} onChange={(e) => setApprovalPolicyAction(e.target.value)}>
                 <option value="expense.create">Create expense</option>
                 <option value="expense.update">Change expense</option>
+                <option value="invoice.issue">Issue invoice</option>
+                <option value="invoice.payment.record">Record invoice payment</option>
               </select>
             </label>
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input type="checkbox" checked={approvalPolicyEnabled} onChange={(e) => setApprovalPolicyEnabled(e.target.checked)} />
-              Require approval for matching expenses
+              Require approval for matching actions
             </label>
             <label className="block text-sm font-medium text-slate-700">
               Minimum amount (workspace base-currency minor units)
