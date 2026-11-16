@@ -196,7 +196,7 @@ begin
   if p_user_id is null or p_workspace_id is null or p_entry_date is null
     or p_idempotency_key is null or upper(coalesce(p_currency_code,'')) !~ '^[A-Z]{3}$'
     or length(btrim(coalesce(p_memo,''))) not between 1 and 500
-    or coalesce(p_source_type,'manual') not in ('manual','opening_balance','invoice_issued','invoice_payment','invoice_refund','expense','purchase','stock_adjustment')
+    or coalesce(p_source_type,'manual') not in ('manual','opening_balance','invoice_issued','invoice_payment','invoice_refund','expense','purchase','purchase_payment','fx_revaluation','stock_adjustment')
     or jsonb_typeof(coalesce(p_lines,'null')) <> 'array'
     or jsonb_array_length(case when jsonb_typeof(p_lines)='array' then p_lines else '[]'::jsonb end) not between 2 and 100 then
     return jsonb_build_object('ok',false,'reason','invalid_journal_entry');
