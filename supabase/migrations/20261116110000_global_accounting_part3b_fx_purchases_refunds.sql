@@ -279,6 +279,7 @@ begin
     or p_base_subtotal_minor<=0 or p_base_tax_minor<0 or p_base_tax_recoverable_minor<0
     or p_base_tax_recoverable_minor>p_base_tax_minor
     or p_fx_rate_numerator<=0 or p_fx_rate_denominator<=0 or p_fx_rate_date is null
+    or p_fx_rate_date>p_purchase_date or (p_due_date is not null and p_due_date<p_purchase_date)
     or p_fx_rate_source is null or length(btrim(p_fx_rate_source)) not between 1 and 240
     or jsonb_typeof(coalesce(p_lines,'null'))<>'array' or jsonb_array_length(case when jsonb_typeof(p_lines)='array' then p_lines else '[]'::jsonb end) not between 1 and 100 then
     return jsonb_build_object('ok',false,'reason','invalid_purchase');
@@ -294,8 +295,10 @@ begin
     or round(p_tax_recoverable_minor::numeric*p_fx_rate_numerator/p_fx_rate_denominator)::bigint<>p_base_tax_recoverable_minor then
     return jsonb_build_object('ok',false,'reason','fx_conversion_mismatch');
   end if;
-  v_fingerprint:=md5(jsonb_build_object('supplier',lower(btrim(p_supplier_name)),'supplier_invoice_number',btrim(p_supplier_invoice_number),
-    'purchase_date',p_purchase_date,'currency',p_currency_code,'subtotal',p_subtotal_minor,'tax',p_tax_minor,
+  v_fingerprint:=md5(jsonb_build_object('supplier',lower(btrim(p_supplier_name)),'supplier_email',lower(coalesce(nullif(btrim(p_supplier_email),''),'')),
+    'supplier_tax_id',coalesce(nullif(btrim(p_supplier_tax_id),''),''),'supplier_invoice_number',btrim(p_supplier_invoice_number),
+    'purchase_date',p_purchase_date,'due_date',p_due_date,'memo',left(coalesce(p_memo,''),500),
+    'currency',p_currency_code,'subtotal',p_subtotal_minor,'tax',p_tax_minor,
     'tax_recoverable',p_tax_recoverable_minor,'base_subtotal',p_base_subtotal_minor,'base_tax',p_base_tax_minor,
     'base_tax_recoverable',p_base_tax_recoverable_minor,'rate_num',p_fx_rate_numerator,'rate_den',p_fx_rate_denominator,
     'rate_date',p_fx_rate_date,'rate_source',p_fx_rate_source,'lines',p_lines)::text);
