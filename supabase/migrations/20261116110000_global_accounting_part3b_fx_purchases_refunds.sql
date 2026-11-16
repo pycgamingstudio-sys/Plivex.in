@@ -415,6 +415,8 @@ begin
   if v_bill.id is null then return jsonb_build_object('ok',false,'reason','purchase_not_found'); end if;
   if v_bill.status<>'draft' then return jsonb_build_object('ok',true,'duplicate',true,'purchase_bill',to_jsonb(v_bill)); end if;
   update global.purchase_bills set status='posted' where workspace_id=p_workspace_id and id=p_purchase_bill_id returning * into v_bill;
+  -- AFTER trigger posts the journal and fills the carrying balance; reload its final row state for the API response.
+  select * into v_bill from global.purchase_bills where workspace_id=p_workspace_id and id=p_purchase_bill_id;
   return jsonb_build_object('ok',true,'duplicate',false,'purchase_bill',to_jsonb(v_bill));
 end;
 $function$;
