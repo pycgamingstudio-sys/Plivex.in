@@ -320,6 +320,7 @@ $global_to_global$;
 
 -- Force a failure after the India workspace has been deleted in the function body.
 -- The enclosing subtransaction must restore every old record and membership.
+-- Trigger DDL is test-fixture setup and must run as the database owner.
 SELECT set_config('request.jwt.claim.sub','99999999-9999-4999-8999-999999999999',false);
 INSERT INTO public.profiles(id,email,full_name,role,workspace_id,country_code,locale_code)
 VALUES ('99999999-9999-4999-8999-999999999999','country-reset-rollback@example.test','Rollback Probe Owner','admin','workspace-reset-rollback','IN','en-IN')
@@ -333,6 +334,7 @@ VALUES ('workspace-reset-rollback','Rollback Business');
 INSERT INTO public.clients(workspace_id,name)
 VALUES ('workspace-reset-rollback','Rollback Client');
 
+RESET ROLE;
 CREATE OR REPLACE FUNCTION public.country_reset_rollback_probe()
 RETURNS trigger LANGUAGE plpgsql AS $function$
 BEGIN
@@ -345,6 +347,7 @@ $function$;
 CREATE TRIGGER country_reset_rollback_probe
 BEFORE INSERT ON global.workspaces
 FOR EACH ROW EXECUTE FUNCTION public.country_reset_rollback_probe();
+SET ROLE service_role;
 
 DO $rollback_probe$
 DECLARE
@@ -369,8 +372,8 @@ BEGIN
 END
 $rollback_probe$;
 
+RESET ROLE;
 DROP TRIGGER country_reset_rollback_probe ON global.workspaces;
 DROP FUNCTION public.country_reset_rollback_probe();
-RESET ROLE;
 
 SELECT 'PASS: India/Global country reset transitions, owner checks, cooldown, subscription preservation and transaction rollback' AS result;
