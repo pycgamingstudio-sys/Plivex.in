@@ -46,7 +46,7 @@ declare
   v_role text;
   v_policy global.approval_policies%rowtype;
 begin
-  if p_user_id is null or p_workspace_id is null
+  if p_user_id is null or p_workspace_id is null or p_action_type is null
     or p_action_type not in ('expense.create','expense.update')
     or p_enabled is null or p_minimum_amount_minor is null or p_minimum_amount_minor < 0
     or p_approver_roles is null or cardinality(p_approver_roles) < 1
