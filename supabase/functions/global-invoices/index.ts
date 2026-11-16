@@ -200,6 +200,13 @@ Deno.serve(async (req: Request) => {
       });
       if (error) {
         console.error("Global invoice issuance RPC failed", { code: error.code });
+        const message = String(error.message || "");
+        if (message.includes("insufficient_stock") || message.includes("insufficient_batch_stock")) {
+          return globalJson({ error: "Not enough available stock in the default warehouse to issue this invoice.", reason: "insufficient_stock" }, 409, origin);
+        }
+        if (message.includes("invoice_warehouse_not_found")) {
+          return globalJson({ error: "Set up an active default warehouse before issuing stock-tracked invoices.", reason: "warehouse_not_found" }, 409, origin);
+        }
         return globalJson({ error: "Invoice issuance service is not ready. Please try again later." }, 503, origin);
       }
       if (!data?.ok) {
