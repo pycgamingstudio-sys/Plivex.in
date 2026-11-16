@@ -1,4 +1,5 @@
 import { getCurrencyPrecision } from "../money/currency-precision.js";
+import { TAX_ENGINE_VERSION } from "./tax-rule-registry.js";
 
 /**
  * Verified, componentized tax-rule evaluator for Global jurisdictions.
@@ -116,7 +117,7 @@ export function calculateVerifiedTaxRule(input) {
   components[components.length - 1].amountMinor += taxMinor - componentTotal;
 
   return {
-    ok: true, status: "calculated", engineVersion: "0.2.0", countryCode, currencyCode,
+    ok: true, status: "calculated", engineVersion: TAX_ENGINE_VERSION, countryCode, currencyCode,
     currencyMinorUnits: precision, jurisdictionId: rule.jurisdictionId || null,
     treatment: rule.treatment, priceMode: input.priceMode, taxableMinor, taxMinor, totalMinor, components,
     registrationEvidence: registration.verified === true ? "externally-verified" : "user-attested",
