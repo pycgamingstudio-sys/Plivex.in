@@ -43,3 +43,9 @@ test("retention cleanup is admin-checked and removes expired private exports", (
   assert.match(migration, /global_retention_mark_expired/);
   assert.match(exportEdge, /body.action === "cleanup"/);
 });
+
+test("workspace health snapshot is admin-gated and reports only operational counts", () => {
+  assert.match(migration, /health\.read/);
+  assert.match(migration, /failedExportsLast24h/);
+  assert.match(edge, /health\.read/);
+});

@@ -11,7 +11,7 @@ This branch is an isolated implementation candidate based on `global-dev`. It do
 ## Part 8 foundations added
 - Additive private-schema tables for branches, per-member/per-role permission overrides, approval requests, append-only audit events, export jobs, retention settings, rate-limit counters and immutable FX conversion history.
 - RLS enabled with membership/admin read policies; the Global schema remains unexposed to PostgREST.
-- Service-role-only RPCs re-check active workspace membership and perform enterprise mutations and audit writes in one database transaction.
+- Service-role-only RPCs re-check active workspace membership and perform enterprise mutations and audit writes in one database transaction. An admin-only workspace health snapshot reports export queue, approval and audit/FX activity metrics.
 - An authenticated Edge Function applies a per-user rate limit before delegating to the guarded RPC.
 
 ## Deliberate limitations

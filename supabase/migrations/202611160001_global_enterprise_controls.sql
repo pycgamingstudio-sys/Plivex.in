@@ -290,7 +290,7 @@ begin
   if v_member.id is null then return jsonb_build_object('ok',false,'code','ACCESS_DENIED'); end if;
   v_admin := v_member.role in ('owner','admin');
 
-  if p_action in ('branch.create','branch.archive','permission.set','retention.set','fx.snapshot.create') then
+  if p_action in ('branch.create','branch.archive','permission.set','retention.set','fx.snapshot.create','health.read') then
     if not v_admin then return jsonb_build_object('ok',false,'code','ADMIN_REQUIRED'); end if;
   elsif p_action in ('branch.list','fx.convert','approval.request','approval.decide','approval.list','audit.list','export.request') then
     v_permission := case p_action
@@ -380,6 +380,17 @@ begin
     values (p_workspace_id,p_user_id,'fx.snapshot_created','exchange_rate_snapshot',v_id::text,
       jsonb_build_object('baseCurrency',p_payload->>'baseCurrency','quoteCurrency',p_payload->>'quoteCurrency'));
     return jsonb_build_object('ok',true,'snapshotId',v_id);
+  if p_action = 'health.read' then
+    select jsonb_build_object(
+      'queuedExports',(select count(*) from global.export_jobs where workspace_id=p_workspace_id and status='queued'),
+      'processingExports',(select count(*) from global.export_jobs where workspace_id=p_workspace_id and status='processing'),
+      'failedExportsLast24h',(select count(*) from global.export_jobs where workspace_id=p_workspace_id and status='failed' and created_at >= now()-interval '24 hours'),
+      'pendingApprovals',(select count(*) from global.approval_requests where workspace_id=p_workspace_id and status='pending'),
+      'lastAuditAt',(select max(occurred_at) from global.audit_events where workspace_id=p_workspace_id),
+      'lastFxSnapshotAt',(select max(captured_at) from global.exchange_rate_snapshots where workspace_id=p_workspace_id),
+      'retentionConfigured',exists(select 1 from global.workspace_retention_policies where workspace_id=p_workspace_id)
+    ) into v_events;
+    return jsonb_build_object('ok',true,'health',v_events);
   elsif p_action = 'branch.list' then
     select coalesce(jsonb_agg(to_jsonb(b) order by b.name),'[]'::jsonb) into v_events
       from (select id,branch_code,name,address,status,created_at,updated_at
@@ -598,11 +609,15 @@ begin
         from global.audit_events where workspace_id=p_workspace_id order by occurred_at desc limit 1000) t;
   elsif v_job.export_type = 'full_account' then
     select jsonb_build_object(
-      'clients',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,name,email,phone,status,created_at from global.clients where workspace_id=p_workspace_id order by created_at desc limit 1000) t),
-      'products',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,name,sku,unit,sale_price_minor,purchase_cost_minor,currency_code,is_active,created_at from global.products where workspace_id=p_workspace_id order by created_at desc limit 1000) t),
-      'expenses',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,category,vendor,amount_minor,currency_code,expense_date,payment_method,reference,created_at from global.expenses where workspace_id=p_workspace_id order by expense_date desc limit 1000) t),
-      'invoices',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,invoice_number,status,currency_code,issue_date,due_date,total_minor,amount_paid_minor,created_at from global.invoices where workspace_id=p_workspace_id order by issue_date desc limit 1000) t),
-      'audit_log',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,actor_id,action,entity_type,entity_id,occurred_at from global.audit_events where workspace_id=p_workspace_id order by occurred_at desc limit 1000) t)
+      'clients',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,name,email,phone,tax_registration_number,billing_address,shipping_address,notes,status,created_at,updated_at from global.clients where workspace_id=p_workspace_id order by created_at desc limit 1000) t),
+      'products',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,name,sku,description,unit,sale_price_minor,purchase_cost_minor,currency_code,tax_code,is_active,created_at,updated_at from global.products where workspace_id=p_workspace_id order by created_at desc limit 1000) t),
+      'stock_levels',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select product_id,quantity,reorder_level,updated_at from global.stock_levels where workspace_id=p_workspace_id order by product_id limit 1000) t),
+      'stock_movements',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,product_id,movement_type,quantity_delta,reference_type,reference_id,notes,created_at from global.stock_movements where workspace_id=p_workspace_id order by created_at desc limit 1000) t),
+      'expenses',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,category,vendor,amount_minor,currency_code,expense_date,payment_method,reference,notes,attachment_url,created_at,updated_at from global.expenses where workspace_id=p_workspace_id order by expense_date desc limit 1000) t),
+      'invoices',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,client_id,invoice_number,status,currency_code,issue_date,due_date,subtotal_minor,discount_minor,tax_minor,total_minor,amount_paid_minor,notes,invoice_snapshot,created_at,updated_at from global.invoices where workspace_id=p_workspace_id order by issue_date desc limit 1000) t),
+      'invoice_items',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,invoice_id,product_id,description,quantity,unit_price_minor,discount_minor,tax_rate_bps,tax_minor,line_total_minor,sort_order,created_at from global.invoice_items where workspace_id=p_workspace_id order by invoice_id,sort_order limit 1000) t),
+      'invoice_payments',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,invoice_id,amount_minor,currency_code,payment_date,method,reference,notes,recorded_by,created_at from global.invoice_payments where workspace_id=p_workspace_id order by payment_date desc limit 1000) t),
+      'audit_log',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from (select id,actor_id,action,entity_type,entity_id,metadata,occurred_at from global.audit_events where workspace_id=p_workspace_id order by occurred_at desc limit 1000) t)
     ) into v_data;
   else
     return jsonb_build_object('ok',false,'code','UNSUPPORTED_EXPORT');
