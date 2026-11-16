@@ -205,7 +205,8 @@ begin
   select role into v_role from global.workspace_members
   where workspace_id=p_workspace_id and user_id=p_user_id and status='active' limit 1;
   if v_role is null then return jsonb_build_object('ok',false,'reason','access_denied'); end if;
-  if v_role not in ('owner','admin','accountant') then
+  if v_role not in ('owner','admin','accountant')
+    and not (v_role='manager' and coalesce(p_source_type,'manual') in ('invoice_issued','invoice_payment')) then
     return jsonb_build_object('ok',false,'reason','forbidden');
   end if;
   select currency_code into v_currency from global.workspaces where id=p_workspace_id;
@@ -284,6 +285,123 @@ revoke all on function public.global_post_journal_entry(uuid,uuid,date,text,text
   from public,anon,authenticated;
 grant execute on function public.global_post_journal_entry(uuid,uuid,date,text,text,text,uuid,jsonb,uuid)
   to service_role;
+
+-- Source events are journaled in the same transaction as their business write.
+-- Invoice issuance/payment and expense creation cannot commit without a balanced journal.
+create or replace function global.accounting_after_invoice_issued()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog,global
+as $function$
+declare
+  v_lines jsonb;
+  v_result jsonb;
+  v_revenue bigint;
+begin
+  if old.status='draft' and new.status='issued' and new.total_minor>0 then
+    v_revenue:=new.total_minor-new.tax_minor;
+    v_lines:=jsonb_build_array(jsonb_build_object(
+      'account_code','1100','debit_minor',new.total_minor,'credit_minor',0,'description','Accounts receivable'
+    ));
+    if v_revenue>0 then
+      v_lines:=v_lines||jsonb_build_array(jsonb_build_object(
+        'account_code','4000','debit_minor',0,'credit_minor',v_revenue,'description','Invoice revenue'
+      ));
+    end if;
+    if new.tax_minor>0 then
+      v_lines:=v_lines||jsonb_build_array(jsonb_build_object(
+        'account_code','2100','debit_minor',0,'credit_minor',new.tax_minor,'description','Tax payable'
+      ));
+    end if;
+    v_result:=public.global_post_journal_entry(
+      new.created_by,new.workspace_id,new.issue_date,new.currency_code,
+      'Invoice issued · '||new.invoice_number,'invoice_issued',new.id,v_lines,
+      md5(new.workspace_id::text||':invoice_issued:'||new.id::text)::uuid
+    );
+    if not coalesce((v_result->>'ok')::boolean,false) then
+      raise exception using errcode='55000',message='Invoice issuance accounting failed: '||coalesce(v_result->>'reason','unknown');
+    end if;
+  end if;
+  return new;
+end;
+$function$;
+
+create or replace function global.accounting_after_invoice_payment()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog,global
+as $function$
+declare
+  v_invoice global.invoices%rowtype;
+  v_account_code text;
+  v_result jsonb;
+begin
+  select * into v_invoice from global.invoices
+  where workspace_id=new.workspace_id and id=new.invoice_id;
+  if v_invoice.status in ('issued','partially_paid','overdue') then
+    v_account_code:=case when lower(coalesce(new.method,'')) like '%cash%' then '1000' else '1010' end;
+    v_result:=public.global_post_journal_entry(
+      new.recorded_by,new.workspace_id,new.payment_date,new.currency_code,
+      'Invoice payment · '||v_invoice.invoice_number,'invoice_payment',new.id,
+      jsonb_build_array(
+        jsonb_build_object('account_code',v_account_code,'debit_minor',new.amount_minor,'credit_minor',0,'description','Payment received'),
+        jsonb_build_object('account_code','1100','debit_minor',0,'credit_minor',new.amount_minor,'description','Accounts receivable settled')
+      ),
+      md5(new.workspace_id::text||':invoice_payment:'||new.id::text)::uuid
+    );
+    if not coalesce((v_result->>'ok')::boolean,false) then
+      raise exception using errcode='55000',message='Invoice payment accounting failed: '||coalesce(v_result->>'reason','unknown');
+    end if;
+  end if;
+  return new;
+end;
+$function$;
+
+create or replace function global.accounting_after_expense()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog,global
+as $function$
+declare
+  v_account_code text;
+  v_result jsonb;
+begin
+  v_account_code:=case when lower(coalesce(new.payment_method,'')) like '%cash%' then '1000' else '1010' end;
+  v_result:=public.global_post_journal_entry(
+    new.created_by,new.workspace_id,new.expense_date,new.currency_code,
+    'Expense · '||new.category,'expense',new.id,
+    jsonb_build_array(
+      jsonb_build_object('account_code','6000','debit_minor',new.amount_minor,'credit_minor',0,'description',left(new.category,300)),
+      jsonb_build_object('account_code',v_account_code,'debit_minor',0,'credit_minor',new.amount_minor,'description','Expense paid')
+    ),
+    md5(new.workspace_id::text||':expense:'||new.id::text)::uuid
+  );
+  if not coalesce((v_result->>'ok')::boolean,false) then
+    raise exception using errcode='55000',message='Expense accounting failed: '||coalesce(v_result->>'reason','unknown');
+  end if;
+  return new;
+end;
+$function$;
+
+revoke all on function global.accounting_after_invoice_issued() from public,anon,authenticated;
+revoke all on function global.accounting_after_invoice_payment() from public,anon,authenticated;
+revoke all on function global.accounting_after_expense() from public,anon,authenticated;
+
+drop trigger if exists global_invoice_issued_accounting on global.invoices;
+create trigger global_invoice_issued_accounting
+  after update of status on global.invoices
+  for each row execute function global.accounting_after_invoice_issued();
+drop trigger if exists global_invoice_payment_accounting on global.invoice_payments;
+create trigger global_invoice_payment_accounting
+  after insert on global.invoice_payments
+  for each row execute function global.accounting_after_invoice_payment();
+drop trigger if exists global_expense_accounting on global.expenses;
+create trigger global_expense_accounting
+  after insert on global.expenses
+  for each row execute function global.accounting_after_expense();
 
 create or replace function public.global_get_trial_balance(
   p_workspace_id uuid,p_from date default null,p_to date default null,p_currency_code text default null
