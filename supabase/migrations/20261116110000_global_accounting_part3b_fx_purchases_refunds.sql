@@ -532,6 +532,28 @@ grant execute on function public.global_post_purchase_bill(uuid,uuid,uuid) to se
 grant execute on function public.global_record_purchase_payment(uuid,uuid,uuid,bigint,text,bigint,bigint,bigint,date,text,date,text,text,uuid) to service_role;
 grant execute on function public.global_revalue_purchase_bill(uuid,uuid,uuid,date,bigint,bigint,text,uuid) to service_role;
 
+create or replace function public.global_list_purchase_bills(p_user_id uuid,p_workspace_id uuid,p_limit integer default 100)
+returns jsonb language plpgsql security definer stable set search_path=pg_catalog,global as $function$
+declare v_role text; v_rows jsonb;
+begin
+  if p_user_id is null or p_user_id<>auth.uid() or p_workspace_id is null then
+    raise exception using errcode='42501',message='Workspace access denied';
+  end if;
+  select role into v_role from global.workspace_members where workspace_id=p_workspace_id and user_id=p_user_id and status='active';
+  if v_role is null then raise exception using errcode='42501',message='Workspace access denied'; end if;
+  select coalesce(jsonb_agg(to_jsonb(t) order by t.purchase_date desc,t.created_at desc),'[]'::jsonb)
+    into v_rows from (
+      select b.*,s.name as supplier_name
+      from global.purchase_bills b join global.suppliers s on s.workspace_id=b.workspace_id and s.id=b.supplier_id
+      where b.workspace_id=p_workspace_id order by b.purchase_date desc,b.created_at desc
+      limit greatest(1,least(coalesce(p_limit,100),200))
+    ) t;
+  return jsonb_build_object('ok',true,'purchase_bills',v_rows);
+end;
+$function$;
+revoke all on function public.global_list_purchase_bills(uuid,uuid,integer) from public,anon;
+grant execute on function public.global_list_purchase_bills(uuid,uuid,integer) to authenticated;
+
 comment on table global.purchase_bills is 'Global supplier purchase bills with source-currency amounts and immutable FX evidence; ledger postings are in workspace base currency.';
 comment on table global.purchase_bill_payments is 'Append-only supplier payments with payment-date FX and realized gain/loss accounting.';
 comment on table global.purchase_fx_revaluations is 'Append-only period-end foreign-currency payable revaluations with unrealized FX gain/loss journals.';
