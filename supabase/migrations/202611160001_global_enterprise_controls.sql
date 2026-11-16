@@ -679,4 +679,71 @@ grant execute on function public.global_export_complete(uuid,uuid,uuid,text,text
 grant execute on function public.global_export_fail(uuid,uuid,uuid,text) to service_role;
 grant execute on function public.global_export_download_path(uuid,uuid,uuid) to service_role;
 
+
+create or replace function public.global_retention_candidates(
+  p_user_id uuid, p_workspace_id uuid
+) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, global
+as $function$
+declare v_role text; v_paths jsonb;
+begin
+  select role into v_role from global.workspace_members
+    where workspace_id=p_workspace_id and user_id=p_user_id and status='active' limit 1;
+  if coalesce(v_role,'') not in ('owner','admin') then return jsonb_build_object('ok',false,'code','ADMIN_REQUIRED'); end if;
+  select coalesce(jsonb_agg(jsonb_build_object('jobId',id,'storagePath',storage_path)),'[]'::jsonb)
+    into v_paths from (
+      select id,storage_path from global.export_jobs
+      where workspace_id=p_workspace_id and status='completed'
+        and expires_at is not null and expires_at <= now() and storage_path is not null
+      order by expires_at limit 500
+    ) expired;
+  return jsonb_build_object('ok',true,'expired',coalesce(v_paths,'[]'::jsonb));
+end;
+$function$;
+
+create or replace function public.global_retention_cleanup_audit(
+  p_user_id uuid, p_workspace_id uuid
+) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, global
+as $function$
+declare v_role text; v_days integer := 365; v_deleted integer := 0;
+begin
+  select role into v_role from global.workspace_members
+    where workspace_id=p_workspace_id and user_id=p_user_id and status='active' limit 1;
+  if coalesce(v_role,'') not in ('owner','admin') then return jsonb_build_object('ok',false,'code','ADMIN_REQUIRED'); end if;
+  select audit_retention_days into v_days from global.workspace_retention_policies where workspace_id=p_workspace_id;
+  delete from global.audit_events where workspace_id=p_workspace_id
+    and occurred_at < now() - make_interval(days=>coalesce(v_days,365));
+  get diagnostics v_deleted = row_count;
+  delete from global.enterprise_rate_limits where updated_at < now() - interval '1 day';
+  insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
+    values (p_workspace_id,p_user_id,'retention.cleanup','workspace_retention_policy',p_workspace_id::text,
+      jsonb_build_object('auditEventsDeleted',v_deleted));
+  return jsonb_build_object('ok',true,'auditEventsDeleted',v_deleted);
+end;
+$function$;
+
+create or replace function public.global_retention_mark_expired(
+  p_user_id uuid, p_workspace_id uuid, p_job_id uuid
+) returns boolean
+language plpgsql security definer set search_path = pg_catalog, global
+as $function$
+declare v_role text;
+begin
+  select role into v_role from global.workspace_members
+    where workspace_id=p_workspace_id and user_id=p_user_id and status='active' limit 1;
+  if coalesce(v_role,'') not in ('owner','admin') then return false; end if;
+  update global.export_jobs set status='expired',storage_path=null,file_sha256=null
+    where id=p_job_id and workspace_id=p_workspace_id and status='completed' and expires_at <= now();
+  return found;
+end;
+$function$;
+
+revoke all on function public.global_retention_candidates(uuid,uuid) from public, anon, authenticated;
+revoke all on function public.global_retention_cleanup_audit(uuid,uuid) from public, anon, authenticated;
+revoke all on function public.global_retention_mark_expired(uuid,uuid,uuid) from public, anon, authenticated;
+grant execute on function public.global_retention_candidates(uuid,uuid) to service_role;
+grant execute on function public.global_retention_cleanup_audit(uuid,uuid) to service_role;
+grant execute on function public.global_retention_mark_expired(uuid,uuid,uuid) to service_role;
+
 commit;

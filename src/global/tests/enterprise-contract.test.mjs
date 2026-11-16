@@ -36,3 +36,10 @@ test("export worker is JWT-protected, private-storage-only and checks ownership 
   assert.match(migration, /global_export_complete/);
   assert.match(migration, /global_export_fail/);
 });
+
+test("retention cleanup is admin-checked and removes expired private exports", () => {
+  assert.match(migration, /global_retention_candidates/);
+  assert.match(migration, /global_retention_cleanup_audit/);
+  assert.match(migration, /global_retention_mark_expired/);
+  assert.match(exportEdge, /body.action === "cleanup"/);
+});

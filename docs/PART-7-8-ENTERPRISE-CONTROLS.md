@@ -17,7 +17,7 @@ This branch is an isolated implementation candidate based on `global-dev`. It do
 ## Deliberate limitations
 - This is not a tax-compliance certification. A rule marked verified must be reviewed and published through a controlled server-side process; country selection alone never establishes registration, nexus or collection obligation.
 - FX rates are not fetched from an invented provider. The code accepts only explicit, source-attributed rational snapshots.
-- CSV/JSON export jobs have an authenticated worker, private storage, SHA-256 integrity metadata and short-lived signed downloads. Each dataset is capped at 1,000 records per table; automated expiry cleanup and retention enforcement still require implementation.
+- CSV/JSON export jobs have an authenticated worker, private storage, SHA-256 integrity metadata and short-lived signed downloads. Each dataset is capped at 1,000 records per table. Workspace admins can trigger retention cleanup for expired exports and old audit events; a scheduled cleanup trigger is not configured.
 - Branch records and approval metadata are present, but branch assignment has not yet been wired into every business record/invoice workflow.
 - The existing India GST code path has not been modified.
 - The migration is a candidate only; no live Supabase DDL was applied.

@@ -62,13 +62,39 @@ Deno.serve(async (req: Request) => {
     if (new TextEncoder().encode(raw).byteLength > 8192) return globalJson({ error: "Request too large" }, 413, origin);
     const body = JSON.parse(raw);
     if (!isObject(body) || !UUID.test(body.workspaceId || "") || !UUID.test(body.jobId || "")
-      || !["process", "download"].includes(body.action)) return globalJson({ error: "Invalid request" }, 400, origin);
+      || !["process", "download", "cleanup"].includes(body.action)) return globalJson({ error: "Invalid request" }, 400, origin);
 
     const { data: limited, error: limitError } = await auth.admin.rpc("global_consume_enterprise_rate_limit", {
       p_key: auth.user.id + ":export", p_limit: 10, p_window_seconds: 60,
     });
     if (limitError) return globalJson({ error: "Rate limiter unavailable" }, 503, origin);
     if (limited !== true) return globalJson({ error: "Rate limit exceeded" }, 429, origin);
+
+    if (body.action === "cleanup") {
+      const { data: candidates, error: candidateError } = await auth.admin.rpc("global_retention_candidates", {
+        p_user_id: auth.user.id, p_workspace_id: body.workspaceId,
+      });
+      if (candidateError || !candidates?.ok) return globalJson({ error: candidates?.code || "RETENTION_ACCESS_DENIED" }, 403, origin);
+      const expired = Array.isArray(candidates.expired) ? candidates.expired : [];
+      const paths = expired.map((item: any) => item.storagePath).filter((path: unknown) => typeof path === "string" && path.length > 0);
+      if (paths.length > 0) {
+        const { error: removeError } = await auth.admin.storage.from(BUCKET).remove(paths);
+        if (removeError) return globalJson({ error: "Expired export files could not be removed" }, 503, origin);
+      }
+      let markedExpired = 0;
+      for (const item of expired) {
+        const { data: marked, error: markError } = await auth.admin.rpc("global_retention_mark_expired", {
+          p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_job_id: item.jobId,
+        });
+        if (markError) return globalJson({ error: "Retention status update failed" }, 503, origin);
+        if (marked === true) markedExpired += 1;
+      }
+      const { data: audit, error: auditError } = await auth.admin.rpc("global_retention_cleanup_audit", {
+        p_user_id: auth.user.id, p_workspace_id: body.workspaceId,
+      });
+      if (auditError || !audit?.ok) return globalJson({ error: audit?.code || "AUDIT_RETENTION_FAILED" }, 503, origin);
+      return globalJson({ ok: true, expiredExports: markedExpired, auditEventsDeleted: audit.auditEventsDeleted || 0 }, 200, origin);
+    }
 
     if (body.action === "download") {
       const { data, error } = await auth.admin.rpc("global_export_download_path", {
