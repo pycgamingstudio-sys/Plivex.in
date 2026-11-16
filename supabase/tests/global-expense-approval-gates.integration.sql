@@ -1,0 +1,63 @@
+\set ON_ERROR_STOP on
+-- Part 9 approval gate integration checks. Runs in the disposable Global test database.
+SET ROLE service_role;
+DO $part9_expense_approval$
+DECLARE
+  result jsonb;
+  request_id uuid;
+  expense_id uuid;
+  expense_key uuid := '99999999-9999-4999-8999-999999999901';
+  ws uuid := 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  requester uuid := '88888888-8888-4888-8888-888888888888';
+  approver uuid := '66666666-6666-4666-8666-666666666666';
+  blocked boolean := false;
+BEGIN
+  INSERT INTO global.approval_policies(
+    workspace_id,resource_type,action_type,enabled,minimum_amount_minor,approver_roles,prevent_self_approval,created_by
+  ) VALUES (ws,'expense','expense.create',true,1000,array['owner','admin']::text[],true,approver)
+  ON CONFLICT (workspace_id,resource_type,action_type) DO UPDATE SET
+    enabled=true,minimum_amount_minor=1000,approver_roles=array['owner','admin']::text[],
+    prevent_self_approval=true,updated_at=now();
+
+  BEGIN
+    INSERT INTO global.expenses(workspace_id,category,vendor,amount_minor,currency_code,expense_date,created_by,
+      transaction_amount_minor,transaction_currency_code,creation_idempotency_key)
+    VALUES (ws,'Travel','Test Vendor',2500,'USD',current_date,requester,2500,'USD',expense_key);
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    blocked := position('approval_required' in SQLERRM) > 0;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'Expense insert bypassed approval gate'; END IF;
+
+  result := public.global_enterprise_action(requester,ws,'approval.request',
+    jsonb_build_object(
+      'actionType','expense.create','resourceType','expense','resourceId',expense_key::text,
+      'payload',jsonb_build_object('amountMinor','2500','category','Travel','vendor','Test Vendor',
+        'expenseDate',to_char(current_date,'YYYY-MM-DD'),'currencyCode','USD')
+    ));
+  IF result->>'ok' <> 'true' THEN RAISE EXCEPTION 'Approval request failed: %',result; END IF;
+  request_id := (result->>'requestId')::uuid;
+
+  result := public.global_enterprise_action(approver,ws,'approval.decide',
+    jsonb_build_object('requestId',request_id::text,'decision','approved','note','Verified expense'));
+  IF result->>'ok' <> 'true' THEN RAISE EXCEPTION 'Approval decision failed: %',result; END IF;
+
+  INSERT INTO global.expenses(workspace_id,category,vendor,amount_minor,currency_code,expense_date,created_by,
+    transaction_amount_minor,transaction_currency_code,creation_idempotency_key)
+  VALUES (ws,'Travel','Test Vendor',2500,'USD',current_date,requester,2500,'USD',expense_key)
+  RETURNING id INTO expense_id;
+  IF expense_id IS NULL THEN RAISE EXCEPTION 'Approved expense was not created'; END IF;
+
+  blocked := false;
+  BEGIN
+    UPDATE global.expenses SET amount_minor=3500,transaction_amount_minor=3500
+    WHERE id=expense_id AND workspace_id=ws;
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    blocked := position('approval_required' in SQLERRM) > 0;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'Expense update bypassed approval gate'; END IF;
+
+  DELETE FROM global.expenses WHERE id=expense_id AND workspace_id=ws;
+  DELETE FROM global.approval_policies WHERE workspace_id=ws AND resource_type='expense' AND action_type='expense.create';
+END
+$part9_expense_approval$;
+RESET ROLE;
