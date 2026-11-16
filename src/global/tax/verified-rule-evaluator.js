@@ -66,9 +66,11 @@ export function calculateVerifiedTaxRule(input) {
     || rule.currencyCode !== currencyCode || rule.treatment !== "standard"
     || typeof rule.id !== "string" || !rule.id.trim() || typeof rule.version !== "string" || !rule.version.trim()
     || !officialSource(countryCode, rule.source) || !validDate(rule.effectiveFrom)
-    || (rule.effectiveTo && !validDate(rule.effectiveTo))
+    || (rule.effectiveTo && (!validDate(rule.effectiveTo) || rule.effectiveTo < rule.effectiveFrom))
+    || !validDate(rule.reviewedOn) || rule.reviewedOn > input.invoiceDate
+    || typeof rule.reviewedBy !== "string" || !rule.reviewedBy.trim()
     || input.invoiceDate < rule.effectiveFrom || (rule.effectiveTo && input.invoiceDate > rule.effectiveTo)) {
-    return fail("INVALID_OR_INACTIVE_RULE", "A verified, officially sourced, effective rule snapshot is required.");
+    return fail("INVALID_OR_INACTIVE_RULE", "A verified, officially sourced, reviewed and effective rule snapshot is required.");
   }
   if (!Array.isArray(rule.components) || rule.components.length < 1 || rule.components.length > 8) {
     return fail("INVALID_TAX_COMPONENTS", "One to eight explicit tax components are required.");
