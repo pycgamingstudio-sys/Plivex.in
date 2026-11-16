@@ -156,7 +156,7 @@ begin
     where ar.workspace_id = new.workspace_id
       and ar.resource_type = 'expense'
       and ar.action_type = v_action
-      and ar.resource_id = v_resource_id
+      and (ar.resource_id = v_resource_id or (tg_op = 'INSERT' and ar.resource_id = '*'))
       and ar.status = 'approved'
       and ar.consumed_at is null
       and approver.role = any(v_policy.approver_roles)
