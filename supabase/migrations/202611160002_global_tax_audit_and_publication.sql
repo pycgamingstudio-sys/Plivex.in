@@ -204,6 +204,7 @@ revoke all on function public.global_publish_tax_rule_version(uuid,text) from pu
 revoke all on function public.global_append_tax_calculation_audit(uuid,uuid,uuid,integer,jsonb) from public, anon, authenticated;
 grant execute on function public.global_publish_tax_rule_version(uuid,text) to service_role;
 grant execute on function public.global_append_tax_calculation_audit(uuid,uuid,uuid,integer,jsonb) to service_role;
+grant select on global.tax_rule_versions to service_role;
 grant select on global.tax_calculation_audit to authenticated, service_role;
 revoke insert, update, delete on global.tax_calculation_audit from anon, authenticated;
 grant insert on global.tax_calculation_audit to service_role;
