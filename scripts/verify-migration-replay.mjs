@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 
 const root = process.cwd();
@@ -241,6 +241,42 @@ function assertGlobalMigrationRollback(port) {
     if (drop.status !== 0) console.error("WARN: disposable rollback database cleanup failed:", drop.stderr || "");
   }
 }
+function assertGlobalBackupRestore(port) {
+  const sourceDb = "plivex_migration_replay";
+  const restoredDb = "plivex_global_restore_drill";
+  const tempDir = mkdtempSync(resolve(process.env.TMPDIR || "/tmp", "plivex-global-restore-"));
+  const dumpPath = resolve(tempDir, "candidate.dump");
+  const create = spawnSync("createdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",restoredDb], {
+    cwd: root, env: envFor(port, "postgres"), encoding: "utf8",
+  });
+  if (create.status !== 0) fail("Could not create disposable restore-drill database: " + (create.stderr || ""));
+  try {
+    const dump = spawnSync("pg_dump", ["-Fc","--no-owner","--no-privileges","-f",dumpPath,sourceDb], {
+      cwd: root, env: envFor(port, sourceDb), encoding: "utf8",
+    });
+    if (dump.status !== 0) fail("Disposable candidate backup failed: " + (dump.stderr || ""));
+    const restore = spawnSync("pg_restore", ["--exit-on-error","--no-owner","--no-privileges","-d",restoredDb,dumpPath], {
+      cwd: root, env: envFor(port, restoredDb), encoding: "utf8",
+    });
+    if (restore.status !== 0) fail("Disposable candidate restore failed: " + (restore.stderr || ""));
+    const sourceSummary = query(port, sourceDb, "SELECT concat_ws('|',(SELECT count(*) FROM global.workspaces),(SELECT count(*) FROM global.workspace_members),(SELECT count(*) FROM global.invoices),(SELECT count(*) FROM global.expenses),(SELECT count(*) FROM pg_policies WHERE schemaname='global'),(SELECT count(*) FROM public.subscriptions WHERE id='22222222-2222-4222-8222-222222222222'))");
+    const restoredSummary = query(port, restoredDb, "SELECT concat_ws('|',(SELECT count(*) FROM global.workspaces),(SELECT count(*) FROM global.workspace_members),(SELECT count(*) FROM global.invoices),(SELECT count(*) FROM global.expenses),(SELECT count(*) FROM pg_policies WHERE schemaname='global'),(SELECT count(*) FROM public.subscriptions WHERE id='22222222-2222-4222-8222-222222222222'))");
+    if (!sourceSummary || sourceSummary !== restoredSummary) {
+      fail("Global backup/restore verification mismatch: source=" + sourceSummary + " restored=" + restoredSummary);
+    }
+    const sourceIndia = query(port, sourceDb, "SELECT concat_ws('|',gateway,txnid,amount_minor_units::text,currency) FROM public.payment_logs WHERE source='stage4-migration-replay'");
+    const restoredIndia = query(port, restoredDb, "SELECT concat_ws('|',gateway,txnid,amount_minor_units::text,currency) FROM public.payment_logs WHERE source='stage4-migration-replay'");
+    if (sourceIndia !== restoredIndia || !sourceIndia) fail("India payment-log data changed during disposable Global restore drill");
+    console.log("PASS disposable PostgreSQL custom-format backup/restore, Global RLS policy counts and India payment-log integrity");
+  } finally {
+    const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",restoredDb], {
+      cwd: root, env: envFor(port, "postgres"), encoding: "utf8",
+    });
+    rmSync(tempDir, { recursive: true, force: true });
+    if (drop.status !== 0) console.error("WARN: disposable restore-drill database cleanup failed:", drop.stderr || "");
+  }
+}
+
 function assertRemoteIndia(port) {
   const sub = query(port, "plivex_migration_replay", `
     SELECT concat_ws('|',gateway,provider,txnid,payu_txnid,status::text,tier::text,amount::text,currency)
@@ -311,5 +347,6 @@ assertCandidateIndia(candidatePort);
 assertGlobalFoundation(candidatePort);
 assertRollback(candidatePort);
 assertGlobalMigrationRollback(candidatePort);
+assertGlobalBackupRestore(candidatePort);
 console.log("PASS global-dev candidate replay 35 recovered + 38 local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
 console.log("PASS archive hashes, version ordering, replay, Global workspace isolation, migration rollback, RLS and India data-integrity checks.");
