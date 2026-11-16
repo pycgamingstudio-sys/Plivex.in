@@ -30,7 +30,7 @@ create table if not exists global.journal_entries (
   currency_code text not null check (currency_code ~ '^[A-Z]{3}$'),
   memo text not null check (length(btrim(memo)) between 1 and 500),
   source_type text not null default 'manual'
-    check (source_type in ('manual','opening_balance','invoice_issued','invoice_payment','invoice_refund','expense','purchase','stock_adjustment')),
+    check (source_type in ('manual','opening_balance','invoice_issued','invoice_payment','invoice_refund','expense','purchase','purchase_payment','fx_revaluation','stock_adjustment')),
   source_id uuid,
   idempotency_key uuid not null,
   request_fingerprint text not null check (request_fingerprint ~ '^[0-9a-f]{32}$'),
