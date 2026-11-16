@@ -39,9 +39,6 @@ jobs:
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
-      - name: Install PostgreSQL client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
-
       - name: Download the selected encrypted backup artifact
         uses: actions/download-artifact@v4
         with:
@@ -93,7 +90,7 @@ jobs:
           set -euo pipefail
           docker run --detach --name plivex-production-restore-test \
             --publish 5432:5432 \
-            --env POSTGRES_USER=postgres \
+            --env POSTGRES_USER=supabase_admin \
             --env POSTGRES_PASSWORD=restore-test-only \
             --env POSTGRES_DB=postgres \
             supabase/postgres:17.6.1.136 \
@@ -103,7 +100,7 @@ jobs:
           ready=0
           for attempt in $(seq 1 90); do
             if docker exec -u postgres plivex-production-restore-test \
-              psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -Atqc 'SELECT 1' 2>/dev/null | grep -qx '1'; then
+              psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -Atqc 'SELECT 1' 2>/dev/null | grep -qx '1'; then
               sleep 2
               if docker exec -u postgres plivex-production-restore-test \
                 psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -Atqc 'SELECT 1' 2>/dev/null | grep -qx '1'; then
@@ -140,7 +137,7 @@ jobs:
           # expected duplicate-role notices; fail on every other SQL error.
           set +e
           docker exec -i -u postgres plivex-production-restore-test \
-            psql -X -U postgres -d postgres -f /dev/stdin \
+            psql -X -U supabase_admin -d postgres -f /dev/stdin \
             < backup/roles.sql > /tmp/plivex-restore-roles.log 2>&1
           role_status=$?
           set -e
@@ -176,7 +173,7 @@ jobs:
         env:
           PGHOST: 127.0.0.1
           PGPORT: "5432"
-          PGUSER: postgres
+          PGUSER: supabase_admin
           PGPASSWORD: restore-test-only
           PGDATABASE: postgres
         run: bash scripts/verify-production-baseline-replay.sh
