@@ -44,8 +44,8 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 75 || new Set(candidatePlan.map((x) => x.path)).size !== 74) {
-  fail("Candidate replay plan must contain 35 recovered historical and all 39 current local migrations");
+if (candidatePlan.length !== 75 || new Set(candidatePlan.map((x) => x.path)).size !== 75) {
+  fail("Candidate replay plan must contain 35 recovered historical and all 40 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -291,7 +291,7 @@ function summary(port, remote) {
 
 const remotePort = Number(process.env.REMOTE_PGPORT || 5433);
 const candidatePort = Number(process.env.CANDIDATE_PGPORT || 5434);
-console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 74 candidate replay entries.");
+console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 75 candidate replay entries.");
 resetDb(remotePort);
 replay(remotePort, remotePlan, true);
 assertRls(remotePort, false);
