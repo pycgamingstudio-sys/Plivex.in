@@ -10,7 +10,8 @@ const ENTRIES = [
 export const CURRENCY_PRECISION = Object.freeze(Object.fromEntries(ENTRIES));
 export function getCurrencyPrecision(code) {
   if (typeof code !== "string") return null;
-  return CURRENCY_PRECISION[code.trim().toUpperCase()] ?? null;
+  const normalized = code.trim().toUpperCase();
+  return Object.hasOwn(CURRENCY_PRECISION, normalized) ? CURRENCY_PRECISION[normalized] : null;
 }
 export function assertMinorAmount(amountMinor, currencyCode) {
   if (!Number.isSafeInteger(amountMinor)) throw new TypeError("amountMinor must be a safe integer");

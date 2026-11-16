@@ -1,23 +1,24 @@
-# Part 7–8 implementation notes
+# Part 7 — Global tax, currency and country foundations
 
-This branch is an isolated implementation candidate based on `global-dev`. It does not deploy migrations or change production.
+This is an isolated implementation candidate based on `global-dev`. It does not deploy migrations or change production.
 
-## Part 7 foundations added
-- Explicit currency minor-unit precision metadata for a constrained ISO 4217 allow-list.
-- Rational, integer-only FX conversion using numerator/denominator snapshots; conversion output retains source provenance and can be persisted to append-only conversion history.
-- A verified tax-rule snapshot validator and effective-date/jurisdiction resolver integrated into the Global tax router. Sources are restricted to country-appropriate official government/tax domains.
-- A country capability matrix that distinguishes the India legacy path, standard-rate-only support and jurisdiction-adapter requirements.
+## Implemented in this candidate
+- Allow-listed currency minor-unit precision with own-property checks; integer/rational FX conversion and exact locale-aware formatting.
+- Versioned tax-rule validation with country/currency pairing, official-source host restrictions, exact jurisdiction resolution, effective dates and duplicate/overlap protection at publication.
+- Server-only tax-rule publication gate and append-only tax-calculation audit storage in an additive candidate migration.
+- Integer-only tax calculation arithmetic with overflow rejection; explicit seller registration/effective-date and US/Canada jurisdiction/collection-obligation gates.
+- Country invoice checklists for GB, AE, AU and SG; US/Canada return jurisdiction-review-required rather than generic invoice assumptions.
+- Capability matrix clearly distinguishes legacy India handling, limited country checklists and unsupported tax treatments.
 
-## Part 8 foundations added
-- Additive private-schema tables for branches, per-member/per-role permission overrides, approval requests, append-only audit events, export jobs, retention settings, rate-limit counters and immutable FX conversion history.
-- RLS enabled with membership/admin read policies; the Global schema remains unexposed to PostgREST.
-- Service-role-only RPCs re-check active workspace membership and perform enterprise mutations and audit writes in one database transaction. An admin-only workspace health snapshot reports export queue, approval and audit/FX activity metrics.
-- An authenticated Edge Function applies a per-user rate limit before delegating to the guarded RPC.
+## Country readiness
+- India: existing GST implementation only; this branch does not replace or modify it.
+- GB, AE, AU, SG: standard-rate-only foundations and invoice checklists; reduced/zero/exempt/special treatments require separately maintained verified rules and review.
+- US, CA: no national rate assumption; exact state/local or provincial jurisdiction and seller collection-obligation evidence are mandatory.
+- AE: foreign-currency tax invoice calculation and UAE-specific line rounding are not implemented; the checklist is AED-only.
+- FX: only explicit, source-attributed rational snapshots are accepted; no exchange-rate provider is invented or fetched automatically.
 
-## Deliberate limitations
-- This is not a tax-compliance certification. A rule marked verified must be reviewed and published through a controlled server-side process; country selection alone never establishes registration, nexus or collection obligation.
-- FX rates are not fetched from an invented provider. The code accepts only explicit, source-attributed rational snapshots.
-- CSV/JSON export jobs have an authenticated worker, private storage, SHA-256 integrity metadata and short-lived signed downloads. Each dataset is capped at 1,000 records per table. Workspace admins can trigger retention cleanup for expired exports and old audit events; a scheduled cleanup trigger is not configured.
-- Branch records and approval metadata are present, but branch assignment has not yet been wired into every business record/invoice workflow.
-- The existing India GST code path has not been modified.
-- The migration is a candidate only; no live Supabase DDL was applied.
+## Explicit limitations
+- This is not a tax-compliance certification. Business confirmations are recorded as attestations, not independent legal verification.
+- The country invoice validators are checklists, not a substitute for local professional review.
+- The new migration is a candidate only. No live Supabase migration, production deployment, tax-rule publication or real invoice finalization has been performed.
+- End-to-end invoice/business-record integration, production tax-rate maintenance operations, country-by-country independent legal review and final security review remain separate release gates.

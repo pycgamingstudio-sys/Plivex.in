@@ -7,9 +7,10 @@ const snapshot = {
   rateNumerator: "8350", rateDenominator: "100", effectiveAt: "2026-11-16T00:00:00Z",
   capturedAt: "2026-11-16T01:00:00Z", source: "https://rates.example.test/feed", provider: "Test fixture",
 };
-test("currency precision covers zero, two and three decimal examples", () => {
+test("currency precision covers zero, two and three decimal examples and rejects inherited keys", () => {
   assert.equal(getCurrencyPrecision("JPY"), 0); assert.equal(getCurrencyPrecision("USD"), 2);
   assert.equal(getCurrencyPrecision("KWD"), 3); assert.equal(getCurrencyPrecision("ZZZ"), null);
+  assert.equal(getCurrencyPrecision("constructor"), null); assert.equal(getCurrencyPrecision("toString"), null);
 });
 test("FX conversion uses integer rational arithmetic and preserves provenance", () => {
   const result = convertMinorAmount(100, snapshot);
