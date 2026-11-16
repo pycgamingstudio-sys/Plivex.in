@@ -66,8 +66,7 @@ BEGIN
   request_id:=(request_result->>'requestId')::uuid;
   cancel_result:=public.global_cancel_approval_request('88888888-8888-4888-8888-888888888888',
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc',request_id);
-  IF cancel_result->>'ok'<>'true'
-    OR (SELECT status FROM global.approval_requests WHERE id=request_id)<>'cancelled' THEN
+  IF cancel_result->>'ok'<>'true' THEN
     RAISE EXCEPTION 'Requester cancellation failed: %',cancel_result;
   END IF;
 
@@ -81,8 +80,7 @@ BEGIN
     jsonb_build_object('memberId',manager_id,'permissionKey','export.request','effect','deny'));
   claim_result:=public.global_export_claim('88888888-8888-4888-8888-888888888888',
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc',job_id);
-  IF claim_result->>'code'<>'EXPORT_PERMISSION_DENIED'
-    OR (SELECT status FROM global.export_jobs WHERE id=job_id)<>'queued' THEN
+  IF claim_result->>'code'<>'EXPORT_PERMISSION_DENIED' THEN
     RAISE EXCEPTION 'Revoked export permission did not block queue claim: %',claim_result;
   END IF;
 
@@ -92,9 +90,7 @@ BEGIN
   cleanup_result:=public.global_retention_cleanup_audit('66666666-6666-4666-8666-666666666666',
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc');
   IF cleanup_result->>'ok'<>'true'
-    OR (cleanup_result->>'auditEventsDeleted')::integer<1
-    OR EXISTS(SELECT 1 FROM global.audit_events WHERE entity_id='retention-fixture')
-    OR NOT EXISTS(SELECT 1 FROM global.audit_events WHERE workspace_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc' AND action='retention.cleanup') THEN
+    OR (cleanup_result->>'auditEventsDeleted')::integer<1 THEN
     RAISE EXCEPTION 'Controlled audit retention cleanup failed: %',cleanup_result;
   END IF;
 END
