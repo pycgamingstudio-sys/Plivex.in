@@ -1,0 +1,57 @@
+name: Manual production database backup
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Validate required secrets
+        shell: bash
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_DB_URL" || { echo "::error::Add repository secret SUPABASE_DB_URL (Supabase session-pooler connection string)."; exit 1; }
+          test -n "$BACKUP_ENCRYPTION_KEY" || { echo "::error::Add repository secret BACKUP_ENCRYPTION_KEY (a strong random passphrase)."; exit 1; }
+      - name: Create Supabase-compatible logical backup
+        shell: bash
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          mkdir -p backup
+          npx --yes supabase@latest db dump --db-url "$SUPABASE_DB_URL" -f backup/roles.sql --role-only
+          npx --yes supabase@latest db dump --db-url "$SUPABASE_DB_URL" -f backup/schema.sql
+          npx --yes supabase@latest db dump --db-url "$SUPABASE_DB_URL" -f backup/data.sql --use-copy --data-only
+          test -s backup/roles.sql
+          test -s backup/schema.sql
+          test -s backup/data.sql
+          printf 'Backup created at %s\n' "$(date -u +%FT%TZ)"
+          du -h backup/*.sql
+      - name: Encrypt backup before artifact upload
+        shell: bash
+        env:
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          set -euo pipefail
+          tar -czf production-db-backup.tar.gz -C backup .
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in production-db-backup.tar.gz -out production-db-backup.tar.gz.enc -pass env:BACKUP_ENCRYPTION_KEY
+          sha256sum production-db-backup.tar.gz.enc > production-db-backup.tar.gz.enc.sha256
+          rm -rf backup production-db-backup.tar.gz
+          test -s production-db-backup.tar.gz.enc
+      - name: Upload encrypted backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plivex-production-db-backup
+          path: |
+            production-db-backup.tar.gz.enc
+            production-db-backup.tar.gz.enc.sha256
+          retention-days: 7
+          if-no-files-found: error
