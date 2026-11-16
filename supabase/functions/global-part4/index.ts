@@ -5,7 +5,7 @@ const MAX_BODY = 32 * 1024;
 const RESOURCES = new Set(["warehouses","warehouse_stock_levels","inventory_batches","warehouse_stock_movements","stock_transfers","purchase_orders","purchase_order_items","crm_leads","crm_activities"]);
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 
-const validDate = (value: unknown) => typeof value === "string" && /^\\d{4}-\\d{2}-\\d{2}$/.test(value)
+const validDate = (value: unknown) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
   && Number.isFinite(Date.parse(value)) && new Date(value + "T00:00:00.000Z").toISOString().slice(0,10) === value;
 function validateMutation(operation: string, values: Record<string, unknown>): string | null {
   if (operation === "create_warehouse") {
@@ -15,7 +15,7 @@ function validateMutation(operation: string, values: Record<string, unknown>): s
       || (values.is_default !== undefined && typeof values.is_default !== "boolean")) return "Warehouse details are invalid.";
   } else if (operation === "create_lead") {
     if (typeof values.name !== "string" || !values.name.trim() || values.name.length > 200) return "Lead name is required.";
-    if (values.email !== undefined && values.email !== null && (typeof values.email !== "string" || values.email.length > 254 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(values.email))) return "Lead email is invalid.";
+    if (values.email !== undefined && values.email !== null && (typeof values.email !== "string" || values.email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email))) return "Lead email is invalid.";
     if (values.score !== undefined && (!Number.isInteger(values.score) || Number(values.score) < 0 || Number(values.score) > 100)) return "Lead score must be between 0 and 100.";
     if (values.estimated_value_minor !== undefined && (!Number.isSafeInteger(values.estimated_value_minor) || Number(values.estimated_value_minor) < 0)) return "Lead value must be a non-negative integer in minor units.";
     if (values.owner_id !== undefined && values.owner_id !== null && !UUID.test(String(values.owner_id))) return "Lead owner is invalid.";
