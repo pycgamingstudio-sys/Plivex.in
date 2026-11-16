@@ -176,7 +176,7 @@ jobs:
           # The real function is restored from schema.sql below.
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c \
-            "CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS trigger LANGUAGE plpgsql AS \\$function\\$ BEGIN RETURN NEW; END \\$function\\$;"
+            "CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS trigger LANGUAGE plpgsql AS 'BEGIN RETURN NEW; END';"
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < backup/auth-schema.sql
