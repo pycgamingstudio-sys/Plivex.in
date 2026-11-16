@@ -3,7 +3,7 @@ import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowe
 const TABLE_FIELDS: Record<string, readonly string[]> = {
   clients: ["name", "email", "phone", "tax_registration_number", "billing_address", "shipping_address", "notes", "status"],
   products: ["name", "sku", "description", "unit", "sale_price_minor", "purchase_cost_minor", "currency_code", "tax_code", "is_active"],
-  expenses: ["category", "vendor", "amount_minor", "currency_code", "expense_date", "payment_method", "reference", "notes", "attachment_url"],
+  expenses: ["category", "vendor", "amount_minor", "currency_code", "expense_date", "payment_method", "reference", "notes", "attachment_url", "transaction_amount_minor", "transaction_currency_code", "fx_rate_numerator", "fx_rate_denominator", "fx_source_url", "fx_provider", "fx_effective_at"],
   business_profiles: ["legal_name", "display_name", "email", "phone", "address", "tax_registration_number", "tax_registration_type", "tax_registration_status", "tax_registration_effective_from", "tax_jurisdiction_code"],
 };
 const READ_ONLY_TABLES = new Set(["stock_levels", "stock_movements", "invoices", "invoice_items", "invoice_payments"]);
@@ -57,10 +57,18 @@ function validateValues(table: string, values: Record<string, unknown>, creating
   if (table === "expenses") {
     if (creating && (typeof values.category !== "string" || !values.category.trim())) return "Expense category is required.";
     if (values.category !== undefined && (typeof values.category !== "string" || !values.category.trim())) return "Expense category is required.";
-    if (creating && (!Number.isSafeInteger(values.amount_minor) || Number(values.amount_minor) <= 0)) return "Expense amount must be a positive integer in minor units.";
-    if (values.amount_minor !== undefined && (!Number.isSafeInteger(values.amount_minor) || Number(values.amount_minor) <= 0)) return "Expense amount must be a positive integer in minor units.";
-    if (values.currency_code !== undefined && (typeof values.currency_code !== "string" || !CURRENCY.test(values.currency_code))) return "Choose a valid ISO currency code.";
+    const amount = values.transaction_amount_minor ?? values.amount_minor;
+    if (creating && (!Number.isSafeInteger(amount) || Number(amount) <= 0)) return "Expense amount must be a positive integer in transaction-currency minor units.";
+    if (values.transaction_amount_minor !== undefined && (!Number.isSafeInteger(values.transaction_amount_minor) || Number(values.transaction_amount_minor) <= 0)) return "Expense amount must be a positive integer in transaction-currency minor units.";
+    const currency = values.transaction_currency_code ?? values.currency_code;
+    if (currency !== undefined && (typeof currency !== "string" || !CURRENCY.test(currency))) return "Choose a valid ISO transaction currency code.";
     if (values.expense_date !== undefined && (typeof values.expense_date !== "string" || !DATE.test(values.expense_date) || Number.isNaN(Date.parse(values.expense_date)))) return "Expense date must use YYYY-MM-DD.";
+    for (const key of ["fx_rate_numerator", "fx_rate_denominator"]) {
+      if (values[key] !== undefined && values[key] !== null && (typeof values[key] !== "string" || !/^[1-9][0-9]{0,37}$/.test(values[key]))) return "FX rate must use positive integer numerator and denominator values.";
+    }
+    if (values.fx_source_url !== undefined && values.fx_source_url !== null && (typeof values.fx_source_url !== "string" || !/^https:\/\//.test(values.fx_source_url) || values.fx_source_url.length > 2000)) return "Enter an HTTPS exchange-rate source URL.";
+    if (values.fx_provider !== undefined && values.fx_provider !== null && (typeof values.fx_provider !== "string" || !values.fx_provider.trim() || values.fx_provider.length > 100)) return "Enter the exchange-rate provider name.";
+    if (values.fx_effective_at !== undefined && values.fx_effective_at !== null && (typeof values.fx_effective_at !== "string" || !Number.isFinite(Date.parse(values.fx_effective_at)))) return "Enter a valid FX effective timestamp.";
   }
   return null;
 }
@@ -112,6 +120,48 @@ Deno.serve(async (req: Request) => {
       values = body.values;
       const validationError = validateValues(table, values, action === "create");
       if (validationError) return globalJson({ error: validationError }, 400, origin);
+    }
+
+    if (table === "expenses" && action === "create") {
+      if (typeof body.idempotency_key !== "string" || !UUID.test(body.idempotency_key)) {
+        return globalJson({ error: "A valid expense request id is required." }, 400, origin);
+      }
+      const { data: expenseData, error: expenseError } = await auth.admin.rpc("global_create_expense_with_fx", {
+        p_user_id: auth.user.id,
+        p_workspace_id: workspaceId,
+        p_category: values.category,
+        p_vendor: values.vendor ?? null,
+        p_transaction_amount_minor: values.transaction_amount_minor ?? values.amount_minor,
+        p_transaction_currency_code: values.transaction_currency_code ?? values.currency_code,
+        p_expense_date: values.expense_date || new Date().toISOString().slice(0, 10),
+        p_idempotency_key: body.idempotency_key,
+        p_rate_numerator: values.fx_rate_numerator ?? null,
+        p_rate_denominator: values.fx_rate_denominator ?? null,
+        p_source_url: values.fx_source_url ?? null,
+        p_provider: values.fx_provider ?? null,
+        p_effective_at: values.fx_effective_at ?? null,
+        p_notes: values.notes ?? null,
+      });
+      if (expenseError) {
+        console.error("Global FX expense RPC failed", { code: expenseError.code });
+        return globalJson({ error: "Global expense service is not ready. Please try again later." }, 503, origin);
+      }
+      if (!expenseData?.ok) {
+        const reason = String(expenseData?.reason || "request_failed");
+        const messages: Record<string, string> = {
+          access_denied: "You do not have access to this Global workspace.",
+          forbidden: "Your workspace role cannot create expenses.",
+          workspace_not_found: "Global workspace not found.",
+          invalid_expense: "Expense details are invalid.",
+          unsupported_base_currency: "The workspace base currency is not supported for FX posting.",
+          fx_snapshot_required: "A valid exchange-rate snapshot, source and provider are required for a foreign-currency expense.",
+          unnecessary_fx_snapshot: "Do not add an exchange rate when the transaction currency matches the workspace currency.",
+          idempotency_conflict: "This expense request id was already used for different expense details.",
+        };
+        const status = reason === "access_denied" || reason === "forbidden" ? 403 : reason === "workspace_not_found" ? 404 : 400;
+        return globalJson({ error: messages[reason] || "Could not create this expense.", reason }, status, origin);
+      }
+      return globalJson({ ok: true, record: expenseData.record, duplicate: expenseData.duplicate === true }, expenseData.duplicate ? 200 : 201, origin);
     }
 
     const { data, error } = await auth.admin.rpc("global_business_records", {

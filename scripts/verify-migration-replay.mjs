@@ -13,8 +13,8 @@ const normalized = pairs.filter((x) => x.normalized_sql_match === true);
 const localOnly = manifest.local_only_files || [];
 
 if (manifest.remote_ledger_entries !== 52 || history.length !== 39 || missing.length !== 35
-  || manifest.local_migration_files !== 35 || pairs.length !== 17
-  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 18) {
+  || manifest.local_migration_files !== 37 || pairs.length !== 17
+  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 20) {
   fail("Migration reconciliation counts differ from the reviewed 52/39/35/35/17/13/4/18 manifest");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
@@ -44,8 +44,8 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 70 || new Set(candidatePlan.map((x) => x.path)).size !== 70) {
-  fail("Candidate replay plan must contain 35 recovered historical and all 35 current local migrations");
+if (candidatePlan.length !== 72 || new Set(candidatePlan.map((x) => x.path)).size !== 70) {
+  fail("Candidate replay plan must contain 35 recovered historical and all 37 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -122,11 +122,16 @@ function assertGlobalFoundation(port) {
   if (query(port, "plivex_migration_replay", "SELECT has_function_privilege('authenticated','public.global_record_stock_movement(uuid,uuid,uuid,text,numeric,text,uuid)','EXECUTE')::text || '|' || has_function_privilege('service_role','public.global_record_stock_movement(uuid,uuid,uuid,text,numeric,text,uuid)','EXECUTE')::text") !== "false|true") fail("Global inventory RPC is not service-role-only");
   const invoiceCatalog = query(port, "plivex_migration_replay", "SELECT (to_regprocedure('public.global_create_invoice_draft(uuid,uuid,uuid,text,date,date,text,jsonb,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_record_invoice_payment(uuid,uuid,uuid,bigint,text,date,text,text,text,uuid)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoices' AND column_name='creation_idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoice_payments' AND column_name='idempotency_key')::text");
   if (invoiceCatalog !== "true|true|true|true") fail("Global invoice/payment ledger RPC or idempotency columns missing: " + invoiceCatalog);
+  const fxExpenseCatalog = query(port, "plivex_migration_replay", "SELECT (to_regprocedure('public.global_create_expense_with_fx(uuid,uuid,text,text,bigint,text,date,uuid,numeric,numeric,text,text,timestamp with time zone,text)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='expenses' AND column_name='transaction_amount_minor')::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='expenses' AND column_name='fx_snapshot_id')::text || '|' || EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='global' AND indexname='global_expenses_idempotency_idx')::text");
+  if (fxExpenseCatalog !== "true|true|true|true") fail("Global multi-currency expense RPC, provenance columns or idempotency index missing: " + fxExpenseCatalog);
+  const taxAuditCatalog = query(port, "plivex_migration_replay", "SELECT (to_regprocedure('public.global_publish_tax_rule_version(uuid,text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_append_tax_calculation_audit(uuid,uuid,uuid,integer,jsonb)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='global' AND table_name='tax_calculation_audit')::text");
+  if (taxAuditCatalog !== "true|true|true") fail("Global tax-rule publication or append-only tax audit storage missing: " + taxAuditCatalog);
   console.log("PASS Global foundation table/RLS/grant and inventory RPC catalog assertions");
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-isolation-foundation.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-owner-provisioning.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-business-data.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-invoice-ledger.integration.sql")]);
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-multicurrency-expense.integration.sql")]);
 }
 function applyForcedMigrationRollback(port, db, migrationPath) {
   const migration = readFileSync(migrationPath, "utf8")
@@ -205,7 +210,22 @@ function assertGlobalMigrationRollback(port) {
     if (invoiceLedgerRollback.status === 0) fail("Global invoice/payment migration rollback probe unexpectedly committed");
     const invoiceLedgerResidue = query(port, db, "SELECT (to_regprocedure('public.global_create_invoice_draft(uuid,uuid,uuid,text,date,date,text,jsonb,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_record_invoice_payment(uuid,uuid,uuid,bigint,text,date,text,text,text,uuid)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoices' AND column_name='creation_idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='global' AND indexname='global_invoices_creation_idempotency_idx')::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoice_payments' AND column_name='idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='global' AND indexname='global_invoice_payments_idempotency_idx')::text");
     if (invoiceLedgerResidue !== "false|false|false|false|false|false") fail("Global invoice/payment rollback left functions, columns or indexes behind: " + invoiceLedgerResidue);
-    console.log("PASS actual DDL rollback for Global foundation, inventory and invoice/payment migrations");
+    // Part 7 migrations are independently replayed and transactionally rolled back.
+    const enterprisePath = resolve(root, "supabase/migrations/202611160001_global_enterprise_controls.sql");
+    const taxAuditPath = resolve(root, "supabase/migrations/202611160002_global_tax_audit_and_publication.sql");
+    const fxExpensePath = resolve(root, "supabase/migrations/202611160003_global_multicurrency_expenses.sql");
+    psql(port, db, ["-f", enterprisePath]);
+    psql(port, db, ["-f", taxAuditPath]);
+    const fxRollback = applyForcedMigrationRollback(port, db, fxExpensePath);
+    if (fxRollback.status === 0) fail("Global multi-currency expense migration rollback probe unexpectedly committed");
+    const fxResidue = query(port, db, "SELECT (to_regprocedure('public.global_create_expense_with_fx(uuid,uuid,text,text,bigint,text,date,uuid,numeric,numeric,text,text,timestamp with time zone,text)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='expenses' AND column_name='transaction_amount_minor')::text");
+    if (fxResidue !== "false|false") fail("Global FX expense rollback left its RPC or columns behind: " + fxResidue);
+    psql(port, db, ["-f", fxExpensePath]);
+    const taxAuditRollback = applyForcedMigrationRollback(port, db, taxAuditPath);
+    if (taxAuditRollback.status === 0) fail("Global tax-audit migration rollback probe unexpectedly committed");
+    const taxAuditResidue = query(port, db, "SELECT (to_regprocedure('public.global_publish_tax_rule_version(uuid,text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_append_tax_calculation_audit(uuid,uuid,uuid,integer,jsonb)') IS NOT NULL)::text || '|' || (to_regclass('global.tax_calculation_audit') IS NOT NULL)::text");
+    if (taxAuditResidue !== "false|false|false") fail("Global tax-audit rollback left functions or table behind: " + taxAuditResidue);
+    console.log("PASS actual DDL rollback for Global foundation, inventory, invoice, tax-audit and FX-expense migrations");
   } finally {
     const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], {
       cwd: root, env: envFor(port, "postgres"), encoding: "utf8",
@@ -269,7 +289,7 @@ function summary(port, remote) {
 
 const remotePort = Number(process.env.REMOTE_PGPORT || 5433);
 const candidatePort = Number(process.env.CANDIDATE_PGPORT || 5434);
-console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 70 candidate replay entries.");
+console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 72 candidate replay entries.");
 resetDb(remotePort);
 replay(remotePort, remotePlan, true);
 assertRls(remotePort, false);
@@ -283,5 +303,5 @@ assertCandidateIndia(candidatePort);
 assertGlobalFoundation(candidatePort);
 assertRollback(candidatePort);
 assertGlobalMigrationRollback(candidatePort);
-console.log("PASS global-dev candidate replay 35 recovered + 35 local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
+console.log("PASS global-dev candidate replay 35 recovered + 37 local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
 console.log("PASS archive hashes, version ordering, replay, Global workspace isolation, migration rollback, RLS and India data-integrity checks.");

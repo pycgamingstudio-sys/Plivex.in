@@ -48,6 +48,7 @@ export default function GlobalApp() {
   const [movementRequest, setMovementRequest] = useState(null);
   const [paymentRequest, setPaymentRequest] = useState(null);
   const [draftRequest, setDraftRequest] = useState(null);
+  const [expenseRequest, setExpenseRequest] = useState(null);
   const [error, setError] = useState("");
 
 
@@ -169,16 +170,40 @@ export default function GlobalApp() {
         values = {
           category: form.category?.trim(),
           vendor: form.vendor?.trim() || null,
-          amount_minor: Math.round(Number(form.amount || 0) * (10 ** currencyDigits(currency))),
-          currency_code: currency,
+          transaction_amount_minor: Math.round(Number(form.amount || 0) * (10 ** currencyDigits(form.expenseCurrency || currency))),
+          transaction_currency_code: form.expenseCurrency || currency,
           expense_date: form.expenseDate || localDate(),
+          fx_rate_numerator: form.expenseCurrency && form.expenseCurrency !== currency ? String(form.fxRateNumerator || "") : null,
+          fx_rate_denominator: form.expenseCurrency && form.expenseCurrency !== currency ? String(form.fxRateDenominator || "") : null,
+          fx_source_url: form.expenseCurrency && form.expenseCurrency !== currency ? form.fxSourceUrl?.trim() : null,
+          fx_provider: form.expenseCurrency && form.expenseCurrency !== currency ? form.fxProvider?.trim() : null,
+          fx_effective_at: form.expenseCurrency && form.expenseCurrency !== currency
+            ? new Date(form.fxEffectiveAt || `${form.expenseDate || localDate()}T00:00`).toISOString()
+            : null,
         };
       } else {
         throw new Error("This section is read-only.");
       }
-      await invoke(TABLES[tab], "create", values);
-      setForm({});
-      setNotice("Saved to your workspace.");
+      if (tab === "expenses") {
+        const signature = JSON.stringify(values);
+        const requestId = expenseRequest?.signature === signature ? expenseRequest.id : crypto.randomUUID();
+        setExpenseRequest({ signature, id: requestId });
+        const { data, error: expenseError } = await supabase.functions.invoke("global-business-records", {
+          body: { workspace_id: account.workspace_id, table: "expenses", action: "create", values, idempotency_key: requestId },
+        });
+        if (expenseError) throw new Error(await errorMessage(expenseError, "Could not save the expense."));
+        if (!data?.ok || !data.record) throw new Error("Expense service returned an invalid response.");
+        setExpenseRequest(null);
+        setForm({});
+        const original = data.record.transaction_currency_code === data.record.currency_code
+          ? money(data.record.amount_minor, data.record.currency_code)
+          : `${money(data.record.transaction_amount_minor, data.record.transaction_currency_code)} converted to ${money(data.record.amount_minor, data.record.currency_code)}`;
+        setNotice(data.duplicate ? "This expense was already recorded. " + original : "Expense saved. " + original);
+      } else {
+        await invoke(TABLES[tab], "create", values);
+        setForm({});
+        setNotice("Saved to your workspace.");
+      }
       await loadRecords(tab);
     } catch (saveError) { setError(saveError.message || "Could not save this record."); }
     finally { setBusy(false); }
@@ -456,17 +481,34 @@ export default function GlobalApp() {
               <form onSubmit={submitRecord} className="mt-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
                 {tab === "clients" && <><input required placeholder="Client name" className="rounded-lg border border-slate-300 p-3" value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /><input type="email" placeholder="Email (optional)" className="rounded-lg border border-slate-300 p-3" value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /><input placeholder="Phone (optional)" className="rounded-lg border border-slate-300 p-3" value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></>}
                 {tab === "products" && <><input required placeholder="Product name" className="rounded-lg border border-slate-300 p-3" value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /><input placeholder="SKU (optional)" className="rounded-lg border border-slate-300 p-3" value={form.sku || ""} onChange={(e) => setForm({ ...form, sku: e.target.value })} /><input required min="0" step="any" type="number" placeholder={`Sale price (${currency})`} className="rounded-lg border border-slate-300 p-3" value={form.salePrice || ""} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} /></>}
-                {tab === "expenses" && <><input required placeholder="Expense category" className="rounded-lg border border-slate-300 p-3" value={form.category || ""} onChange={(e) => setForm({ ...form, category: e.target.value })} /><input placeholder="Vendor (optional)" className="rounded-lg border border-slate-300 p-3" value={form.vendor || ""} onChange={(e) => setForm({ ...form, vendor: e.target.value })} /><input required min="0.01" step="any" type="number" placeholder={`Amount (${currency})`} className="rounded-lg border border-slate-300 p-3" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: e.target.value })} /><input type="date" className="rounded-lg border border-slate-300 p-3" value={form.expenseDate || localDate()} onChange={(e) => setForm({ ...form, expenseDate: e.target.value })} /></>}
+                {tab === "expenses" && <>
+                  <input required placeholder="Expense category" className="rounded-lg border border-slate-300 p-3" value={form.category || ""} onChange={(e) => setForm({ ...form, category: e.target.value })} />
+                  <input placeholder="Vendor (optional)" className="rounded-lg border border-slate-300 p-3" value={form.vendor || ""} onChange={(e) => setForm({ ...form, vendor: e.target.value })} />
+                  <input required min="0.01" step="any" type="number" placeholder={`Amount (${form.expenseCurrency || currency})`} className="rounded-lg border border-slate-300 p-3" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+                  <select aria-label="Expense transaction currency" className="rounded-lg border border-slate-300 p-3" value={form.expenseCurrency || currency} onChange={(e) => setForm({ ...form, expenseCurrency: e.target.value })}>
+                    {["INR","USD","EUR","GBP","AED","CAD","AUD","SGD","JPY","KRW","KWD","BHD","OMR","JOD"].map((code) => <option key={code} value={code}>{code}{code === currency ? " · workspace base" : ""}</option>)}
+                  </select>
+                  <input type="date" aria-label="Expense date" className="rounded-lg border border-slate-300 p-3" value={form.expenseDate || localDate()} onChange={(e) => setForm({ ...form, expenseDate: e.target.value })} />
+                  {form.expenseCurrency && form.expenseCurrency !== currency && <>
+                    <div className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900 sm:col-span-2 lg:col-span-4">Foreign-currency expense. Enter a source-attributed exchange-rate snapshot. Plivex does not fetch or guess FX rates. The saved base amount is used in workspace reports; the original amount and rate remain in the audit history.</div>
+                    <input required inputMode="numeric" placeholder="FX rate numerator" aria-label="FX rate numerator" className="rounded-lg border border-slate-300 p-3" value={form.fxRateNumerator || ""} onChange={(e) => setForm({ ...form, fxRateNumerator: e.target.value })} />
+                    <input required inputMode="numeric" placeholder="FX rate denominator" aria-label="FX rate denominator" className="rounded-lg border border-slate-300 p-3" value={form.fxRateDenominator || ""} onChange={(e) => setForm({ ...form, fxRateDenominator: e.target.value })} />
+                    <input required type="url" placeholder="HTTPS FX source URL" aria-label="FX source URL" className="rounded-lg border border-slate-300 p-3 sm:col-span-2" value={form.fxSourceUrl || ""} onChange={(e) => setForm({ ...form, fxSourceUrl: e.target.value })} />
+                    <input required maxLength={100} placeholder="Rate provider / source name" aria-label="FX provider" className="rounded-lg border border-slate-300 p-3" value={form.fxProvider || ""} onChange={(e) => setForm({ ...form, fxProvider: e.target.value })} />
+                    <input required type="datetime-local" aria-label="FX effective date and time" className="rounded-lg border border-slate-300 p-3" value={form.fxEffectiveAt || `${form.expenseDate || localDate()}T00:00`} onChange={(e) => setForm({ ...form, fxEffectiveAt: e.target.value })} />
+                    <p className="text-xs text-slate-500 sm:col-span-2 lg:col-span-4">Rate meaning: 1 {form.expenseCurrency} = numerator ÷ denominator {currency}. Example: 85 / 100 means 0.85 {currency} per 1 {form.expenseCurrency}.</p>
+                  </>}
+                </>}
                 <button disabled={busy} className="rounded-lg bg-violet-700 px-4 py-3 font-semibold text-white disabled:opacity-60">{busy ? "Saving…" : "Add record"}</button>
               </form>
             )}
             <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 bg-white">
               {currentRecords.length === 0 ? <p className="p-8 text-center text-sm text-slate-500">No records yet.</p> : (
-                <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500"><tr>{(tab === "clients" ? ["Name", "Email", "Phone"] : tab === "products" ? ["Product", "SKU", "Sale price"] : tab === "expenses" ? ["Category", "Vendor", "Amount", "Date"] : tab === "invoices" ? ["Invoice", "Status", "Total", "Date"] : ["Product ID", "Quantity", "Reorder level"]).map((heading) => <th key={heading} className="whitespace-nowrap px-4 py-3 font-semibold">{heading}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">
+                <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500"><tr>{(tab === "clients" ? ["Name", "Email", "Phone"] : tab === "products" ? ["Product", "SKU", "Sale price"] : tab === "expenses" ? ["Category", "Vendor", "Workspace amount", "Original amount", "Date"] : tab === "invoices" ? ["Invoice", "Status", "Total", "Date"] : ["Product ID", "Quantity", "Reorder level"]).map((heading) => <th key={heading} className="whitespace-nowrap px-4 py-3 font-semibold">{heading}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">
                   {currentRecords.map((record) => <tr key={record.id || record.product_id}>
                     {tab === "clients" && <><td className="px-4 py-3 font-medium">{record.name}</td><td className="px-4 py-3">{record.email || "—"}</td><td className="px-4 py-3">{record.phone || "—"}</td></>}
                     {tab === "products" && <><td className="px-4 py-3 font-medium">{record.name}</td><td className="px-4 py-3">{record.sku || "—"}</td><td className="px-4 py-3">{money(record.sale_price_minor, record.currency_code)}</td></>}
-                    {tab === "expenses" && <><td className="px-4 py-3 font-medium">{record.category}</td><td className="px-4 py-3">{record.vendor || "—"}</td><td className="px-4 py-3">{money(record.amount_minor, record.currency_code)}</td><td className="px-4 py-3">{record.expense_date}</td></>}
+                    {tab === "expenses" && <><td className="px-4 py-3 font-medium">{record.category}</td><td className="px-4 py-3">{record.vendor || "—"}</td><td className="px-4 py-3">{money(record.amount_minor, record.currency_code)}</td><td className="px-4 py-3">{money(record.transaction_amount_minor ?? record.amount_minor, record.transaction_currency_code || record.currency_code)}</td><td className="px-4 py-3">{record.expense_date}</td></>}
                     {tab === "invoices" && <><td className="px-4 py-3 font-medium">{record.invoice_number}</td><td className="px-4 py-3">{record.status}</td><td className="px-4 py-3">{money(record.total_minor, record.currency_code)}</td><td className="px-4 py-3">{record.issue_date}</td></>}
                     {tab === "inventory" && <><td className="px-4 py-3 font-medium">{(records.products || []).find((product) => product.id === record.product_id)?.name || record.product_id}</td><td className="px-4 py-3">{record.quantity}</td><td className="px-4 py-3">{record.reorder_level}</td></>}
                   </tr>)}
