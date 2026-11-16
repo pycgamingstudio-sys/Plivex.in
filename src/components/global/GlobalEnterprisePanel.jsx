@@ -26,9 +26,14 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
   const [health, setHealth] = useState(null);
   const [branchCode, setBranchCode] = useState("");
   const [branchName, setBranchName] = useState("");
-  const [approvalAction, setApprovalAction] = useState("expense.approve");
+  const [approvalAction, setApprovalAction] = useState("expense.create");
   const [resourceType, setResourceType] = useState("expense");
-  const [resourceId, setResourceId] = useState("");
+  const [resourceId, setResourceId] = useState("*");
+  const [approvalExpenseAmount, setApprovalExpenseAmount] = useState("");
+  const [approvalExpenseCategory, setApprovalExpenseCategory] = useState("");
+  const [approvalExpenseVendor, setApprovalExpenseVendor] = useState("");
+  const [approvalExpenseDate, setApprovalExpenseDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [approvalExpenseCurrency, setApprovalExpenseCurrency] = useState("USD");
   const [permissionRole, setPermissionRole] = useState("manager");
   const [permissionKey, setPermissionKey] = useState("export.request");
   const [permissionEffect, setPermissionEffect] = useState("deny");
@@ -105,11 +110,21 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
   const submitApproval = (event) => {
     event.preventDefault();
     perform(async () => {
+      const isExpenseApproval = resourceType.trim() === "expense"
+        && ["expense.create", "expense.update"].includes(approvalAction.trim());
+      const requestPayload = isExpenseApproval ? {
+        amountMinor: String(Number(approvalExpenseAmount)),
+        category: approvalExpenseCategory.trim(),
+        vendor: approvalExpenseVendor.trim(),
+        expenseDate: approvalExpenseDate,
+        currencyCode: approvalExpenseCurrency.trim().toUpperCase(),
+      } : { source: "global-enterprise-panel" };
       await enterprise("approval.request", {
         actionType: approvalAction.trim(), resourceType: resourceType.trim(),
-        resourceId: resourceId.trim(), payload: { source: "global-enterprise-panel" },
+        resourceId: isExpenseApproval && approvalAction.trim() === "expense.create" ? "*" : resourceId.trim(),
+        payload: requestPayload,
       });
-      setResourceId("");
+      setResourceId("*");
     }, "Approval request submitted.");
   };
 
@@ -192,8 +207,19 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
           <form onSubmit={submitApproval} className="mt-3 grid gap-2 sm:grid-cols-2">
             <input className={inputClass} required maxLength={80} value={approvalAction} onChange={(e) => setApprovalAction(e.target.value)} aria-label="Action type" />
             <input className={inputClass} required maxLength={80} value={resourceType} onChange={(e) => setResourceType(e.target.value)} aria-label="Resource type" />
-            <input className={inputClass + " sm:col-span-2"} required maxLength={160} placeholder="Resource ID / reference" value={resourceId} onChange={(e) => setResourceId(e.target.value)} />
-            <button className={buttonClass} disabled={busy}>Request approval</button>
+            {!(resourceType === "expense" && approvalAction === "expense.create") && (
+              <input className={inputClass + " sm:col-span-2"} required maxLength={160} placeholder="Resource ID / reference" value={resourceId} onChange={(e) => setResourceId(e.target.value)} />
+            )}
+            {resourceType === "expense" && ["expense.create", "expense.update"].includes(approvalAction) && (
+              <>
+                <input className={inputClass} required type="number" min="1" max="9000000000000000" step="1" placeholder="Base-currency amount (minor units)" value={approvalExpenseAmount} onChange={(e) => setApprovalExpenseAmount(e.target.value)} />
+                <input className={inputClass} required maxLength={100} placeholder="Expense category" value={approvalExpenseCategory} onChange={(e) => setApprovalExpenseCategory(e.target.value)} />
+                <input className={inputClass} maxLength={200} placeholder="Vendor (optional)" value={approvalExpenseVendor} onChange={(e) => setApprovalExpenseVendor(e.target.value)} />
+                <input className={inputClass} required type="date" value={approvalExpenseDate} onChange={(e) => setApprovalExpenseDate(e.target.value)} />
+                <input className={inputClass} required maxLength={3} minLength={3} placeholder="Currency code" value={approvalExpenseCurrency} onChange={(e) => setApprovalExpenseCurrency(e.target.value.toUpperCase())} />
+              </>
+            )}
+            <button className={buttonClass} disabled={busy || (resourceType === "expense" && ["expense.create", "expense.update"].includes(approvalAction) && (!Number.isSafeInteger(Number(approvalExpenseAmount)) || Number(approvalExpenseAmount) <= 0 || !approvalExpenseCategory.trim() || !/^[A-Z]{3}$/.test(approvalExpenseCurrency.toUpperCase())))}>Request approval</button>
           </form>
           <div className="mt-3 divide-y divide-slate-100">
             {approvals.length === 0 ? <p className="py-3 text-sm text-slate-500">No pending requests.</p> : approvals.map((item) => (
