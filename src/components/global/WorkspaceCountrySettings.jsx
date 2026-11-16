@@ -14,6 +14,7 @@ const RESET_COPY = {
     type: "Type DELETE to confirm.",
     cancel: "Cancel — keep my current workspace",
     confirm: "Confirm & permanently delete",
+    cooldown: "After this change, another country change will be locked for 30 days."
   },
   hi: {
     title: "Purane business ka data hamesha ke liye delete hoga",
@@ -23,6 +24,7 @@ const RESET_COPY = {
     type: "Confirm karne ke liye DELETE type karein.",
     cancel: "Cancel — purana workspace rakhein",
     confirm: "Confirm karein aur permanently delete karein",
+    cooldown: "Is badlav ke baad agla country change 30 din tak lock rahega."
   },
   es: {
     title: "¿Eliminar permanentemente los datos comerciales anteriores?",
@@ -32,6 +34,7 @@ const RESET_COPY = {
     type: "Escribe DELETE para confirmar.",
     cancel: "Cancelar — conservar el espacio actual",
     confirm: "Confirmar y eliminar permanentemente",
+    cooldown: "Después de este cambio, no podrás volver a cambiar de país durante 30 días."
   },
   fr: {
     title: "Supprimer définitivement les anciennes données professionnelles ?",
@@ -41,6 +44,7 @@ const RESET_COPY = {
     type: "Saisissez DELETE pour confirmer.",
     cancel: "Annuler — conserver l'espace actuel",
     confirm: "Confirmer et supprimer définitivement",
+    cooldown: "Après ce changement, un nouveau changement de pays sera bloqué pendant 30 jours."
   },
   ar: {
     title: "هل تريد حذف بيانات العمل القديمة نهائياً؟",
@@ -50,6 +54,7 @@ const RESET_COPY = {
     type: "اكتب DELETE للتأكيد.",
     cancel: "إلغاء — الاحتفاظ بمساحة العمل الحالية",
     confirm: "تأكيد الحذف نهائياً",
+    cooldown: "بعد هذا التغيير، سيتم منع تغيير البلد مرة أخرى لمدة 30 يوماً."
   },
   zh: {
     title: "永久删除旧业务数据？",
@@ -59,6 +64,7 @@ const RESET_COPY = {
     type: "输入 DELETE 以确认。",
     cancel: "取消 — 保留当前工作区",
     confirm: "确认并永久删除",
+    cooldown: "更改后，30 天内将无法再次更改国家/地区。"
   },
   ms: {
     title: "Padam data perniagaan lama secara kekal?",
@@ -68,6 +74,7 @@ const RESET_COPY = {
     type: "Taip DELETE untuk mengesahkan.",
     cancel: "Batal — kekalkan ruang kerja semasa",
     confirm: "Sahkan dan padam secara kekal",
+    cooldown: "Selepas perubahan ini, pertukaran negara seterusnya akan dikunci selama 30 hari."
   },
   ta: {
     title: "பழைய வணிகத் தரவை நிரந்தரமாக நீக்கவா?",
@@ -77,6 +84,7 @@ const RESET_COPY = {
     type: "உறுதிப்படுத்த DELETE என தட்டச்சு செய்யவும்.",
     cancel: "ரத்து செய் — தற்போதைய பணியிடத்தை வைத்திரு",
     confirm: "உறுதிசெய்து நிரந்தரமாக நீக்கு",
+    cooldown: "இந்த மாற்றத்திற்குப் பிறகு, 30 நாட்களுக்கு மீண்டும் நாட்டை மாற்ற முடியாது."
   },
 };
 
@@ -112,7 +120,7 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
         const record = response?.data?.record;
         const country = getCountryByCode(record?.country_code || user?.country_code);
         if (!active) return;
-        const activeLocale = record?.locale_code || user?.locale_code;
+        const activeLocale = record?.locale_code || user?.locale_code || country?.locales?.[0];
         if (country && country.locales.includes(activeLocale)) {
           setSavedCountry(country.code);
           setSavedLocale(activeLocale);
@@ -211,12 +219,8 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
           });
           if (!countrySave?.data?.ok) throw new Error("Workspace language could not be saved.");
         } else {
-          const regionSave = await db.functions.invoke("workspaceRecords", {
-            table: "business_profile",
-            action: "upsert",
-            values: { country_code: savedCountry, locale_code: locale },
-          });
-          if (regionSave?.error || !regionSave?.data?.record) throw regionSave?.error || new Error("Workspace language could not be saved.");
+          const regionSave = await db.functions.invoke("updateWorkspaceLocale", { localeCode: locale });
+          if (regionSave?.error || !regionSave?.data?.ok) throw regionSave?.error || new Error("Workspace language could not be saved.");
         }
         setSavedLocale(locale);
       }
@@ -344,6 +348,7 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
             <p className="mt-3 text-sm">{resetCopy.intro}</p>
             <p className="mt-2 text-sm font-medium">{resetCopy.data}</p>
             <p className="mt-3 rounded-lg bg-muted p-3 text-sm">{resetCopy.preserved}</p>
+            <p className="mt-2 text-xs font-medium text-amber-700">{resetCopy.cooldown}</p>
             {error && <p role="alert" className="mt-3 rounded-lg bg-destructive/10 p-3 text-xs text-destructive">{error}</p>}
             <p className="mt-4 text-xs font-semibold">{resetCopy.type}</p>
             <input value={confirmationText} onChange={(event) => setConfirmationText(event.target.value)} autoComplete="off" className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm" placeholder="DELETE" />

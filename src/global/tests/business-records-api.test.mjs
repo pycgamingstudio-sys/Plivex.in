@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [backend, handler, shared, rpc, settings, businessProfile, resetRpc, resetHandler, authContext] = await Promise.all([
+const [backend, handler, shared, rpc, settings, businessProfile, resetRpc, resetHandler, authContext, regionMigration, localeHandler] = await Promise.all([
   read("../../api/backendClient.js"),
   read("../../../supabase/functions/global-business-records/index.ts"),
   read("../../../supabase/functions/_shared/global.ts"),
@@ -13,11 +13,14 @@ const [backend, handler, shared, rpc, settings, businessProfile, resetRpc, reset
   read("../../../supabase/migrations/20261115190000_self_service_country_reset.sql"),
   read("../../../supabase/functions/reset-workspace-country/index.ts"),
   read("../../lib/AuthContext.jsx"),
+  read("../../../supabase/migrations/20261115191500_country_reset_region_alignment.sql"),
+  read("../../../supabase/functions/update-workspace-locale/index.ts"),
 ]);
 
 test("Global app can invoke only the dedicated Global business records function", () => {
   assert.match(backend, /!\["global-ensure-owner", "global-business-records", "global-invoices", "global-stock-movements", "global-update-workspace-country", "reset-workspace-country"\]\.includes\(functionName\)/);
-  assert.match(backend, /"global-business-records", "global-invoices", "global-stock-movements", "reset-workspace-country", "workspace-records"/);
+  assert.match(backend, /APP_EDITION === "global" && functionName === "workspace-records"/);
+  assert.match(backend, /"reset-workspace-country", "update-workspace-locale", "workspace-records"/);
   assert.match(handler, /\.rpc\("global_business_records"/);
 });
 
@@ -79,6 +82,7 @@ test("Country changes require explicit confirmation while locale-only edits pres
   assert.match(settings, /Confirm & permanently delete/);
   assert.match(settings, /resetWorkspaceCountry/);
   assert.match(settings, /globalUpdateWorkspaceCountry/);
+  assert.match(settings, /updateWorkspaceLocale/);
   assert.doesNotMatch(settings, /request_workspace_country_change/);
   assert.match(businessProfile, /WorkspaceCountrySettings lockCountry=\{APP_EDITION === "global"\}/);
 });
@@ -90,11 +94,26 @@ test("Country reset is authenticated, owner-scoped, cooldown-limited and atomic"
   assert.match(resetRpc, /pg_advisory_xact_lock/);
   assert.match(resetRpc, /interval '30 days'/);
   assert.match(resetRpc, /workspace_owner_required/);
+  assert.match(regionMigration, /up\.default_workspace_id/);
+  assert.match(regionMigration, /active_global_workspace_not_selected/);
   assert.match(resetRpc, /update public\.subscriptions/);
   assert.match(resetRpc, /update public\.payment_logs/);
   assert.match(resetRpc, /private\.country_reset_events/);
+  assert.match(regionMigration, /plivex\.workspace_country_reset/);
+  assert.match(regionMigration, /to_regclass\('global\.invoice_refunds'\)/);
+  assert.match(regionMigration, /guard_invoice_payment_append_only/);
+  assert.match(regionMigration, /guard_issued_invoice_immutability/);
+  assert.match(regionMigration, /current_user in \('postgres','supabase_admin','service_role'\)/);
   assert.match(resetRpc, /revoke all on function public\.reset_workspace_country_atomic.*from public, anon, authenticated/s);
   assert.match(resetRpc, /grant execute on function public\.reset_workspace_country_atomic.*to service_role/s);
   assert.match(authContext, /const profileCountry = currentUser\?\.country_code/);
   assert.match(authContext, /profileCountry.*metadataCountry/s);
+  assert.doesNotMatch(resetRpc, /public\.business_profile[^;]*country_code/s);
+  assert.match(resetRpc, /insert into public\.business_profile\(workspace_id, name\)/);
+  assert.match(regionMigration, /profiles_india_region_defaults/);
+  assert.match(regionMigration, /profiles_protect_region_fields/);
+  assert.match(regionMigration, /protect_profile_region_fields/);
+  assert.match(regionMigration, /update_india_workspace_locale/);
+  assert.match(localeHandler, /authenticate\(req\)/);
+  assert.match(localeHandler, /update_india_workspace_locale/);
 });

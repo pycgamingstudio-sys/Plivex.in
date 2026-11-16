@@ -34,6 +34,8 @@ alter table private.country_reset_state enable row level security;
 alter table private.country_reset_events enable row level security;
 revoke all on private.country_reset_state from public, anon, authenticated;
 revoke all on private.country_reset_events from public, anon, authenticated;
+grant usage on schema private to service_role;
+grant select on private.country_reset_state, private.country_reset_events to service_role;
 
 -- Preserve historical country-change audit rows when their old workspace is deleted.
 alter table global.workspace_country_change_events
@@ -107,19 +109,24 @@ begin
   where p.id = p_user_id
   for update;
 
+  -- Use the user's selected Global workspace, never an arbitrary earliest membership.
   select * into v_global_membership
   from global.workspace_members m
-  where m.user_id = p_user_id and m.status = 'active'
-  order by m.created_at asc
-  limit 1
+  where m.user_id = p_user_id
+    and m.status = 'active'
+    and m.workspace_id = (
+      select up.default_workspace_id
+      from global.user_profiles up
+      where up.user_id = p_user_id
+    )
   for update;
 
   if v_global_membership.id is not null then
-    if v_profile.workspace_id is not null then
-      return jsonb_build_object('ok', false, 'reason', 'conflicting_workspace_memberships');
-    end if;
     if v_global_membership.role <> 'owner' then
       return jsonb_build_object('ok', false, 'reason', 'workspace_owner_required');
+    end if;
+    if v_profile.workspace_id is not null then
+      return jsonb_build_object('ok', false, 'reason', 'conflicting_workspace_memberships');
     end if;
     select * into v_global_workspace
     from global.workspaces w
@@ -133,6 +140,9 @@ begin
     v_from_currency := v_global_workspace.currency_code;
     v_old_workspace_id := v_global_workspace.id::text;
   elsif v_profile.id is not null and v_profile.workspace_id is not null then
+    if coalesce(v_profile.country_code, 'IN') <> 'IN' then
+      return jsonb_build_object('ok', false, 'reason', 'profile_edition_mismatch');
+    end if;
     if v_profile.role <> 'admin' then
       return jsonb_build_object('ok', false, 'reason', 'workspace_owner_required');
     end if;
@@ -146,14 +156,8 @@ begin
     ) then
       return jsonb_build_object('ok', false, 'reason', 'workspace_owner_required');
     end if;
-    select bp.country_code, bp.locale_code
-      into v_from_country, v_from_locale
-    from public.business_profile bp
-    where bp.workspace_id = v_profile.workspace_id
-    order by bp.created_at asc
-    limit 1;
-    v_from_country := coalesce(v_from_country, v_profile.country_code, 'IN');
-    v_from_locale := coalesce(v_from_locale, v_profile.locale_code, 'en-IN');
+    v_from_country := coalesce(v_profile.country_code, 'IN');
+    v_from_locale := coalesce(v_profile.locale_code, 'en-IN');
     v_from_currency := case v_from_country
       when 'IN' then 'INR' when 'US' then 'USD' when 'GB' then 'GBP'
       when 'AE' then 'AED' when 'CA' then 'CAD' when 'AU' then 'AUD'
@@ -167,11 +171,18 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'same_country');
   end if;
 
-  -- Do not silently take over stale/inactive memberships or a second tenant.
+  -- Never guess which Global workspace is active when the selected workspace
+  -- has no matching active membership. Preserve all workspaces and ask for repair.
+  if v_global_membership.id is null and exists (
+    select 1 from global.workspace_members m
+    where m.user_id = p_user_id and m.status = 'active'
+  ) then
+    return jsonb_build_object('ok', false, 'reason', 'active_global_workspace_not_selected');
+  end if;
   if v_global_membership.id is null and exists (
     select 1 from global.workspace_members m where m.user_id = p_user_id
   ) then
-    return jsonb_build_object('ok', false, 'reason', 'legacy_global_membership_requires_review');
+    return jsonb_build_object('ok', false, 'reason', 'stale_membership_conflict');
   end if;
 
   select s.last_changed_at into v_last_changed
@@ -190,11 +201,18 @@ begin
   -- any error raises and PostgreSQL rolls back every deletion and insertion.
 
   if v_global_membership.id is not null then
-    -- Delete restrictive children first; workspace-owned rows then cascade.
+    -- Issued invoices and append-only ledgers may be deleted only inside this
+    -- owner-verified service-role reset transaction.
+    perform set_config('plivex.workspace_country_reset', 'on', true);
+    if to_regclass('global.invoice_refunds') is not null then
+      execute 'delete from global.invoice_refunds where workspace_id = $1'
+        using v_global_workspace.id;
+    end if;
     delete from global.invoice_payments where workspace_id = v_global_workspace.id;
     delete from global.stock_movements where workspace_id = v_global_workspace.id;
     delete from global.invoice_items where workspace_id = v_global_workspace.id;
     delete from global.invoices where workspace_id = v_global_workspace.id;
+    perform set_config('plivex.workspace_country_reset', 'off', true);
     delete from global.clients where workspace_id = v_global_workspace.id;
     delete from global.expenses where workspace_id = v_global_workspace.id;
     delete from global.products where workspace_id = v_global_workspace.id;
@@ -242,8 +260,8 @@ begin
       v_full_name, v_email, 'admin', 'active', v_now, v_now
     );
 
-    insert into public.business_profile(workspace_id, name, country_code, locale_code)
-    values (v_new_workspace_id, v_full_name, 'IN', p_locale_code);
+    insert into public.business_profile(workspace_id, name)
+    values (v_new_workspace_id, v_full_name);
   else
     v_workspace_name := left(coalesce(nullif(btrim(v_full_name), ''), split_part(v_email, '@', 1) || ' Workspace'), 160);
     insert into global.workspaces(name, country_code, locale_code, currency_code, created_by)
