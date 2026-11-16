@@ -61,9 +61,9 @@ Status: execution backlog; NOT a completion claim.
 
 Implemented on this Part 9 branch in `20261116170000_part9_expense_approval_gates.sql`:
 - Workspace-scoped approval policies for expense creation and material expense updates.
-- Configurable minimum amount, eligible approver roles and self-approval prevention.
+- Owner/admin-only policy configuration through the authenticated Global Enterprise Edge Function, with validated minimum amount, eligible approver roles and self-approval prevention.
 - Database BEFORE triggers enforce the gate for all write paths, including direct service-role RPC inserts/updates; a UI-only check cannot bypass it.
-- Approval must match the resource key, action, amount, category, vendor, expense date and currency, and must be decided by an active member with an allowed role.
+- Approval must match the resource key, action, amount, category, vendor, expense date and currency, and must be decided by an active member with an allowed role. Approved requests are atomically consumed once and cannot be replayed.
 - Disposable integration test covers blocked unapproved create/update and successful approved create/update.
 - Candidate migration is included in migration replay manifest and replay test script.
 
