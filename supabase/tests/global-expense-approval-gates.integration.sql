@@ -76,6 +76,16 @@ BEGIN
     RAISE EXCEPTION 'Approved expense update was not applied';
   END IF;
 
+  blocked := false;
+  BEGIN
+    UPDATE global.expenses SET amount_minor=3600,transaction_amount_minor=3600
+    WHERE id=expense_id AND workspace_id=ws;
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    blocked := position('approval_required' in SQLERRM) > 0
+      OR position('approval_already_consumed' in SQLERRM) > 0;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'Consumed approval was replayed for another expense update'; END IF;
+
   DELETE FROM global.expenses WHERE id=expense_id AND workspace_id=ws;
   DELETE FROM global.approval_policies WHERE workspace_id=ws AND resource_type='expense';
 END
