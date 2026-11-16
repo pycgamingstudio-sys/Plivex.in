@@ -30,9 +30,16 @@ jobs:
           npx --yes supabase@latest db dump --db-url "$SUPABASE_DB_URL" -f backup/roles.sql --role-only
           npx --yes supabase@latest db dump --db-url "$SUPABASE_DB_URL" -f backup/schema.sql
           npx --yes supabase@latest db dump --db-url "$SUPABASE_DB_URL" -f backup/data.sql --use-copy --data-only
+          # Supabase's default dump excludes managed schemas such as auth.
+          # Include Auth schema and data explicitly so public profile foreign
+          # keys and existing user identities can be restored in a disaster drill.
+          npx --yes supabase@latest db dump --db-url "$SUPABASE_DB_URL" --schema auth -f backup/auth-schema.sql
+          npx --yes supabase@latest db dump --db-url "$SUPABASE_DB_URL" --schema auth -f backup/auth-data.sql --use-copy --data-only
           test -s backup/roles.sql
           test -s backup/schema.sql
           test -s backup/data.sql
+          test -s backup/auth-schema.sql
+          test -s backup/auth-data.sql
           printf 'Backup created at %s\n' "$(date -u +%FT%TZ)"
           du -h backup/*.sql
       - name: Encrypt backup before artifact upload
