@@ -47,6 +47,26 @@ create index if not exists global_fx_workspace_pair_time_idx
   on global.exchange_rate_snapshots(workspace_id, base_currency, quote_currency, captured_at desc);
 create index if not exists global_fx_created_by_idx on global.exchange_rate_snapshots(created_by);
 
+create table if not exists global.currency_conversion_history (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references global.workspaces(id) on delete cascade,
+  snapshot_id uuid not null references global.exchange_rate_snapshots(id) on delete restrict,
+  created_by uuid not null references auth.users(id) on delete restrict,
+  base_amount_minor bigint not null,
+  quote_amount_minor bigint not null,
+  base_currency text not null check (base_currency ~ '^[A-Z]{3}$'),
+  quote_currency text not null check (quote_currency ~ '^[A-Z]{3}$'),
+  rounding_mode text not null check (rounding_mode = 'half_up'),
+  created_at timestamptz not null default now(),
+  check (base_currency <> quote_currency)
+);
+create index if not exists global_currency_conversion_workspace_time_idx
+  on global.currency_conversion_history(workspace_id, created_at desc);
+create index if not exists global_currency_conversion_snapshot_idx
+  on global.currency_conversion_history(snapshot_id);
+create index if not exists global_currency_conversion_created_by_idx
+  on global.currency_conversion_history(created_by);
+
 create table if not exists global.workspace_branches (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references global.workspaces(id) on delete cascade,
@@ -154,6 +174,7 @@ create table if not exists global.enterprise_rate_limits (
 
 alter table global.tax_rule_versions enable row level security;
 alter table global.exchange_rate_snapshots enable row level security;
+alter table global.currency_conversion_history enable row level security;
 alter table global.workspace_branches enable row level security;
 alter table global.workspace_permission_overrides enable row level security;
 alter table global.approval_requests enable row level security;
@@ -165,6 +186,8 @@ alter table global.enterprise_rate_limits enable row level security;
 create policy global_tax_rules_verified_read on global.tax_rule_versions
   for select to authenticated using (status = 'verified');
 create policy global_fx_member_read on global.exchange_rate_snapshots
+  for select to authenticated using (global.is_workspace_member(workspace_id));
+create policy global_currency_conversion_member_read on global.currency_conversion_history
   for select to authenticated using (global.is_workspace_member(workspace_id));
 create policy global_branches_member_read on global.workspace_branches
   for select to authenticated using (global.is_workspace_member(workspace_id));
@@ -246,6 +269,13 @@ declare
   v_limit integer := 50;
   v_branch uuid;
   v_target_role text;
+  v_snapshot global.exchange_rate_snapshots%rowtype;
+  v_base_precision integer;
+  v_quote_precision integer;
+  v_amount numeric;
+  v_numerator numeric;
+  v_denominator numeric;
+  v_converted numeric;
 begin
   if p_user_id is null or p_workspace_id is null or p_action is null
     or p_payload is null or jsonb_typeof(p_payload) <> 'object'
@@ -259,9 +289,10 @@ begin
 
   if p_action in ('branch.create','branch.archive','permission.set','retention.set','fx.snapshot.create') then
     if not v_admin then return jsonb_build_object('ok',false,'code','ADMIN_REQUIRED'); end if;
-  elsif p_action in ('branch.list','approval.request','approval.decide','approval.list','audit.list','export.request') then
+  elsif p_action in ('branch.list','fx.convert','approval.request','approval.decide','approval.list','audit.list','export.request') then
     v_permission := case p_action
       when 'branch.list' then 'branch.read'
+      when 'fx.convert' then 'fx.convert'
       when 'approval.request' then 'approval.request'
       when 'approval.decide' then 'approval.decide'
       when 'approval.list' then 'approval.read'
@@ -279,9 +310,9 @@ begin
       v_allowed := true;
     else
       v_allowed := case v_member.role
-        when 'manager' then v_permission in ('approval.request','approval.read','export.request','invoice.read','invoice.create')
+        when 'manager' then v_permission in ('approval.request','approval.read','export.request','fx.convert','invoice.read','invoice.create')
         when 'employee' then v_permission in ('approval.request','invoice.read','invoice.create')
-        when 'accountant' then v_permission in ('approval.request','approval.read','export.request','audit.read','invoice.read')
+        when 'accountant' then v_permission in ('approval.request','approval.read','export.request','fx.convert','audit.read','invoice.read')
         when 'viewer' then v_permission in ('invoice.read','approval.read')
         else false end;
     end if;
@@ -290,18 +321,50 @@ begin
     return jsonb_build_object('ok',false,'code','UNSUPPORTED_ACTION');
   end if;
 
-  if p_action = 'fx.snapshot.create' then
+  if p_action = 'fx.convert' then
+    if coalesce(p_payload->>'snapshotId','') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      or coalesce(p_payload->>'amountMinor','') !~ '^-?[0-9]{1,16}$' then
+      return jsonb_build_object('ok',false,'code','INVALID_CONVERSION_INPUT');
+    end if;
+    v_amount := (p_payload->>'amountMinor')::numeric;
+    if abs(v_amount) > 9007199254740991 then return jsonb_build_object('ok',false,'code','AMOUNT_OVERFLOW'); end if;
+    select * into v_snapshot from global.exchange_rate_snapshots
+      where id=(p_payload->>'snapshotId')::uuid and workspace_id=p_workspace_id;
+    if v_snapshot.id is null then return jsonb_build_object('ok',false,'code','FX_SNAPSHOT_NOT_FOUND'); end if;
+    v_base_precision := case v_snapshot.base_currency when 'JPY' then 0 when 'KRW' then 0 when 'KWD' then 3 when 'BHD' then 3 when 'OMR' then 3 when 'JOD' then 3 else 2 end;
+    v_quote_precision := case v_snapshot.quote_currency when 'JPY' then 0 when 'KRW' then 0 when 'KWD' then 3 when 'BHD' then 3 when 'OMR' then 3 when 'JOD' then 3 else 2 end;
+    v_numerator := abs(v_amount) * v_snapshot.rate_numerator * power(10::numeric,v_quote_precision);
+    v_denominator := v_snapshot.rate_denominator * power(10::numeric,v_base_precision);
+    v_converted := floor(v_numerator / v_denominator + 0.5);
+    if v_amount < 0 then v_converted := -v_converted; end if;
+    if abs(v_converted) > 9007199254740991 then return jsonb_build_object('ok',false,'code','AMOUNT_OVERFLOW'); end if;
+    insert into global.currency_conversion_history(workspace_id,snapshot_id,created_by,base_amount_minor,
+      quote_amount_minor,base_currency,quote_currency,rounding_mode)
+    values (p_workspace_id,v_snapshot.id,p_user_id,v_amount::bigint,v_converted::bigint,
+      v_snapshot.base_currency,v_snapshot.quote_currency,'half_up')
+    returning id into v_id;
+    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
+    values (p_workspace_id,p_user_id,'fx.converted','currency_conversion',v_id::text,
+      jsonb_build_object('snapshotId',v_snapshot.id,'baseCurrency',v_snapshot.base_currency,'quoteCurrency',v_snapshot.quote_currency));
+    return jsonb_build_object('ok',true,'conversionId',v_id,'baseAmountMinor',v_amount,
+      'quoteAmountMinor',v_converted,'baseCurrency',v_snapshot.base_currency,'quoteCurrency',v_snapshot.quote_currency,
+      'snapshotId',v_snapshot.id,'rounding','half_up');
+  elsif p_action = 'fx.snapshot.create' then
     if coalesce(p_payload->>'baseCurrency','') not in ('INR','USD','EUR','GBP','AED','CAD','AUD','SGD','JPY','KRW','KWD','BHD','OMR','JOD')
       or coalesce(p_payload->>'quoteCurrency','') not in ('INR','USD','EUR','GBP','AED','CAD','AUD','SGD','JPY','KRW','KWD','BHD','OMR','JOD')
       or p_payload->>'baseCurrency' = p_payload->>'quoteCurrency'
       or coalesce(p_payload->>'rateNumerator','') !~ '^[1-9][0-9]{0,37}$'
       or coalesce(p_payload->>'rateDenominator','') !~ '^[1-9][0-9]{0,37}$'
       or coalesce(p_payload->>'sourceUrl','') !~ '^https://'
+      or coalesce(p_payload->>'sourceUrl','') ~ '^https://[^/]*@'
       or length(btrim(coalesce(p_payload->>'provider',''))) not between 1 and 100 then
       return jsonb_build_object('ok',false,'code','INVALID_FX_SNAPSHOT');
     end if;
     if p_payload ? 'effectiveAt' and coalesce(p_payload->>'effectiveAt','') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$' then
       return jsonb_build_object('ok',false,'code','INVALID_FX_TIMESTAMP');
+    end if;
+    if p_payload ? 'effectiveAt' and (p_payload->>'effectiveAt')::timestamptz > now() then
+      return jsonb_build_object('ok',false,'code','FUTURE_FX_TIMESTAMP');
     end if;
     insert into global.exchange_rate_snapshots(workspace_id,base_currency,quote_currency,rate_numerator,rate_denominator,
       source_url,provider,effective_at,created_by)

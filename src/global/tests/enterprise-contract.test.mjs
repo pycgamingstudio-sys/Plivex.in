@@ -6,7 +6,7 @@ const migration = readFileSync(new URL("../../../supabase/migrations/20261116000
 const edge = readFileSync(new URL("../../../supabase/functions/global-enterprise/index.ts", import.meta.url), "utf8");
 
 test("enterprise migration keeps Global data in private schema and enables RLS", () => {
-  for (const table of ["workspace_branches", "workspace_permission_overrides", "approval_requests", "audit_events", "export_jobs", "workspace_retention_policies", "exchange_rate_snapshots", "tax_rule_versions"]) {
+  for (const table of ["workspace_branches", "workspace_permission_overrides", "approval_requests", "audit_events", "export_jobs", "workspace_retention_policies", "exchange_rate_snapshots", "currency_conversion_history", "tax_rule_versions"]) {
     assert.match(migration, new RegExp("create table if not exists global\\." + table));
     assert.match(migration, new RegExp("alter table global\\." + table + " enable row level security"));
   }

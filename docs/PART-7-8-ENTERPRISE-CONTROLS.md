@@ -4,7 +4,7 @@ This branch is an isolated implementation candidate based on `global-dev`. It do
 
 ## Part 7 foundations added
 - Explicit currency minor-unit precision metadata for a constrained ISO 4217 allow-list.
-- Rational, integer-only FX conversion using numerator/denominator snapshots; conversion output retains the source snapshot identifier, timestamps, rate and rounding mode.
+- Rational, integer-only FX conversion using numerator/denominator snapshots; conversion output retains source provenance and can be persisted to append-only conversion history.
 - A verified tax-rule snapshot validator and effective-date/jurisdiction resolver. Sources are restricted to country-appropriate official government/tax domains.
 - A country capability matrix that distinguishes the India legacy path, standard-rate-only support and jurisdiction-adapter requirements.
 

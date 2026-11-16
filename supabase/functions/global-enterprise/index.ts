@@ -2,7 +2,7 @@ import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowe
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ALLOWED_ACTIONS = new Set([
-  "branch.create", "branch.archive", "branch.list", "fx.snapshot.create", "permission.set", "approval.request", "approval.list",
+  "branch.create", "branch.archive", "branch.list", "fx.snapshot.create", "fx.convert", "permission.set", "approval.request", "approval.list",
   "approval.decide", "audit.list", "export.request", "retention.set",
 ]);
 Deno.serve(async (req: Request) => {
