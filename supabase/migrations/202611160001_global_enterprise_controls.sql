@@ -380,6 +380,7 @@ begin
     values (p_workspace_id,p_user_id,'fx.snapshot_created','exchange_rate_snapshot',v_id::text,
       jsonb_build_object('baseCurrency',p_payload->>'baseCurrency','quoteCurrency',p_payload->>'quoteCurrency'));
     return jsonb_build_object('ok',true,'snapshotId',v_id);
+  end if;
   if p_action = 'health.read' then
     select jsonb_build_object(
       'queuedExports',(select count(*) from global.export_jobs where workspace_id=p_workspace_id and status='queued'),
