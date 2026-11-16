@@ -112,8 +112,8 @@ const MAPPERS = {
     toDb: (i) => ({ vendor: str(i.vendor), category: i.category || "Other", amount: num(i.amount), date: dateOrNull(i.date), status: str(i.status), method: str(i.method), notes: str(i.notes) }),
   },
   stock: {
-    toUi: (r) => ({ id: r.id, name: str(r.name), sku: str(r.sku), barcode: str(r.barcode), quantity: num(r.quantity), unit: str(r.unit), price: num(r.price), lowStock: r.low_stock === null || r.low_stock === undefined ? 5 : num(r.low_stock) }),
-    toDb: (i) => ({ name: str(i.name), sku: str(i.sku), barcode: str(i.barcode), quantity: num(i.quantity), unit: str(i.unit), price: num(i.price), low_stock: i.lowStock === "" || i.lowStock === undefined ? 5 : num(i.lowStock) }),
+    toUi: (r) => ({ id: r.id, name: str(r.name), sku: str(r.sku), barcode: str(r.barcode), variantOf: str(r.variant_of), variantLabel: str(r.variant_label), quantity: num(r.quantity), unit: str(r.unit), price: num(r.price), lowStock: r.low_stock === null || r.low_stock === undefined ? 5 : num(r.low_stock) }),
+    toDb: (i) => ({ name: str(i.name), sku: str(i.sku), barcode: str(i.barcode), variant_of: i.variantOf || null, variant_label: str(i.variantLabel), quantity: num(i.quantity), unit: str(i.unit), price: num(i.price), low_stock: i.lowStock === "" || i.lowStock === undefined ? 5 : num(i.lowStock) }),
   },
   services: {
     toUi: (r) => ({ id: r.id, name: str(r.name), rate: num(r.rate), gstRate: num(r.gst_rate), description: str(r.description) }),
