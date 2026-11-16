@@ -167,13 +167,14 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
               <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
                 <div className="min-w-0"><p className="text-sm font-medium">{item.action_type} · {item.resource_type}</p><p className="truncate text-xs text-slate-500">{item.resource_id} · requested {new Date(item.created_at).toLocaleString()}</p></div>
                 <div className="flex gap-2">
+                  <button type="button" className={secondaryClass} disabled={busy} onClick={() => perform(() => enterprise("approval.cancel", { requestId: item.id }), "Request cancelled.")}>Cancel</button>
                   <button type="button" className={secondaryClass} disabled={busy} onClick={() => decideApproval(item.id, "approved")}>Approve</button>
                   <button type="button" className={secondaryClass} disabled={busy} onClick={() => decideApproval(item.id, "rejected")}>Reject</button>
                 </div>
               </div>
             ))}
           </div>
-          <p className="mt-2 text-xs text-amber-700">Approval requests are recorded and decided here; they do not yet automatically block invoice or expense writes.</p>
+          <p className="mt-2 text-xs text-amber-700">Approval requests can be submitted, decided or cancelled. They do not yet automatically block invoice or expense writes.</p>
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white p-4">

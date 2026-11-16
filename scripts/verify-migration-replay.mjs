@@ -13,8 +13,8 @@ const normalized = pairs.filter((x) => x.normalized_sql_match === true);
 const localOnly = manifest.local_only_files || [];
 
 if (manifest.remote_ledger_entries !== 52 || history.length !== 39 || missing.length !== 35
-  || manifest.local_migration_files !== 38 || pairs.length !== 17
-  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 21) {
+  || manifest.local_migration_files !== 39 || pairs.length !== 17
+  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 22) {
   fail("Migration reconciliation counts differ from the reviewed archive with 52 remote entries, 39 historical sources and 21 local-only migrations");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
@@ -44,8 +44,8 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 73 || new Set(candidatePlan.map((x) => x.path)).size !== 73) {
-  fail("Candidate replay plan must contain 35 recovered historical and all 38 current local migrations");
+if (candidatePlan.length !== 74 || new Set(candidatePlan.map((x) => x.path)).size !== 74) {
+  fail("Candidate replay plan must contain 35 recovered historical and all 39 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -133,6 +133,7 @@ function assertGlobalFoundation(port) {
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-invoice-ledger.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-multicurrency-expense.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-tax-audit.integration.sql")]);
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-enterprise-controls.integration.sql")]);
 }
 function applyForcedMigrationRollback(port, db, migrationPath) {
   const migration = readFileSync(migrationPath, "utf8")
@@ -215,6 +216,7 @@ function assertGlobalMigrationRollback(port) {
     const enterprisePath = resolve(root, "supabase/migrations/202611160001_global_enterprise_controls.sql");
     const taxAuditPath = resolve(root, "supabase/migrations/202611160002_global_tax_audit_and_publication.sql");
     const fxExpensePath = resolve(root, "supabase/migrations/202611160003_global_multicurrency_expenses.sql");
+    const enterpriseHardeningPath = resolve(root, "supabase/migrations/202611160004_global_enterprise_hardening.sql");
     psql(port, db, ["-f", enterprisePath]);
     const taxAuditRollback = applyForcedMigrationRollback(port, db, taxAuditPath);
     if (taxAuditRollback.status === 0) fail("Global tax-audit migration rollback probe unexpectedly committed");
@@ -226,7 +228,12 @@ function assertGlobalMigrationRollback(port) {
     const fxResidue = query(port, db, "SELECT (to_regprocedure('public.global_create_expense_with_fx(uuid,uuid,text,text,bigint,text,date,uuid,numeric,numeric,text,text,timestamp with time zone,text)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='expenses' AND column_name='transaction_amount_minor')::text");
     if (fxResidue !== "false|false") fail("Global FX expense rollback left its RPC or columns behind: " + fxResidue);
     psql(port, db, ["-f", fxExpensePath]);
-    console.log("PASS actual DDL rollback for Global foundation, inventory, invoice, tax-audit and FX-expense migrations");
+    const enterpriseHardeningRollback = applyForcedMigrationRollback(port, db, enterpriseHardeningPath);
+    if (enterpriseHardeningRollback.status === 0) fail("Global enterprise hardening migration rollback probe unexpectedly committed");
+    const hardeningResidue = query(port, db, "SELECT (to_regprocedure('public.global_can_export(uuid,uuid,text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_cancel_approval_request(uuid,uuid,uuid)') IS NOT NULL)::text || '|' || (SELECT position('DELETE' in pg_get_triggerdef(t.oid)) > 0 FROM pg_trigger t WHERE t.tgname='audit_events_immutable')::text");
+    if (hardeningResidue !== "false|false|false") fail("Global enterprise hardening rollback left functions or trigger changes behind: " + hardeningResidue);
+    psql(port, db, ["-f", enterpriseHardeningPath]);
+    console.log("PASS actual DDL rollback for Global foundation, inventory, invoice, tax-audit, FX-expense and enterprise-hardening migrations");
   } finally {
     const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], {
       cwd: root, env: envFor(port, "postgres"), encoding: "utf8",

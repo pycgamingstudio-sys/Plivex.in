@@ -41,6 +41,9 @@ test("retention cleanup is admin-checked and removes expired private exports", (
   assert.match(migration, /global_retention_candidates/);
   assert.match(migration, /global_retention_cleanup_audit/);
   assert.match(migration, /global_retention_mark_expired/);
+  assert.match(migration, /global_can_export/);
+  assert.match(migration, /global_cancel_approval_request/);
+  assert.match(migration, /global.guard_audit_event_mutation/);
   assert.match(exportEdge, /body.action === "cleanup"/);
 });
 

@@ -3,7 +3,7 @@ import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowe
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ALLOWED_ACTIONS = new Set([
   "branch.create", "branch.archive", "branch.list", "health.read", "fx.snapshot.create", "fx.convert", "permission.set", "approval.request", "approval.list",
-  "approval.decide", "audit.list", "export.request", "retention.set",
+  "approval.decide", "approval.cancel", "audit.list", "export.request", "retention.set",
 ]);
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
@@ -27,15 +27,16 @@ Deno.serve(async (req: Request) => {
     if (limitError) return globalJson({ error: "Rate limiter unavailable" }, 503, origin);
     if (limited !== true) return globalJson({ error: "Rate limit exceeded" }, 429, origin);
 
-    const { data, error } = await auth.admin.rpc("global_enterprise_action", {
-      p_user_id: auth.user.id, p_workspace_id: body.workspaceId,
-      p_action: body.action, p_payload: body,
-    });
+    const rpcName = body.action === "approval.cancel" ? "global_cancel_approval_request" : "global_enterprise_action";
+    const rpcArgs = body.action === "approval.cancel"
+      ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_request_id: body.requestId }
+      : { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_action: body.action, p_payload: body };
+    const { data, error } = await auth.admin.rpc(rpcName, rpcArgs);
     if (error || !data) return globalJson({ error: "Enterprise operation failed" }, 503, origin);
     if (data.ok !== true) {
       const status = data.code === "ACCESS_DENIED" || data.code === "ADMIN_REQUIRED" || data.code === "PERMISSION_DENIED" ? 403
         : data.code === "BRANCH_NOT_FOUND" || data.code === "MEMBER_NOT_FOUND" ? 404
-        : data.code === "REQUEST_NOT_DECIDABLE" ? 409 : 400;
+        : data.code === "REQUEST_NOT_DECIDABLE" || data.code === "REQUEST_NOT_CANCELLABLE" ? 409 : 400;
       return globalJson({ error: data.code }, status, origin);
     }
     const status = body.action === "export.request" || body.action === "approval.request" ? 202
