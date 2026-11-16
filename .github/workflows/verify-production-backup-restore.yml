@@ -170,6 +170,13 @@ jobs:
           if [ "$role_status" -ne 0 ] && [ -s /tmp/plivex-unexpected-role-errors.log ]; then
             exit "$role_status"
           fi
+          # Auth schema triggers reference the public user hook. Install a no-op
+          # placeholder during data restoration so historical auth.users rows do
+          # not create or mutate production profiles/workspaces in the test DB.
+          # The real function is restored from schema.sql below.
+          docker exec -i -u postgres plivex-production-restore-test \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c \
+            "CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS trigger LANGUAGE plpgsql AS \\$function\\$ BEGIN RETURN NEW; END \\$function\\$;"
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < backup/auth-schema.sql
