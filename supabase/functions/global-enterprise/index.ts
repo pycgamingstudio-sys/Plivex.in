@@ -23,7 +23,7 @@ Deno.serve(async (req: Request) => {
       return globalJson({ error: "Invalid request" }, 400, origin);
     }
     if (body.action === "approval.policy.set") {
-      if (!["expense.create", "expense.update"].includes(body.actionType)
+      if (!["expense.create", "expense.update", "invoice.issue", "invoice.payment.record"].includes(body.actionType)
         || typeof body.enabled !== "boolean"
         || !Number.isSafeInteger(body.minimumAmountMinor) || body.minimumAmountMinor < 0
         || !Array.isArray(body.approverRoles) || body.approverRoles.length < 1
