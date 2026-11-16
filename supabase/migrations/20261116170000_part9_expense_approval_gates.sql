@@ -29,6 +29,55 @@ create policy global_approval_policies_admin_write on global.approval_policies
   for all to authenticated using (global.is_workspace_admin(workspace_id))
   with check (global.is_workspace_admin(workspace_id));
 
+grant select, insert, update, delete on global.approval_policies to authenticated;
+
+create or replace function public.global_set_approval_policy(
+  p_user_id uuid,
+  p_workspace_id uuid,
+  p_action_type text,
+  p_enabled boolean,
+  p_minimum_amount_minor bigint,
+  p_approver_roles text[],
+  p_prevent_self_approval boolean default true
+) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, global
+as $function$
+declare
+  v_role text;
+  v_policy global.approval_policies%rowtype;
+begin
+  if p_user_id is null or p_workspace_id is null
+    or p_action_type not in ('expense.create','expense.update')
+    or p_enabled is null or p_minimum_amount_minor is null or p_minimum_amount_minor < 0
+    or p_approver_roles is null or cardinality(p_approver_roles) < 1
+    or not (p_approver_roles <@ array['owner','admin','manager','employee','accountant','viewer']::text[]) then
+    return jsonb_build_object('ok',false,'code','INVALID_APPROVAL_POLICY');
+  end if;
+  select role into v_role from global.workspace_members
+  where workspace_id=p_workspace_id and user_id=p_user_id and status='active' limit 1;
+  if v_role is null then return jsonb_build_object('ok',false,'code','ACCESS_DENIED'); end if;
+  if v_role not in ('owner','admin') then return jsonb_build_object('ok',false,'code','ADMIN_REQUIRED'); end if;
+
+  insert into global.approval_policies(workspace_id,resource_type,action_type,enabled,
+    minimum_amount_minor,approver_roles,prevent_self_approval,created_by)
+  values (p_workspace_id,'expense',p_action_type,p_enabled,p_minimum_amount_minor,
+    p_approver_roles,coalesce(p_prevent_self_approval,true),p_user_id)
+  on conflict (workspace_id,resource_type,action_type) do update set
+    enabled=excluded.enabled,minimum_amount_minor=excluded.minimum_amount_minor,
+    approver_roles=excluded.approver_roles,prevent_self_approval=excluded.prevent_self_approval,
+    updated_at=now()
+  returning * into v_policy;
+
+  insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
+  values (p_workspace_id,p_user_id,'approval.policy.updated','approval_policy',v_policy.id::text,
+    jsonb_build_object('actionType',p_action_type,'enabled',p_enabled,
+      'minimumAmountMinor',p_minimum_amount_minor,'approverRoles',p_approver_roles));
+  return jsonb_build_object('ok',true,'policy',to_jsonb(v_policy));
+end;
+$function$;
+revoke all on function public.global_set_approval_policy(uuid,uuid,text,boolean,bigint,text[],boolean) from public, anon, authenticated;
+grant execute on function public.global_set_approval_policy(uuid,uuid,text,boolean,bigint,text[],boolean) to service_role;
+
 create index if not exists global_approval_policy_workspace_enabled_idx
   on global.approval_policies(workspace_id, resource_type, action_type) where enabled;
 create index if not exists global_approval_request_resource_status_idx
