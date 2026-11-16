@@ -44,6 +44,17 @@ The source transaction and journal post in the same database transaction:
 
 An accounting failure aborts the source write, avoiding a business record that has no corresponding journal. Financial fields on an accounted expense cannot be edited or deleted; use a correcting journal instead.
 
+## Part 3B: purchasing, refunds and foreign-currency payables
+
+- Supplier purchase bills are created as drafts and explicitly posted by an authorized accounting role.
+- Purchase bills retain source-currency totals, functional-currency totals, FX rate numerator/denominator, rate date and rate source. The functional-currency conversion is checked against each line and tax component.
+- Posting a purchase bill creates an inventory debit, a recoverable-tax asset debit only for the explicitly designated recoverable amount, and an accounts-payable credit. Non-recoverable purchase tax is capitalized into inventory cost.
+- Posting also creates stock receipt movements and updates stock quantities in the same transaction as the journal.
+- Supplier payments retain payment-date FX evidence. The payable is settled at its current carrying value; the difference between carrying value and actual cash paid posts to realized FX gain or loss.
+- Open foreign-currency supplier payables can be revalued at a supplied period-end rate. The change posts to unrealized FX gain or loss and updates the payable carrying value. Revaluations are append-only and idempotent.
+- Refunds automatically debit Sales Returns & Allowances and reverse the proportional tax payable component, with a credit to cash/bank. Cumulative tax rounding is reconciled across partial refunds.
+- New accounts include Recoverable Purchase Tax, Sales Returns & Allowances, Foreign Exchange Gain and Foreign Exchange Loss.
+
 ## Reports
 
 - Trial balance by account and date range.
