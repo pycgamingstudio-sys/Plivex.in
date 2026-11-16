@@ -1,5 +1,5 @@
 import { getCurrencyPrecision } from "../money/currency-precision.js";
-import { TAX_ENGINE_VERSION } from "./tax-rule-registry.js";
+import { TAX_ENGINE_VERSION, TAX_RULE_CATALOG_VERSION } from "./tax-rule-registry.js";
 
 /**
  * Verified, componentized tax-rule evaluator for Global jurisdictions.
@@ -122,7 +122,8 @@ export function calculateVerifiedTaxRule(input) {
     treatment: rule.treatment, priceMode: input.priceMode, taxableMinor, taxMinor, totalMinor, components,
     registrationEvidence: registration.verified === true ? "externally-verified" : "user-attested",
     ruleSnapshot: {
-      id: rule.id, version: rule.version, source: rule.source,
+      id: rule.id, version: rule.version, catalogVersion: rule.catalogVersion || TAX_RULE_CATALOG_VERSION,
+      source: rule.source, sourceAuthority: rule.sourceAuthority || null, coverage: rule.coverage || null,
       effectiveFrom: rule.effectiveFrom, effectiveTo: rule.effectiveTo || null, reviewedOn: rule.reviewedOn || null,
     },
   };
