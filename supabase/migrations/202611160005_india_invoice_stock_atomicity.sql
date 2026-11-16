@@ -180,6 +180,9 @@ BEGIN
       RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
     END IF;
     IF _inv.stock_applied THEN
+      IF NOT EXISTS (SELECT 1 FROM public.invoice_stock_allocations WHERE workspace_id=_ws AND invoice_id=_inv.id) THEN
+        RAISE EXCEPTION 'legacy_stock_allocation_unavailable';
+      END IF;
       PERFORM public.reverse_invoice_stock(_inv.id, _ws, auth.uid());
       UPDATE public.invoices SET stock_applied=false,stock_reversed=true WHERE id=_inv.id RETURNING * INTO _inv;
     END IF;
