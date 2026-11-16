@@ -65,6 +65,29 @@ create trigger global_tax_audit_immutable
   before update or delete on global.tax_calculation_audit
   for each row execute function global.reject_tax_audit_mutation();
 
+-- Permit exactly one controlled draft -> verified transition; all published
+-- rule snapshots remain immutable thereafter.
+create or replace function global.guard_tax_rule_version_transition()
+returns trigger language plpgsql set search_path = pg_catalog, global
+as $function$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'tax rule snapshots are immutable';
+  end if;
+  if coalesce(auth.role(),'') <> 'service_role'
+    or old.status <> 'draft' or new.status <> 'verified'
+    or (to_jsonb(new) - array['status','reviewed_on','reviewed_by'])
+       is distinct from (to_jsonb(old) - array['status','reviewed_on','reviewed_by']) then
+    raise exception 'only service-role draft publication is allowed';
+  end if;
+  return new;
+end;
+$function$;
+drop trigger if exists tax_rule_versions_immutable on global.tax_rule_versions;
+create trigger tax_rule_versions_immutable
+  before update or delete on global.tax_rule_versions
+  for each row execute function global.guard_tax_rule_version_transition();
+
 create or replace function public.global_publish_tax_rule_version(p_rule_id uuid, p_reviewer text)
 returns jsonb
 language plpgsql security definer set search_path = pg_catalog, global
@@ -159,7 +182,8 @@ begin
   v_jurisdiction := p_snapshot->>'jurisdictionId'; v_date := (p_snapshot->>'invoiceDate')::date;
   v_taxable := (p_snapshot->>'taxableMinor')::bigint; v_tax := (p_snapshot->>'taxMinor')::bigint;
   v_total := (p_snapshot->>'totalMinor')::bigint;
-  if v_total < v_taxable or not exists (select 1 from global.tax_rule_versions r
+  if v_total <> v_taxable + v_tax or v_total > 9007199254740991
+    or not exists (select 1 from global.tax_rule_versions r
     where r.id=v_rule_id and r.status='verified' and r.country_code=v_country
       and r.currency_code=v_currency and r.version=v_rule_version
       and coalesce(r.jurisdiction_id,'')=coalesce(v_jurisdiction,'')) then
