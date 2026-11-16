@@ -53,12 +53,12 @@ begin
 
  if p_action='create_warehouse' then
    if length(btrim(coalesce(p_values->>'code','')))=0 or length(btrim(coalesce(p_values->>'name','')))=0 then return jsonb_build_object('ok',false,'reason','invalid_warehouse'); end if;
+   if coalesce((p_values->>'is_default')::boolean,false) then
+     update global.warehouses set is_default=false where workspace_id=p_workspace_id and is_default;
+   end if;
    insert into global.warehouses(workspace_id,code,name,address,is_default,created_by)
    values(p_workspace_id,upper(trim(p_values->>'code')),trim(p_values->>'name'),coalesce(p_values->'address','{}'::jsonb),coalesce((p_values->>'is_default')::boolean,false),p_user_id)
    returning id,to_jsonb(warehouses) into v_id,v_row;
-   if coalesce((p_values->>'is_default')::boolean,false) then
-     update global.warehouses set is_default=false where workspace_id=p_workspace_id and id<>v_id and is_default;
-   end if;
    return jsonb_build_object('ok',true,'record',v_row);
  end if;
 
@@ -106,7 +106,7 @@ begin
    if nullif(p_values->>'purchase_order_id','') is null or nullif(p_values->>'warehouse_id','') is null
      or nullif(p_values->>'idempotency_key','') is null or jsonb_typeof(p_values->'items')<>'array'
      or jsonb_array_length(p_values->'items')=0 or jsonb_array_length(p_values->'items')>200 then return jsonb_build_object('ok',false,'reason','invalid_receipt'); end if;
-   perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text||':'||p_values->>'idempotency_key',0));
+   perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text||':'||(p_values->>'idempotency_key'),0));
    select * into v_order from global.purchase_orders where workspace_id=p_workspace_id and id=(p_values->>'purchase_order_id')::uuid for update;
    if not found then return jsonb_build_object('ok',false,'reason','purchase_order_not_found'); end if;
    if not exists(select 1 from global.warehouses where workspace_id=p_workspace_id and id=(p_values->>'warehouse_id')::uuid and is_active) then return jsonb_build_object('ok',false,'reason','warehouse_not_found'); end if;
