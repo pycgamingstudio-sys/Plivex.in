@@ -138,6 +138,9 @@ begin
 end;
 $seed_existing$;
 
+revoke all on function global.seed_default_chart_of_accounts(uuid) from public,anon,authenticated;
+revoke all on function global.seed_workspace_chart_of_accounts() from public,anon,authenticated;
+
 create or replace function global.guard_posted_journal_entry()
 returns trigger
 language plpgsql
@@ -147,6 +150,8 @@ begin
   raise exception using errcode='55000',message='Posted journal entries are immutable';
 end;
 $function$;
+
+revoke all on function global.guard_posted_journal_entry() from public,anon,authenticated;
 
 drop trigger if exists global_journal_entries_immutable on global.journal_entries;
 create trigger global_journal_entries_immutable
@@ -310,8 +315,8 @@ begin
   ) into v_result
   from global.accounting_accounts a
   left join (
-    select l.workspace_id,l.account_id,sum(l.debit_minor)::bigint debit_minor,
-      sum(l.credit_minor)::bigint credit_minor
+    select l.workspace_id,l.account_id,sum(l.debit_minor) debit_minor,
+      sum(l.credit_minor) credit_minor
     from global.journal_entry_lines l
     join global.journal_entries e on e.workspace_id=l.workspace_id and e.id=l.journal_entry_id
     where l.workspace_id=p_workspace_id
@@ -356,7 +361,7 @@ begin
   left join (
     select e.workspace_id,e.id entry_id,e.entry_date,e.memo,e.source_type,e.posted_at,
       l.id line_id,l.description,l.debit_minor,l.credit_minor,
-      sum(l.debit_minor-l.credit_minor) over(order by e.entry_date,e.posted_at,l.id rows unbounded preceding)::bigint running_debit_minor
+      sum(l.debit_minor-l.credit_minor) over(order by e.entry_date,e.posted_at,l.id rows unbounded preceding) running_debit_minor
     from global.journal_entries e
     join global.journal_entry_lines l on l.workspace_id=e.workspace_id and l.journal_entry_id=e.id
     join global.accounting_accounts aa on aa.workspace_id=l.workspace_id and aa.id=l.account_id
