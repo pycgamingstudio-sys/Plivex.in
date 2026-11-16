@@ -136,7 +136,8 @@ function assertGlobalFoundation(port) {
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-business-data.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-invoice-ledger.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-invoice-issuance.integration.sql")]);
-  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-accounting.integration.sql")]);\n  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-accounting-part3b.integration.sql")]);
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-accounting.integration.sql")]);
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-accounting-part3b.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/country-reset.integration.sql")]);
 }
 function applyForcedMigrationRollback(port, db, migrationPath) {
