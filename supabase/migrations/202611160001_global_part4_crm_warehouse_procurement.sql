@@ -86,6 +86,7 @@ create table if not exists global.stock_transfers (
   foreign key(workspace_id,from_warehouse_id) references global.warehouses(workspace_id,id) on delete restrict,
   foreign key(workspace_id,to_warehouse_id) references global.warehouses(workspace_id,id) on delete restrict,
   unique(workspace_id,idempotency_key),
+  unique(workspace_id,id),
   check(from_warehouse_id<>to_warehouse_id)
 );
 create table if not exists global.stock_transfer_items (

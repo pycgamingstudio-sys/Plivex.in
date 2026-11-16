@@ -11,6 +11,7 @@ export function getCountryStandardRateRule(countryCode) {
   return {
     ...rule,
     verified: true,
+    reviewedBy: rule.reviewedBy || "Plivex tax review",
     catalogVersion: result.catalogVersion,
     components: rule.components.map((component) => ({ ...component })),
   };

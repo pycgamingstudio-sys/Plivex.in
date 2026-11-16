@@ -40,7 +40,7 @@ jobs:
           deno check supabase/functions/get-access-status/index.ts
           deno check supabase/functions/workspace-records/index.ts supabase/functions/list-invoices/index.ts
           deno check supabase/functions/save-invoice/index.ts supabase/functions/set-invoice-status/index.ts
-          deno check supabase/functions/global-invoices/index.ts
+          deno check supabase/functions/global-invoices/index.ts supabase/functions/global-accounting/index.ts supabase/functions/global-enterprise/index.ts supabase/functions/global-export/index.ts
       - name: Cashfree refund handler regression tests
         run: deno test supabase/functions/cashfree-webhook/refund.test.ts
       - name: Lint

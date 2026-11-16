@@ -20,14 +20,9 @@ verify_jwt = true
 [functions.global-business-records]
 verify_jwt = true
 
-# Global invoices and payment ledger are authenticated inside the handler.
-[functions.global-invoices]
+# Global enterprise workspace controls require a verified Supabase JWT.
+[functions.global-enterprise]
 verify_jwt = true
 
-# Global stock ledger is authenticated inside the handler.
-[functions.global-stock-movements]
-verify_jwt = true
-
-# Global Part 4 CRM, multi-warehouse inventory and procurement.
-[functions.global-part4]
+[functions.global-export]
 verify_jwt = true

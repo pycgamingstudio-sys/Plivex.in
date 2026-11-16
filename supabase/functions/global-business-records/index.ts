@@ -3,7 +3,7 @@ import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowe
 const TABLE_FIELDS: Record<string, readonly string[]> = {
   clients: ["name", "email", "phone", "tax_registration_number", "billing_address", "shipping_address", "notes", "status"],
   products: ["name", "sku", "barcode", "variant_of", "variant_label", "description", "unit", "sale_price_minor", "purchase_cost_minor", "currency_code", "tax_code", "is_active"],
-  expenses: ["category", "vendor", "amount_minor", "currency_code", "expense_date", "payment_method", "reference", "notes", "attachment_url"],
+  expenses: ["category", "vendor", "amount_minor", "currency_code", "expense_date", "payment_method", "reference", "notes", "attachment_url", "transaction_amount_minor", "transaction_currency_code", "fx_rate_numerator", "fx_rate_denominator", "fx_source_url", "fx_provider", "fx_effective_at"],
   business_profiles: ["legal_name", "display_name", "email", "phone", "address", "tax_registration_number", "tax_registration_type", "tax_registration_status", "tax_registration_effective_from", "tax_jurisdiction_code"],
 };
 const READ_ONLY_TABLES = new Set(["stock_levels", "stock_movements", "invoices", "invoice_items", "invoice_payments"]);
