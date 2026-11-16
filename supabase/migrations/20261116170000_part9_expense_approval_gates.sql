@@ -30,6 +30,7 @@ create policy global_approval_policies_admin_write on global.approval_policies
   with check (global.is_workspace_admin(workspace_id));
 
 grant select, insert, update, delete on global.approval_policies to authenticated;
+grant all on global.approval_policies to service_role;
 
 create or replace function public.global_set_approval_policy(
   p_user_id uuid,
