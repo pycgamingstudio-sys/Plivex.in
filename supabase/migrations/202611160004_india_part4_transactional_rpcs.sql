@@ -200,8 +200,8 @@ begin
      and ((v_stock.sku is not null and sku=v_stock.sku) or (v_stock.sku is null and name=v_stock.name and unit is not distinct from v_stock.unit))
      order by created_at limit 1 for update;
    if v_dest.id is null then
-     insert into public.stock(workspace_id,name,sku,quantity,unit,price,low_stock,client_id,warehouse_id)
-     values(v_workspace,v_stock.name,v_stock.sku,0,v_stock.unit,v_stock.price,v_stock.low_stock,v_stock.client_id,p_warehouse_id)
+     insert into public.stock(workspace_id,name,sku,quantity,unit,price,low_stock,client_id,warehouse_id,purchase_cost,barcode,variant_of,variant_label)
+     values(v_workspace,v_stock.name,v_stock.sku,0,v_stock.unit,v_stock.price,v_stock.low_stock,v_stock.client_id,p_warehouse_id,v_po_item.unit_cost,v_stock.barcode,v_stock.variant_of,v_stock.variant_label)
      returning * into v_dest;
    end if;
    update public.stock set purchase_cost=case when quantity+v_qty>0 then ((quantity*purchase_cost)+(v_qty*v_po_item.unit_cost))/(quantity+v_qty) else v_po_item.unit_cost end,quantity=quantity+v_qty,updated_at=now() where id=v_dest.id;
