@@ -14,7 +14,9 @@ DECLARE
 BEGIN
   INSERT INTO global.approval_policies(
     workspace_id,resource_type,action_type,enabled,minimum_amount_minor,approver_roles,prevent_self_approval,created_by
-  ) VALUES (ws,'expense','expense.create',true,1000,array['owner','admin']::text[],true,approver)
+  ) VALUES
+    (ws,'expense','expense.create',true,1000,array['owner','admin']::text[],true,approver),
+    (ws,'expense','expense.update',true,1000,array['owner','admin']::text[],true,approver)
   ON CONFLICT (workspace_id,resource_type,action_type) DO UPDATE SET
     enabled=true,minimum_amount_minor=1000,approver_roles=array['owner','admin']::text[],
     prevent_self_approval=true,updated_at=now();
@@ -56,8 +58,26 @@ BEGIN
   END;
   IF NOT blocked THEN RAISE EXCEPTION 'Expense update bypassed approval gate'; END IF;
 
+  result := public.global_enterprise_action(requester,ws,'approval.request',
+    jsonb_build_object(
+      'actionType','expense.update','resourceType','expense','resourceId',expense_id::text,
+      'payload',jsonb_build_object('amountMinor','3500','category','Travel','vendor','Test Vendor',
+        'expenseDate',to_char(current_date,'YYYY-MM-DD'),'currencyCode','USD')
+    ));
+  IF result->>'ok' <> 'true' THEN RAISE EXCEPTION 'Expense update approval request failed: %',result; END IF;
+  request_id := (result->>'requestId')::uuid;
+  result := public.global_enterprise_action(approver,ws,'approval.decide',
+    jsonb_build_object('requestId',request_id::text,'decision','approved','note','Verified expense change'));
+  IF result->>'ok' <> 'true' THEN RAISE EXCEPTION 'Expense update approval decision failed: %',result; END IF;
+
+  UPDATE global.expenses SET amount_minor=3500,transaction_amount_minor=3500
+  WHERE id=expense_id AND workspace_id=ws;
+  IF NOT EXISTS (SELECT 1 FROM global.expenses WHERE id=expense_id AND amount_minor=3500) THEN
+    RAISE EXCEPTION 'Approved expense update was not applied';
+  END IF;
+
   DELETE FROM global.expenses WHERE id=expense_id AND workspace_id=ws;
-  DELETE FROM global.approval_policies WHERE workspace_id=ws AND resource_type='expense' AND action_type='expense.create';
+  DELETE FROM global.approval_policies WHERE workspace_id=ws AND resource_type='expense';
 END
 $part9_expense_approval$;
 RESET ROLE;
