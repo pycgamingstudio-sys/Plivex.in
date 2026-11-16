@@ -64,7 +64,8 @@ Implemented on this Part 9 branch in `20261116170000_part9_expense_approval_gate
 - Owner/admin-only policy configuration through the authenticated Global Enterprise Edge Function, with validated minimum amount, eligible approver roles and self-approval prevention.
 - Database BEFORE triggers enforce the gate for all write paths, including direct service-role RPC inserts/updates; a UI-only check cannot bypass it.
 - Approval must match the resource key, action, amount, category, vendor, expense date and currency, and must be decided by an active member with an allowed role. Approved requests are atomically consumed once and cannot be replayed.
-- Disposable integration test covers blocked unapproved create/update and successful approved create/update.
+- The Enterprise panel can request a create approval bound to the exact expense details, or an update approval bound to a specific expense ID.
+- Disposable integration test covers blocked unapproved create/update, successful approved create/update, self-approval denial, and replay prevention.
 - Candidate migration is included in migration replay manifest and replay test script.
 
 **Scope:** this slice currently covers Global expense create/update only. It does not yet gate invoice issue/payment, India routes, or every other protected mutation. A workspace policy must be configured to enable the gate. The Part 9 branch remains unreleased.
