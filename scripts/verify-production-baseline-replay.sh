@@ -113,11 +113,11 @@ test "$before_global" = "$after_global" || fail "Existing Global business row co
 missing_after="$(query "
 SELECT string_agg(x.name, ',')
 FROM (VALUES
- ('global.accounting_accounts'),('global.journal_entries'),('global.journal_lines'),
+ ('global.accounting_accounts'),('global.journal_entries'),('global.journal_entry_lines'),
  ('global.purchase_bills'),('global.stock_transfers'),('global.invoice_refunds'),
  ('global.exchange_rate_snapshots'),('global.tax_rule_versions'),
  ('global.tax_calculation_audit'),('global.approval_requests'),('global.export_jobs'),
- ('global.audit_events'),('global.branches'),('public.stock_transfers'),
+ ('global.audit_events'),('global.workspace_branches'),('public.stock_transfers'),
  ('public.workspace_country_change_requests'),('public.invoice_share_rate_limits')
 ) AS x(name)
 WHERE to_regclass(x.name) IS NULL;
@@ -127,11 +127,11 @@ test -z "$missing_after" || fail "Pending Parts 1-8 migrations did not create re
 unprotected="$(query "
 SELECT string_agg(x.name, ',')
 FROM (VALUES
- ('global.accounting_accounts'),('global.journal_entries'),('global.journal_lines'),
+ ('global.accounting_accounts'),('global.journal_entries'),('global.journal_entry_lines'),
  ('global.purchase_bills'),('global.stock_transfers'),('global.invoice_refunds'),
  ('global.exchange_rate_snapshots'),('global.tax_rule_versions'),
  ('global.tax_calculation_audit'),('global.approval_requests'),('global.export_jobs'),
- ('global.audit_events'),('global.branches'),('public.stock_transfers'),
+ ('global.audit_events'),('global.workspace_branches'),('public.stock_transfers'),
  ('public.workspace_country_change_requests'),('public.invoice_share_rate_limits')
 ) AS x(name)
 WHERE NOT COALESCE((SELECT c.relrowsecurity FROM pg_class c WHERE c.oid=to_regclass(x.name)),false);
