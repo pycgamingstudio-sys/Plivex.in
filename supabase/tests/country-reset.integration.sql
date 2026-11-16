@@ -322,7 +322,10 @@ $global_to_global$;
 -- The enclosing subtransaction must restore every old record and membership.
 SELECT set_config('request.jwt.claim.sub','99999999-9999-4999-8999-999999999999',false);
 INSERT INTO public.profiles(id,email,full_name,role,workspace_id,country_code,locale_code)
-VALUES ('99999999-9999-4999-8999-999999999999','country-reset-rollback@example.test','Rollback Probe Owner','admin','workspace-reset-rollback','IN','en-IN');
+VALUES ('99999999-9999-4999-8999-999999999999','country-reset-rollback@example.test','Rollback Probe Owner','admin','workspace-reset-rollback','IN','en-IN')
+ON CONFLICT (id) DO UPDATE SET
+  email=excluded.email, full_name=excluded.full_name, role=excluded.role,
+  workspace_id=excluded.workspace_id, country_code=excluded.country_code, locale_code=excluded.locale_code;
 INSERT INTO public.workspace_members(membership_key,workspace_id,owner_id,user_id,name,email,role,status,activated_at)
 VALUES ('workspace-reset-rollback:country-reset-rollback@example.test','workspace-reset-rollback','99999999-9999-4999-8999-999999999999','99999999-9999-4999-8999-999999999999','Rollback Probe Owner','country-reset-rollback@example.test','admin','active',now());
 INSERT INTO public.business_profile(workspace_id,name)
