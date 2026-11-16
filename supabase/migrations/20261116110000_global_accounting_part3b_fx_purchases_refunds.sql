@@ -12,13 +12,28 @@ returns void language plpgsql security definer set search_path=pg_catalog,global
 begin
   insert into global.accounting_accounts(workspace_id,code,name,account_type,normal_balance,is_system)
   values
+    (p_workspace_id,'1000','Cash on Hand','asset','debit',true),
+    (p_workspace_id,'1010','Bank Account','asset','debit',true),
+    (p_workspace_id,'1100','Accounts Receivable','asset','debit',true),
+    (p_workspace_id,'1200','Inventory','asset','debit',true),
     (p_workspace_id,'1300','Recoverable Purchase Tax','asset','debit',true),
+    (p_workspace_id,'2000','Accounts Payable','liability','credit',true),
+    (p_workspace_id,'2100','Tax Payable','liability','credit',true),
+    (p_workspace_id,'3000','Owner Equity','equity','credit',true),
+    (p_workspace_id,'3100','Retained Earnings','equity','credit',true),
+    (p_workspace_id,'4000','Sales Revenue','revenue','credit',true),
     (p_workspace_id,'4050','Sales Returns & Allowances','revenue','credit',true),
+    (p_workspace_id,'4100','Other Income','revenue','credit',true),
     (p_workspace_id,'4200','Foreign Exchange Gain','revenue','credit',true),
+    (p_workspace_id,'5000','Cost of Goods Sold','expense','debit',true),
+    (p_workspace_id,'6000','Operating Expenses','expense','debit',true),
+    (p_workspace_id,'6100','Bank & Payment Fees','expense','debit',true),
     (p_workspace_id,'6200','Foreign Exchange Loss','expense','debit',true)
   on conflict(workspace_id,code) do nothing;
 end;
 $function$;
+revoke all on function global.seed_default_chart_of_accounts(uuid) from public,anon,authenticated;
+
 do $seed$
 declare r record;
 begin
@@ -196,7 +211,8 @@ create or replace function global.guard_posted_purchase_lines()
 returns trigger language plpgsql set search_path=pg_catalog,global as $function$
 declare v_status text; v_id uuid; v_ws uuid;
 begin
-  v_id:=coalesce(new.purchase_bill_id,old.purchase_bill_id); v_ws:=coalesce(new.workspace_id,old.workspace_id);
+  if tg_op='DELETE' then v_id:=old.purchase_bill_id; v_ws:=old.workspace_id;
+  else v_id:=new.purchase_bill_id; v_ws:=new.workspace_id; end if;
   select status into v_status from global.purchase_bills where workspace_id=v_ws and id=v_id for update;
   if v_status is distinct from 'draft' then raise exception using errcode='55000',message='Posted purchase bill lines are immutable'; end if;
   if tg_op='DELETE' then return old; end if; return new;
@@ -468,7 +484,12 @@ begin
   if v_role not in ('owner','admin','accountant') then return jsonb_build_object('ok',false,'reason','forbidden'); end if;
   perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text||':purchase-revalue:'||p_idempotency_key::text,0));
   select * into v_existing from global.purchase_fx_revaluations where workspace_id=p_workspace_id and idempotency_key=p_idempotency_key;
-  if found then return jsonb_build_object('ok',true,'duplicate',true,'revaluation',to_jsonb(v_existing)); end if;
+  if found then
+    if v_existing.purchase_bill_id<>p_purchase_bill_id or v_existing.revaluation_date<>p_revaluation_date
+      or v_existing.fx_rate_numerator<>p_fx_rate_numerator or v_existing.fx_rate_denominator<>p_fx_rate_denominator
+      or v_existing.fx_rate_source<>btrim(p_fx_rate_source) then return jsonb_build_object('ok',false,'reason','idempotency_conflict'); end if;
+    return jsonb_build_object('ok',true,'duplicate',true,'revaluation',to_jsonb(v_existing));
+  end if;
   select * into v_bill from global.purchase_bills where workspace_id=p_workspace_id and id=p_purchase_bill_id for update;
   if v_bill.id is null or v_bill.status not in ('posted','partially_paid') then return jsonb_build_object('ok',false,'reason','purchase_not_open'); end if;
   if p_revaluation_date<v_bill.purchase_date then return jsonb_build_object('ok',false,'reason','invalid_revaluation_date'); end if;
