@@ -22,9 +22,9 @@ test("Enterprise panel uses authenticated server functions for privileged operat
 test("Enterprise panel exposes configurable server-enforced Global expense approval policies", () => {
   assert.match(panel, /approval\.policy\.list/);
   assert.match(panel, /approval\.policy\.set/);
-  assert.match(panel, /Expense approval policy/);
-  assert.match(panel, /Prevent requesters from approving their own expense/);
+  assert.match(panel, /Approval policies/);
+  assert.match(panel, /Prevent requesters from approving their own action/);
   assert.match(panel, /approvalExpenseAmount/);
   assert.ok(panel.includes('resourceId: isExpenseApproval && approvalAction.trim() === "expense.create" ? "*" : resourceId.trim()'));
-  assert.match(panel, /Invoice and India write gates are not included in this candidate/);
+  assert.match(panel, /invoice write gates/);\n  assert.match(panel, /invoice.payment.record/);\n  assert.match(panel, /eventDate: approvalExpenseDate/);
 });
