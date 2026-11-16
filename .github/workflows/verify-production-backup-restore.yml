@@ -125,7 +125,7 @@ jobs:
               psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -Atqc 'SELECT 1' 2>/dev/null | grep -qx '1'; then
               sleep 2
               if docker exec -u postgres plivex-production-restore-test \
-                psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -Atqc 'SELECT 1' 2>/dev/null | grep -qx '1'; then
+                psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -Atqc 'SELECT 1' 2>/dev/null | grep -qx '1'; then
                 ready=1
                 break
               fi
@@ -139,15 +139,15 @@ jobs:
         run: |
           set -euo pipefail
           docker exec -u postgres plivex-production-restore-test \
-            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -c \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c \
             'CREATE SCHEMA IF NOT EXISTS extensions; CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;'
           docker exec -i -u postgres plivex-production-restore-test \
-            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f /dev/stdin \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < supabase/tests/migration-replay-bootstrap.sql
           # The bootstrap creates only a minimal test auth schema. Replace it
           # with the complete encrypted auth schema/data from the production dump.
           docker exec -u postgres plivex-production-restore-test \
-            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -c \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c \
             'DROP SCHEMA auth CASCADE; DROP SCHEMA storage CASCADE; DROP TABLE IF EXISTS public.stage4_vault_secrets CASCADE; DROP FUNCTION IF EXISTS public.set_updated_at();'
 
       - name: Restore roles, schema and data into the disposable database
@@ -171,22 +171,22 @@ jobs:
             exit "$role_status"
           fi
           docker exec -i -u postgres plivex-production-restore-test \
-            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f /dev/stdin \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < backup/auth-schema.sql
           docker exec -i -u postgres plivex-production-restore-test \
-            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f /dev/stdin \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < backup/auth-data.sql
           docker exec -i -u postgres plivex-production-restore-test \
-            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f /dev/stdin \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < backup/storage-schema.sql
           docker exec -i -u postgres plivex-production-restore-test \
-            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f /dev/stdin \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < backup/storage-data.sql
           docker exec -i -u postgres plivex-production-restore-test \
-            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f /dev/stdin \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < backup/schema.sql
           docker exec -i -u postgres plivex-production-restore-test \
-            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f /dev/stdin \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < backup/data.sql
           echo "Roles, schema and data restore commands completed."
 
@@ -205,7 +205,7 @@ jobs:
         run: |
           set -euo pipefail
           docker exec -i -u postgres plivex-production-restore-test \
-            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f /dev/stdin <<'SQL'
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin <<'SQL'
           DO $verify$
           DECLARE
             missing text;
