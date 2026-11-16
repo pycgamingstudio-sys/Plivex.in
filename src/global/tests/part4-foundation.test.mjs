@@ -11,7 +11,6 @@ const globalUi = await readFile(new URL("../../../src/components/global/GlobalPa
 const indiaUi = await readFile(new URL("../../../src/components/dashboard/IndiaPart4Tab.jsx", import.meta.url), "utf8");
 const globalApp = await readFile(new URL("../../../src/global/GlobalApp.jsx", import.meta.url), "utf8");
 const dashboard = await readFile(new URL("../../../src/pages/Dashboard.jsx", import.meta.url), "utf8");
-const indiaOperations = await readFile(new URL("../../../supabase/migrations/202611160004_india_part4_transactional_rpcs.sql", import.meta.url), "utf8");
 const indiaSales = await readFile(new URL("../../../supabase/migrations/202611160005_india_invoice_stock_atomicity.sql", import.meta.url), "utf8");
 const globalSales = await readFile(new URL("../../../supabase/migrations/202611160006_global_invoice_stock_atomicity.sql", import.meta.url), "utf8");
 const stockTab = await readFile(new URL("../../../src/components/dashboard/StockTab.jsx", import.meta.url), "utf8");
