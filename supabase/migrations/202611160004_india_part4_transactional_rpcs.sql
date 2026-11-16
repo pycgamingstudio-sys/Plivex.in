@@ -3,6 +3,32 @@
 begin;
 
 alter table public.purchase_receipts add column if not exists request_fingerprint text;
+alter table public.stock
+ add column if not exists purchase_cost numeric(18,4) not null default 0 check(purchase_cost>=0),
+ add column if not exists barcode text;
+
+create table if not exists public.inventory_batches (
+ id uuid primary key default gen_random_uuid(),
+ workspace_id text not null,
+ warehouse_id uuid not null,
+ stock_id uuid not null,
+ batch_number text not null check(length(btrim(batch_number)) between 1 and 100),
+ quantity numeric(18,4) not null default 0 check(quantity>=0),
+ unit_cost numeric(18,4) not null default 0 check(unit_cost>=0),
+ expires_on date,
+ created_at timestamptz not null default now(),
+ foreign key(workspace_id,warehouse_id) references public.warehouses(workspace_id,id) on delete restrict,
+ foreign key(workspace_id,stock_id) references public.stock(workspace_id,id) on delete restrict,
+ unique(workspace_id,warehouse_id,stock_id,batch_number)
+);
+alter table public.inventory_batches enable row level security;
+drop policy if exists "inventory batches read" on public.inventory_batches;
+create policy "inventory batches read" on public.inventory_batches for select to authenticated
+ using(has_ws_role(workspace_id,ARRAY['admin'::app_role,'manager'::app_role,'employee'::app_role,'storekeeper'::app_role]));
+grant select on public.inventory_batches to authenticated;
+create index if not exists inventory_batches_expiry_idx on public.inventory_batches(workspace_id,warehouse_id,expires_on) where quantity>0 and expires_on is not null;
+
+
 
 create table if not exists public.stock_transfers (
  id uuid primary key default gen_random_uuid(),
@@ -166,10 +192,17 @@ begin
      values(v_workspace,v_stock.name,v_stock.sku,0,v_stock.unit,v_stock.price,v_stock.low_stock,v_stock.client_id,p_warehouse_id)
      returning * into v_dest;
    end if;
-   update public.stock set quantity=quantity+v_qty,updated_at=now() where id=v_dest.id;
+   update public.stock set purchase_cost=case when quantity+v_qty>0 then ((quantity*purchase_cost)+(v_qty*v_po_item.unit_cost))/(quantity+v_qty) else v_po_item.unit_cost end,quantity=quantity+v_qty,updated_at=now() where id=v_dest.id;
    update public.purchase_order_items set quantity_received=quantity_received+v_qty where id=v_po_item.id;
    insert into public.purchase_receipt_items(workspace_id,receipt_id,purchase_order_item_id,stock_id,quantity,batch_number,expires_on)
    values(v_workspace,v_receipt.id,v_po_item.id,v_dest.id,v_qty,nullif(trim(v_item->>'batch_number'),''),nullif(v_item->>'expires_on','')::date);
+   if nullif(trim(v_item->>'batch_number'),'') is not null then
+     insert into public.inventory_batches(workspace_id,warehouse_id,stock_id,batch_number,quantity,unit_cost,expires_on)
+     values(v_workspace,p_warehouse_id,v_dest.id,trim(v_item->>'batch_number'),v_qty,v_po_item.unit_cost,nullif(v_item->>'expires_on','')::date)
+     on conflict(workspace_id,warehouse_id,stock_id,batch_number) do update
+       set quantity=public.inventory_batches.quantity+excluded.quantity,
+           unit_cost=excluded.unit_cost,expires_on=coalesce(excluded.expires_on,public.inventory_batches.expires_on);
+   end if;
    insert into public.stock_movements(workspace_id,warehouse_id,stock_id,movement_type,quantity_delta,reference_type,reference_id,idempotency_key,notes,created_by)
    values(v_workspace,p_warehouse_id,v_dest.id,'receipt',v_qty,'purchase_receipt',v_receipt.id,gen_random_uuid(),'Purchase receipt',v_user);
  end loop;
@@ -216,11 +249,11 @@ begin
  values(v_workspace,v_source.warehouse_id,p_to_warehouse_id,p_idempotency_key,v_fingerprint,v_user) returning * into v_transfer;
  update public.stock set quantity=quantity-p_quantity,updated_at=now() where id=v_source.id;
  if v_dest.id is null then
-   insert into public.stock(workspace_id,name,sku,quantity,unit,price,low_stock,client_id,warehouse_id)
-   values(v_workspace,v_source.name,v_source.sku,p_quantity,v_source.unit,v_source.price,v_source.low_stock,v_source.client_id,p_to_warehouse_id)
+   insert into public.stock(workspace_id,name,sku,quantity,unit,price,low_stock,client_id,warehouse_id,purchase_cost,barcode)
+   values(v_workspace,v_source.name,v_source.sku,p_quantity,v_source.unit,v_source.price,v_source.low_stock,v_source.client_id,p_to_warehouse_id,v_source.purchase_cost,v_source.barcode)
    returning id into v_dest_id;
  else
-   update public.stock set quantity=quantity+p_quantity,updated_at=now() where id=v_dest.id returning id into v_dest_id;
+   update public.stock set purchase_cost=case when quantity+p_quantity>0 then ((quantity*purchase_cost)+(p_quantity*v_source.purchase_cost))/(quantity+p_quantity) else v_source.purchase_cost end,quantity=quantity+p_quantity,updated_at=now() where id=v_dest.id returning id into v_dest_id;
  end if;
  insert into public.stock_transfer_items(workspace_id,transfer_id,source_stock_id,destination_stock_id,quantity)
  values(v_workspace,v_transfer.id,v_source.id,v_dest_id,p_quantity);
