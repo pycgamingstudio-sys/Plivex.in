@@ -13,8 +13,8 @@ const normalized = pairs.filter((x) => x.normalized_sql_match === true);
 const localOnly = manifest.local_only_files || [];
 
 if (manifest.remote_ledger_entries !== 52 || history.length !== 39 || missing.length !== 35
-  || manifest.local_migration_files !== 39 || pairs.length !== 17
-  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 22) {
+  || manifest.local_migration_files !== 40 || pairs.length !== 17
+  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 23) {
   fail("Migration reconciliation counts differ from the reviewed archive with 52 remote entries, 39 historical sources and 22 local-only migrations");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
@@ -44,8 +44,8 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 74 || new Set(candidatePlan.map((x) => x.path)).size !== 74) {
-  fail("Candidate replay plan must contain 35 recovered historical and all 39 current local migrations");
+if (candidatePlan.length !== 75 || new Set(candidatePlan.map((x) => x.path)).size !== 74) {
+  fail("Candidate replay plan must contain 35 recovered historical and all 40 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -134,6 +134,7 @@ function assertGlobalFoundation(port) {
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-multicurrency-expense.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-tax-audit.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-enterprise-controls.integration.sql")]);
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-expense-approval-gates.integration.sql")]);
 }
 function applyForcedMigrationRollback(port, db, migrationPath) {
   const migration = readFileSync(migrationPath, "utf8")
