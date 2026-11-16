@@ -501,26 +501,39 @@ begin
   select jsonb_build_object(
     'account_code',a.code,'account_name',a.name,
     'currency_code',coalesce(upper(p_currency_code),(select currency_code from global.workspaces where id=p_workspace_id)),
+    'opening_balance_minor',coalesce((
+      select sum(l.debit_minor-l.credit_minor)
+      from global.journal_entries e
+      join global.journal_entry_lines l on l.workspace_id=e.workspace_id and l.journal_entry_id=e.id
+      join global.accounting_accounts aa on aa.workspace_id=l.workspace_id and aa.id=l.account_id
+      where e.workspace_id=p_workspace_id and aa.code=btrim(p_account_code)
+        and p_from is not null and e.entry_date<p_from
+        and (p_currency_code is null or e.currency_code=upper(p_currency_code))
+    ),0),
     'entries',coalesce(jsonb_agg(jsonb_build_object(
       'entry_id',q.entry_id,'entry_date',q.entry_date,'memo',q.memo,'source_type',q.source_type,
       'description',q.description,'debit_minor',q.debit_minor,'credit_minor',q.credit_minor,
       'running_debit_minor',q.running_debit_minor
-    ) order by q.entry_date,q.posted_at,q.line_id),'[]'::jsonb)
+    ) order by q.entry_date,q.posted_at,q.line_id) filter(where q.entry_id is not null),'[]'::jsonb)
   ) into v_result
   from global.accounting_accounts a
   left join (
-    select e.workspace_id,e.id entry_id,e.entry_date,e.memo,e.source_type,e.posted_at,
-      l.id line_id,l.description,l.debit_minor,l.credit_minor,
-      sum(l.debit_minor-l.credit_minor) over(order by e.entry_date,e.posted_at,l.id rows unbounded preceding) running_debit_minor
-    from global.journal_entries e
-    join global.journal_entry_lines l on l.workspace_id=e.workspace_id and l.journal_entry_id=e.id
-    join global.accounting_accounts aa on aa.workspace_id=l.workspace_id and aa.id=l.account_id
-    where e.workspace_id=p_workspace_id and aa.code=btrim(p_account_code)
-      and (p_from is null or e.entry_date>=p_from)
-      and (p_to is null or e.entry_date<=p_to)
-      and (p_currency_code is null or e.currency_code=upper(p_currency_code))
+    select history.*
+    from (
+      select e.workspace_id,e.id entry_id,e.entry_date,e.memo,e.source_type,e.posted_at,
+        l.id line_id,l.description,l.debit_minor,l.credit_minor,
+        sum(l.debit_minor-l.credit_minor) over(order by e.entry_date,e.posted_at,l.id rows unbounded preceding) running_debit_minor
+      from global.journal_entries e
+      join global.journal_entry_lines l on l.workspace_id=e.workspace_id and l.journal_entry_id=e.id
+      join global.accounting_accounts aa on aa.workspace_id=l.workspace_id and aa.id=l.account_id
+      where e.workspace_id=p_workspace_id and aa.code=btrim(p_account_code)
+        and (p_to is null or e.entry_date<=p_to)
+        and (p_currency_code is null or e.currency_code=upper(p_currency_code))
+    ) history
+    where p_from is null or history.entry_date>=p_from
   ) q on true
-  where a.workspace_id=p_workspace_id and a.code=btrim(p_account_code);
+  where a.workspace_id=p_workspace_id and a.code=btrim(p_account_code)
+  group by a.code,a.name;
   return coalesce(v_result,jsonb_build_object('reason','account_not_found'));
 end;
 $function$;
