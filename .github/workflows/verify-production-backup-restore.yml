@@ -204,6 +204,18 @@ jobs:
             IF missing IS NOT NULL THEN
               RAISE EXCEPTION 'Restore is missing required application tables: %', missing;
             END IF;
+            IF to_regclass('auth.users') IS NULL
+               OR to_regclass('storage.buckets') IS NULL
+               OR to_regclass('storage.objects') IS NULL THEN
+              RAISE EXCEPTION 'Restore is missing Auth users or Storage metadata tables';
+            END IF;
+            IF EXISTS (
+              SELECT 1 FROM public.profiles p
+              LEFT JOIN auth.users u ON u.id = p.id
+              WHERE u.id IS NULL
+            ) THEN
+              RAISE EXCEPTION 'Restored public profiles contain Auth user IDs missing from auth.users';
+            END IF;
 
             SELECT string_agg(x.name, ', ')
               INTO unprotected
@@ -226,7 +238,9 @@ jobs:
           END
           $verify$;
 
-          SELECT 'profiles' AS table_name, count(*) AS rows FROM public.profiles
+          SELECT 'auth.users' AS table_name, count(*) AS rows FROM auth.users
+          UNION ALL SELECT 'storage.objects', count(*) FROM storage.objects
+          UNION ALL SELECT 'profiles', count(*) FROM public.profiles
           UNION ALL SELECT 'subscriptions', count(*) FROM public.subscriptions
           UNION ALL SELECT 'payment_logs', count(*) FROM public.payment_logs
           UNION ALL SELECT 'global.workspaces', count(*) FROM global.workspaces
