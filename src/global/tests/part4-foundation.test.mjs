@@ -15,7 +15,7 @@ test("Part 4 adds Global CRM, warehouses, batches and purchasing without alterin
 });
 
 test("all new Global Part 4 tables enable member-scoped RLS", () => {
-  assert.match(migration, /foreach table_name in array array\\[/);
+  assert.ok(migration.includes("foreach table_name in array array["));
   assert.match(migration, /alter table global\\.%I enable row level security/);
   assert.match(migration, /create policy global_%I_select_member/);
   for (const table of ["warehouses","warehouse_stock_levels","inventory_batches","stock_transfers","stock_transfer_items","purchase_orders","purchase_order_items","crm_leads","crm_activities"]) {
@@ -30,7 +30,7 @@ test("inventory transfer is transactional, role-gated and idempotent", () => {
   assert.match(migration, /pg_advisory_xact_lock/);
   assert.match(migration, /insufficient_stock/);
   assert.match(migration, /unique\(workspace_id,idempotency_key\)/);
-  assert.match(migration, /revoke all on function public\\.global_part4_transfer_stock/);
+  assert.ok(migration.includes("revoke all on function public.global_part4_transfer_stock"));
 });
 
 test("purchase receiving cannot exceed ordered quantity and updates warehouse balances atomically", () => {
