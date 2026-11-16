@@ -149,6 +149,11 @@ begin
      insert into global.warehouse_stock_levels(workspace_id,warehouse_id,product_id,quantity)
      values(p_workspace_id,v_receipt.warehouse_id,v_po_item.product_id,v_qty)
      on conflict(workspace_id,warehouse_id,product_id) do update set quantity=global.warehouse_stock_levels.quantity+excluded.quantity,updated_at=now();
+     insert into global.stock_levels(workspace_id,product_id,quantity,reorder_level)
+     values(p_workspace_id,v_po_item.product_id,v_qty,0)
+     on conflict(workspace_id,product_id) do update set quantity=global.stock_levels.quantity+excluded.quantity,updated_at=now();
+     insert into global.stock_movements(workspace_id,product_id,movement_type,quantity_delta,notes,created_by,idempotency_key)
+     values(p_workspace_id,v_po_item.product_id,'receipt',v_qty,'Purchase receipt',p_user_id,gen_random_uuid());
      v_batch := nullif(trim(v_item->>'batch_number'),''); v_expiry := nullif(v_item->>'expires_on','')::date;
      if v_batch is not null then
        insert into global.inventory_batches(workspace_id,warehouse_id,product_id,batch_number,quantity,unit_cost_minor,expires_on)
