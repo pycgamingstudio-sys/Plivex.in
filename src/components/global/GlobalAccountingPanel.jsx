@@ -122,9 +122,9 @@ export default function GlobalAccountingPanel({account}) {
       </div>
     ):view==="general_ledger"?(
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <div className="border-b px-4 py-3 text-sm font-semibold">{report?.account_code} · {report?.account_name}</div>
+        <div className="border-b px-4 py-3 text-sm font-semibold">{report?.account_code} · {report?.account_name}<span className="ml-3 text-xs font-normal text-slate-500">Opening balance: {money(report?.opening_balance_minor,currency)}</span></div>
         <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500"><tr>{["Date","Description","Source","Debit","Credit","Running balance"].map((x)=><th key={x} className="whitespace-nowrap px-4 py-3 font-semibold">{x}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">
-          {rows.map((row)=><tr key={row.entry_id}><td className="whitespace-nowrap px-4 py-3">{row.entry_date}</td><td className="px-4 py-3">{row.description||row.memo}</td><td className="px-4 py-3">{row.source_type}</td><td className="px-4 py-3">{money(row.debit_minor,currency)}</td><td className="px-4 py-3">{money(row.credit_minor,currency)}</td><td className="px-4 py-3">{money(row.running_debit_minor,currency)}</td></tr>)}
+          {rows.map((row,index)=><tr key={`${row.entry_id}-${index}`}><td className="whitespace-nowrap px-4 py-3">{row.entry_date}</td><td className="px-4 py-3">{row.description||row.memo}</td><td className="px-4 py-3">{row.source_type}</td><td className="px-4 py-3">{money(row.debit_minor,currency)}</td><td className="px-4 py-3">{money(row.credit_minor,currency)}</td><td className="px-4 py-3">{money(row.running_debit_minor,currency)}</td></tr>)}
         </tbody></table>
         {!rows.length&&<p className="p-6 text-center text-sm text-slate-500">No entries for this account in the selected period.</p>}
       </div>
