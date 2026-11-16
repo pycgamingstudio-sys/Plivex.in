@@ -52,7 +52,7 @@ export default function IndiaPart4Tab({ user }) {
   },[user?.id]);
   useEffect(()=>{refresh().catch(e=>setError(e.message||"Could not load warehouse records."));},[refresh]);
 
-  const productName=(id)=>stock.find(x=>x.id===id)?.name||"Stock item";
+  const productName=(id)=>{const item=stock.find(x=>x.id===id);return item ? `${item.name}${item.variant_label ? " · "+item.variant_label : ""}` : "Stock item";};
   const selectedOrder=orders.find(x=>x.id===receipt.orderId);
   const openItems=orderItems.filter(x=>x.purchase_order_id===receipt.orderId && Number(x.quantity_received)<Number(x.quantity_ordered));
   const selectedStock=stock.find(x=>x.id===transfer.stockId);
@@ -166,7 +166,7 @@ export default function IndiaPart4Tab({ user }) {
         <button disabled={busy} className={primary}>Add warehouse</button>
       </form>
       <div className="grid gap-3 sm:grid-cols-2">{warehouses.map(w=><div key={w.id} className="rounded-xl border bg-white p-4"><p className="font-semibold">{w.name} {w.is_default&&<span className="text-xs text-violet-700">· Default</span>}</p><p className="text-sm text-slate-500">{w.code} · {w.is_active?"Active":"Inactive"}</p></div>)}</div>
-      <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm"><thead className="bg-slate-50"><tr>{["Item","Warehouse","Quantity","Low-stock level"].map(x=><th key={x} className="p-3 text-left">{x}</th>)}</tr></thead><tbody className="divide-y">{stock.map(s=><tr key={s.id}><td className="p-3">{s.name}</td><td className="p-3">{warehouses.find(w=>w.id===s.warehouse_id)?.name||"—"}</td><td className="p-3">{s.quantity} {s.unit||""}</td><td className="p-3">{s.low_stock}</td></tr>)}</tbody></table></div>
+      <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm"><thead className="bg-slate-50"><tr>{["Item","Warehouse","Quantity","Low-stock level"].map(x=><th key={x} className="p-3 text-left">{x}</th>)}</tr></thead><tbody className="divide-y">{stock.map(s=><tr key={s.id}><td className="p-3">{s.name}{s.variant_label ? <span className="ml-1 text-xs text-violet-700">· {s.variant_label}</span> : null}{s.barcode ? <span className="block text-xs text-slate-400">{s.barcode}</span> : null}</td><td className="p-3">{warehouses.find(w=>w.id===s.warehouse_id)?.name||"—"}</td><td className="p-3">{s.quantity} {s.unit||""}</td><td className="p-3">{s.low_stock}</td></tr>)}</tbody></table></div>
     </>}
 
     {tab==="transfers"&&<>
