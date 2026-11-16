@@ -116,7 +116,7 @@ create or replace function public.india_part4_receive_purchase_order(
 set search_path=pg_catalog,public
 as $$
 declare v_workspace text; v_user uuid:=auth.uid(); v_order public.purchase_orders%rowtype; v_receipt public.purchase_receipts%rowtype;
- v_item jsonb; v_po_item public.purchase_order_items%rowtype; v_stock public.stock%rowtype; v_qty numeric(18,4); v_fingerprint text;
+ v_item jsonb; v_po_item public.purchase_order_items%rowtype; v_stock public.stock%rowtype; v_dest public.stock%rowtype; v_qty numeric(18,4); v_fingerprint text;
 begin
  if v_user is null then return jsonb_build_object('ok',false,'reason','unauthenticated'); end if;
  select workspace_id into v_workspace from public.profiles where id=v_user;
@@ -143,14 +143,22 @@ begin
    if nullif(v_item->>'purchase_order_item_id','') is null or v_qty<=0 or v_qty<>round(v_qty,4) then raise exception 'invalid_receipt_item'; end if;
    select * into v_po_item from public.purchase_order_items where workspace_id=v_workspace and purchase_order_id=p_purchase_order_id and id=(v_item->>'purchase_order_item_id')::uuid for update;
    if not found or v_po_item.quantity_received+v_qty>v_po_item.quantity_ordered then raise exception 'receipt_quantity_exceeded'; end if;
-   select * into v_stock from public.stock where workspace_id=v_workspace and id=v_po_item.stock_id and warehouse_id=p_warehouse_id for update;
-   if not found then raise exception 'stock_warehouse_mismatch'; end if;
-   update public.stock set quantity=quantity+v_qty,updated_at=now() where id=v_stock.id;
+   select * into v_stock from public.stock where workspace_id=v_workspace and id=v_po_item.stock_id;
+   if not found then raise exception 'stock_item_not_found'; end if;
+   select * into v_dest from public.stock where workspace_id=v_workspace and warehouse_id=p_warehouse_id
+     and ((v_stock.sku is not null and sku=v_stock.sku) or (v_stock.sku is null and name=v_stock.name and unit is not distinct from v_stock.unit))
+     order by created_at limit 1 for update;
+   if v_dest.id is null then
+     insert into public.stock(workspace_id,name,sku,quantity,unit,price,low_stock,client_id,warehouse_id)
+     values(v_workspace,v_stock.name,v_stock.sku,0,v_stock.unit,v_stock.price,v_stock.low_stock,v_stock.client_id,p_warehouse_id)
+     returning * into v_dest;
+   end if;
+   update public.stock set quantity=quantity+v_qty,updated_at=now() where id=v_dest.id;
    update public.purchase_order_items set quantity_received=quantity_received+v_qty where id=v_po_item.id;
    insert into public.purchase_receipt_items(workspace_id,receipt_id,purchase_order_item_id,stock_id,quantity,batch_number,expires_on)
-   values(v_workspace,v_receipt.id,v_po_item.id,v_stock.id,v_qty,nullif(trim(v_item->>'batch_number'),''),nullif(v_item->>'expires_on','')::date);
+   values(v_workspace,v_receipt.id,v_po_item.id,v_dest.id,v_qty,nullif(trim(v_item->>'batch_number'),''),nullif(v_item->>'expires_on','')::date);
    insert into public.stock_movements(workspace_id,warehouse_id,stock_id,movement_type,quantity_delta,reference_type,reference_id,idempotency_key,notes,created_by)
-   values(v_workspace,p_warehouse_id,v_stock.id,'receipt',v_qty,'purchase_receipt',v_receipt.id,gen_random_uuid(),'Purchase receipt',v_user);
+   values(v_workspace,p_warehouse_id,v_dest.id,'receipt',v_qty,'purchase_receipt',v_receipt.id,gen_random_uuid(),'Purchase receipt',v_user);
  end loop;
  update public.purchase_orders po set status=case
    when not exists(select 1 from public.purchase_order_items i where i.workspace_id=v_workspace and i.purchase_order_id=po.id and i.quantity_received<i.quantity_ordered) then 'received'
@@ -159,7 +167,7 @@ begin
  where po.id=p_purchase_order_id;
  return jsonb_build_object('ok',true,'duplicate',false,'receipt_id',v_receipt.id);
 exception when others then
- if sqlerrm in ('invalid_receipt_item','receipt_quantity_exceeded','stock_warehouse_mismatch') then return jsonb_build_object('ok',false,'reason',sqlerrm); end if;
+ if sqlerrm in ('invalid_receipt_item','receipt_quantity_exceeded','stock_item_not_found') then return jsonb_build_object('ok',false,'reason',sqlerrm); end if;
  raise;
 end $$;
 
