@@ -4,10 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       backup_run_id:
-        description: "GitHub Actions run ID that created the encrypted production backup"
-        required: true
+        description: "Optional GitHub Actions run ID for an existing encrypted backup artifact"
+        required: false
         type: string
-        default: "43932273781"
+  workflow_run:
+    workflows: ["Manual production database backup"]
+    types: [completed]
+    branches: [main]
 
 permissions:
   actions: read
@@ -15,6 +18,7 @@ permissions:
 
 jobs:
   restore-verification:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     name: Decrypt and restore into disposable Supabase PostgreSQL
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -56,7 +60,7 @@ jobs:
           name: plivex-production-db-backup
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
-          run-id: ${{ inputs.backup_run_id }}
+          run-id: ${{ github.event.workflow_run.id || inputs.backup_run_id }}
           path: backup-artifact
 
       - name: Verify checksum and decrypt backup
@@ -72,6 +76,8 @@ jobs:
           mkdir -p ../backup
           tar -xzf production-db-backup.tar.gz -C ../backup
           test -s ../backup/roles.sql
+          test -s ../backup/auth-schema.sql
+          test -s ../backup/auth-data.sql
           test -s ../backup/schema.sql
           test -s ../backup/data.sql
           cd ..
@@ -105,7 +111,7 @@ jobs:
           done
           if [ "$ready" != "1" ]; then docker logs plivex-production-restore-test; exit 1; fi
 
-      - name: Prepare extension schema and Supabase-managed auth/storage prerequisites
+      - name: Prepare extensions and managed schemas for full Auth restore
         shell: bash
         run: |
           set -euo pipefail
@@ -115,6 +121,11 @@ jobs:
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f /dev/stdin \
             < supabase/tests/migration-replay-bootstrap.sql
+          # The bootstrap creates only a minimal test auth schema. Replace it
+          # with the complete encrypted auth schema/data from the production dump.
+          docker exec -u postgres plivex-production-restore-test \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -c \
+            'DROP SCHEMA auth CASCADE; DROP TABLE IF EXISTS public.stage4_vault_secrets CASCADE; DROP FUNCTION IF EXISTS public.set_updated_at();'
 
       - name: Restore roles, schema and data into the disposable database
         shell: bash
@@ -136,6 +147,12 @@ jobs:
           if [ "$role_status" -ne 0 ] && [ -s /tmp/plivex-unexpected-role-errors.log ]; then
             exit "$role_status"
           fi
+          docker exec -i -u postgres plivex-production-restore-test \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f /dev/stdin \
+            < backup/auth-schema.sql
+          docker exec -i -u postgres plivex-production-restore-test \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f /dev/stdin \
+            < backup/auth-data.sql
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f /dev/stdin \
             < backup/schema.sql
