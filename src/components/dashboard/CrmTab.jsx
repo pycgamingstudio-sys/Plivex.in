@@ -9,7 +9,7 @@ import { paginate, totalPages } from "@/lib/paging";
 import { usePaywall } from "@/lib/paywall";
 import SummaryCard from "@/components/dashboard/SummaryCard";
 
-const STAGES = ["New Lead", "Negotiation", "Won", "Lost"];
+const STAGES = ["New Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
 const blankClient = { name: "", company: "", email: "", phone: "", gstin: "", address: "" };
 const blankLead = { name: "", phone: "", email: "", company: "", source: "", requirement: "", value: "", nextFollowUpAt: "" };
 
@@ -54,7 +54,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
   const rows = paginate(filteredClients, page);
   const pages = totalPages(filteredClients);
 
-  const activeLeads = leads.filter((l) => l.stage === "New Lead" || l.stage === "Negotiation");
+  const activeLeads = leads.filter((l) => !["Won", "Lost"].includes(l.stage));
   const pipelineValue = activeLeads.reduce((s, l) => s + Number(l.value || 0), 0);
 
   return (
