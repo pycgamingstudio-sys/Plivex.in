@@ -126,6 +126,16 @@ jobs:
             < backup/data.sql
           echo "Roles, schema and data restore commands completed."
 
+      - name: Replay pending Parts 1-8 against the restored production baseline
+        shell: bash
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGUSER: postgres
+          PGPASSWORD: restore-test-only
+          PGDATABASE: postgres
+        run: bash scripts/verify-production-baseline-replay.sh
+
       - name: Verify restored application schema, RLS and row counts
         shell: bash
         run: |
