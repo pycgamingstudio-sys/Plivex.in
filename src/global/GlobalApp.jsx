@@ -3,6 +3,7 @@ import { supabase } from "@/api/backendClient";
 import GlobalCountryOnboarding from "@/components/global/GlobalCountryOnboarding";
 import GlobalInvoicesPanel from "@/components/global/GlobalInvoicesPanel";
 import GlobalAccountingPanel from "@/components/global/GlobalAccountingPanel";
+import GlobalEnterprisePanel from "@/components/global/GlobalEnterprisePanel";
 import GlobalPart4Panel from "@/components/global/GlobalPart4Panel";
 
 const COUNTRY_OPTIONS = [
@@ -27,6 +28,7 @@ const NAV = [
   { id: "movements", label: "Movement history" },
   { id: "invoices", label: "Invoices" },
   { id: "accounting", label: "Accounting" },
+  { id: "enterprise", label: "Enterprise" },
 ];
 const TABLES = { clients: "clients", products: "products", expenses: "expenses", inventory: "stock_levels", invoices: "invoices" };
 const localDate = () => {
@@ -258,6 +260,8 @@ export default function GlobalApp() {
           <GlobalInvoicesPanel account={account} invoke={invoke} onRefresh={loadRecords} />
         ) : tab === "accounting" ? (
           <GlobalAccountingPanel account={account} />
+        ) : tab === "enterprise" ? (
+          <GlobalEnterprisePanel workspaceId={account.workspace_id} />
         ) : ["crm", "warehouses", "transfers", "purchasing", "movements"].includes(tab) ? (
           <GlobalPart4Panel account={account} />
         ) : (
