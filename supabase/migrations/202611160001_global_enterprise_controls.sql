@@ -1,6 +1,5 @@
 -- Part 7/8 additive Global financial provenance and enterprise controls.
--- Apply only through a separately approved migration workflow. No India public
--- schema objects or production data are altered by this migration.
+-- Candidate migration only. It does not alter India public-schema objects.
 begin;
 
 create table if not exists global.tax_rule_versions (
@@ -207,7 +206,8 @@ as $$
 declare v_count integer;
 begin
   if p_key is null or length(p_key) < 1 or length(p_key) > 256
-    or p_limit < 1 or p_limit > 1000 or p_window_seconds < 1 or p_window_seconds > 3600 then
+    or p_limit is null or p_limit < 1 or p_limit > 1000
+    or p_window_seconds is null or p_window_seconds < 1 or p_window_seconds > 3600 then
     raise exception 'invalid_rate_limit_arguments' using errcode = '22023';
   end if;
   insert into global.enterprise_rate_limits(key_hash, window_started_at, request_count)
@@ -227,7 +227,6 @@ $$;
 revoke all on function public.global_consume_enterprise_rate_limit(text, integer, integer) from public, anon, authenticated;
 grant execute on function public.global_consume_enterprise_rate_limit(text, integer, integer) to service_role;
 
-
 create or replace function public.global_enterprise_action(
   p_user_id uuid, p_workspace_id uuid, p_action text, p_payload jsonb default '{}'::jsonb
 ) returns jsonb
@@ -240,10 +239,10 @@ declare
   v_permission text;
   v_override text;
   v_id uuid;
-  v_row jsonb;
+  v_events jsonb;
   v_limit integer := 50;
   v_branch uuid;
-  v_role text;
+  v_target_role text;
 begin
   if p_user_id is null or p_workspace_id is null or p_action is null
     or p_payload is null or jsonb_typeof(p_payload) <> 'object'
@@ -253,27 +252,29 @@ begin
   select * into v_member from global.workspace_members
     where workspace_id=p_workspace_id and user_id=p_user_id and status='active' limit 1;
   if v_member.id is null then return jsonb_build_object('ok',false,'code','ACCESS_DENIED'); end if;
-  v_role := v_member.role;
-  v_admin := v_role in ('owner','admin');
+  v_admin := v_member.role in ('owner','admin');
 
   if p_action in ('branch.create','branch.archive','permission.set','retention.set') then
     if not v_admin then return jsonb_build_object('ok',false,'code','ADMIN_REQUIRED'); end if;
-  elsif p_action in ('approval.request','approval.decide','audit.list','export.request') then
+  elsif p_action in ('approval.request','approval.decide','approval.list','audit.list','export.request') then
     v_permission := case p_action
       when 'approval.request' then 'approval.request'
       when 'approval.decide' then 'approval.decide'
+      when 'approval.list' then 'approval.read'
       when 'audit.list' then 'audit.read'
       when 'export.request' then 'export.request' end;
     select effect into v_override from global.workspace_permission_overrides
       where workspace_id=p_workspace_id and permission_key=v_permission
-        and (member_id=v_member.id or (member_id is null and role=v_role))
+        and (member_id=v_member.id or (member_id is null and role=v_member.role))
       order by (member_id is not null) desc limit 1;
-    if v_override = 'deny' then
+    if v_admin then
+      v_allowed := true;
+    elsif v_override = 'deny' then
       v_allowed := false;
-    elsif v_override = 'grant' or v_admin then
+    elsif v_override = 'grant' then
       v_allowed := true;
     else
-      v_allowed := case v_role
+      v_allowed := case v_member.role
         when 'manager' then v_permission in ('approval.request','approval.read','export.request','invoice.read','invoice.create')
         when 'employee' then v_permission in ('approval.request','invoice.read','invoice.create')
         when 'accountant' then v_permission in ('approval.request','approval.read','export.request','audit.read','invoice.read')
@@ -286,7 +287,7 @@ begin
   end if;
 
   if p_action = 'branch.create' then
-    if coalesce(p_payload->>'branchCode','') !~ '^[A-Z0-9][A-Z0-9_-]{0,31}
+    if coalesce(p_payload->>'branchCode','') !~ '^[A-Z0-9][A-Z0-9_-]{0,31}$'
       or length(btrim(coalesce(p_payload->>'name',''))) not between 1 and 160
       or (p_payload ? 'address' and jsonb_typeof(p_payload->'address') <> 'object') then
       return jsonb_build_object('ok',false,'code','INVALID_BRANCH');
@@ -300,7 +301,9 @@ begin
       jsonb_build_object('branchCode',p_payload->>'branchCode'));
     return jsonb_build_object('ok',true,'branchId',v_id);
   elsif p_action = 'branch.archive' then
-    if coalesce(p_payload->>'branchId','') !~* '^[0-9a-f-]{36} then return jsonb_build_object('ok',false,'code','INVALID_BRANCH_ID'); end if;
+    if coalesce(p_payload->>'branchId','') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' then
+      return jsonb_build_object('ok',false,'code','INVALID_BRANCH_ID');
+    end if;
     update global.workspace_branches set status='archived',updated_at=now()
       where workspace_id=p_workspace_id and id=(p_payload->>'branchId')::uuid and status='active'
       returning id into v_id;
@@ -310,23 +313,28 @@ begin
     return jsonb_build_object('ok',true,'branchId',v_id);
   elsif p_action = 'permission.set' then
     v_permission := p_payload->>'permissionKey';
-    if v_permission !~ '^[a-z][a-z0-9_.-]{1,95} or coalesce(p_payload->>'effect','') not in ('grant','deny') then
+    if coalesce(v_permission,'') !~ '^[a-z][a-z0-9_.-]{1,95}$'
+      or coalesce(p_payload->>'effect','') not in ('grant','deny') then
       return jsonb_build_object('ok',false,'code','INVALID_PERMISSION');
     end if;
     if p_payload ? 'memberId' then
-      if (p_payload->>'memberId') !~* '^[0-9a-f-]{36} or not exists (
-        select 1 from global.workspace_members where id=(p_payload->>'memberId')::uuid and workspace_id=p_workspace_id
-      ) then return jsonb_build_object('ok',false,'code','MEMBER_NOT_FOUND'); end if;
+      if coalesce(p_payload->>'memberId','') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+        or not exists (select 1 from global.workspace_members
+          where id=(p_payload->>'memberId')::uuid and workspace_id=p_workspace_id) then
+        return jsonb_build_object('ok',false,'code','MEMBER_NOT_FOUND');
+      end if;
       insert into global.workspace_permission_overrides(workspace_id,member_id,permission_key,effect,created_by)
       values (p_workspace_id,(p_payload->>'memberId')::uuid,v_permission,p_payload->>'effect',p_user_id)
       on conflict (workspace_id,member_id,permission_key) where member_id is not null
       do update set effect=excluded.effect,created_by=excluded.created_by,created_at=now()
       returning id into v_id;
     else
-      v_role := p_payload->>'role';
-      if coalesce(v_role,'') not in ('manager','employee','accountant','viewer') then return jsonb_build_object('ok',false,'code','INVALID_ROLE'); end if;
+      v_target_role := p_payload->>'role';
+      if coalesce(v_target_role,'') not in ('manager','employee','accountant','viewer') then
+        return jsonb_build_object('ok',false,'code','INVALID_ROLE');
+      end if;
       insert into global.workspace_permission_overrides(workspace_id,role,permission_key,effect,created_by)
-      values (p_workspace_id,v_role,v_permission,p_payload->>'effect',p_user_id)
+      values (p_workspace_id,v_target_role,v_permission,p_payload->>'effect',p_user_id)
       on conflict (workspace_id,role,permission_key) where member_id is null
       do update set effect=excluded.effect,created_by=excluded.created_by,created_at=now()
       returning id into v_id;
@@ -337,12 +345,17 @@ begin
     return jsonb_build_object('ok',true,'overrideId',v_id);
   elsif p_action = 'approval.request' then
     if length(btrim(coalesce(p_payload->>'actionType',''))) not between 2 and 80
-      or (p_payload->>'actionType') !~ '^[a-z][a-z0-9_.-]{1,79}
+      or coalesce(p_payload->>'actionType','') !~ '^[a-z][a-z0-9_.-]{1,79}$'
+      or length(btrim(coalesce(p_payload->>'resourceType',''))) not between 2 and 80
+      or coalesce(p_payload->>'resourceType','') !~ '^[a-z][a-z0-9_.-]{1,79}$'
       or length(btrim(coalesce(p_payload->>'resourceId',''))) not between 1 and 160
       or (p_payload ? 'payload' and jsonb_typeof(p_payload->'payload') <> 'object') then
       return jsonb_build_object('ok',false,'code','INVALID_APPROVAL');
     end if;
-    v_branch := case when coalesce(p_payload->>'branchId','') ~* '^[0-9a-f-]{36} then (p_payload->>'branchId')::uuid else null end;
+    if p_payload ? 'branchId' and coalesce(p_payload->>'branchId','') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' then
+      return jsonb_build_object('ok',false,'code','INVALID_BRANCH_ID');
+    end if;
+    v_branch := case when p_payload ? 'branchId' then (p_payload->>'branchId')::uuid else null end;
     insert into global.approval_requests(workspace_id,branch_id,requester_id,action_type,resource_type,resource_id,payload)
     values (p_workspace_id,v_branch,p_user_id,p_payload->>'actionType',p_payload->>'resourceType',
       p_payload->>'resourceId',coalesce(p_payload->'payload','{}'::jsonb))
@@ -352,7 +365,7 @@ begin
       jsonb_build_object('actionType',p_payload->>'actionType','resourceType',p_payload->>'resourceType'));
     return jsonb_build_object('ok',true,'requestId',v_id);
   elsif p_action = 'approval.decide' then
-    if coalesce(p_payload->>'requestId','') !~* '^[0-9a-f-]{36}
+    if coalesce(p_payload->>'requestId','') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
       or coalesce(p_payload->>'decision','') not in ('approved','rejected') then
       return jsonb_build_object('ok',false,'code','INVALID_DECISION');
     end if;
@@ -366,13 +379,22 @@ begin
     values (p_workspace_id,p_user_id,'approval.decided','approval_request',v_id::text,
       jsonb_build_object('decision',p_payload->>'decision'));
     return jsonb_build_object('ok',true,'requestId',v_id);
+  elsif p_action = 'approval.list' then
+    select coalesce(jsonb_agg(to_jsonb(a) order by a.created_at desc),'[]'::jsonb) into v_events
+      from (select id,requester_id,approver_id,action_type,resource_type,resource_id,status,decision_note,decided_at,created_at
+        from global.approval_requests where workspace_id=p_workspace_id and status='pending'
+        order by created_at desc limit 100) a;
+    return jsonb_build_object('ok',true,'requests',coalesce(v_events,'[]'::jsonb));
   elsif p_action = 'audit.list' then
-    if coalesce(p_payload->>'limit','50') !~ '^\\d{1,3}
-    select coalesce(jsonb_agg(to_jsonb(e) order by e.occurred_at desc),'[]'::jsonb) into v_row
+    if coalesce(p_payload->>'limit','50') !~ '^[0-9]{1,3}$' then
+      return jsonb_build_object('ok',false,'code','INVALID_LIMIT');
+    end if;
+    v_limit := greatest(1,least(coalesce((p_payload->>'limit')::integer,50),100));
+    select coalesce(jsonb_agg(to_jsonb(e) order by e.occurred_at desc),'[]'::jsonb) into v_events
       from (select id,actor_id,action,entity_type,entity_id,metadata,occurred_at
         from global.audit_events where workspace_id=p_workspace_id
         order by occurred_at desc limit v_limit) e;
-    return jsonb_build_object('ok',true,'events',coalesce(v_row,'[]'::jsonb));
+    return jsonb_build_object('ok',true,'events',coalesce(v_events,'[]'::jsonb));
   elsif p_action = 'export.request' then
     if coalesce(p_payload->>'exportType','') not in ('invoices','clients','products','expenses','audit_log','full_account')
       or coalesce(p_payload->>'format','') not in ('csv','xlsx','json','pdf') then
@@ -386,333 +408,10 @@ begin
       jsonb_build_object('exportType',p_payload->>'exportType','format',p_payload->>'format'));
     return jsonb_build_object('ok',true,'jobId',v_id);
   elsif p_action = 'retention.set' then
-    if coalesce(p_payload->>'auditRetentionDays','365') !~ '^\d+
-      or coalesce(p_payload->>'exportRetentionDays','7') !~ '^\d+ then
-      return jsonb_build_object('ok',false,'code','INVALID_RETENTION');
-    end if;
-    insert into global.workspace_retention_policies(workspace_id,audit_retention_days,export_retention_days)
-    values (p_workspace_id,coalesce((p_payload->>'auditRetentionDays')::integer,365),
-      coalesce((p_payload->>'exportRetentionDays')::integer,7))
-    on conflict (workspace_id) do update set
-      audit_retention_days=excluded.audit_retention_days,
-      export_retention_days=excluded.export_retention_days,updated_at=now();
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id)
-    values (p_workspace_id,p_user_id,'retention.updated','workspace_retention_policy',p_workspace_id::text);
-    return jsonb_build_object('ok',true);
-  end if;
-  return jsonb_build_object('ok',false,'code','UNSUPPORTED_ACTION');
-end;
-$function$;
-revoke all on function public.global_enterprise_action(uuid,uuid,text,jsonb) from public, anon, authenticated;
-grant execute on function public.global_enterprise_action(uuid,uuid,text,jsonb) to service_role;
-
-commit;
-
-      or length(btrim(coalesce(p_payload->>'resourceType',''))) not between 2 and 80
-      or (p_payload->>'resourceType') !~ '^[a-z][a-z0-9_.-]{1,79}
-      or length(btrim(coalesce(p_payload->>'resourceId',''))) not between 1 and 160
-      or (p_payload ? 'payload' and jsonb_typeof(p_payload->'payload') <> 'object') then
-      return jsonb_build_object('ok',false,'code','INVALID_APPROVAL');
-    end if;
-    v_branch := case when coalesce(p_payload->>'branchId','') ~* '^[0-9a-f-]{36} then (p_payload->>'branchId')::uuid else null end;
-    insert into global.approval_requests(workspace_id,branch_id,requester_id,action_type,resource_type,resource_id,payload)
-    values (p_workspace_id,v_branch,p_user_id,p_payload->>'actionType',p_payload->>'resourceType',
-      p_payload->>'resourceId',coalesce(p_payload->'payload','{}'::jsonb))
-    returning id into v_id;
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
-    values (p_workspace_id,p_user_id,'approval.requested','approval_request',v_id::text,
-      jsonb_build_object('actionType',p_payload->>'actionType','resourceType',p_payload->>'resourceType'));
-    return jsonb_build_object('ok',true,'requestId',v_id);
-  elsif p_action = 'approval.decide' then
-    if coalesce(p_payload->>'requestId','') !~* '^[0-9a-f-]{36}
-      or p_payload->>'decision' not in ('approved','rejected') then
-      return jsonb_build_object('ok',false,'code','INVALID_DECISION');
-    end if;
-    update global.approval_requests set status=p_payload->>'decision',approver_id=p_user_id,
-      decided_at=now(),decision_note=left(coalesce(p_payload->>'note',''),2000),updated_at=now()
-      where id=(p_payload->>'requestId')::uuid and workspace_id=p_workspace_id
-        and status='pending' and requester_id<>p_user_id and (approver_id is null or approver_id=p_user_id)
-      returning id into v_id;
-    if v_id is null then return jsonb_build_object('ok',false,'code','REQUEST_NOT_DECIDABLE'); end if;
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
-    values (p_workspace_id,p_user_id,'approval.decided','approval_request',v_id::text,
-      jsonb_build_object('decision',p_payload->>'decision'));
-    return jsonb_build_object('ok',true,'requestId',v_id);
-  elsif p_action = 'audit.list' then
-    v_limit := greatest(1,least(coalesce((p_payload->>'limit')::integer,50),100));
-    select coalesce(jsonb_agg(to_jsonb(e) order by e.occurred_at desc),'[]'::jsonb) into v_row
-      from (select id,actor_id,action,entity_type,entity_id,metadata,occurred_at
-        from global.audit_events where workspace_id=p_workspace_id
-        order by occurred_at desc limit v_limit) e;
-    return jsonb_build_object('ok',true,'events',coalesce(v_row,'[]'::jsonb));
-  elsif p_action = 'export.request' then
-    if p_payload->>'exportType' not in ('invoices','clients','products','expenses','audit_log','full_account')
-      or p_payload->>'format' not in ('csv','xlsx','json','pdf') then
-      return jsonb_build_object('ok',false,'code','INVALID_EXPORT');
-    end if;
-    insert into global.export_jobs(workspace_id,requested_by,export_type,format)
-    values (p_workspace_id,p_user_id,p_payload->>'exportType',p_payload->>'format')
-    returning id into v_id;
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
-    values (p_workspace_id,p_user_id,'export.requested','export_job',v_id::text,
-      jsonb_build_object('exportType',p_payload->>'exportType','format',p_payload->>'format'));
-    return jsonb_build_object('ok',true,'jobId',v_id);
-  elsif p_action = 'retention.set' then
-    if coalesce(p_payload->>'auditRetentionDays','365') !~ '^\d+
-      or coalesce(p_payload->>'exportRetentionDays','7') !~ '^\d+ then
-      return jsonb_build_object('ok',false,'code','INVALID_RETENTION');
-    end if;
-    insert into global.workspace_retention_policies(workspace_id,audit_retention_days,export_retention_days)
-    values (p_workspace_id,coalesce((p_payload->>'auditRetentionDays')::integer,365),
-      coalesce((p_payload->>'exportRetentionDays')::integer,7))
-    on conflict (workspace_id) do update set
-      audit_retention_days=excluded.audit_retention_days,
-      export_retention_days=excluded.export_retention_days,updated_at=now();
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id)
-    values (p_workspace_id,p_user_id,'retention.updated','workspace_retention_policy',p_workspace_id::text);
-    return jsonb_build_object('ok',true);
-  end if;
-  return jsonb_build_object('ok',false,'code','UNSUPPORTED_ACTION');
-end;
-$function$;
-revoke all on function public.global_enterprise_action(uuid,uuid,text,jsonb) from public, anon, authenticated;
-grant execute on function public.global_enterprise_action(uuid,uuid,text,jsonb) to service_role;
-
-commit;
-
-      or length(btrim(coalesce(p_payload->>'resourceId',''))) not between 1 and 160
-      or (p_payload ? 'payload' and jsonb_typeof(p_payload->'payload') <> 'object') then
-      return jsonb_build_object('ok',false,'code','INVALID_APPROVAL');
-    end if;
-    v_branch := case when coalesce(p_payload->>'branchId','') ~* '^[0-9a-f-]{36} then (p_payload->>'branchId')::uuid else null end;
-    insert into global.approval_requests(workspace_id,branch_id,requester_id,action_type,resource_type,resource_id,payload)
-    values (p_workspace_id,v_branch,p_user_id,p_payload->>'actionType',p_payload->>'resourceType',
-      p_payload->>'resourceId',coalesce(p_payload->'payload','{}'::jsonb))
-    returning id into v_id;
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
-    values (p_workspace_id,p_user_id,'approval.requested','approval_request',v_id::text,
-      jsonb_build_object('actionType',p_payload->>'actionType','resourceType',p_payload->>'resourceType'));
-    return jsonb_build_object('ok',true,'requestId',v_id);
-  elsif p_action = 'approval.decide' then
-    if coalesce(p_payload->>'requestId','') !~* '^[0-9a-f-]{36}
-      or p_payload->>'decision' not in ('approved','rejected') then
-      return jsonb_build_object('ok',false,'code','INVALID_DECISION');
-    end if;
-    update global.approval_requests set status=p_payload->>'decision',approver_id=p_user_id,
-      decided_at=now(),decision_note=left(coalesce(p_payload->>'note',''),2000),updated_at=now()
-      where id=(p_payload->>'requestId')::uuid and workspace_id=p_workspace_id
-        and status='pending' and requester_id<>p_user_id and (approver_id is null or approver_id=p_user_id)
-      returning id into v_id;
-    if v_id is null then return jsonb_build_object('ok',false,'code','REQUEST_NOT_DECIDABLE'); end if;
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
-    values (p_workspace_id,p_user_id,'approval.decided','approval_request',v_id::text,
-      jsonb_build_object('decision',p_payload->>'decision'));
-    return jsonb_build_object('ok',true,'requestId',v_id);
-  elsif p_action = 'audit.list' then
-    v_limit := greatest(1,least(coalesce((p_payload->>'limit')::integer,50),100));
-    select coalesce(jsonb_agg(to_jsonb(e) order by e.occurred_at desc),'[]'::jsonb) into v_row
-      from (select id,actor_id,action,entity_type,entity_id,metadata,occurred_at
-        from global.audit_events where workspace_id=p_workspace_id
-        order by occurred_at desc limit v_limit) e;
-    return jsonb_build_object('ok',true,'events',coalesce(v_row,'[]'::jsonb));
-  elsif p_action = 'export.request' then
-    if p_payload->>'exportType' not in ('invoices','clients','products','expenses','audit_log','full_account')
-      or p_payload->>'format' not in ('csv','xlsx','json','pdf') then
-      return jsonb_build_object('ok',false,'code','INVALID_EXPORT');
-    end if;
-    insert into global.export_jobs(workspace_id,requested_by,export_type,format)
-    values (p_workspace_id,p_user_id,p_payload->>'exportType',p_payload->>'format')
-    returning id into v_id;
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
-    values (p_workspace_id,p_user_id,'export.requested','export_job',v_id::text,
-      jsonb_build_object('exportType',p_payload->>'exportType','format',p_payload->>'format'));
-    return jsonb_build_object('ok',true,'jobId',v_id);
-  elsif p_action = 'retention.set' then
-    if coalesce(p_payload->>'auditRetentionDays','365') !~ '^\d+
-      or coalesce(p_payload->>'exportRetentionDays','7') !~ '^\d+ then
-      return jsonb_build_object('ok',false,'code','INVALID_RETENTION');
-    end if;
-    insert into global.workspace_retention_policies(workspace_id,audit_retention_days,export_retention_days)
-    values (p_workspace_id,coalesce((p_payload->>'auditRetentionDays')::integer,365),
-      coalesce((p_payload->>'exportRetentionDays')::integer,7))
-    on conflict (workspace_id) do update set
-      audit_retention_days=excluded.audit_retention_days,
-      export_retention_days=excluded.export_retention_days,updated_at=now();
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id)
-    values (p_workspace_id,p_user_id,'retention.updated','workspace_retention_policy',p_workspace_id::text);
-    return jsonb_build_object('ok',true);
-  end if;
-  return jsonb_build_object('ok',false,'code','UNSUPPORTED_ACTION');
-end;
-$function$;
-revoke all on function public.global_enterprise_action(uuid,uuid,text,jsonb) from public, anon, authenticated;
-grant execute on function public.global_enterprise_action(uuid,uuid,text,jsonb) to service_role;
-
-commit;
- then return jsonb_build_object('ok',false,'code','INVALID_LIMIT'); end if;
-    v_limit := greatest(1,least(coalesce((p_payload->>'limit')::integer,50),100));
-    select coalesce(jsonb_agg(to_jsonb(e) order by e.occurred_at desc),'[]'::jsonb) into v_row
-      from (select id,actor_id,action,entity_type,entity_id,metadata,occurred_at
-        from global.audit_events where workspace_id=p_workspace_id
-        order by occurred_at desc limit v_limit) e;
-    return jsonb_build_object('ok',true,'events',coalesce(v_row,'[]'::jsonb));
-  elsif p_action = 'export.request' then
-    if p_payload->>'exportType' not in ('invoices','clients','products','expenses','audit_log','full_account')
-      or p_payload->>'format' not in ('csv','xlsx','json','pdf') then
-      return jsonb_build_object('ok',false,'code','INVALID_EXPORT');
-    end if;
-    insert into global.export_jobs(workspace_id,requested_by,export_type,format)
-    values (p_workspace_id,p_user_id,p_payload->>'exportType',p_payload->>'format')
-    returning id into v_id;
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
-    values (p_workspace_id,p_user_id,'export.requested','export_job',v_id::text,
-      jsonb_build_object('exportType',p_payload->>'exportType','format',p_payload->>'format'));
-    return jsonb_build_object('ok',true,'jobId',v_id);
-  elsif p_action = 'retention.set' then
-    if coalesce(p_payload->>'auditRetentionDays','365') !~ '^\d+
-      or coalesce(p_payload->>'exportRetentionDays','7') !~ '^\d+ then
-      return jsonb_build_object('ok',false,'code','INVALID_RETENTION');
-    end if;
-    insert into global.workspace_retention_policies(workspace_id,audit_retention_days,export_retention_days)
-    values (p_workspace_id,coalesce((p_payload->>'auditRetentionDays')::integer,365),
-      coalesce((p_payload->>'exportRetentionDays')::integer,7))
-    on conflict (workspace_id) do update set
-      audit_retention_days=excluded.audit_retention_days,
-      export_retention_days=excluded.export_retention_days,updated_at=now();
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id)
-    values (p_workspace_id,p_user_id,'retention.updated','workspace_retention_policy',p_workspace_id::text);
-    return jsonb_build_object('ok',true);
-  end if;
-  return jsonb_build_object('ok',false,'code','UNSUPPORTED_ACTION');
-end;
-$function$;
-revoke all on function public.global_enterprise_action(uuid,uuid,text,jsonb) from public, anon, authenticated;
-grant execute on function public.global_enterprise_action(uuid,uuid,text,jsonb) to service_role;
-
-commit;
-
-      or length(btrim(coalesce(p_payload->>'resourceType',''))) not between 2 and 80
-      or (p_payload->>'resourceType') !~ '^[a-z][a-z0-9_.-]{1,79}
-      or length(btrim(coalesce(p_payload->>'resourceId',''))) not between 1 and 160
-      or (p_payload ? 'payload' and jsonb_typeof(p_payload->'payload') <> 'object') then
-      return jsonb_build_object('ok',false,'code','INVALID_APPROVAL');
-    end if;
-    v_branch := case when coalesce(p_payload->>'branchId','') ~* '^[0-9a-f-]{36} then (p_payload->>'branchId')::uuid else null end;
-    insert into global.approval_requests(workspace_id,branch_id,requester_id,action_type,resource_type,resource_id,payload)
-    values (p_workspace_id,v_branch,p_user_id,p_payload->>'actionType',p_payload->>'resourceType',
-      p_payload->>'resourceId',coalesce(p_payload->'payload','{}'::jsonb))
-    returning id into v_id;
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
-    values (p_workspace_id,p_user_id,'approval.requested','approval_request',v_id::text,
-      jsonb_build_object('actionType',p_payload->>'actionType','resourceType',p_payload->>'resourceType'));
-    return jsonb_build_object('ok',true,'requestId',v_id);
-  elsif p_action = 'approval.decide' then
-    if coalesce(p_payload->>'requestId','') !~* '^[0-9a-f-]{36}
-      or p_payload->>'decision' not in ('approved','rejected') then
-      return jsonb_build_object('ok',false,'code','INVALID_DECISION');
-    end if;
-    update global.approval_requests set status=p_payload->>'decision',approver_id=p_user_id,
-      decided_at=now(),decision_note=left(coalesce(p_payload->>'note',''),2000),updated_at=now()
-      where id=(p_payload->>'requestId')::uuid and workspace_id=p_workspace_id
-        and status='pending' and requester_id<>p_user_id and (approver_id is null or approver_id=p_user_id)
-      returning id into v_id;
-    if v_id is null then return jsonb_build_object('ok',false,'code','REQUEST_NOT_DECIDABLE'); end if;
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
-    values (p_workspace_id,p_user_id,'approval.decided','approval_request',v_id::text,
-      jsonb_build_object('decision',p_payload->>'decision'));
-    return jsonb_build_object('ok',true,'requestId',v_id);
-  elsif p_action = 'audit.list' then
-    v_limit := greatest(1,least(coalesce((p_payload->>'limit')::integer,50),100));
-    select coalesce(jsonb_agg(to_jsonb(e) order by e.occurred_at desc),'[]'::jsonb) into v_row
-      from (select id,actor_id,action,entity_type,entity_id,metadata,occurred_at
-        from global.audit_events where workspace_id=p_workspace_id
-        order by occurred_at desc limit v_limit) e;
-    return jsonb_build_object('ok',true,'events',coalesce(v_row,'[]'::jsonb));
-  elsif p_action = 'export.request' then
-    if p_payload->>'exportType' not in ('invoices','clients','products','expenses','audit_log','full_account')
-      or p_payload->>'format' not in ('csv','xlsx','json','pdf') then
-      return jsonb_build_object('ok',false,'code','INVALID_EXPORT');
-    end if;
-    insert into global.export_jobs(workspace_id,requested_by,export_type,format)
-    values (p_workspace_id,p_user_id,p_payload->>'exportType',p_payload->>'format')
-    returning id into v_id;
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
-    values (p_workspace_id,p_user_id,'export.requested','export_job',v_id::text,
-      jsonb_build_object('exportType',p_payload->>'exportType','format',p_payload->>'format'));
-    return jsonb_build_object('ok',true,'jobId',v_id);
-  elsif p_action = 'retention.set' then
-    if coalesce(p_payload->>'auditRetentionDays','365') !~ '^\d+
-      or coalesce(p_payload->>'exportRetentionDays','7') !~ '^\d+ then
-      return jsonb_build_object('ok',false,'code','INVALID_RETENTION');
-    end if;
-    insert into global.workspace_retention_policies(workspace_id,audit_retention_days,export_retention_days)
-    values (p_workspace_id,coalesce((p_payload->>'auditRetentionDays')::integer,365),
-      coalesce((p_payload->>'exportRetentionDays')::integer,7))
-    on conflict (workspace_id) do update set
-      audit_retention_days=excluded.audit_retention_days,
-      export_retention_days=excluded.export_retention_days,updated_at=now();
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id)
-    values (p_workspace_id,p_user_id,'retention.updated','workspace_retention_policy',p_workspace_id::text);
-    return jsonb_build_object('ok',true);
-  end if;
-  return jsonb_build_object('ok',false,'code','UNSUPPORTED_ACTION');
-end;
-$function$;
-revoke all on function public.global_enterprise_action(uuid,uuid,text,jsonb) from public, anon, authenticated;
-grant execute on function public.global_enterprise_action(uuid,uuid,text,jsonb) to service_role;
-
-commit;
-
-      or length(btrim(coalesce(p_payload->>'resourceId',''))) not between 1 and 160
-      or (p_payload ? 'payload' and jsonb_typeof(p_payload->'payload') <> 'object') then
-      return jsonb_build_object('ok',false,'code','INVALID_APPROVAL');
-    end if;
-    v_branch := case when coalesce(p_payload->>'branchId','') ~* '^[0-9a-f-]{36} then (p_payload->>'branchId')::uuid else null end;
-    insert into global.approval_requests(workspace_id,branch_id,requester_id,action_type,resource_type,resource_id,payload)
-    values (p_workspace_id,v_branch,p_user_id,p_payload->>'actionType',p_payload->>'resourceType',
-      p_payload->>'resourceId',coalesce(p_payload->'payload','{}'::jsonb))
-    returning id into v_id;
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
-    values (p_workspace_id,p_user_id,'approval.requested','approval_request',v_id::text,
-      jsonb_build_object('actionType',p_payload->>'actionType','resourceType',p_payload->>'resourceType'));
-    return jsonb_build_object('ok',true,'requestId',v_id);
-  elsif p_action = 'approval.decide' then
-    if coalesce(p_payload->>'requestId','') !~* '^[0-9a-f-]{36}
-      or p_payload->>'decision' not in ('approved','rejected') then
-      return jsonb_build_object('ok',false,'code','INVALID_DECISION');
-    end if;
-    update global.approval_requests set status=p_payload->>'decision',approver_id=p_user_id,
-      decided_at=now(),decision_note=left(coalesce(p_payload->>'note',''),2000),updated_at=now()
-      where id=(p_payload->>'requestId')::uuid and workspace_id=p_workspace_id
-        and status='pending' and requester_id<>p_user_id and (approver_id is null or approver_id=p_user_id)
-      returning id into v_id;
-    if v_id is null then return jsonb_build_object('ok',false,'code','REQUEST_NOT_DECIDABLE'); end if;
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
-    values (p_workspace_id,p_user_id,'approval.decided','approval_request',v_id::text,
-      jsonb_build_object('decision',p_payload->>'decision'));
-    return jsonb_build_object('ok',true,'requestId',v_id);
-  elsif p_action = 'audit.list' then
-    v_limit := greatest(1,least(coalesce((p_payload->>'limit')::integer,50),100));
-    select coalesce(jsonb_agg(to_jsonb(e) order by e.occurred_at desc),'[]'::jsonb) into v_row
-      from (select id,actor_id,action,entity_type,entity_id,metadata,occurred_at
-        from global.audit_events where workspace_id=p_workspace_id
-        order by occurred_at desc limit v_limit) e;
-    return jsonb_build_object('ok',true,'events',coalesce(v_row,'[]'::jsonb));
-  elsif p_action = 'export.request' then
-    if p_payload->>'exportType' not in ('invoices','clients','products','expenses','audit_log','full_account')
-      or p_payload->>'format' not in ('csv','xlsx','json','pdf') then
-      return jsonb_build_object('ok',false,'code','INVALID_EXPORT');
-    end if;
-    insert into global.export_jobs(workspace_id,requested_by,export_type,format)
-    values (p_workspace_id,p_user_id,p_payload->>'exportType',p_payload->>'format')
-    returning id into v_id;
-    insert into global.audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
-    values (p_workspace_id,p_user_id,'export.requested','export_job',v_id::text,
-      jsonb_build_object('exportType',p_payload->>'exportType','format',p_payload->>'format'));
-    return jsonb_build_object('ok',true,'jobId',v_id);
-  elsif p_action = 'retention.set' then
-    if coalesce(p_payload->>'auditRetentionDays','365') !~ '^\d+
-      or coalesce(p_payload->>'exportRetentionDays','7') !~ '^\d+ then
+    if coalesce(p_payload->>'auditRetentionDays','365') !~ '^[0-9]{1,4}$'
+      or coalesce(p_payload->>'exportRetentionDays','7') !~ '^[0-9]{1,2}$'
+      or coalesce((p_payload->>'auditRetentionDays')::integer,365) not between 30 and 3650
+      or coalesce((p_payload->>'exportRetentionDays')::integer,7) not between 1 and 90 then
       return jsonb_build_object('ok',false,'code','INVALID_RETENTION');
     end if;
     insert into global.workspace_retention_policies(workspace_id,audit_retention_days,export_retention_days)

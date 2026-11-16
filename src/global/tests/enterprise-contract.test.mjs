@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const migration = readFileSync(new URL("../../../supabase/migrations/202611160001_global_enterprise_controls.sql", import.meta.url), "utf8");
-const edge = readFileSync(new URL("../../../../supabase/functions/global-enterprise/index.ts", import.meta.url), "utf8");
+const edge = readFileSync(new URL("../../../supabase/functions/global-enterprise/index.ts", import.meta.url), "utf8");
 
 test("enterprise migration keeps Global data in private schema and enables RLS", () => {
   for (const table of ["workspace_branches", "workspace_permission_overrides", "approval_requests", "audit_events", "export_jobs", "workspace_retention_policies", "exchange_rate_snapshots", "tax_rule_versions"]) {
