@@ -5,7 +5,19 @@ begin;
 alter table public.purchase_receipts add column if not exists request_fingerprint text;
 alter table public.stock
  add column if not exists purchase_cost numeric(18,4) not null default 0 check(purchase_cost>=0),
- add column if not exists barcode text;
+ add column if not exists barcode text,
+ add column if not exists variant_of uuid,
+ add column if not exists variant_label text;
+
+do $
+begin
+ if not exists(select 1 from pg_constraint where conname='stock_workspace_variant_fk') then
+  alter table public.stock add constraint stock_workspace_variant_fk
+   foreign key(workspace_id,variant_of) references public.stock(workspace_id,id) on delete restrict;
+ end if;
+end $;
+create unique index if not exists stock_workspace_barcode_uidx on public.stock(workspace_id,barcode) where barcode is not null and length(btrim(barcode))>0;
+create index if not exists stock_workspace_variant_idx on public.stock(workspace_id,variant_of) where variant_of is not null;
 
 create table if not exists public.inventory_batches (
  id uuid primary key default gen_random_uuid(),
@@ -249,8 +261,8 @@ begin
  values(v_workspace,v_source.warehouse_id,p_to_warehouse_id,p_idempotency_key,v_fingerprint,v_user) returning * into v_transfer;
  update public.stock set quantity=quantity-p_quantity,updated_at=now() where id=v_source.id;
  if v_dest.id is null then
-   insert into public.stock(workspace_id,name,sku,quantity,unit,price,low_stock,client_id,warehouse_id,purchase_cost,barcode)
-   values(v_workspace,v_source.name,v_source.sku,p_quantity,v_source.unit,v_source.price,v_source.low_stock,v_source.client_id,p_to_warehouse_id,v_source.purchase_cost,v_source.barcode)
+   insert into public.stock(workspace_id,name,sku,quantity,unit,price,low_stock,client_id,warehouse_id,purchase_cost,barcode,variant_of,variant_label)
+   values(v_workspace,v_source.name,v_source.sku,p_quantity,v_source.unit,v_source.price,v_source.low_stock,v_source.client_id,p_to_warehouse_id,v_source.purchase_cost,v_source.barcode,v_source.variant_of,v_source.variant_label)
    returning id into v_dest_id;
  else
    update public.stock set purchase_cost=case when quantity+p_quantity>0 then ((quantity*purchase_cost)+(p_quantity*v_source.purchase_cost))/(quantity+p_quantity) else v_source.purchase_cost end,quantity=quantity+p_quantity,updated_at=now() where id=v_dest.id returning id into v_dest_id;
