@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 const migration = readFileSync(new URL("../../../supabase/migrations/202611160001_global_enterprise_controls.sql", import.meta.url), "utf8");
 const edge = readFileSync(new URL("../../../supabase/functions/global-enterprise/index.ts", import.meta.url), "utf8");
 const exportEdge = readFileSync(new URL("../../../supabase/functions/global-export/index.ts", import.meta.url), "utf8");
+const hardening = readFileSync(new URL("../../../supabase/migrations/202611160004_global_enterprise_hardening.sql", import.meta.url), "utf8");
 
 test("enterprise migration keeps Global data in private schema and enables RLS", () => {
   for (const table of ["workspace_branches", "workspace_permission_overrides", "approval_requests", "audit_events", "export_jobs", "workspace_retention_policies", "exchange_rate_snapshots", "currency_conversion_history", "tax_rule_versions"]) {
@@ -41,9 +42,9 @@ test("retention cleanup is admin-checked and removes expired private exports", (
   assert.match(migration, /global_retention_candidates/);
   assert.match(migration, /global_retention_cleanup_audit/);
   assert.match(migration, /global_retention_mark_expired/);
-  assert.match(migration, /global_can_export/);
-  assert.match(migration, /global_cancel_approval_request/);
-  assert.match(migration, /global.guard_audit_event_mutation/);
+  assert.match(hardening, /global_can_export/);
+  assert.match(hardening, /global_cancel_approval_request/);
+  assert.match(hardening, /global.guard_audit_event_mutation/);
   assert.match(exportEdge, /body.action === "cleanup"/);
 });
 
