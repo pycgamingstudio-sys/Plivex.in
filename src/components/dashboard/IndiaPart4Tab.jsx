@@ -30,7 +30,7 @@ export default function IndiaPart4Tab({ user }) {
     if (!workspaceId) return;
     const tables=["warehouses","stock","purchase_orders","purchase_order_items","stock_movements","stock_transfers"];
     const results=await Promise.all(tables.map(async (table)=>{
-      const {data,error}=await supabase.from(table).select("*").eq("workspace_id",workspaceId).order("created_at",{ascending:false}).limit(500);
+      const {data,error}=await supabase.from(table).select("*").eq("workspace_id",workspaceId).order(table==="purchase_order_items"?"id":"created_at",{ascending:false}).limit(500);
       if(error) throw error;
       return [table,data||[]];
     }));
@@ -55,6 +55,7 @@ export default function IndiaPart4Tab({ user }) {
   const selectedOrder=orders.find(x=>x.id===receipt.orderId);
   const openItems=orderItems.filter(x=>x.purchase_order_id===receipt.orderId && Number(x.quantity_received)<Number(x.quantity_ordered));
   const selectedStock=stock.find(x=>x.id===transfer.stockId);
+  const canManage=["admin","manager"].includes(user?.role);
 
   const run=async(fn,success)=>{
     setBusy(true);setError("");setNotice("");
