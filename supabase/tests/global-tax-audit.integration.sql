@@ -1,5 +1,22 @@
 \set ON_ERROR_STOP on
 -- Runs in the disposable candidate database after global-multicurrency-expense.integration.sql.
+RESET ROLE;
+INSERT INTO global.tax_rule_versions(
+  id,country_code,jurisdiction_id,currency_code,tax_code,version,treatment,
+  effective_from,effective_to,reviewed_on,reviewed_by,source_url,components,status,created_by
+) VALUES (
+  'aaaaaaa1-eeee-4aaa-8aaa-aaaaaaaaaaa1','GB',NULL,'GBP','VAT_STANDARD','2026.11','standard',
+  '2011-01-04',NULL,current_date,'pending-review','https://www.gov.uk/vat-rates',
+  '[{"id":"VAT","rateBps":2000}]'::jsonb,'draft','66666666-6666-4666-8666-666666666666'
+);
+INSERT INTO global.tax_rule_versions(
+  id,country_code,jurisdiction_id,currency_code,tax_code,version,treatment,
+  effective_from,effective_to,reviewed_on,reviewed_by,source_url,components,status,created_by
+) VALUES (
+  'aaaaaaa2-eeee-4aaa-8aaa-aaaaaaaaaaa2','GB',NULL,'GBP','VAT_STANDARD','2026.12','standard',
+  '2026-01-01',NULL,current_date,'pending-review','https://www.gov.uk/vat-rates',
+  '[{"id":"VAT","rateBps":2000}]'::jsonb,'draft','66666666-6666-4666-8666-666666666666'
+);
 SET ROLE service_role;
 DO $global_tax_audit$
 DECLARE
@@ -14,17 +31,6 @@ DECLARE
 BEGIN
   PERFORM set_config('request.jwt.claim.role','service_role',true);
   PERFORM set_config('request.jwt.claims','{"role":"service_role"}',true);
-
-  INSERT INTO global.tax_rule_versions(
-    id,country_code,jurisdiction_id,currency_code,tax_code,version,treatment,
-    effective_from,effective_to,reviewed_on,reviewed_by,source_url,components,status,created_by
-  ) VALUES (
-    rule_id,'GB',NULL,'GBP','VAT_STANDARD','2026.11','standard',
-    '2011-01-04',NULL,current_date,'pending-review',
-    'https://www.gov.uk/vat-rates',
-    '[{"id":"VAT","rateBps":2000}]'::jsonb,'draft',
-    '66666666-6666-4666-8666-666666666666'
-  );
 
   published := public.global_publish_tax_rule_version(rule_id,'candidate-review');
   IF published->>'ok'<>'true'
@@ -58,16 +64,6 @@ BEGIN
   END;
   IF NOT immutable_rejected THEN RAISE EXCEPTION 'Tax calculation audit row accepted an update'; END IF;
 
-  INSERT INTO global.tax_rule_versions(
-    id,country_code,jurisdiction_id,currency_code,tax_code,version,treatment,
-    effective_from,effective_to,reviewed_on,reviewed_by,source_url,components,status,created_by
-  ) VALUES (
-    overlapping_rule_id,'GB',NULL,'GBP','VAT_STANDARD','2026.12','standard',
-    '2026-01-01',NULL,current_date,'pending-review',
-    'https://www.gov.uk/vat-rates',
-    '[{"id":"VAT","rateBps":2000}]'::jsonb,'draft',
-    '66666666-6666-4666-8666-666666666666'
-  );
   overlap_result := public.global_publish_tax_rule_version(overlapping_rule_id,'candidate-review');
   IF overlap_result->>'code'<>'OVERLAPPING_VERIFIED_RULE' THEN
     RAISE EXCEPTION 'Overlapping tax rule version was not rejected: %',overlap_result;
