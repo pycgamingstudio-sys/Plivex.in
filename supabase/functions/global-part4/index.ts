@@ -5,6 +5,48 @@ const MAX_BODY = 32 * 1024;
 const RESOURCES = new Set(["warehouses","warehouse_stock_levels","inventory_batches","warehouse_stock_movements","stock_transfers","purchase_orders","purchase_order_items","crm_leads","crm_activities"]);
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 
+const validDate = (value: unknown) => typeof value === "string" && /^\\d{4}-\\d{2}-\\d{2}$/.test(value)
+  && Number.isFinite(Date.parse(value)) && new Date(value + "T00:00:00.000Z").toISOString().slice(0,10) === value;
+function validateMutation(operation: string, values: Record<string, unknown>): string | null {
+  if (operation === "create_warehouse") {
+    if (typeof values.code !== "string" || !values.code.trim() || values.code.length > 32
+      || typeof values.name !== "string" || !values.name.trim() || values.name.length > 160
+      || (values.address !== undefined && !object(values.address))
+      || (values.is_default !== undefined && typeof values.is_default !== "boolean")) return "Warehouse details are invalid.";
+  } else if (operation === "create_lead") {
+    if (typeof values.name !== "string" || !values.name.trim() || values.name.length > 200) return "Lead name is required.";
+    if (values.email !== undefined && values.email !== null && (typeof values.email !== "string" || values.email.length > 254 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(values.email))) return "Lead email is invalid.";
+    if (values.score !== undefined && (!Number.isInteger(values.score) || Number(values.score) < 0 || Number(values.score) > 100)) return "Lead score must be between 0 and 100.";
+    if (values.estimated_value_minor !== undefined && (!Number.isSafeInteger(values.estimated_value_minor) || Number(values.estimated_value_minor) < 0)) return "Lead value must be a non-negative integer in minor units.";
+    if (values.owner_id !== undefined && values.owner_id !== null && !UUID.test(String(values.owner_id))) return "Lead owner is invalid.";
+    if (values.next_follow_up_at !== undefined && values.next_follow_up_at !== null && (typeof values.next_follow_up_at !== "string" || !Number.isFinite(Date.parse(values.next_follow_up_at)))) return "Follow-up date is invalid.";
+    if (values.stage !== undefined && !["new","qualified","proposal","negotiation","won","lost"].includes(String(values.stage))) return "Lead stage is invalid.";
+  } else if (operation === "add_lead_activity") {
+    if (typeof values.lead_id !== "string" || !UUID.test(values.lead_id) || typeof values.body !== "string" || !values.body.trim() || values.body.length > 4000
+      || (values.activity_type !== undefined && !["note","call","email","meeting","stage_change","follow_up"].includes(String(values.activity_type)))) return "Lead activity details are invalid.";
+  } else if (operation === "create_purchase_order") {
+    if (typeof values.supplier_name !== "string" || !values.supplier_name.trim() || values.supplier_name.length > 200
+      || !Array.isArray(values.items) || values.items.length < 1 || values.items.length > 200) return "Purchase order details are invalid.";
+    if (values.items.some(item => !object(item) || typeof item.product_id !== "string" || !UUID.test(item.product_id)
+      || typeof item.quantity_ordered !== "number" || !Number.isFinite(item.quantity_ordered) || item.quantity_ordered <= 0
+      || Math.round(item.quantity_ordered * 10000) !== item.quantity_ordered * 10000
+      || !Number.isSafeInteger(item.unit_cost_minor) || Number(item.unit_cost_minor) < 0)) return "Purchase order lines are invalid.";
+    if (values.order_date !== undefined && !validDate(values.order_date)) return "Order date is invalid.";
+    if (values.expected_date !== undefined && values.expected_date !== null && !validDate(values.expected_date)) return "Expected date is invalid.";
+  } else if (operation === "receive_purchase_order") {
+    if (typeof values.purchase_order_id !== "string" || !UUID.test(values.purchase_order_id)
+      || typeof values.warehouse_id !== "string" || !UUID.test(values.warehouse_id)
+      || typeof values.idempotency_key !== "string" || !UUID.test(values.idempotency_key)
+      || !Array.isArray(values.items) || values.items.length < 1 || values.items.length > 200) return "Purchase receipt details are invalid.";
+    if (values.items.some(item => !object(item) || typeof item.purchase_order_item_id !== "string" || !UUID.test(item.purchase_order_item_id)
+      || typeof item.quantity !== "number" || !Number.isFinite(item.quantity) || item.quantity <= 0
+      || Math.round(item.quantity * 10000) !== item.quantity * 10000
+      || (item.batch_number !== undefined && item.batch_number !== null && (typeof item.batch_number !== "string" || item.batch_number.length > 100))
+      || (item.expires_on !== undefined && item.expires_on !== null && !validDate(item.expires_on)))) return "Purchase receipt lines are invalid.";
+  }
+  return null;
+}
+
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
   if (!isGlobalOriginAllowed(origin)) return globalJson({ error: "Origin not allowed" }, 403, origin);
@@ -80,6 +122,8 @@ Deno.serve(async (req: Request) => {
       if (typeof body.operation !== "string" || !allowed.has(body.operation) || !object(body.values)) {
         return globalJson({ error: "Unsupported Part 4 operation or invalid values." }, 400, origin);
       }
+      const validationError = validateMutation(body.operation, body.values);
+      if (validationError) return globalJson({ error: validationError }, 400, origin);
       const { data, error } = await auth.admin.rpc("global_part4_mutate", {
         p_user_id: auth.user.id, p_workspace_id: body.workspace_id,
         p_action: body.operation, p_values: body.values,
