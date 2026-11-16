@@ -429,8 +429,8 @@ begin
 
   with balances as (
     select a.id,a.code,a.name,a.account_type,a.normal_balance,
-      coalesce(sum(l.debit_minor),0) debit_minor,
-      coalesce(sum(l.credit_minor),0) credit_minor
+      coalesce(sum(l.debit_minor) filter(where e.id is not null),0) debit_minor,
+      coalesce(sum(l.credit_minor) filter(where e.id is not null),0) credit_minor
     from global.accounting_accounts a
     left join global.journal_entry_lines l on l.workspace_id=a.workspace_id and l.account_id=a.id
     left join global.journal_entries e on e.workspace_id=l.workspace_id and e.id=l.journal_entry_id
