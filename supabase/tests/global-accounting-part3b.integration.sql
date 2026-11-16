@@ -6,7 +6,7 @@ VALUES ('77777777-7777-4777-8777-777777777777','Part 3B FX Accounting Test','GB'
 INSERT INTO global.workspace_members(workspace_id,user_id,role,status)
 VALUES
  ('77777777-7777-4777-8777-777777777777','66666666-6666-4666-8666-666666666666','owner','active'),
- ('77777777-7777-4777-8777-777777777777','b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2','accountant','active'),
+ ('77777777-7777-4777-8777-777777777777','b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2bb2','accountant','active'),
  ('77777777-7777-4777-8777-777777777777','88888888-8888-4888-8888-888888888888','manager','active');
 INSERT INTO global.products(id,workspace_id,name,sku,unit,sale_price_minor,purchase_cost_minor,currency_code,created_by)
 VALUES ('77777777-aaaa-4777-8777-777777777777','77777777-7777-4777-8777-777777777777',
@@ -21,7 +21,7 @@ DECLARE
   j_count integer; v_base_outstanding bigint; v_amount_paid bigint; v_status text;
 BEGIN
   created:=public.global_create_purchase_bill(
-    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2','77777777-7777-4777-8777-777777777777',
+    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b','77777777-7777-4777-8777-777777777777',
     'Acme Components','ap@acme.example','GB-TAX-TEST','ACME-INV-77','2026-11-16','2026-12-16','USD',
     2000,200,200,1600,160,160,4,5,'2026-11-16','ECB test fixture rate 0.80',
     jsonb_build_array(jsonb_build_object('product_id','77777777-aaaa-4777-8777-777777777777',
@@ -32,7 +32,7 @@ BEGIN
   bill_id:=(created->'purchase_bill'->>'id')::uuid;
   supplier_id:=(created->'supplier'->>'id')::uuid;
   duplicate_create:=public.global_create_purchase_bill(
-    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2','77777777-7777-4777-8777-777777777777',
+    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b','77777777-7777-4777-8777-777777777777',
     'Acme Components','ap@acme.example','GB-TAX-TEST','ACME-INV-77','2026-11-16','2026-12-16','USD',
     2000,200,200,1600,160,160,4,5,'2026-11-16','ECB test fixture rate 0.80',
     jsonb_build_array(jsonb_build_object('product_id','77777777-aaaa-4777-8777-777777777777',
@@ -43,7 +43,7 @@ BEGIN
 
   denied:=public.global_post_purchase_bill('88888888-8888-4888-8888-888888888888','77777777-7777-4777-8777-777777777777',bill_id);
   IF denied->>'reason'<>'forbidden' THEN RAISE EXCEPTION 'Manager posted a purchase bill: %',denied; END IF;
-  posted:=public.global_post_purchase_bill('b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2','77777777-7777-4777-8777-777777777777',bill_id);
+  posted:=public.global_post_purchase_bill('b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b','77777777-7777-4777-8777-777777777777',bill_id);
   IF posted->>'ok'<>'true' OR posted->'purchase_bill'->>'base_outstanding_minor'<>'1760' THEN
     RAISE EXCEPTION 'Purchase bill did not post with the correct base liability: %',posted;
   END IF;
@@ -55,7 +55,7 @@ BEGIN
   END IF;
 
   payment:=public.global_record_purchase_payment(
-    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2','77777777-7777-4777-8777-777777777777',bill_id,
+    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b','77777777-7777-4777-8777-777777777777',bill_id,
     1100,'USD',825,3,4,'2026-11-20','ECB test fixture rate 0.75','2026-11-20','Bank','PAY-USD-1',
     'c1111111-1111-4111-8111-111111111111'
   );
@@ -64,20 +64,20 @@ BEGIN
   END IF;
   payment_id:=(payment->'payment'->>'id')::uuid;
   duplicate_payment:=public.global_record_purchase_payment(
-    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2','77777777-7777-4777-8777-777777777777',bill_id,
+    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b','77777777-7777-4777-8777-777777777777',bill_id,
     1100,'USD',825,3,4,'2026-11-20','ECB test fixture rate 0.75','2026-11-20','Bank','PAY-USD-1',
     'c1111111-1111-4111-8111-111111111111'
   );
   IF duplicate_payment->>'ok'<>'true' OR duplicate_payment->>'duplicate'<>'true' THEN RAISE EXCEPTION 'Purchase payment retry failed: %',duplicate_payment; END IF;
   conflict_payment:=public.global_record_purchase_payment(
-    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2','77777777-7777-4777-8777-777777777777',bill_id,
+    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b','77777777-7777-4777-8777-777777777777',bill_id,
     1100,'USD',826,3,4,'2026-11-20','ECB test fixture rate 0.75','2026-11-20','Bank','PAY-USD-1',
     'c1111111-1111-4111-8111-111111111111'
   );
   IF conflict_payment->>'reason'<>'idempotency_conflict' THEN RAISE EXCEPTION 'Conflicting purchase payment retry was accepted: %',conflict_payment; END IF;
 
   revalued:=public.global_revalue_purchase_bill(
-    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2','77777777-7777-4777-8777-777777777777',bill_id,
+    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b','77777777-7777-4777-8777-777777777777',bill_id,
     '2026-11-30',17,20,'ECB month-end test fixture 0.85','d1111111-1111-4111-8111-111111111111'
   );
   IF revalued->>'ok'<>'true' OR revalued->>'fx_delta_minor'<>'55'
@@ -85,18 +85,18 @@ BEGIN
     RAISE EXCEPTION 'Unrealized FX revaluation failed: %',revalued;
   END IF;
   duplicate_revaluation:=public.global_revalue_purchase_bill(
-    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2','77777777-7777-4777-8777-777777777777',bill_id,
+    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b','77777777-7777-4777-8777-777777777777',bill_id,
     '2026-11-30',17,20,'ECB month-end test fixture 0.85','d1111111-1111-4111-8111-111111111111'
   );
   IF duplicate_revaluation->>'ok'<>'true' OR duplicate_revaluation->>'duplicate'<>'true' THEN RAISE EXCEPTION 'FX revaluation retry failed: %',duplicate_revaluation; END IF;
   conflict_revaluation:=public.global_revalue_purchase_bill(
-    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2','77777777-7777-4777-8777-777777777777',bill_id,
+    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b','77777777-7777-4777-8777-777777777777',bill_id,
     '2026-11-30',18,20,'Different rate','d1111111-1111-4111-8111-111111111111'
   );
   IF conflict_revaluation->>'reason'<>'idempotency_conflict' THEN RAISE EXCEPTION 'Conflicting FX revaluation retry was accepted: %',conflict_revaluation; END IF;
 
   payment:=public.global_record_purchase_payment(
-    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2','77777777-7777-4777-8777-777777777777',bill_id,
+    'b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b','77777777-7777-4777-8777-777777777777',bill_id,
     1100,'USD',990,9,10,'2026-12-01','ECB test fixture rate 0.90','2026-12-01','Bank','PAY-USD-2',
     'e1111111-1111-4111-8111-111111111111'
   );
