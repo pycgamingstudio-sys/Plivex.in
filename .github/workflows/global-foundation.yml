@@ -2,9 +2,9 @@ name: Global Foundation CI
 
 on:
   push:
-    branches: [global-dev]
+    branches: [global-dev, chat3/parts7-8-enterprise-tax, feat/part9-blueprint-completion]
   pull_request:
-    branches: [global-dev]
+    branches: [global-dev, chat3/parts7-8-enterprise-tax]
 
 permissions:
   contents: read
