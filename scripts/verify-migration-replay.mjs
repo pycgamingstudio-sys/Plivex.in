@@ -215,10 +215,10 @@ function assertGlobalMigrationRollback(port) {
     const invoiceLedgerResidue = query(port, db, "SELECT (to_regprocedure('public.global_create_invoice_draft(uuid,uuid,uuid,text,date,date,text,jsonb,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_record_invoice_payment(uuid,uuid,uuid,bigint,text,date,text,text,text,uuid)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoices' AND column_name='creation_idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='global' AND indexname='global_invoices_creation_idempotency_idx')::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoice_payments' AND column_name='idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='global' AND indexname='global_invoice_payments_idempotency_idx')::text");
     if (invoiceLedgerResidue !== "false|false|false|false|false|false") fail("Global invoice/payment rollback left functions, columns or indexes behind: " + invoiceLedgerResidue);
     // Part 7 migrations are independently replayed and transactionally rolled back.
-    const enterprisePath = resolve(root, "supabase/migrations/202611160001_global_enterprise_controls.sql");
-    const taxAuditPath = resolve(root, "supabase/migrations/202611160002_global_tax_audit_and_publication.sql");
-    const fxExpensePath = resolve(root, "supabase/migrations/202611160003_global_multicurrency_expenses.sql");
-    const enterpriseHardeningPath = resolve(root, "supabase/migrations/202611160004_global_enterprise_hardening.sql");
+    const enterprisePath = resolve(root, "supabase/migrations/20261116120000_global_enterprise_controls.sql");
+    const taxAuditPath = resolve(root, "supabase/migrations/20261116121000_global_tax_audit_and_publication.sql");
+    const fxExpensePath = resolve(root, "supabase/migrations/20261116122000_global_multicurrency_expenses.sql");
+    const enterpriseHardeningPath = resolve(root, "supabase/migrations/20261116123000_global_enterprise_hardening.sql");
     psql(port, db, ["-f", enterprisePath]);
     const taxAuditRollback = applyForcedMigrationRollback(port, db, taxAuditPath);
     if (taxAuditRollback.status === 0) fail("Global tax-audit migration rollback probe unexpectedly committed");
