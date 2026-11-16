@@ -141,7 +141,7 @@ test -z "$unprotected" || fail "New application tables without RLS: $unprotected
 missing_rpcs="$(query "
 SELECT string_agg(x.signature, ',')
 FROM (VALUES
- ('public.apply_cashfree_subscription_payment(uuid,text,text,bigint,text,text,jsonb)'),
+ ('public.apply_cashfree_subscription_payment(uuid,text,text,bigint,text,text,jsonb,text)'),
  ('public.apply_cashfree_refund_event(uuid,text,text,text,bigint,text,text,jsonb)'),
  ('public.global_record_stock_movement(uuid,uuid,uuid,text,numeric,text,uuid)'),
  ('public.global_create_invoice_draft(uuid,uuid,uuid,text,date,date,text,jsonb,uuid)'),
