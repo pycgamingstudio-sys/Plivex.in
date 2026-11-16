@@ -403,6 +403,38 @@ create trigger global_expense_accounting
   after insert on global.expenses
   for each row execute function global.accounting_after_expense();
 
+create or replace function global.guard_accounted_expense_changes()
+returns trigger
+language plpgsql
+set search_path = pg_catalog,global
+as $function$
+begin
+  if exists (
+    select 1 from global.journal_entries
+    where workspace_id=old.workspace_id and source_type='expense' and source_id=old.id
+  ) then
+    if tg_op='DELETE' then
+      raise exception using errcode='55000',message='Accounted expenses cannot be deleted; post a correcting journal instead';
+    end if;
+    if new.workspace_id is distinct from old.workspace_id
+      or new.amount_minor is distinct from old.amount_minor
+      or new.currency_code is distinct from old.currency_code
+      or new.expense_date is distinct from old.expense_date
+      or new.category is distinct from old.category
+      or new.payment_method is distinct from old.payment_method then
+      raise exception using errcode='55000',message='Posted expense amounts and classification are immutable; post a correcting journal instead';
+    end if;
+  end if;
+  if tg_op='DELETE' then return old; end if;
+  return new;
+end;
+$function$;
+revoke all on function global.guard_accounted_expense_changes() from public,anon,authenticated;
+drop trigger if exists global_accounted_expense_guard on global.expenses;
+create trigger global_accounted_expense_guard
+  before update or delete on global.expenses
+  for each row execute function global.guard_accounted_expense_changes();
+
 create or replace function public.global_get_trial_balance(
   p_workspace_id uuid,p_from date default null,p_to date default null,p_currency_code text default null
 )
