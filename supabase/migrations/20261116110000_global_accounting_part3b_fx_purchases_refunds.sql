@@ -428,7 +428,7 @@ begin
   if p_user_id is null or p_workspace_id is null or p_purchase_bill_id is null or p_amount_minor<=0
     or p_base_amount_minor<=0 or p_currency_code !~ '^[A-Z]{3}$' or p_fx_rate_numerator<=0 or p_fx_rate_denominator<=0
     or p_fx_rate_date is null or p_fx_rate_source is null or length(btrim(p_fx_rate_source)) not between 1 and 240
-    or p_payment_date is null or p_idempotency_key is null then return jsonb_build_object('ok',false,'reason','invalid_payment'); end if;
+    or p_payment_date is null or p_fx_rate_date>p_payment_date or p_idempotency_key is null then return jsonb_build_object('ok',false,'reason','invalid_payment'); end if;
   select role into v_role from global.workspace_members where workspace_id=p_workspace_id and user_id=p_user_id and status='active';
   if v_role is null then return jsonb_build_object('ok',false,'reason','access_denied'); end if;
   if v_role not in ('owner','admin','accountant') then return jsonb_build_object('ok',false,'reason','forbidden'); end if;
@@ -437,7 +437,11 @@ begin
   if found then
     if v_existing.purchase_bill_id<>p_purchase_bill_id or v_existing.amount_minor<>p_amount_minor or v_existing.base_amount_minor<>p_base_amount_minor
       or v_existing.currency_code<>p_currency_code or v_existing.fx_rate_numerator<>p_fx_rate_numerator
-      or v_existing.fx_rate_denominator<>p_fx_rate_denominator then return jsonb_build_object('ok',false,'reason','idempotency_conflict'); end if;
+      or v_existing.fx_rate_denominator<>p_fx_rate_denominator or v_existing.fx_rate_date<>p_fx_rate_date
+      or v_existing.fx_rate_source<>btrim(p_fx_rate_source) or v_existing.payment_date<>p_payment_date
+      or coalesce(v_existing.method,'')<>coalesce(nullif(btrim(p_method),''),'')
+      or coalesce(v_existing.reference,'')<>coalesce(nullif(btrim(p_reference),''),'') then
+      return jsonb_build_object('ok',false,'reason','idempotency_conflict'); end if;
     return jsonb_build_object('ok',true,'duplicate',true,'payment',to_jsonb(v_existing));
   end if;
   select * into v_bill from global.purchase_bills where workspace_id=p_workspace_id and id=p_purchase_bill_id for update;
