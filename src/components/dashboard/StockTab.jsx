@@ -8,7 +8,7 @@ import { usePaywall } from "@/lib/paywall";
 
 const DEFAULT_LOW = 5;
 const UNITS = ["units", "pcs", "kg", "g", "quintal", "ton", "litre", "ml", "metre", "cm", "feet", "inch", "sq ft", "box", "carton", "packet", "bag", "bottle", "dozen", "pair", "set", "roll", "bundle", "hour", "service"];
-const blank = { name: "", sku: "", quantity: "", unit: "units", price: "", lowStock: String(DEFAULT_LOW) };
+const blank = { name: "", sku: "", barcode: "", variantOf: "", variantLabel: "", quantity: "", unit: "units", price: "", lowStock: String(DEFAULT_LOW) };
 
 export default function StockTab() {
   const { limits, usage, remaining, openPaywall } = usePaywall();
@@ -19,7 +19,7 @@ export default function StockTab() {
 
   useEffect(() => { saveList(KEYS.stock, items); }, [items]);
 
-  const filtered = useMemo(() => items.filter((p) => `${p.name} ${p.sku || ""}`.toLowerCase().includes(q.toLowerCase())), [items, q]);
+  const filtered = useMemo(() => items.filter((p) => `${p.name} ${p.sku || ""} ${p.barcode || ""}`.toLowerCase().includes(q.toLowerCase())), [items, q]);
   const lowCount = items.filter((p) => (Number(p.quantity) || 0) <= (p.lowStock === "" || p.lowStock === null || p.lowStock === undefined ? DEFAULT_LOW : Number(p.lowStock))).length;
   const totalUnits = items.reduce((s, p) => s + (Number(p.quantity) || 0), 0);
 
@@ -80,7 +80,7 @@ export default function StockTab() {
                   return (
                     <tr key={p.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 font-bold text-slate-900">{p.name}</td>
-                      <td className="px-4 py-3 text-slate-500">{p.sku || "—"}</td>
+                      <td className="px-4 py-3 text-slate-500">{p.sku || "—"}{p.barcode ? <span className="block text-[10px] text-slate-400">{p.barcode}</span> : null}</td>
                       <td className="px-4 py-3 text-right font-bold text-slate-900">{Number(p.quantity) || 0} <span className="font-normal text-slate-400">{p.unit}</span></td>
                       <td className="px-4 py-3 text-right text-slate-500">{Number(p.lowStock) || DEFAULT_LOW}</td>
                       <td className="px-4 py-3">
@@ -110,6 +110,7 @@ export default function StockTab() {
           value={editTarget ? { ...blank, ...editTarget, quantity: String(editTarget.quantity ?? ""), lowStock: String(editTarget.lowStock ?? DEFAULT_LOW) } : blank}
           isEdit={Boolean(editTarget)}
           onClose={() => { setOpen(false); setEditTarget(null); }}
+          items={items}
           onSave={save}
         />
       )}
@@ -117,7 +118,7 @@ export default function StockTab() {
   );
 }
 
-function ProductModal({ value, isEdit, onClose, onSave }) {
+function ProductModal({ value, isEdit, items = [], onClose, onSave }) {
   const [form, setForm] = useState(value);
   const [customUnit, setCustomUnit] = useState(() => Boolean(value.unit) && !UNITS.includes(value.unit));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -129,6 +130,9 @@ function ProductModal({ value, isEdit, onClose, onSave }) {
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="block text-[12px] font-semibold text-slate-500 sm:col-span-2">Product name<input className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Product name" /></label>
           <label className="block text-[12px] font-semibold text-slate-500">SKU<input className={inputCls} value={form.sku} onChange={(e) => set("sku", e.target.value)} placeholder="SKU-001" /></label>
+          <label className="block text-[12px] font-semibold text-slate-500">Barcode<input className={inputCls} value={form.barcode || ""} onChange={(e) => set("barcode", e.target.value)} placeholder="EAN / UPC / internal barcode" /></label>
+          <label className="block text-[12px] font-semibold text-slate-500">Variant of<select className={inputCls} value={form.variantOf || ""} onChange={(e) => set("variantOf", e.target.value)}><option value="">Base product</option>{items.filter((item) => item.id !== form.id && !item.variantOf).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label className="block text-[12px] font-semibold text-slate-500">Variant label<input className={inputCls} value={form.variantLabel || ""} onChange={(e) => set("variantLabel", e.target.value)} placeholder="e.g. Red · Large" /></label>
           <label className="block text-[12px] font-semibold text-slate-500">Unit
             <select className={inputCls} value={isCustomUnit ? "__custom" : form.unit} onChange={(e) => { if (e.target.value === "__custom") set("unit", ""); else set("unit", e.target.value); setCustomUnit(e.target.value === "__custom"); }}>
               {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}

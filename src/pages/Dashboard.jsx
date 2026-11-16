@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
-import { LayoutDashboard, Receipt, ShoppingCart, BarChart3, Users, UsersRound, Package, Sparkles, Zap, LayoutGrid, X, RefreshCw, FileText, ScrollText, Lock } from "lucide-react";
+import { LayoutDashboard, Receipt, ShoppingCart, BarChart3, Users, UsersRound, Package, Boxes, Sparkles, Zap, LayoutGrid, X, RefreshCw, FileText, ScrollText, Lock } from "lucide-react";
 import DashboardTab from "@/components/dashboard/DashboardTab";
 import SalesTab from "@/components/dashboard/SalesTab";
 import PurchaseTab from "@/components/dashboard/PurchaseTab";
 import ReportsTab from "@/components/dashboard/ReportsTab";
 import CrmTab from "@/components/dashboard/CrmTab";
 import StockTab from "@/components/dashboard/StockTab";
+import IndiaPart4Tab from "@/components/dashboard/IndiaPart4Tab";
 import TeamManagement from "@/pages/TeamManagement";
 import ChatWidget from "@/components/dashboard/ChatWidget";
 import AssistantWidget from "@/components/AssistantWidget";
@@ -29,6 +30,7 @@ const TABS = [
   { id: "reports", label: "Reports", icon: BarChart3 },
   { id: "crm", label: "Client CRM", icon: Users },
   { id: "stock", label: "Stock", icon: Package },
+  { id: "warehouses", label: "Warehouses", icon: Boxes },
   { id: "team", label: "Team", icon: UsersRound },
   { id: "reconciliation", label: "Reconcile", icon: RefreshCw },
 ];
@@ -136,6 +138,7 @@ export default function Dashboard({ initialTab }) {
           {tab === "reports" && <ReportsTab />}
           {tab === "crm" && <CrmTab intent={intent} onConsumeIntent={consume} />}
           {tab === "stock" && <StockTab />}
+          {tab === "warehouses" && <IndiaPart4Tab user={user} />}
           {tab === "team" && (teamUnlocked ? <TeamManagement /> : <div className="mx-auto max-w-lg rounded-2xl border border-[#E5E7EB] bg-white p-8 text-center shadow-sm"><Lock className="mx-auto h-8 w-8 text-[#6D28D9]" /><h2 className="mt-3 text-lg font-bold">Team management is a Pro feature</h2><p className="mt-2 text-sm text-slate-500">Upgrade to Pro to add and manage workspace members.</p><button onClick={openPaywall} className="mt-5 rounded-xl bg-[#6D28D9] px-5 py-2.5 text-sm font-bold text-white">Upgrade to Pro</button></div>)}
           {tab === "reconciliation" && <ReconciliationTab />}
         </main>

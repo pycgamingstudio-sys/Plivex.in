@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/api/backendClient";
 import GlobalCountryOnboarding from "@/components/global/GlobalCountryOnboarding";
 import GlobalInvoicesPanel from "@/components/global/GlobalInvoicesPanel";
+import GlobalPart4Panel from "@/components/global/GlobalPart4Panel";
 
 const COUNTRY_OPTIONS = [
   { code: "US", label: "United States", locale: "en-US", currency: "USD" },
@@ -18,6 +19,11 @@ const NAV = [
   { id: "products", label: "Products" },
   { id: "expenses", label: "Expenses" },
   { id: "inventory", label: "Inventory" },
+  { id: "crm", label: "CRM" },
+  { id: "warehouses", label: "Warehouses" },
+  { id: "transfers", label: "Stock transfers" },
+  { id: "purchasing", label: "Purchasing" },
+  { id: "movements", label: "Movement history" },
   { id: "invoices", label: "Invoices" },
 ];
 const TABLES = { clients: "clients", products: "products", expenses: "expenses", inventory: "stock_levels", invoices: "invoices" };
@@ -76,7 +82,7 @@ export default function GlobalApp() {
   }, []);
 
   const loadRecords = useCallback(async (activeTab = tab) => {
-    if (!account?.workspace_id) return;
+    if (!account?.workspace_id || ["crm", "warehouses", "transfers", "purchasing", "movements"].includes(activeTab)) return;
     const tables = activeTab === "overview" ? ["clients", "products", "expenses", "invoices", "stock_levels"] : [TABLES[activeTab]];
     const results = await Promise.all(tables.map(async (table) => [table, await invoke(table)]));
     setRecords((current) => ({ ...current, ...Object.fromEntries(results.map(([table, result]) => [table, result.records || []])) }));
@@ -147,6 +153,10 @@ export default function GlobalApp() {
         values = {
           name: form.name?.trim(),
           sku: form.sku?.trim() || null,
+          barcode: form.barcode?.trim() || null,
+          variant_of: form.variantOf || null,
+          variant_label: form.variantLabel?.trim() || null,
+          purchase_cost_minor: Math.round(Number(form.purchaseCost || 0) * (10 ** digits)),
           sale_price_minor: Math.round(Number(form.salePrice || 0) * (10 ** digits)),
           currency_code: account?.currency_code || country.currency,
         };
@@ -240,27 +250,29 @@ export default function GlobalApp() {
             <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               {[["Clients", counts.clients], ["Products", counts.products], ["Expenses", counts.expenses], ["Invoices", counts.invoices], ["Stock items", counts.stock]].map(([label, value]) => <div key={label} className="rounded-xl border border-slate-200 bg-white p-5"><div className="text-sm text-slate-500">{label}</div><div className="mt-2 text-3xl font-bold">{value}</div></div>)}
             </div>
-            <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Global workspace: client, product and expense records are available. Global invoice drafts, UK standard-rated VAT issuance, and internal payment/refund reconciliation are enabled; other countries remain draft-only. Stock movements still require their audited workflow.</div>
+            <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">Manage leads, warehouses, purchase orders, goods receipts and stock movement history from the new operations sections.</div>
           </>
         ) : tab === "invoices" ? (
           <GlobalInvoicesPanel account={account} invoke={invoke} onRefresh={loadRecords} />
+        ) : ["crm", "warehouses", "transfers", "purchasing", "movements"].includes(tab) ? (
+          <GlobalPart4Panel account={account} />
         ) : (
           <section className="mt-6">
             <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold">{NAV.find((item) => item.id === tab)?.label}</h1><p className="mt-1 text-sm text-slate-500">{tab === "inventory" || tab === "invoices" ? "Read-only until audited transaction workflows are enabled." : "Records are scoped to your active Global workspace."}</p></div><button onClick={() => loadRecords(tab).catch((loadError) => setError(loadError.message))} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Refresh</button></div>
             {["clients", "products", "expenses"].includes(tab) && (
               <form onSubmit={submitRecord} className="mt-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
                 {tab === "clients" && <><input required placeholder="Client name" className="rounded-lg border border-slate-300 p-3" value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /><input type="email" placeholder="Email (optional)" className="rounded-lg border border-slate-300 p-3" value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /><input placeholder="Phone (optional)" className="rounded-lg border border-slate-300 p-3" value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></>}
-                {tab === "products" && <><input required placeholder="Product name" className="rounded-lg border border-slate-300 p-3" value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /><input placeholder="SKU (optional)" className="rounded-lg border border-slate-300 p-3" value={form.sku || ""} onChange={(e) => setForm({ ...form, sku: e.target.value })} /><input required min="0" step="any" type="number" placeholder={`Sale price (${currency})`} className="rounded-lg border border-slate-300 p-3" value={form.salePrice || ""} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} /></>}
+                {tab === "products" && <><input required placeholder="Product name" className="rounded-lg border border-slate-300 p-3" value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /><input placeholder="SKU (optional)" className="rounded-lg border border-slate-300 p-3" value={form.sku || ""} onChange={(e) => setForm({ ...form, sku: e.target.value })} /><input placeholder="Barcode (EAN / UPC)" className="rounded-lg border border-slate-300 p-3" value={form.barcode || ""} onChange={(e) => setForm({ ...form, barcode: e.target.value })} /><select className="rounded-lg border border-slate-300 p-3" value={form.variantOf || ""} onChange={(e) => setForm({ ...form, variantOf: e.target.value })}><option value="">Base product</option>{(records.products || []).filter((p) => !p.variant_of).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select><input placeholder="Variant label (e.g. Red / Large)" className="rounded-lg border border-slate-300 p-3" value={form.variantLabel || ""} onChange={(e) => setForm({ ...form, variantLabel: e.target.value })} /><input min="0" step="any" type="number" placeholder={`Purchase cost (${currency})`} className="rounded-lg border border-slate-300 p-3" value={form.purchaseCost || ""} onChange={(e) => setForm({ ...form, purchaseCost: e.target.value })} /><input required min="0" step="any" type="number" placeholder={`Sale price (${currency})`} className="rounded-lg border border-slate-300 p-3" value={form.salePrice || ""} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} /></>}
                 {tab === "expenses" && <><input required placeholder="Expense category" className="rounded-lg border border-slate-300 p-3" value={form.category || ""} onChange={(e) => setForm({ ...form, category: e.target.value })} /><input placeholder="Vendor (optional)" className="rounded-lg border border-slate-300 p-3" value={form.vendor || ""} onChange={(e) => setForm({ ...form, vendor: e.target.value })} /><input required min="0.01" step="any" type="number" placeholder={`Amount (${currency})`} className="rounded-lg border border-slate-300 p-3" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: e.target.value })} /><input type="date" className="rounded-lg border border-slate-300 p-3" value={form.expenseDate || localDate()} onChange={(e) => setForm({ ...form, expenseDate: e.target.value })} /></>}
                 <button disabled={busy} className="rounded-lg bg-violet-700 px-4 py-3 font-semibold text-white disabled:opacity-60">{busy ? "Saving…" : "Add record"}</button>
               </form>
             )}
             <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 bg-white">
               {currentRecords.length === 0 ? <p className="p-8 text-center text-sm text-slate-500">No records yet.</p> : (
-                <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500"><tr>{(tab === "clients" ? ["Name", "Email", "Phone"] : tab === "products" ? ["Product", "SKU", "Sale price"] : tab === "expenses" ? ["Category", "Vendor", "Amount", "Date"] : tab === "invoices" ? ["Invoice", "Status", "Total", "Date"] : ["Product ID", "Quantity", "Reorder level"]).map((heading) => <th key={heading} className="whitespace-nowrap px-4 py-3 font-semibold">{heading}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">
+                <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500"><tr>{(tab === "clients" ? ["Name", "Email", "Phone"] : tab === "products" ? ["Product", "SKU", "Barcode", "Variant", "Purchase cost", "Sale price"] : tab === "expenses" ? ["Category", "Vendor", "Amount", "Date"] : tab === "invoices" ? ["Invoice", "Status", "Total", "Date"] : ["Product ID", "Quantity", "Reorder level"]).map((heading) => <th key={heading} className="whitespace-nowrap px-4 py-3 font-semibold">{heading}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">
                   {currentRecords.map((record) => <tr key={record.id || record.product_id}>
                     {tab === "clients" && <><td className="px-4 py-3 font-medium">{record.name}</td><td className="px-4 py-3">{record.email || "—"}</td><td className="px-4 py-3">{record.phone || "—"}</td></>}
-                    {tab === "products" && <><td className="px-4 py-3 font-medium">{record.name}</td><td className="px-4 py-3">{record.sku || "—"}</td><td className="px-4 py-3">{money(record.sale_price_minor, record.currency_code)}</td></>}
+                    {tab === "products" && <><td className="px-4 py-3 font-medium">{record.name}</td><td className="px-4 py-3">{record.sku || "—"}</td><td className="px-4 py-3">{record.barcode || "—"}</td><td className="px-4 py-3">{record.variant_label || (record.variant_of ? "Variant" : "Base product")}</td><td className="px-4 py-3">{money(record.purchase_cost_minor, record.currency_code)}</td><td className="px-4 py-3">{money(record.sale_price_minor, record.currency_code)}</td></>}
                     {tab === "expenses" && <><td className="px-4 py-3 font-medium">{record.category}</td><td className="px-4 py-3">{record.vendor || "—"}</td><td className="px-4 py-3">{money(record.amount_minor, record.currency_code)}</td><td className="px-4 py-3">{record.expense_date}</td></>}
                     {tab === "invoices" && <><td className="px-4 py-3 font-medium">{record.invoice_number}</td><td className="px-4 py-3">{record.status}</td><td className="px-4 py-3">{money(record.total_minor, record.currency_code)}</td><td className="px-4 py-3">{record.issue_date}</td></>}
                     {tab === "inventory" && <><td className="px-4 py-3 font-medium">{record.product_id}</td><td className="px-4 py-3">{record.quantity}</td><td className="px-4 py-3">{record.reorder_level}</td></>}

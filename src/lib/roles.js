@@ -19,10 +19,10 @@ const ROUTE_PERMISSIONS = {
 };
 
 export const TAB_PERMISSIONS = {
-  admin: ["dashboard", "sales", "purchase", "reports", "crm", "stock", "team"],
-  manager: ["dashboard", "sales", "purchase", "crm", "stock"],
+  admin: ["dashboard", "sales", "purchase", "reports", "crm", "stock", "warehouses", "team"],
+  manager: ["dashboard", "sales", "purchase", "crm", "stock", "warehouses"],
   employee: ["dashboard", "sales", "crm"],
-  storekeeper: ["dashboard", "stock"],
+  storekeeper: ["dashboard", "stock", "warehouses"],
   accountant: ["dashboard", "sales", "purchase", "reports"],
 };
 

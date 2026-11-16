@@ -9,9 +9,9 @@ import { paginate, totalPages } from "@/lib/paging";
 import { usePaywall } from "@/lib/paywall";
 import SummaryCard from "@/components/dashboard/SummaryCard";
 
-const STAGES = ["New Lead", "Negotiation", "Won", "Lost"];
+const STAGES = ["New Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
 const blankClient = { name: "", company: "", email: "", phone: "", gstin: "", address: "" };
-const blankLead = { name: "", phone: "", requirement: "", value: "" };
+const blankLead = { name: "", phone: "", email: "", company: "", source: "", requirement: "", value: "", nextFollowUpAt: "" };
 
 export default function CrmTab({ intent, onConsumeIntent }) {
   const { requestAction } = usePaywall();
@@ -34,7 +34,16 @@ export default function CrmTab({ intent, onConsumeIntent }) {
   const persistClients = (n) => { setClients(n); saveList(KEYS.clients, n); };
   const persistLeads = (n) => { setLeads(n); saveList(KEYS.leads, n); };
   const saveClient = (entry) => { if (!entry.name.trim()) return; if (!requestAction()) return; const n = clientModal.id ? clients.map((c) => (c.id === clientModal.id ? { ...entry, id: clientModal.id } : c)) : [{ ...entry, id: genId("client") }, ...clients]; persistClients(n); setClientModal(null); };
-  const saveLead = (entry) => { if (!entry.name.trim()) return; if (!requestAction()) return; persistLeads([{ ...entry, id: genId("lead"), stage: "New Lead", value: Number(entry.value) || 0 }, ...leads]); setLeadModal(false); };
+  const saveLead = (entry) => {
+    if (!entry.name.trim()) return;
+    if (!requestAction()) return;
+    const score = Math.min(100, (entry.email.trim() ? 15 : 0) + (entry.phone.trim() ? 20 : 0)
+      + (entry.company.trim() ? 15 : 0) + (entry.requirement.trim() ? 20 : 0)
+      + (Number(entry.value) > 0 ? 20 : 0) + (entry.nextFollowUpAt ? 10 : 0));
+    const nextFollowUpAt = entry.nextFollowUpAt ? new Date(entry.nextFollowUpAt).toISOString() : null;
+    persistLeads([{ ...entry, nextFollowUpAt, score, id: genId("lead"), stage: "New Lead", value: Number(entry.value) || 0 }, ...leads]);
+    setLeadModal(false);
+  };
   const moveLead = (id, stage) => persistLeads(leads.map((l) => (l.id === id ? { ...l, stage } : l)));
   const invoiceFor = (c) => { localStorage.setItem(KEYS.pendingClient, JSON.stringify({ name: c.name, company: c.company, email: c.email, phone: c.phone, gstin: c.gstin, address: c.address })); navigate("/invoice-builder"); };
 
@@ -45,7 +54,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
   const rows = paginate(filteredClients, page);
   const pages = totalPages(filteredClients);
 
-  const activeLeads = leads.filter((l) => l.stage === "New Lead" || l.stage === "Negotiation");
+  const activeLeads = leads.filter((l) => !["Won", "Lost"].includes(l.stage));
   const pipelineValue = activeLeads.reduce((s, l) => s + Number(l.value || 0), 0);
 
   return (
@@ -167,7 +176,9 @@ export default function CrmTab({ intent, onConsumeIntent }) {
                     {items.map((l) => (
                       <div key={l.id} className="rounded-xl border border-[#E5E7EB] p-3">
                         <p className="text-[12px] font-bold text-slate-900">{l.name}</p>
-                        <p className="text-[10px] text-slate-400">{l.phone || "—"}</p>
+                        <p className="text-[10px] text-slate-400">{l.company || l.phone || "—"}</p>
+                        <p className="mt-1 text-[9px] font-semibold text-slate-500">Lead score: {Number(l.score || 0)}/100</p>
+                        {l.nextFollowUpAt && <p className="text-[9px] text-slate-500">Follow-up: {new Date(l.nextFollowUpAt).toLocaleString()}</p>}
                         <p className="mt-1 text-[11px] text-slate-500">{l.requirement || "—"}</p>
                         <p className="mt-1 text-[12px] font-bold text-[#6D28D9]">{money2(l.value)}</p>
                         <div className="mt-2 flex flex-wrap gap-1">
@@ -221,9 +232,13 @@ function LeadModal({ onClose, onSave }) {
         <div className="flex items-center justify-between"><h3 className="text-lg font-bold text-slate-900">Add new lead</h3><button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
         <div className="mt-4 grid gap-3">
           <label className="block text-[12px] font-semibold text-slate-500">Lead name<input className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Lead name" /></label>
+          <label className="block text-[12px] font-semibold text-slate-500">Company<input className={inputCls} value={form.company} onChange={(e) => set("company", e.target.value)} placeholder="Business name" /></label>
           <label className="block text-[12px] font-semibold text-slate-500">Phone<input className={inputCls} value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+91" /></label>
+          <label className="block text-[12px] font-semibold text-slate-500">Email<input type="email" className={inputCls} value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="lead@example.com" /></label>
+          <label className="block text-[12px] font-semibold text-slate-500">Lead source<input className={inputCls} value={form.source} onChange={(e) => set("source", e.target.value)} placeholder="Referral, website, walk-in…" /></label>
           <label className="block text-[12px] font-semibold text-slate-500">Requirement<input className={inputCls} value={form.requirement} onChange={(e) => set("requirement", e.target.value)} placeholder="What do they need?" /></label>
-          <label className="block text-[12px] font-semibold text-slate-500">Estimated value (₹)<input type="number" className={inputCls} value={form.value} onChange={(e) => set("value", e.target.value)} placeholder="0" /></label>
+          <label className="block text-[12px] font-semibold text-slate-500">Estimated value (₹)<input type="number" min="0" className={inputCls} value={form.value} onChange={(e) => set("value", e.target.value)} placeholder="0" /></label>
+          <label className="block text-[12px] font-semibold text-slate-500 sm:col-span-2">Next follow-up<input type="datetime-local" className={inputCls} value={form.nextFollowUpAt} onChange={(e) => set("nextFollowUpAt", e.target.value)} /></label>
         </div>
         <div className="mt-4 flex justify-end gap-2"><button onClick={onClose} className={btnGhost}>Cancel</button><button onClick={() => onSave(form)} className={btnAccent}>Save lead</button></div>
       </div>
