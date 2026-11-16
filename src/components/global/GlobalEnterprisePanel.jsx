@@ -142,7 +142,7 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
       minimumAmountMinor: Number(approvalMinimumAmount),
       approverRoles: approvalRoles,
       preventSelfApproval,
-    }), "Expense approval policy saved.");
+    }), "Approval policy saved.");
   };
 
   const toggleApproverRole = (role) => {
@@ -246,7 +246,7 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
               </div>
             ))}
           </div>
-          <p className="mt-2 text-xs text-slate-500">Approved requests are consumed by the Global expense write gate when a matching workspace policy is enabled. Invoice and India write gates are not included in this candidate.</p>
+          <p className="mt-2 text-xs text-slate-500">Approved requests are consumed by server-side Global expense and invoice write gates when a matching workspace policy is enabled. India approval gates remain outside this Global-only candidate.</p>
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white p-4">
@@ -283,7 +283,7 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
             </fieldset>
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input type="checkbox" checked={preventSelfApproval} onChange={(e) => setPreventSelfApproval(e.target.checked)} />
-              Prevent requesters from approving their own expense
+              Prevent requesters from approving their own action
             </label>
             <button className={buttonClass} disabled={busy || approvalRoles.length === 0 || !Number.isSafeInteger(Number(approvalMinimumAmount)) || Number(approvalMinimumAmount) < 0}>Save approval policy</button>
           </form>
