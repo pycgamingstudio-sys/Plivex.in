@@ -362,7 +362,8 @@ export function InvoicePreview({ invoice, design }) {
   return (
     <div className="p-2 sm:p-4">
       <ScaledPreview>
-      <div data-testid="invoice-preview" className="relative print-invoice w-[794px] overflow-hidden bg-white text-[#28263a] shadow-[0_18px_60px_rgba(34,31,62,0.12)]">\n        {invoice.documentStatus === "draft" && <div className="absolute right-6 top-5 z-10 rounded border-2 border-amber-600 px-3 py-1 text-[11px] font-black tracking-widest text-amber-700">DRAFT · NOT A TAX INVOICE</div>}
+      <div data-testid="invoice-preview" className="relative print-invoice w-[794px] overflow-hidden bg-white text-[#28263a] shadow-[0_18px_60px_rgba(34,31,62,0.12)]">
+        {invoice.documentStatus === "draft" && <div className="absolute right-6 top-5 z-10 rounded border-2 border-amber-600 px-3 py-1 text-[11px] font-black tracking-widest text-amber-700">DRAFT · NOT A TAX INVOICE</div>}
         <InvoiceDesign
           design={design}
           invoice={invoice}
@@ -790,9 +791,11 @@ export default function Home() {
         if (issuedInvoice) {
           notify(`UK VAT invoice ${issuedInvoice.invoice_number} issued and PDF downloaded. Payment-provider collection is not connected yet.`);
         } else {
-          const reason = workspaceTaxProfile?.countryCode === "GB"
-            ? "Server-side UK issuance is not activated yet."
-            : "Tax issuance for this country is not enabled yet.";
+          const reason = workspaceTaxProfile?.countryCode === "GB" && !globalTaxCalculation?.ok
+            ? "Tax details are incomplete, so this document remains a draft."
+            : workspaceTaxProfile?.countryCode === "GB"
+              ? "Server-side UK issuance is not activated yet."
+              : "Tax issuance for this country is not enabled yet.";
           notify(`Draft PDF downloaded. ${reason} This is not an issued tax invoice; payment-provider collection is not connected yet.`);
         }
         return;
