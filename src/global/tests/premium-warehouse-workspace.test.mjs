@@ -6,6 +6,7 @@ const globalApp = readFileSync(new URL("../GlobalApp.jsx", import.meta.url), "ut
 const warehousePanel = readFileSync(new URL("../../components/global/GlobalPart4Panel.jsx", import.meta.url), "utf8");
 const indiaWarehousePanel = readFileSync(new URL("../../components/dashboard/IndiaPart4Tab.jsx", import.meta.url), "utf8");
 const indiaDashboard = readFileSync(new URL("../../pages/Dashboard.jsx", import.meta.url), "utf8");
+const indiaDashboardCards = readFileSync(new URL("../../components/dashboard/DashboardTab.jsx", import.meta.url), "utf8");
 const navigation = globalApp.match(/const NAV = \[([\s\S]*?)\];/)?.[1] || "";
 
 test("inventory and warehouse are represented by one top-level workspace", () => {
@@ -58,7 +59,7 @@ test("movement history has search, type and date filters", () => {
 test("India warehouse uses the same compact in-page operations workspace", () => {
   assert.match(indiaWarehousePanel, /aria-label="Inventory workspace sections"/);
   assert.match(indiaWarehousePanel, /useState\("warehouses"\)/);
-  assert.match(indiaDashboard, /label: "Inventory & Warehouse"/);
+  assert.match(indiaDashboardCards, /title: "Inventory & Warehouse"/);
   assert.match(indiaWarehousePanel, /Stock & warehouses/);
   assert.match(indiaWarehousePanel, /Purchase orders/);
   assert.match(indiaWarehousePanel, /Movement history/);
