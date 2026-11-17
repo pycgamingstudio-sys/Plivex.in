@@ -181,23 +181,8 @@ jobs:
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c \
             "CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS trigger LANGUAGE plpgsql AS 'BEGIN RETURN NEW; END';"
-          echo "RESTORE AUTH SCHEMA"
-          docker exec -i -u postgres plivex-production-restore-test \
-            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
-            < backup/auth-schema.sql
-          echo "RESTORE AUTH DATA"
-          docker exec -i -u postgres plivex-production-restore-test \
-            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
-            < backup/auth-data.sql
-          echo "RESTORE STORAGE SCHEMA"
-          docker exec -i -u postgres plivex-production-restore-test \
-            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
-            < backup/storage-schema.sql
-          echo "RESTORE STORAGE DATA"
-          docker exec -i -u postgres plivex-production-restore-test \
-            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
-            < backup/storage-data.sql
-          echo "RESTORE PUBLIC/GLOBAL SCHEMA"
+          # Create public.app_role before Auth schema restore because the
+          # production Auth dump contains functions that reference this app type.
           # Restore app_role before any functions/tables that depend on it.
           # Parse the enum statement from the encrypted production schema dump
           # with Python so quoting/awk-regex differences cannot silently skip it.
@@ -246,6 +231,23 @@ jobs:
           docker exec -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c \
             "DO \\$verify\\$ BEGIN IF to_regtype('public.app_role') IS NULL THEN RAISE EXCEPTION 'public.app_role bootstrap failed'; END IF; END \\$verify\\$;"
+          echo "RESTORE AUTH SCHEMA"
+          docker exec -i -u postgres plivex-production-restore-test \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
+            < backup/auth-schema.sql
+          echo "RESTORE AUTH DATA"
+          docker exec -i -u postgres plivex-production-restore-test \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
+            < backup/auth-data.sql
+          echo "RESTORE STORAGE SCHEMA"
+          docker exec -i -u postgres plivex-production-restore-test \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
+            < backup/storage-schema.sql
+          echo "RESTORE STORAGE DATA"
+          docker exec -i -u postgres plivex-production-restore-test \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
+            < backup/storage-data.sql
+          echo "RESTORE PUBLIC/GLOBAL SCHEMA"
           echo "Restore public/global schema without duplicate app_role declaration"
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
