@@ -6,6 +6,7 @@ import { supabase } from "@/api/backendClient";
 import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
 import FeatureLibraryModal from "@/components/dashboard/FeatureLibraryModal";
 import GlobalInvoicesPanel from "@/components/global/GlobalInvoicesPanel";
+import GlobalQuotationsPanel from "@/components/global/GlobalQuotationsPanel";
 import GlobalAccountingPanel from "@/components/global/GlobalAccountingPanel";
 import GlobalEnterprisePanel from "@/components/global/GlobalEnterprisePanel";
 import GlobalPart4Panel from "@/components/global/GlobalPart4Panel";
@@ -19,6 +20,7 @@ const NAV = [
   { id: "crm", label: "CRM" },
   { id: "inventory", label: "Inventory & Warehouse" },
   { id: "invoices", label: "Invoices" },
+  { id: "quotations", label: "Quotations" },
   { id: "accounting", label: "Accounting" },
   { id: "enterprise", label: "Enterprise" },
 ];
@@ -31,6 +33,7 @@ const TAB_PATHS = {
   crm: "/crm",
   inventory: "/inventory-procurement",
   invoices: "/invoice-history",
+  quotations: "/quotations",
   accounting: "/accounting",
   enterprise: "/enterprise",
 };
@@ -77,14 +80,14 @@ export default function GlobalApp({ section = "overview" }) {
   }, [account?.workspace_id]);
 
   const loadRecords = useCallback(async (activeTab = tab) => {
-    if (!account?.workspace_id || ["crm", "inventory"].includes(activeTab)) return;
+    if (!account?.workspace_id || ["crm", "inventory", "quotations"].includes(activeTab)) return;
     const tables = activeTab === "overview" ? ["clients", "products", "expenses", "invoices", "stock_levels"] : [TABLES[activeTab]];
     const results = await Promise.all(tables.map(async (table) => [table, await invoke(table)]));
     setRecords((current) => ({ ...current, ...Object.fromEntries(results.map(([table, result]) => [table, result.records || []])) }));
   }, [account?.workspace_id, invoke, tab]);
 
   useEffect(() => {
-    if (!account?.workspace_id || tab === "accounting") return;
+    if (!account?.workspace_id || ["accounting", "quotations"].includes(tab)) return;
     loadRecords(tab).catch((loadError) => setError(loadError.message));
   }, [account?.workspace_id, tab, loadRecords]);
 
@@ -178,6 +181,8 @@ export default function GlobalApp({ section = "overview" }) {
           </>
         ) : tab === "invoices" ? (
           <GlobalInvoicesPanel account={account} invoke={invoke} onRefresh={loadRecords} />
+        ) : tab === "quotations" ? (
+          <GlobalQuotationsPanel account={account} />
         ) : tab === "accounting" ? (
           <GlobalAccountingPanel account={account} />
         ) : tab === "enterprise" ? (

@@ -26,9 +26,14 @@ test("freelancer and business can be selected independently or together", async 
   assert.match(source, /You can select one or both/);
   assert.match(features, /getSuggestedWorkspaceFeatures/);
   assert.match(features, /inventoryWorkspace/);
-  assert.match(features, /getSuggestedWorkspaceFeatures\(workTypes = \[\], countryCode = "IN"\)/);
-  assert.match(features, /countryCode === "IN" \? \["quotations"\] : \[\]/);
-  assert.match(features, /edition !== "global" \|\| item.id !== "quotations"/);
+  assert.match(features, /getSuggestedWorkspaceFeatures\(workTypes = \[\]\)/);
+  assert.match(features, /return WORKSPACE_FEATURE_CATALOG/);
+  assert.doesNotMatch(features, /id: "quotations"/);
+  const layout = await read("../../components/AppLayout.jsx");
+  const globalApp = await read("../../global/GlobalApp.jsx");
+  assert.match(layout, /if \(item\.to === "\/quotations"\) return true/);
+  assert.match(globalApp, /tab === "quotations"/);
+  assert.doesNotMatch(globalApp, /tab: "quotations", icon: FileText/);
 });
 
 test("Invoices, Stock and Team are permanent dashboard cards", async () => {

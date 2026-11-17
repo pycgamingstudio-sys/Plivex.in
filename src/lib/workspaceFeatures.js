@@ -3,7 +3,6 @@ import { supabase, APP_EDITION } from "@/api/backendClient";
 
 export const PERMANENT_DASHBOARD_FEATURES = Object.freeze(["invoices", "stock", "team"]);
 export const WORKSPACE_FEATURE_CATALOG = Object.freeze([
-  { id: "quotations", label: "Quotations", description: "Prepare estimates and convert approved quotes into invoices." },
   { id: "expenses", label: "Expenses", description: "Record business expenses and purchase costs." },
   { id: "crm", label: "Client CRM", description: "Keep client details and communication organized." },
   { id: "leads", label: "Lead Tracker", description: "Track prospects and follow-ups." },
@@ -11,10 +10,8 @@ export const WORKSPACE_FEATURE_CATALOG = Object.freeze([
   { id: "reports", label: "Reports", description: "Review business performance and operational reports." },
 ]);
 
-export function getAvailableWorkspaceFeatureCatalog(edition = APP_EDITION) {
-  // Quotations are currently implemented in India; Global must not offer a shortcut
-  // to a workflow that is not available in that edition yet.
-  return WORKSPACE_FEATURE_CATALOG.filter((item) => edition !== "global" || item.id !== "quotations");
+export function getAvailableWorkspaceFeatureCatalog() {
+  return WORKSPACE_FEATURE_CATALOG;
 }
 
 export function normalizeWorkspaceFeatures(value, edition = APP_EDITION) {
@@ -23,14 +20,13 @@ export function normalizeWorkspaceFeatures(value, edition = APP_EDITION) {
   return [...new Set(value.filter((id) => typeof id === "string" && allowed.has(id)))];
 }
 
-export function getSuggestedWorkspaceFeatures(workTypes = [], countryCode = "IN") {
+export function getSuggestedWorkspaceFeatures(workTypes = []) {
   const selected = new Set();
-  const regionalTools = countryCode === "IN" ? ["quotations"] : [];
   if (workTypes.includes("freelancer")) {
-    [...regionalTools, "expenses", "crm", "leads", "reports"].forEach((id) => selected.add(id));
+    ["expenses", "crm", "leads", "reports"].forEach((id) => selected.add(id));
   }
   if (workTypes.includes("business")) {
-    [...regionalTools, "expenses", "crm", "leads", "inventoryWorkspace", "reports"].forEach((id) => selected.add(id));
+    ["expenses", "crm", "leads", "inventoryWorkspace", "reports"].forEach((id) => selected.add(id));
   }
   return [...selected];
 }

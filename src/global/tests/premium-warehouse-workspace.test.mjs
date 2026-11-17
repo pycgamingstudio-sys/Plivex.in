@@ -22,7 +22,7 @@ test("the unified inventory entry opens the existing warehouse workflow adapter"
   assert.match(globalApp, /initialSection=\{tab === "crm" \? "crm" : "warehouses"\}/);
   assert.match(warehousePanel, /initialSection = "crm"/);
   assert.match(warehousePanel, /setSection\(initialSection\)/);
-  assert.match(globalApp, /\["crm", "inventory"\]\.includes\(activeTab\)/);
+  assert.match(globalApp, /\["crm", "inventory", "quotations"\]\.includes\(activeTab\)/);
 });
 
 test("warehouse operations use compact in-page tabs rather than destination cards", () => {
