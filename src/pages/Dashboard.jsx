@@ -23,6 +23,7 @@ import PresenceBeacon from "@/components/PresenceBeacon";
 import { processDueReminders } from "@/lib/reminders";
 import { APP_EDITION } from "@/api/backendClient";
 import { getCountryByCode } from "@/global/countries/country-registry.js";
+import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -44,6 +45,7 @@ export default function Dashboard({ initialTab }) {
   const navigate = useNavigate();
   const { isPremium, openPaywall, planName, plan, planLoading, canAccess } = usePaywall();
   const { user } = useAuth();
+  const { features: workspaceFeatures } = useWorkspaceFeatures(user?.id);
   const { role, isAccountant } = useRole();
   useEffect(() => {
     seedDashboard();
@@ -55,7 +57,14 @@ export default function Dashboard({ initialTab }) {
   const go = (t, i = null) => { setTab(t); setIntent(i); window.scrollTo({ top: 0 }); };
   const createInvoice = () => navigate("/invoice-builder", { state: { newInvoice: true } });
   const consume = () => setIntent(null);
-  const visibleTabs = TABS.filter((t) => canAccessTab(role, t.id));
+  const visibleTabs = TABS.filter((t) => {
+    if (!canAccessTab(role, t.id)) return false;
+    if (t.id === "warehouses") return workspaceFeatures.includes("inventoryWorkspace");
+    if (t.id === "purchase" || t.id === "reconciliation") return workspaceFeatures.includes("expenses");
+    if (t.id === "reports") return workspaceFeatures.includes("reports");
+    if (t.id === "crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
+    return true;
+  });
   const active = visibleTabs.find((t) => t.id === tab) || visibleTabs[0] || TABS[0];
   const hasGstrAccess = APP_EDITION === "global" || ["basic", "pro"].includes(String(plan || "").toLowerCase());
   const pages = navItems.filter((i) => i.to !== "/" && !["/crm", "/inventory-procurement"].includes(i.to) && (!HIDDEN_FROM_SIDEBAR.includes(i.to) || i.to === "/tax-summary") && (!i.roles || i.roles.includes(role)));
