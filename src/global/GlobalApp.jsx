@@ -91,10 +91,10 @@ export default function GlobalApp() {
           variant_label: form.variantLabel?.trim() || null,
           purchase_cost_minor: Math.round(Number(form.purchaseCost || 0) * (10 ** digits)),
           sale_price_minor: Math.round(Number(form.salePrice || 0) * (10 ** digits)),
-          currency_code: account?.currency_code || country.currency,
+          currency_code: account?.currency_code || "USD",
         };
       } else if (tab === "expenses") {
-        const currency = account?.currency_code || country.currency;
+        const currency = account?.currency_code || "USD";
         values = {
           category: form.category?.trim(),
           vendor: form.vendor?.trim() || null,
