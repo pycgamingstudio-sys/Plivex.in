@@ -7,7 +7,7 @@ import { usePaywall } from "@/lib/paywall";
 import { useAuth } from "@/lib/AuthContext";
 import { APP_EDITION } from "@/api/backendClient";
 import { getCountryByCode } from "@/global/countries/country-registry.js";
-import { LayoutDashboard, Users, Package, Receipt, Handshake, Warehouse, Calculator, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Users, Package, Receipt, FileText, Handshake, Warehouse, Calculator, ShieldCheck } from "lucide-react";
 
 const GLOBAL_NAV = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
