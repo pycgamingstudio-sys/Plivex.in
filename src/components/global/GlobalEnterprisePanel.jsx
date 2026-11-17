@@ -79,7 +79,6 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
     setApprovalPolicyEnabled(policy?.enabled ?? false);
     setApprovalMinimumAmount(String(policy?.minimum_amount_minor ?? 0));
     setApprovalRoles(policy?.approver_roles || ["owner", "admin", "accountant"]);
-    setPreventSelfApproval(policy?.prevent_self_approval ?? true);
   }, [approvalPolicies, approvalPolicyAction]);
 
   const perform = async (work, successMessage) => {
