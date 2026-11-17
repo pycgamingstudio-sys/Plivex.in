@@ -754,7 +754,7 @@ export default function Home() {
         if (workspaceTaxProfile?.countryCode === "GB") {
           let capabilities = null;
           try {
-            capabilities = await backend.functions.invoke("globalInvoices", { action:"capabilities" });
+            capabilities = await backend.functions.invoke("globalInvoices", { action:"capabilities", workspace_id:user?.workspace_id });
           } catch {
             // A missing migration or undeployed Edge Function keeps this invoice draft-only.
           }
@@ -799,11 +799,19 @@ export default function Home() {
           }
           if (capabilities?.data?.commercial_issuance_ready === true
             && capabilities.data.commercial_issuance_countries?.includes(workspaceTaxProfile?.countryCode)) {
+            const commercialIssueKey = invoice.globalIssueInvoiceId === saved.id && /^[0-9a-f-]{36}$/i.test(invoice.globalIssueRequestId || "")
+              ? invoice.globalIssueRequestId
+              : crypto.randomUUID();
+            setInvoice((current) => ({
+              ...current,
+              globalIssueInvoiceId:saved.id,
+              globalIssueRequestId:commercialIssueKey,
+            }));
             const commercialResponse = await backend.functions.invoke("globalInvoices", {
               action:"issue_commercial",
               workspace_id:user?.workspace_id,
               invoice_id:saved.id,
-              idempotency_key:crypto.randomUUID(),
+              idempotency_key:commercialIssueKey,
             });
             if (!commercialResponse?.data?.ok || !commercialResponse?.data?.invoice?.invoice_number) {
               throw new Error(commercialResponse?.data?.error || "Commercial invoice issuance failed. Your saved draft remains available.");
