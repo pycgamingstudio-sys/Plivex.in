@@ -7,6 +7,9 @@ import OwnerTrackingWidgets from "@/components/dashboard/OwnerTrackingWidgets";
 import PlanStatusCard from "@/components/PlanStatusCard";
 import { usePaywall } from "@/lib/paywall";
 import { supabase } from "@/api/backendClient";
+import { useAuth } from "@/lib/AuthContext";
+import { PERMANENT_DASHBOARD_FEATURES, useWorkspaceFeatures } from "@/lib/workspaceFeatures";
+import FeatureLibraryModal from "@/components/dashboard/FeatureLibraryModal";
 
 const CARD_KEY = "invoicepulse:cardVisibility";
 const DEFAULT_VIS = { invoices: true, quotations: true, expenses: true, crm: true, leads: true, stock: true, team: true, inventoryWorkspace: true };
@@ -22,6 +25,9 @@ const ROLE_CARD_ACCESS = {
 
 export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUnlocked }) {
   const isAdmin = role === "admin";
+  const { user } = useAuth();
+  const { features, updateFeatures, saving: savingFeatures, error: featureError } = useWorkspaceFeatures(user?.id);
+  const [featureOpen, setFeatureOpen] = useState(false);
   const { limits, usage } = usePaywall();
   const [profile] = useLocalState(KEYS.businessProfile, { name: "", address: "", gstin: "", email: "", phone: "", logo: "" });
   const [vis, setVis] = useLocalState(CARD_KEY, DEFAULT_VIS);
@@ -108,7 +114,7 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
   ];
 
   const roleCards = ROLE_CARD_ACCESS[role] || ROLE_CARD_ACCESS.employee;
-  const visibleCards = isAdmin ? cards : cards.filter((c) => roleCards.includes(c.id) && vis[c.id] !== false);
+  const visibleCards = cards.filter((card) => roleCards.includes(card.id) && (PERMANENT_DASHBOARD_FEATURES.includes(card.id) || (features.includes(card.id) && vis[card.id] !== false)));
 
   return (
     <div className="plivex-dashboard-tab space-y-5 sm:space-y-6">
@@ -186,6 +192,12 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
             </div>
           </div>
         ))}
+        <button type="button" onClick={() => setFeatureOpen(true)} className="group flex min-h-[270px] flex-col items-center justify-center rounded-2xl border border-dashed border-violet-300 bg-gradient-to-br from-white to-violet-50/80 p-6 text-center shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-500 hover:shadow-lg">
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 shadow-sm transition-transform group-hover:scale-105"><Settings2 className="h-7 w-7" /></span>
+          <span className="mt-4 text-base font-bold text-slate-900">More Features</span>
+          <span className="mt-1 max-w-[230px] text-xs leading-5 text-slate-500">Explore Plivex tools and add the ones that fit the way you work.</span>
+          <span className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#6D28D9] px-4 py-2 text-xs font-bold text-white">Customize workspace <ArrowRight className="h-3.5 w-3.5" /></span>
+        </button>
       </div>
 
       <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
@@ -198,6 +210,7 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
       </div>
 
       {visOpen && <VisibilityModal cards={cards} vis={vis} setVis={setVis} onClose={() => setVisOpen(false)} />}
+      {featureOpen && <FeatureLibraryModal features={features} updateFeatures={updateFeatures} saving={savingFeatures} error={featureError} onClose={() => setFeatureOpen(false)} />}
     </div>
   );
 }
