@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { Users, Package, Receipt, FileText, Boxes, Handshake, Warehouse, Calculator, ShieldCheck } from "lucide-react";
 import { supabase } from "@/api/backendClient";
@@ -21,6 +21,17 @@ const NAV = [
   { id: "enterprise", label: "Enterprise" },
 ];
 const TABLES = { clients: "clients", products: "products", expenses: "expenses", inventory: "stock_levels", invoices: "invoices" };
+const TAB_PATHS = {
+  overview: "/dashboard",
+  clients: "/client-database",
+  products: "/products",
+  expenses: "/expenses",
+  crm: "/crm",
+  inventory: "/inventory-procurement",
+  invoices: "/invoice-history",
+  accounting: "/accounting",
+  enterprise: "/enterprise",
+};
 const localDate = () => {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -41,13 +52,12 @@ const errorMessage = async (error, fallback) => {
   return error?.message || fallback;
 };
 
-export default function GlobalApp() {
+export default function GlobalApp({ section = "overview" }) {
   const { user: account } = useAuth();
   const [busy, setBusy] = useState(false);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const requestedTab = searchParams.get("tab");
-  const tab = NAV.some((item) => item.id === requestedTab) ? requestedTab : "overview";
-  const setTab = useCallback((nextTab) => setSearchParams({ tab: nextTab }), [setSearchParams]);
+  const navigate = useNavigate();
+  const tab = NAV.some((item) => item.id === section) ? section : "overview";
+  const setTab = useCallback((nextTab) => navigate(TAB_PATHS[nextTab] || TAB_PATHS.overview), [navigate]);
   const [records, setRecords] = useState({});
   const [form, setForm] = useState({});
   const [notice, setNotice] = useState("");

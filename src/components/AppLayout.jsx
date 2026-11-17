@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useSearchParams } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
 import PresenceBeacon from "@/components/PresenceBeacon";
 import Logo from "@/components/Logo";
 import { navItems, HIDDEN_FROM_SIDEBAR } from "@/lib/nav";
@@ -10,24 +10,22 @@ import { getCountryByCode } from "@/global/countries/country-registry.js";
 import { LayoutDashboard, Users, Package, Receipt, FileText, Handshake, Warehouse, Calculator, ShieldCheck } from "lucide-react";
 
 const GLOBAL_NAV = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "clients", label: "Clients", icon: Users },
-  { id: "products", label: "Products", icon: Package },
-  { id: "expenses", label: "Expenses", icon: Receipt },
-  { id: "crm", label: "CRM & Leads", icon: Handshake },
-  { id: "inventory", label: "Inventory & Warehouse", icon: Warehouse },
-  { id: "invoices", label: "Invoices", icon: FileText },
-  { id: "accounting", label: "Accounting", icon: Calculator },
-  { id: "enterprise", label: "Enterprise", icon: ShieldCheck },
+  { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
+  { to: "/client-database", label: "Clients", icon: Users },
+  { to: "/products", label: "Products", icon: Package },
+  { to: "/expenses", label: "Expenses", icon: Receipt },
+  { to: "/crm", label: "CRM & Leads", icon: Handshake },
+  { to: "/inventory-procurement", label: "Inventory & Warehouse", icon: Warehouse },
+  { to: "/invoice-history", label: "Invoices", icon: FileText },
+  { to: "/accounting", label: "Accounting", icon: Calculator },
+  { to: "/enterprise", label: "Enterprise", icon: ShieldCheck },
 ];
 
 export default function AppLayout({ children }) {
   const { role } = useRole();
   const { user, logout } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
   const { canAccess, openPaywall } = usePaywall();
   const isGlobal = APP_EDITION === "global";
-  const globalTab = GLOBAL_NAV.some((item) => item.id === searchParams.get("tab")) ? searchParams.get("tab") : "overview";
   const items = navItems.filter((i) => i.to !== "/" && !HIDDEN_FROM_SIDEBAR.includes(i.to) && (!i.roles || i.roles.includes(role)));
   return (
     <div className="min-h-screen bg-background">
@@ -58,9 +56,9 @@ export default function AppLayout({ children }) {
         </div>
         <nav className="mx-auto flex max-w-6xl snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain px-4 pb-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Workspace">
           {isGlobal ? GLOBAL_NAV.map((item) => (
-            <button key={item.id} type="button" onClick={() => setSearchParams({ tab: item.id })} aria-current={globalTab === item.id ? "page" : undefined} className={`flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold transition-colors ${globalTab === item.id ? "bg-primary text-primary-foreground" : "border bg-card text-muted-foreground hover:text-foreground"}`}>
+            <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold transition-colors ${isActive ? "bg-primary text-primary-foreground" : "border bg-card text-muted-foreground hover:text-foreground"}`}>
               <item.icon className="h-3.5 w-3.5" />{item.label}
-            </button>
+            </NavLink>
           )) : items.map((item) => {
             const locked = item.pro && !canAccess("team_management");
             if (locked) {

@@ -85,15 +85,10 @@ const AuthenticatedApp = () => {
   if (isUnifiedBuild && isAuthenticated && user && !user.workspace_id && !getPendingInviteCode()) return <UnifiedWorkspaceOnboarding />;
   if (APP_EDITION === "global" && isAuthenticated && user && !user.workspace_id && !getPendingInviteCode()) return <GlobalCountryOnboarding />;
 
-  // Keep country-aware pricing reachable for signed-in Global workspaces on the same origin.
-  if (APP_EDITION === "global" && isAuthenticated && window.location.pathname === "/pricing") {
-    return <Routes><Route path="/pricing" element={<PricingPage />} /></Routes>;
-  }
+  // Both editions resolve core business destinations through this shared React Router tree.
+  const isGlobalWorkspace = APP_EDITION === "global";
 
-  // Both editions use the same Plivex application shell; only workspace data and capabilities vary by country.
-  if (APP_EDITION === "global" && isAuthenticated) return <AppLayout><GlobalApp /></AppLayout>;
-
-  // Render the main app
+  // Render the shared application routes
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -110,26 +105,30 @@ const AuthenticatedApp = () => {
       <Route path="/features" element={<FeaturesPage />} />
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/i/:token" element={<PublicInvoicePage />} />
-      <Route path="/" element={<HomeGate />} />
-      <Route path="/dashboard" element={<HomeGate />} />
+      <Route path="/" element={isGlobalWorkspace && isAuthenticated ? <Navigate to="/dashboard" replace /> : <HomeGate />} />
+      <Route path="/dashboard" element={isGlobalWorkspace && isAuthenticated ? <AppLayout><GlobalApp section="overview" /></AppLayout> : <HomeGate />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/" replace />} />}>
         <Route element={<TrialGate />}>
           <Route element={<RoleGuard />}>
-            <Route path="/invoice-builder" element={<Home />} />
+            <Route path="/invoice-builder" element={isGlobalWorkspace ? <AppLayout><GlobalApp section="invoices" /></AppLayout> : <Home />} />
         <Route element={<AppLayout />}>
-          <Route path="/invoice-history" element={<InvoiceHistory />} />
+          <Route path="/products" element={isGlobalWorkspace ? <GlobalApp section="products" /> : <PageNotFound />} />
+          <Route path="/expenses" element={isGlobalWorkspace ? <GlobalApp section="expenses" /> : <PageNotFound />} />
+          <Route path="/accounting" element={isGlobalWorkspace ? <GlobalApp section="accounting" /> : <PageNotFound />} />
+          <Route path="/enterprise" element={isGlobalWorkspace ? <GlobalApp section="enterprise" /> : <PageNotFound />} />
+          <Route path="/invoice-history" element={isGlobalWorkspace ? <GlobalApp section="invoices" /> : <InvoiceHistory />} />
           <Route path="/invoice-shares" element={<GlobalFeatureGate feature="Shared invoice links"><InvoiceShareManagement /></GlobalFeatureGate>} />
           <Route path="/business-profile" element={<BusinessProfile />} />
-          <Route path="/client-database" element={<ClientDatabase />} />
-          <Route path="/crm" element={<CrmTab />} />
-          <Route path="/inventory-procurement" element={<IndiaPart4Tab user={user} />} />
-          <Route path="/usage-reports" element={<GlobalFeatureGate feature="Usage reports"><UsageReports /></GlobalFeatureGate>} />
+          <Route path="/client-database" element={isGlobalWorkspace ? <GlobalApp section="clients" /> : <ClientDatabase />} />
+          <Route path="/crm" element={isGlobalWorkspace ? <GlobalApp section="crm" /> : <CrmTab />} />
+          <Route path="/inventory-procurement" element={isGlobalWorkspace ? <GlobalApp section="inventory" /> : <IndiaPart4Tab user={user} />} />
+          <Route path="/usage-reports" element={isGlobalWorkspace ? <GlobalApp section="accounting" /> : <UsageReports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/templates" element={<GlobalFeatureGate feature="Quick templates"><QuickTemplates /></GlobalFeatureGate>} />
           <Route path="/payment-logs" element={<GlobalFeatureGate feature="Payment logs"><PaymentLogs /></GlobalFeatureGate>} />
-          <Route path="/tax-summary" element={<TaxSummary />} />
+          <Route path="/tax-summary" element={<GlobalFeatureGate feature="Tax summary"><TaxSummary /></GlobalFeatureGate>} />
           <Route path="/help-center" element={<HelpCenter />} />
-          <Route path="/account-activity" element={<AccountActivity />} />
+          <Route path="/account-activity" element={<GlobalFeatureGate feature="Account activity"><AccountActivity /></GlobalFeatureGate>} />
           <Route path="/service-catalog" element={<GlobalFeatureGate feature="Service catalog"><ServiceCatalog /></GlobalFeatureGate>} />
           <Route path="/team-management" element={<GlobalFeatureGate feature="Team management"><ProTeamRoute /></GlobalFeatureGate>} />
             </Route>

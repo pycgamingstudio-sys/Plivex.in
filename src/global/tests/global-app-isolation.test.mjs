@@ -16,17 +16,18 @@ const [app, auth, backend, onboarding, worker, vite, layout, globalApp] = await 
 
 test("India and Global use the same origin, authentication provider and responsive workspace shell", () => {
   assert.match(app, /lazy\(\(\) => import\("@\/global\/GlobalApp"\)\)/);
-  assert.match(app, /APP_EDITION === "global" && isAuthenticated/);
-  assert.match(app, /return <AppLayout><GlobalApp \/><\/AppLayout>/);
+  assert.match(app, /const isGlobalWorkspace = APP_EDITION === "global"/);
+  assert.match(app, /<Route path="\\/dashboard" element=\\{isGlobalWorkspace && isAuthenticated \\? <AppLayout><GlobalApp section="overview" \/><\\/AppLayout> : <HomeGate \/>\\}/);
+  assert.match(app, /<Route path="\\/invoice-history" element=\\{isGlobalWorkspace \\? <GlobalApp section="invoices" \/> : <InvoiceHistory \/>\\}/);
   assert.match(app, /isUnifiedBuild/);
   assert.doesNotMatch(app, /window\.location\.hostname/);
   assert.match(app, /<AuthProvider>/);
   assert.match(app, /element={<AppLayout \/>}/);
   assert.match(layout, /Global Workspace/);
   assert.match(layout, /GLOBAL_NAV/);
-  assert.match(globalApp, /useSearchParams/);
-  assert.doesNotMatch(globalApp, /<header className="border-b border-slate-200 bg-white">/);
-  assert.doesNotMatch(globalApp, /<nav className="flex flex-wrap gap-2">/);
+  assert.match(layout, /<NavLink key=\\{item.to\\} to=\\{item.to\\}/);
+  assert.doesNotMatch(layout, /useSearchParams|setSearchParams/);
+  assert.doesNotMatch(globalApp, /useSearchParams|setSearchParams/);
 });
 
 test("shared authentication resolves Global workspace membership without reading India profiles for Global", () => {
