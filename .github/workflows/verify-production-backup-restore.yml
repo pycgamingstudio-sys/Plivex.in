@@ -227,10 +227,8 @@ jobs:
             psql -X -a -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < /tmp/plivex-app-role.sql
           echo "app_role immediately after bootstrap: $(docker exec -u postgres plivex-production-restore-test psql -X -U supabase_admin -d postgres -Atqc "SELECT COALESCE(to_regtype('public.app_role')::text, 'NULL')")"
-          echo "Confirm app_role exists before public/global schema replay"
-          docker exec -u postgres plivex-production-restore-test \
-            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c \
-            "DO \\$verify\\$ BEGIN IF to_regtype('public.app_role') IS NULL THEN RAISE EXCEPTION 'public.app_role bootstrap failed'; END IF; END \\$verify\\$;"
+          echo "Confirm app_role exists before Auth schema replay"
+          test "$(docker exec -u postgres plivex-production-restore-test psql -X -U supabase_admin -d postgres -Atqc "SELECT COALESCE(to_regtype('public.app_role')::text, 'NULL')")" = "app_role"
           echo "RESTORE AUTH SCHEMA"
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
@@ -254,9 +252,7 @@ jobs:
             < /tmp/plivex-schema-without-app-role.sql
           echo "app_role after schema replay: $(docker exec -u postgres plivex-production-restore-test psql -X -U supabase_admin -d postgres -Atqc "SELECT COALESCE(to_regtype('public.app_role')::text, 'NULL')")"
           echo "Confirm app_role remains after public/global schema replay"
-          docker exec -u postgres plivex-production-restore-test \
-            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c \
-            "DO \\$verify\\$ BEGIN IF to_regtype('public.app_role') IS NULL THEN RAISE EXCEPTION 'public.app_role disappeared during schema restore'; END IF; END \\$verify\\$;"
+          test "$(docker exec -u postgres plivex-production-restore-test psql -X -U supabase_admin -d postgres -Atqc "SELECT COALESCE(to_regtype('public.app_role')::text, 'NULL')")" = "app_role"
           echo "RESTORE APPLICATION DATA"
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
