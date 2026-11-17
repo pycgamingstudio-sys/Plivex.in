@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Users, Package, Receipt, FileText, Boxes, Handshake, Warehouse, ArrowLeftRight, ClipboardList, History, Calculator, ShieldCheck, ShoppingBasket } from "lucide-react";
 import { supabase } from "@/api/backendClient";
 import GlobalCountryOnboarding from "@/components/global/GlobalCountryOnboarding";
@@ -61,7 +62,10 @@ export default function GlobalApp() {
   const [countryCode, setCountryCode] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [tab, setTab] = useState("overview");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const tab = NAV.some((item) => item.id === requestedTab) ? requestedTab : "overview";
+  const setTab = useCallback((nextTab) => setSearchParams({ tab: nextTab }), [setSearchParams]);
   const [records, setRecords] = useState({});
   const [form, setForm] = useState({});
   const [notice, setNotice] = useState("");
@@ -185,11 +189,6 @@ export default function GlobalApp() {
     finally { setBusy(false); }
   };
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    setSession(null); setAccount(null); setRecords({});
-  };
-
   if (loading) return <div className="min-h-screen grid place-items-center bg-[#F8F7FC] text-slate-600">Loading Plivex…</div>;
 
   if (session && account && !account.workspace_id) return <GlobalCountryOnboarding />;
@@ -254,17 +253,9 @@ export default function GlobalApp() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#F8F7FC] text-slate-900">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
-          <div><div className="text-xl font-black text-violet-700">Plivex</div><div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500"><span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 font-semibold text-violet-800">Global Workspace</span><span>{account.workspace_name} · {account.country_code} · {currency}</span></div></div>
-          <div className="flex items-center gap-3"><a href="/pricing" className="rounded-lg border border-violet-200 px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50"><span className="sm:hidden">Plans</span><span className="hidden sm:inline">Plans & pricing</span></a><span className="hidden text-sm text-slate-500 sm:block">{account.email}</span><button onClick={signOut} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">Sign out</button></div>
-        </div>
-      </header>
-      <div className="mx-auto max-w-6xl px-4 py-6">
-        <nav className="flex flex-wrap gap-2">
-          {NAV.map((item) => <button key={item.id} onClick={() => { setTab(item.id); setError(""); setNotice(""); setForm({}); }} className={`rounded-lg px-4 py-2 text-sm font-semibold ${tab === item.id ? "bg-violet-700 text-white" : "border border-slate-200 bg-white text-slate-600"}`}>{item.label}</button>)}
-        </nav>
+    <div className="w-full text-slate-900">
+      <div className="w-full">
+      <div className="w-full">
         {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         {notice && <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
         {tab === "overview" ? (
@@ -313,6 +304,6 @@ export default function GlobalApp() {
           </section>
         )}
       </div>
-    </main>
+    </div>
   );
 }
