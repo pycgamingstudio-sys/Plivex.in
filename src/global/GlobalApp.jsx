@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Users, Package, Receipt, FileText, Boxes, Handshake, Warehouse, ArrowLeftRight, ClipboardList, History, Calculator, ShieldCheck } from "lucide-react";
 import { supabase } from "@/api/backendClient";
 import GlobalCountryOnboarding from "@/components/global/GlobalCountryOnboarding";
 import GlobalInvoicesPanel from "@/components/global/GlobalInvoicesPanel";
@@ -234,6 +235,24 @@ export default function GlobalApp() {
   const currentRecords = records[currentTable] || [];
   const counts = { clients: records.clients?.length || 0, products: records.products?.length || 0, expenses: records.expenses?.length || 0, invoices: records.invoices?.length || 0, stock: records.stock_levels?.length || 0 };
 
+  const metricCards = [
+    { label: "Clients", value: counts.clients, tab: "clients", icon: Users, tone: "bg-blue-50 text-blue-700" },
+    { label: "Products", value: counts.products, tab: "products", icon: Package, tone: "bg-violet-50 text-violet-700" },
+    { label: "Expenses", value: counts.expenses, tab: "expenses", icon: Receipt, tone: "bg-emerald-50 text-emerald-700" },
+    { label: "Invoices", value: counts.invoices, tab: "invoices", icon: FileText, tone: "bg-amber-50 text-amber-700" },
+    { label: "Stock items", value: counts.stock, tab: "inventory", icon: Boxes, tone: "bg-rose-50 text-rose-700" },
+  ];
+  const actionCards = [
+    { title: "CRM & Leads", description: "Manage prospects, follow-ups and customer relationships.", tab: "crm", icon: Handshake, tone: "from-fuchsia-50 to-pink-50" },
+    { title: "Inventory & Procurement", description: "Connect products, purchase orders and incoming goods.", tab: "purchasing", icon: Boxes, tone: "from-indigo-50 to-blue-50" },
+    { title: "Warehouses", description: "Manage locations and workspace stock levels.", tab: "warehouses", icon: Warehouse, tone: "from-teal-50 to-cyan-50" },
+    { title: "Stock Transfers", description: "Move products between active warehouse locations.", tab: "transfers", icon: ArrowLeftRight, tone: "from-sky-50 to-blue-50" },
+    { title: "Purchase Orders & Goods Receipts", description: "Create supplier orders and receive goods into stock.", tab: "purchasing", icon: ClipboardList, tone: "from-emerald-50 to-green-50" },
+    { title: "Stock Movement History", description: "Review recorded receipts, transfers and adjustments.", tab: "movements", icon: History, tone: "from-amber-50 to-orange-50" },
+    { title: "Accounting & Reports", description: "Open ledgers and financial statements for this workspace.", tab: "accounting", icon: Calculator, tone: "from-violet-50 to-purple-50" },
+    { title: "Enterprise & Audit", description: "Review roles, audit history, exports and workspace controls.", tab: "enterprise", icon: ShieldCheck, tone: "from-slate-100 to-slate-50" },
+  ];
+
   return (
     <main className="min-h-screen bg-[#F8F7FC] text-slate-900">
       <header className="border-b border-slate-200 bg-white">
@@ -251,10 +270,13 @@ export default function GlobalApp() {
         {tab === "overview" ? (
           <>
             <div className="mt-6"><h1 className="text-2xl font-bold">Business overview</h1><p className="mt-1 text-sm text-slate-500">Your Global workspace data, kept separate from India edition records.</p></div>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              {[["Clients", counts.clients], ["Products", counts.products], ["Expenses", counts.expenses], ["Invoices", counts.invoices], ["Stock items", counts.stock]].map(([label, value]) => <div key={label} className="rounded-xl border border-slate-200 bg-white p-5"><div className="text-sm text-slate-500">{label}</div><div className="mt-2 text-3xl font-bold">{value}</div></div>)}
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              {metricCards.map((item) => <button key={item.tab} onClick={() => setTab(item.tab)} className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${item.tone}`}><item.icon className="h-5 w-5" /></span><span className="mt-3 block text-sm font-semibold text-slate-500">{item.label}</span><span className="mt-1 block text-3xl font-bold tracking-tight text-slate-900">{item.value}</span><span className="mt-2 block text-xs font-semibold text-violet-700">Open section →</span></button>)}
             </div>
-            <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">Manage leads, warehouses, purchase orders, goods receipts and stock movement history from the new operations sections.</div>
+            <div className="mt-8 flex items-end justify-between gap-3"><div><h2 className="text-xl font-bold">Business workspace</h2><p className="mt-1 text-sm text-slate-500">Quick access to the tools that run your operations.</p></div><span className="hidden rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700 sm:inline">8 work areas</span></div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {actionCards.map((item) => <button key={item.title} onClick={() => setTab(item.tab)} className="group flex min-h-44 flex-col rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md"><span className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${item.tone} text-violet-700`}><item.icon className="h-5 w-5" /></span><span className="mt-4 text-sm font-bold text-slate-900">{item.title}</span><span className="mt-1 flex-1 text-xs leading-relaxed text-slate-500">{item.description}</span><span className="mt-3 text-xs font-semibold text-violet-700">Open workspace →</span></button>)}
+            </div>
           </>
         ) : tab === "invoices" ? (
           <GlobalInvoicesPanel account={account} invoke={invoke} onRefresh={loadRecords} />
@@ -263,7 +285,7 @@ export default function GlobalApp() {
         ) : tab === "enterprise" ? (
           <GlobalEnterprisePanel workspaceId={account.workspace_id} />
         ) : ["crm", "warehouses", "transfers", "purchasing", "movements"].includes(tab) ? (
-          <GlobalPart4Panel account={account} />
+          <GlobalPart4Panel account={account} initialSection={tab} />
         ) : (
           <section className="mt-6">
             <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold">{NAV.find((item) => item.id === tab)?.label}</h1><p className="mt-1 text-sm text-slate-500">{tab === "inventory" || tab === "invoices" ? "Read-only until audited transaction workflows are enabled." : "Records are scoped to your active Global workspace."}</p></div><button onClick={() => loadRecords(tab).catch((loadError) => setError(loadError.message))} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Refresh</button></div>
