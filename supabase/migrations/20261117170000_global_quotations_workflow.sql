@@ -16,6 +16,7 @@ create table if not exists global.quotations (
   notes text,
   converted_invoice_id uuid,
   creation_idempotency_key uuid,
+  creation_fingerprint text,
   created_by uuid not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -87,6 +88,7 @@ declare
   v_invoice_id uuid;
   v_conversion_key uuid;
   v_number text;
+  v_fingerprint text;
 begin
   if p_user_id is null or p_workspace_id is null then
     return jsonb_build_object('ok',false,'reason','invalid_identity');
@@ -94,7 +96,7 @@ begin
   select role into v_role from global.workspace_members
   where workspace_id=p_workspace_id and user_id=p_user_id and status='active' limit 1;
   if v_role is null then return jsonb_build_object('ok',false,'reason','access_denied'); end if;
-  if p_action not in ('list','create','status','convert') then
+  if p_action is null or p_action not in ('list','create','status','convert') then
     return jsonb_build_object('ok',false,'reason','unsupported_action');
   end if;
 
@@ -125,9 +127,9 @@ begin
     if p_client_id is not null and not exists(select 1 from global.clients where id=p_client_id and workspace_id=p_workspace_id and status='active') then
       return jsonb_build_object('ok',false,'reason','client_not_found');
     end if;
-    perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text||':quotation:'||p_idempotency_key::text,0));
+    v_fingerprint:=md5(jsonb_build_object('client_id',p_client_id,'currency_code',v_currency,'issue_date',p_issue_date,'valid_until',p_valid_until,'notes',p_notes,'items',p_items)::text);\n    perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text||':quotation:'||p_idempotency_key::text,0));
     select * into v_quote from global.quotations where workspace_id=p_workspace_id and creation_idempotency_key=p_idempotency_key for update;
-    if found then return jsonb_build_object('ok',true,'duplicate',true,'quotation',to_jsonb(v_quote)); end if;
+    if found then\n      if v_quote.creation_fingerprint is distinct from v_fingerprint then return jsonb_build_object('ok',false,'reason','idempotency_conflict'); end if;\n      return jsonb_build_object('ok',true,'duplicate',true,'quotation',to_jsonb(v_quote));\n    end if;
 
     for v_item in select value from jsonb_array_elements(p_items) loop
       v_index:=v_index+1;
@@ -138,7 +140,7 @@ begin
         v_discount:=coalesce(nullif(v_item->>'discount_minor','')::bigint,0);
       exception when others then return jsonb_build_object('ok',false,'reason','invalid_item_values','item_index',v_index); end;
       if length(v_description)<1 or length(v_description)>500 or v_quantity<=0 or v_quantity>1000000
-        or v_quantity*10000<>trunc(v_quantity*10000) or v_unit_price<0 or v_unit_price>9000000000000000 then
+        or v_quantity*10000<>trunc(v_quantity*10000) or v_quantity is null or v_unit_price is null or v_discount is null or v_unit_price<0 or v_unit_price>9000000000000000 then
         return jsonb_build_object('ok',false,'reason','invalid_item_values','item_index',v_index);
       end if;
       v_line:=round(v_quantity*v_unit_price)::bigint;
@@ -172,7 +174,7 @@ begin
   if p_action='status' then
     if v_role not in ('owner','admin','manager') then return jsonb_build_object('ok',false,'reason','forbidden'); end if;
     if v_quote.status in ('converted','rejected','expired') then return jsonb_build_object('ok',false,'reason','quotation_closed'); end if;
-    if p_status not in ('sent','accepted','rejected','expired') then return jsonb_build_object('ok',false,'reason','invalid_status'); end if;
+    if p_status is null or p_status not in ('sent','accepted','rejected','expired') then return jsonb_build_object('ok',false,'reason','invalid_status'); end if;
     if (p_status='sent' and v_quote.status<>'draft') or (p_status='accepted' and v_quote.status not in ('sent','draft')) then
       return jsonb_build_object('ok',false,'reason','invalid_transition');
     end if;
