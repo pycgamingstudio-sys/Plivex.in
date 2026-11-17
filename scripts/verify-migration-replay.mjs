@@ -13,9 +13,9 @@ const normalized = pairs.filter((x) => x.normalized_sql_match === true);
 const localOnly = manifest.local_only_files || [];
 
 if (manifest.remote_ledger_entries !== 52 || history.length !== 39 || missing.length !== 35
-  || manifest.local_migration_files !== 53 || pairs.length !== 17
-  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 36) {
-  fail("Migration reconciliation counts differ from the reviewed archive with 52 remote entries, 39 historical sources and 22 local-only migrations");
+  || manifest.local_migration_files !== 54 || pairs.length !== 17
+  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 37) {
+  fail("Migration reconciliation counts differ from the reviewed archive with 52 remote entries, 39 historical sources and 37 local-only migrations");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
 
@@ -44,8 +44,8 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 88 || new Set(candidatePlan.map((x) => x.path)).size !== 88) {
-  fail("Candidate replay plan must contain 35 recovered historical and all 53 current local migrations");
+if (candidatePlan.length !== 89 || new Set(candidatePlan.map((x) => x.path)).size !== 89) {
+  fail("Candidate replay plan must contain 35 recovered historical and all 54 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -136,6 +136,10 @@ function assertGlobalFoundation(port) {
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-multicurrency-expense.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-tax-audit.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-enterprise-controls.integration.sql")]);
+  const approvalCatalog = query(port, "plivex_migration_replay", "SELECT (to_regclass('global.approval_policies') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='approval_requests' AND column_name='consumed_at')::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_expense_approval_gate' AND NOT tgisinternal)::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_invoice_issue_approval_gate' AND NOT tgisinternal)::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_invoice_payment_approval_gate' AND NOT tgisinternal)::text || '|' || (to_regprocedure('public.global_set_approval_policy(uuid,uuid,text,boolean,bigint,text[],boolean)') IS NOT NULL)::text");
+  if (approvalCatalog !== "true|true|true|true|true|true") fail("Part 9 approval policies, triggers or policy RPC missing: " + approvalCatalog);
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-expense-approval-gates.integration.sql")]);
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-invoice-approval-gates.integration.sql")]);
 }
 function applyForcedMigrationRollback(port, db, migrationPath) {
   const migration = readFileSync(migrationPath, "utf8")
@@ -235,7 +239,12 @@ function assertGlobalMigrationRollback(port) {
     const hardeningResidue = query(port, db, "SELECT (to_regprocedure('public.global_can_export(uuid,uuid,text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_cancel_approval_request(uuid,uuid,uuid)') IS NOT NULL)::text || '|' || (SELECT position('DELETE' in pg_get_triggerdef(t.oid)) > 0 FROM pg_trigger t WHERE t.tgname='audit_events_immutable')::text");
     if (hardeningResidue !== "false|false|false") fail("Global enterprise hardening rollback left functions or trigger changes behind: " + hardeningResidue);
     psql(port, db, ["-f", enterpriseHardeningPath]);
-    console.log("PASS actual DDL rollback for Global foundation, inventory, invoice, tax-audit, FX-expense and enterprise-hardening migrations");
+    const approvalPath = resolve(root, "supabase/migrations/20261116170000_part9_expense_approval_gates.sql");
+    const approvalRollback = applyForcedMigrationRollback(port, db, approvalPath);
+    if (approvalRollback.status === 0) fail("Part 9 approval-gates migration rollback probe unexpectedly committed");
+    const approvalResidue = query(port, db, "SELECT (to_regclass('global.approval_policies') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='approval_requests' AND column_name='consumed_at')::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_expense_approval_gate' AND NOT tgisinternal)::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_invoice_issue_approval_gate' AND NOT tgisinternal)::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_invoice_payment_approval_gate' AND NOT tgisinternal)::text || '|' || (to_regprocedure('public.global_set_approval_policy(uuid,uuid,text,boolean,bigint,text[],boolean)') IS NOT NULL)::text");
+    if (approvalResidue !== "false|false|false|false|false|false") fail("Part 9 approval-gates rollback left schema objects behind: " + approvalResidue);
+    console.log("PASS actual DDL rollback for Global foundation, inventory, invoice, tax-audit, FX-expense, enterprise-hardening and Part 9 approval-gates migrations");
   } finally {
     const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], {
       cwd: root, env: envFor(port, "postgres"), encoding: "utf8",
