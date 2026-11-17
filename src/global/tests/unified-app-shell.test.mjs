@@ -11,11 +11,11 @@ test("India and Global experiences share the same Plivex application shell and n
   const global = read("../../global/GlobalApp.jsx");
   assert.doesNotMatch(app, /return <AppLayout><GlobalApp \/><\/AppLayout>/);
   assert.match(app, /<AuthProvider>/);
-  assert.match(app, /<Route path="\\/dashboard" element=\\{isGlobalWorkspace && isAuthenticated \\? <AppLayout><GlobalApp section="overview" \/><\\/AppLayout> : <HomeGate \/>\\}/);
-  assert.match(app, /<Route path="\\/invoice-history" element=\\{isGlobalWorkspace \\? <GlobalApp section="invoices" \/> : <InvoiceHistory \/>\\}/);
+  assert.ok(app.includes('<Route path="/dashboard" element={isGlobalWorkspace && isAuthenticated ? <AppLayout><GlobalApp section="overview" /></AppLayout> : <HomeGate />} />'));
+  assert.ok(app.includes('<Route path="/invoice-history" element={isGlobalWorkspace ? <GlobalApp section="invoices" /> : <InvoiceHistory />} />'));
   assert.match(layout, /GLOBAL_NAV/);
   assert.match(layout, /Global Workspace/);
-  assert.match(layout, /<NavLink key=\\{item.to\\} to=\\{item.to\\}/);
+  assert.ok(layout.includes('<NavLink key={item.to} to={item.to}'));
   assert.doesNotMatch(layout, /useSearchParams|setSearchParams/);
   assert.doesNotMatch(global, /useSearchParams|setSearchParams/);
   assert.match(backend, /UNIFIED_EDITION_ID/);

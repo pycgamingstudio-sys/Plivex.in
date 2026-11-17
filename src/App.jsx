@@ -118,12 +118,12 @@ const AuthenticatedApp = () => {
           <Route path="/enterprise" element={isGlobalWorkspace ? <GlobalApp section="enterprise" /> : <PageNotFound />} />
           <Route path="/invoice-history" element={isGlobalWorkspace ? <GlobalApp section="invoices" /> : <InvoiceHistory />} />
           <Route path="/invoice-shares" element={<GlobalFeatureGate feature="Shared invoice links"><InvoiceShareManagement /></GlobalFeatureGate>} />
-          <Route path="/business-profile" element={<BusinessProfile />} />
+          <Route path="/business-profile" element={<GlobalFeatureGate feature="Business profile"><BusinessProfile /></GlobalFeatureGate>} />
           <Route path="/client-database" element={isGlobalWorkspace ? <GlobalApp section="clients" /> : <ClientDatabase />} />
           <Route path="/crm" element={isGlobalWorkspace ? <GlobalApp section="crm" /> : <CrmTab />} />
           <Route path="/inventory-procurement" element={isGlobalWorkspace ? <GlobalApp section="inventory" /> : <IndiaPart4Tab user={user} />} />
           <Route path="/usage-reports" element={isGlobalWorkspace ? <GlobalApp section="accounting" /> : <UsageReports />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="/settings" element={<GlobalFeatureGate feature="Workspace settings"><Settings /></GlobalFeatureGate>} />
           <Route path="/templates" element={<GlobalFeatureGate feature="Quick templates"><QuickTemplates /></GlobalFeatureGate>} />
           <Route path="/payment-logs" element={<GlobalFeatureGate feature="Payment logs"><PaymentLogs /></GlobalFeatureGate>} />
           <Route path="/tax-summary" element={<GlobalFeatureGate feature="Tax summary"><TaxSummary /></GlobalFeatureGate>} />
