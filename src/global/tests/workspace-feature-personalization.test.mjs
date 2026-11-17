@@ -28,7 +28,8 @@ test("freelancer and business can be selected independently or together", async 
   assert.match(features, /inventoryWorkspace/);
   assert.match(features, /getSuggestedWorkspaceFeatures\(workTypes = \[\], countryCode = "IN"\)/);
   assert.match(features, /countryCode === "IN" \? \["quotations"\] : \[\]/);
-  assert.match(features, /edition !== "global" \|\| item.id !== "quotations"/);
+  assert.match(features, /return WORKSPACE_FEATURE_CATALOG/);
+  assert.match(features, /id: "quotations"/);
 });
 
 test("Invoices, Stock and Team are permanent dashboard cards", async () => {
