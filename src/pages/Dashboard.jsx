@@ -23,6 +23,7 @@ import PresenceBeacon from "@/components/PresenceBeacon";
 import { processDueReminders } from "@/lib/reminders";
 import { APP_EDITION } from "@/api/backendClient";
 import { getCountryByCode } from "@/global/countries/country-registry.js";
+import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -31,8 +32,8 @@ const TABS = [
   { id: "reports", label: "Reports", icon: BarChart3 },
   { id: "crm", label: "Client CRM", icon: Users },
   { id: "stock", label: "Stock", icon: Package },
-  { id: "warehouses", label: "Warehouses", icon: Boxes },
   { id: "team", label: "Team", icon: UsersRound },
+  { id: "warehouses", label: "Warehouse", icon: Boxes },
   { id: "reconciliation", label: "Reconcile", icon: RefreshCw },
 ];
 
@@ -44,6 +45,7 @@ export default function Dashboard({ initialTab }) {
   const navigate = useNavigate();
   const { isPremium, openPaywall, planName, plan, planLoading, canAccess } = usePaywall();
   const { user } = useAuth();
+  const { features: workspaceFeatures } = useWorkspaceFeatures(user?.id);
   const { role, isAccountant } = useRole();
   useEffect(() => {
     seedDashboard();
@@ -55,11 +57,28 @@ export default function Dashboard({ initialTab }) {
   const go = (t, i = null) => { setTab(t); setIntent(i); window.scrollTo({ top: 0 }); };
   const createInvoice = () => navigate("/invoice-builder", { state: { newInvoice: true } });
   const consume = () => setIntent(null);
-  const visibleTabs = TABS.filter((t) => canAccessTab(role, t.id));
+  const visibleTabs = TABS.filter((t) => {
+    if (!canAccessTab(role, t.id)) return false;
+    if (t.id === "warehouses") return workspaceFeatures.includes("inventoryWorkspace");
+    if (t.id === "purchase" || t.id === "reconciliation") return workspaceFeatures.includes("expenses");
+    if (t.id === "reports") return workspaceFeatures.includes("reports");
+    if (t.id === "crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
+    return true;
+  });
   const active = visibleTabs.find((t) => t.id === tab) || visibleTabs[0] || TABS[0];
+  useEffect(() => { if (!visibleTabs.some((item) => item.id === tab)) setTab("dashboard"); }, [visibleTabs, tab]);
   const hasGstrAccess = APP_EDITION === "global" || ["basic", "pro"].includes(String(plan || "").toLowerCase());
-  const pages = navItems.filter((i) => i.to !== "/" && !["/crm", "/inventory-procurement"].includes(i.to) && (!HIDDEN_FROM_SIDEBAR.includes(i.to) || i.to === "/tax-summary") && (!i.roles || i.roles.includes(role)));
-  const morePages = navItems.filter((i) => i.to !== "/" && !["/crm", "/inventory-procurement"].includes(i.to) && (!i.roles || i.roles.includes(role)));
+  const featureRouteEnabled = (path) => {
+    if (path === "/crm" || path === "/client-database") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
+    if (path === "/inventory-procurement") return workspaceFeatures.includes("inventoryWorkspace");
+    if (["/usage-reports", "/tax-summary", "/account-activity"].includes(path)) return workspaceFeatures.includes("reports");
+    if (path === "/payment-logs") return workspaceFeatures.includes("expenses");
+    if (path === "/templates" || path === "/service-catalog") return workspaceFeatures.includes("quotations");
+    return true;
+  };
+  const primaryFeatureRoutes = ["/crm", "/client-database", "/inventory-procurement", "/usage-reports", "/tax-summary", "/payment-logs", "/templates", "/service-catalog"];
+  const pages = navItems.filter((i) => i.to !== "/" && !["/crm", "/inventory-procurement"].includes(i.to) && featureRouteEnabled(i.to) && (!HIDDEN_FROM_SIDEBAR.includes(i.to) || i.to === "/tax-summary") && (!i.roles || i.roles.includes(role)));
+  const morePages = navItems.filter((i) => i.to !== "/" && !primaryFeatureRoutes.includes(i.to) && featureRouteEnabled(i.to) && (!i.roles || i.roles.includes(role)));
   const teamUnlocked = canAccess("team_management");
 
   return (

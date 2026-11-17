@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { Users, Package, Receipt, FileText, Boxes, Handshake, Warehouse, Calculator, ShieldCheck } from "lucide-react";
+import { Users, Package, Receipt, FileText, Boxes, Handshake, Warehouse, Calculator } from "lucide-react";
 import { supabase } from "@/api/backendClient";
+import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
+import FeatureLibraryModal from "@/components/dashboard/FeatureLibraryModal";
 import GlobalInvoicesPanel from "@/components/global/GlobalInvoicesPanel";
 import GlobalAccountingPanel from "@/components/global/GlobalAccountingPanel";
 import GlobalEnterprisePanel from "@/components/global/GlobalEnterprisePanel";
@@ -54,6 +56,8 @@ const errorMessage = async (error, fallback) => {
 
 export default function GlobalApp({ section = "overview" }) {
   const { user: account } = useAuth();
+  const { features: workspaceFeatures, updateFeatures, saving: savingFeatures, error: featureError } = useWorkspaceFeatures(account?.id);
+  const [featureOpen, setFeatureOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
   const tab = NAV.some((item) => item.id === section) ? section : "overview";
@@ -135,14 +139,26 @@ export default function GlobalApp({ section = "overview" }) {
     { label: "Products", value: counts.products, tab: "products", icon: Package, tone: "bg-violet-50 text-violet-700" },
     { label: "Expenses", value: counts.expenses, tab: "expenses", icon: Receipt, tone: "bg-emerald-50 text-emerald-700" },
     { label: "Invoices", value: counts.invoices, tab: "invoices", icon: FileText, tone: "bg-amber-50 text-amber-700" },
-    { label: "Stock items", value: counts.stock, tab: "inventory", icon: Boxes, tone: "bg-rose-50 text-rose-700" },
+    { label: "Stock items", value: counts.stock, tab: "products", icon: Boxes, tone: "bg-rose-50 text-rose-700" },
   ];
   const actionCards = [
     { title: "CRM & Leads", description: "Manage prospects, follow-ups and customer relationships.", tab: "crm", icon: Handshake, tone: "from-fuchsia-50 to-pink-50" },
     { title: "Inventory & Warehouse", description: "Manage stock, locations, transfers, purchase orders and movement history in one connected workspace.", tab: "inventory", icon: Warehouse, tone: "from-indigo-50 to-blue-50" },
     { title: "Accounting & Reports", description: "Open ledgers and financial statements for this workspace.", tab: "accounting", icon: Calculator, tone: "from-violet-50 to-purple-50" },
-    { title: "Enterprise & Audit", description: "Review roles, audit history, exports and workspace controls.", tab: "enterprise", icon: ShieldCheck, tone: "from-slate-100 to-slate-50" },
-  ];
+    { title: "Team Members", description: "Manage workspace access, roles and team activity.", tab: "enterprise", icon: Users, tone: "from-amber-50 to-yellow-50" },
+
+  ].filter((item) => {
+    if (item.tab === "crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
+    if (item.tab === "inventory") return workspaceFeatures.includes("inventoryWorkspace");
+    if (item.tab === "accounting") return workspaceFeatures.includes("reports");
+    return true;
+  });
+
+  const visibleMetricCards = metricCards.filter((item) => {
+    if (item.tab === "clients") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
+    if (item.tab === "expenses") return workspaceFeatures.includes("expenses");
+    return true;
+  });
 
   return (
     <div className="w-full text-slate-900">
@@ -152,11 +168,12 @@ export default function GlobalApp({ section = "overview" }) {
           <>
             <div className="mt-6"><h1 className="text-2xl font-bold">Business overview</h1><p className="mt-1 text-sm text-slate-500">Your Global workspace data, kept separate from India edition records.</p></div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              {metricCards.map((item) => <button key={item.tab} onClick={() => setTab(item.tab)} className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${item.tone}`}><item.icon className="h-5 w-5" /></span><span className="mt-3 block text-sm font-semibold text-slate-500">{item.label}</span><span className="mt-1 block text-3xl font-bold tracking-tight text-slate-900">{item.value}</span><span className="mt-2 block text-xs font-semibold text-violet-700">Open section →</span></button>)}
+              {visibleMetricCards.map((item) => <button key={item.label} onClick={() => setTab(item.tab)} className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${item.tone}`}><item.icon className="h-5 w-5" /></span><span className="mt-3 block text-sm font-semibold text-slate-500">{item.label}</span><span className="mt-1 block text-3xl font-bold tracking-tight text-slate-900">{item.value}</span><span className="mt-2 block text-xs font-semibold text-violet-700">Open section →</span></button>)}
             </div>
             <div className="mt-8 flex items-end justify-between gap-3"><div><h2 className="text-xl font-bold">Business workspace</h2><p className="mt-1 text-sm text-slate-500">Quick access to the tools that run your operations.</p></div><span className="hidden rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700 sm:inline">{actionCards.length} work areas</span></div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {actionCards.map((item) => <button key={item.title} onClick={() => setTab(item.tab)} className="group flex min-h-44 flex-col rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md"><span className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${item.tone} text-violet-700`}><item.icon className="h-7 w-7" strokeWidth={1.6} /></span><span className="mt-4 text-sm font-bold text-slate-900">{item.title}</span><span className="mt-1 flex-1 text-xs leading-relaxed text-slate-500">{item.description}</span><span className="mt-3 text-xs font-semibold text-violet-700">Open workspace →</span></button>)}
+              <button type="button" onClick={() => setFeatureOpen(true)} className="group flex min-h-44 flex-col items-start rounded-2xl border border-dashed border-violet-300 bg-gradient-to-br from-white to-violet-50 p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"><span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 text-violet-700"><Boxes className="h-7 w-7" /></span><span className="mt-4 text-sm font-bold text-slate-900">More Features</span><span className="mt-1 flex-1 text-xs leading-relaxed text-slate-500">Add the tools that fit your business as it grows.</span><span className="mt-3 text-xs font-semibold text-violet-700">Explore feature library →</span></button>
             </div>
           </>
         ) : tab === "invoices" ? (
@@ -193,6 +210,7 @@ export default function GlobalApp({ section = "overview" }) {
             </div>
           </section>
         )}
+      {featureOpen && <FeatureLibraryModal features={workspaceFeatures} updateFeatures={updateFeatures} saving={savingFeatures} error={featureError} onClose={() => setFeatureOpen(false)} />}
     </div>
   );
 }

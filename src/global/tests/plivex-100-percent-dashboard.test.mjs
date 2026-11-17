@@ -35,14 +35,14 @@ test("CRM and inventory procurement shortcuts are removed from the duplicate Mor
   assert.match(page, /\{tab === "crm" && <CrmTab/);
 });
 
-test("Global overview has five interactive metrics and four workspace action cards", () => {
+test("Global overview has personalized interactive metrics and workspace action cards", () => {
   const global = read("../GlobalApp.jsx");
   const warehousePanel = read("../../components/global/GlobalPart4Panel.jsx");
   assert.match(global, /const metricCards = \[/);
   assert.match(global, /const actionCards = \[/);
   assert.match(global, /actionCards\.map\(\(item\) => <button/);
-  assert.match(global, /metricCards\.map\(\(item\) => <button/);
-  for (const title of ["CRM & Leads", "Inventory & Warehouse", "Accounting & Reports", "Enterprise & Audit"]) {
+  assert.match(global, /visibleMetricCards\.map\(\(item\) => <button/);
+  for (const title of ["CRM & Leads", "Inventory & Warehouse", "Accounting & Reports", "Team Members"]) {
     assert.ok(global.includes(`title: "${title}"`), `Missing dashboard card: ${title}`);
   }
   for (const section of ["warehouses", "transfers", "purchasing", "movements"]) {

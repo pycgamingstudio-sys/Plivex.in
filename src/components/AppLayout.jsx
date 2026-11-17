@@ -7,26 +7,36 @@ import { usePaywall } from "@/lib/paywall";
 import { useAuth } from "@/lib/AuthContext";
 import { APP_EDITION } from "@/api/backendClient";
 import { getCountryByCode } from "@/global/countries/country-registry.js";
-import { LayoutDashboard, Users, Package, Receipt, FileText, Handshake, Warehouse, Calculator, ShieldCheck } from "lucide-react";
+import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
+import { LayoutDashboard, Users, Package, Receipt, FileText, Handshake, Warehouse, Calculator } from "lucide-react";
 
 const GLOBAL_NAV = [
-  { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { to: "/client-database", label: "Clients", icon: Users },
-  { to: "/products", label: "Products", icon: Package },
-  { to: "/expenses", label: "Expenses", icon: Receipt },
-  { to: "/crm", label: "CRM & Leads", icon: Handshake },
-  { to: "/inventory-procurement", label: "Inventory & Warehouse", icon: Warehouse },
-  { to: "/invoice-history", label: "Invoices", icon: FileText },
-  { to: "/accounting", label: "Accounting", icon: Calculator },
-  { to: "/enterprise", label: "Enterprise", icon: ShieldCheck },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/invoice-history", label: "Sales", icon: FileText },
+  { to: "/expenses", label: "Purchase", icon: Receipt },
+  { to: "/accounting", label: "Reports", icon: Calculator },
+  { to: "/crm", label: "Client CRM", icon: Handshake },
+  { to: "/products", label: "Stock", icon: Package },
+  { to: "/enterprise", label: "Team", icon: Users },
+  { to: "/inventory-procurement", label: "Warehouse", icon: Warehouse },
+
 ];
 
 export default function AppLayout({ children }) {
   const { role } = useRole();
   const { user, logout } = useAuth();
+  const { features: workspaceFeatures } = useWorkspaceFeatures(user?.id);
   const { canAccess, openPaywall } = usePaywall();
   const isGlobal = APP_EDITION === "global";
-  const items = navItems.filter((i) => i.to !== "/" && !HIDDEN_FROM_SIDEBAR.includes(i.to) && (!i.roles || i.roles.includes(role)));
+  const items = navItems.filter((i) => {
+    if (i.to === "/" || HIDDEN_FROM_SIDEBAR.includes(i.to) || (i.roles && !i.roles.includes(role))) return false;
+    if (i.to === "/crm" || i.to === "/client-database") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
+    if (i.to === "/inventory-procurement") return workspaceFeatures.includes("inventoryWorkspace");
+    if (i.to === "/usage-reports" || i.to === "/tax-summary" || i.to === "/account-activity") return workspaceFeatures.includes("reports");
+    if (i.to === "/payment-logs") return workspaceFeatures.includes("expenses");
+    if (i.to === "/templates") return workspaceFeatures.includes("quotations");
+    return true;
+  });
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur-xl">
@@ -55,7 +65,14 @@ export default function AppLayout({ children }) {
           )}
         </div>
         <nav className="mx-auto flex max-w-6xl snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain px-4 pb-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Workspace">
-          {isGlobal ? GLOBAL_NAV.map((item) => (
+          {isGlobal ? GLOBAL_NAV.filter((item) => {
+            if (item.to === "/products") return true;
+            if (item.to === "/inventory-procurement") return workspaceFeatures.includes("inventoryWorkspace");
+            if (item.to === "/expenses") return workspaceFeatures.includes("expenses");
+            if (item.to === "/crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
+            if (item.to === "/accounting") return workspaceFeatures.includes("reports");
+            return true;
+          }).map((item) => (
             <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold transition-colors ${isActive ? "bg-primary text-primary-foreground" : "border bg-card text-muted-foreground hover:text-foreground"}`}>
               <item.icon className="h-3.5 w-3.5" />{item.label}
             </NavLink>

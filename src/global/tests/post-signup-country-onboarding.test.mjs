@@ -17,7 +17,8 @@ test("unified signup authenticates first and collects country after sign-in", as
   assert.match(onboarding, /Create my workspace/);
   assert.match(onboarding, /globalEnsureOwner/);
   assert.match(onboarding, /ensureOwnerRole/);
-  assert.match(onboarding, /Base currency is available on every plan, including Free/);
+  assert.match(onboarding, /plivex_work_types: workTypes/);
+  assert.match(onboarding, /plivex_workspace_features: features/);
 });
 
 test("new unified identities are held at onboarding before workspace provisioning", async () => {
@@ -27,8 +28,9 @@ test("new unified identities are held at onboarding before workspace provisionin
   assert.match(auth, /Unified signup is authenticated first/);
   assert.match(auth, /setIsAuthenticated\(true\)/);
   assert.match(app, /UnifiedWorkspaceOnboarding/);
-  assert.match(onboarding, /Business country/);
-  assert.match(onboarding, /Your workspace is created only after you confirm/);
+  assert.match(onboarding, /Where is your business based/);
+  assert.match(onboarding, /controlled reset or migration/);
+  assert.match(onboarding, /Create my workspace/);
 });
 
 test("new Global identities are held at onboarding before workspace provisioning", async () => {
