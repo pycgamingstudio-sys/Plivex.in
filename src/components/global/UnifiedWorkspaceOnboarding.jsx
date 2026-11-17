@@ -3,7 +3,7 @@ import { backend as db, supabase, setRuntimeEdition } from "@/api/backendClient"
 import { useAuth } from "@/lib/AuthContext";
 import { COUNTRY_REGISTRY, getCountryByCode, getCountryFlag } from "@/global/countries/country-registry.js";
 import { getSuggestedWorkspaceFeatures } from "@/lib/workspaceFeatures";
-import { Check, ChevronLeft, ChevronRight, Globe2, MapPin, Phone, Search, Sparkles, Store, UserRound, Building2, ShieldCheck } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Globe2, MapPin, Search, Sparkles, Store, UserRound, Building2, ShieldCheck } from "lucide-react";
 
 const DRAFT_KEY = "plivex:workspace-onboarding:draft";
 function readDraft(key) { try { return JSON.parse(sessionStorage.getItem(key) || "{}"); } catch { return {}; } }
