@@ -38,10 +38,12 @@ test("More Features only offers optional tools not already in navigation", async
   const library = await read("../../components/dashboard/FeatureLibraryModal.jsx");
   const dashboard = await read("../../components/dashboard/DashboardTab.jsx");
   const nav = await read("../../pages/Dashboard.jsx");
+  const layout = await read("../../components/AppLayout.jsx");
   assert.match(dashboard, /More Features/);
   assert.match(library, /WORKSPACE_FEATURE_CATALOG.filter\(\(item\) => !features.includes\(item.id\)\)/);
   assert.match(nav, /workspaceFeatures.includes\("inventoryWorkspace"\)/);
   assert.match(nav, /workspaceFeatures.includes\("reports"\)/);
+  for (const label of ["Dashboard", "Sales", "Purchase & Expenses", "Reports", "Client CRM", "Stock", "Team", "Warehouse"]) assert.ok(layout.includes(`label: "${label}"`), "Missing Global navigation area: " + label);
 });
 
 test("feature preference changes do not mutate or delete business records", async () => {
