@@ -257,7 +257,7 @@ export default function GlobalApp() {
     <main className="min-h-screen bg-[#F8F7FC] text-slate-900">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
-          <div><div className="text-xl font-black text-violet-700">Plivex <span className="text-slate-500">Global</span></div><div className="text-xs text-slate-500">{account.workspace_name} · {account.country_code} · {currency}</div></div>
+          <div><div className="flex flex-wrap items-center gap-2"><div className="text-xl font-black text-violet-700">Plivex <span className="text-slate-500">Global</span></div><span title="Edition is based on your active workspace country" className="inline-flex items-center gap-1 rounded-full border border-violet-100 bg-violet-50 px-2.5 py-1 text-[10px] font-bold text-violet-700"><span aria-hidden="true">{COUNTRY_OPTIONS.find((item) => item.code === account.country_code)?.code === "IN" ? "🇮🇳" : "🌍"}</span>Global Workspace</span></div><div className="text-xs text-slate-500">{account.workspace_name} · {account.country_code} · {currency}</div></div>
           <div className="flex items-center gap-3"><span className="hidden text-sm text-slate-500 sm:block">{account.email}</span><button onClick={signOut} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">Sign out</button></div>
         </div>
       </header>
