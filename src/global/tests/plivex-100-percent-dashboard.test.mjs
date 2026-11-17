@@ -28,13 +28,15 @@ test("CRM and inventory procurement shortcuts are removed from the duplicate Mor
   assert.match(page, /\{tab === "crm" && <CrmTab/);
 });
 
-test("Global overview has five interactive metrics and eight workspace action cards", () => {
+test("Global overview has five interactive metrics and four workspace action cards", () => {
   const global = read("../GlobalApp.jsx");
   assert.match(global, /const metricCards = \[/);
   assert.match(global, /const actionCards = \[/);
   assert.match(global, /actionCards\.map\(\(item\) => <button/);
   assert.match(global, /metricCards\.map\(\(item\) => <button/);
-  for (const tab of ["crm", "purchasing", "warehouses", "transfers", "movements", "accounting", "enterprise"]) {
+  for (const tab of ["crm", "inventory", "accounting", "enterprise"]) {
     assert.match(global, new RegExp('tab: "' + tab + '"'));
   }
+  assert.doesNotMatch(global, /title: "Stock Transfers"/);
+  assert.doesNotMatch(global, /title: "Purchase Orders & Goods Receipts"/);
 });
