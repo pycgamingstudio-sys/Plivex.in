@@ -81,7 +81,8 @@ test("warehouse transfer and receipt ledgers retain idempotency fingerprints", (
 
 test("Global Part 4 UI is wired to authenticated CRM, warehouse and procurement operations", () => {
   assert.match(globalApp, /GlobalPart4Panel/);
-  for (const tab of ["crm","warehouses","transfers","purchasing","movements"]) assert.match(globalApp, new RegExp('id: "' + tab + '"'));
+  for (const tab of ["crm","inventory"]) assert.match(globalApp, new RegExp('id: "' + tab + '"'));
+  assert.match(globalApp, /initialSection=\{tab === "crm" \? "crm" : "warehouses"\}/);
   for (const operation of ["create_lead","update_lead","add_lead_activity","create_warehouse","create_purchase_order","receive_purchase_order"]) assert.ok(globalUi.includes(operation));
   assert.match(globalUi, /idempotency_key: transferKey/);
   assert.match(globalUi, /idempotency_key: receiptKey/);
