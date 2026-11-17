@@ -247,7 +247,7 @@ function assertGlobalMigrationRollback(port) {
     if (approvalResidue !== "false|false|false|false|false|false") fail("Part 9 approval-gates rollback left schema objects behind: " + approvalResidue);
     const managerExpenseAccountingRollback = applyForcedMigrationRollback(port, db, managerExpenseAccountingPath);
     if (managerExpenseAccountingRollback.status === 0) fail("Manager-expense accounting migration rollback probe unexpectedly committed");
-    const accountingRoleGuard = query(port, db, "SELECT position($guard$v_role='manager' and coalesce(p_source_type,'manual') in ('invoice_issued','invoice_payment')$guard$ in pg_get_functiondef(p.oid)) > 0 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname='global_post_journal_entry'");
+    const accountingRoleGuard = query(port, db, "SELECT position($guard$v_role='manager'andcoalesce(p_source_type,'manual')in('invoice_issued','invoice_payment')$guard$ in regexp_replace(lower(pg_get_functiondef(p.oid)), '[[:space:]]+', '', 'g')) > 0 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname='global_post_journal_entry'");
     if (accountingRoleGuard !== "t") fail("Manager-expense accounting rollback did not restore the original role guard");
     psql(port, db, ["-f", managerExpenseAccountingPath]);
     console.log("PASS actual DDL rollback for Global foundation, inventory, invoice, tax-audit, FX-expense, enterprise-hardening, Part 9 approval-gates and manager-expense accounting migrations");
