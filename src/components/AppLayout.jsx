@@ -72,7 +72,6 @@ export default function AppLayout({ children }) {
             if (item.to === "/expenses") return workspaceFeatures.includes("expenses");
             if (item.to === "/crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
             if (item.to === "/accounting") return workspaceFeatures.includes("reports");
-            if (item.to === "/enterprise") return workspaceFeatures.includes("enterprise");
             return true;
           }).map((item) => (
             <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold transition-colors ${isActive ? "bg-primary text-primary-foreground" : "border bg-card text-muted-foreground hover:text-foreground"}`}>
