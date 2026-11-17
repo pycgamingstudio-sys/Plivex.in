@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FileText, FilePlus2, ShoppingCart, Users, UserPlus, ArrowRight, Phone, Mail, HelpCircle, Package, UsersRound, AlertTriangle, Settings2, X, Check, BellRing, Send, Warehouse, ArrowLeftRight, ClipboardList, PackageCheck, History, CalendarClock, Boxes } from "lucide-react";
 import { KEYS, useLocalState, loadList } from "@/lib/stores";
-import { InvoiceArt, QuoteArt, ExpenseArt, CrmArt, LeadArt, StockArt, TeamArt } from "@/components/dashboard/CardArt";
 import OwnerMasterControl from "@/components/dashboard/OwnerMasterControl";
 import OwnerTrackingWidgets from "@/components/dashboard/OwnerTrackingWidgets";
 import PlanStatusCard from "@/components/PlanStatusCard";
@@ -98,20 +97,20 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
   ];
 
   const cards = [
-    { id: "invoices", title: "Invoices", desc: "Bill clients with GST-ready, print-perfect PDFs in under a minute.", icon: FileText, Art: InvoiceArt, gradient: "bg-gradient-to-br from-[#EDE9FE] to-[#DDD6FE]", cta: "+ Create New Invoice", onClick: onCreateInvoice, stat: loadList(KEYS.history).length },
-    { id: "quotations", title: "Quotations", desc: "Send estimates clients can approve, then convert to invoices in one click.", icon: FilePlus2, Art: QuoteArt, gradient: "bg-gradient-to-br from-[#DBEAFE] to-[#BFDBFE]", cta: "+ Create New Quotation", onClick: () => onNavigate("sales", "new-quotation"), stat: loadList(KEYS.quotations).length },
-    { id: "expenses", title: "Expenses", desc: "Track vendor bills and purchases to see your real net profit.", icon: ShoppingCart, Art: ExpenseArt, gradient: "bg-gradient-to-br from-[#DCFCE7] to-[#BBF7D0]", cta: "+ Record New Purchase", onClick: () => onNavigate("purchase", "new-expense") },
-    { id: "crm", title: "Client CRM", desc: "Save client details once and reuse them forever across invoices.", icon: Users, Art: CrmArt, gradient: "bg-gradient-to-br from-[#FAE8FF] to-[#F5D0FE]", cta: "+ Add New Client", onClick: () => onNavigate("crm", "new-client"), stat: loadList(KEYS.clients).length },
-    { id: "leads", title: "Lead Tracker", desc: "Move leads from new to won and never miss a follow-up.", icon: UserPlus, Art: LeadArt, gradient: "bg-gradient-to-br from-[#FEF3C7] to-[#FDE68A]", cta: "+ Add New Lead", onClick: () => onNavigate("crm", "new-lead"), stat: loadList(KEYS.leads).length },
-    { id: "stock", title: "Stock Inventory", desc: "Manage products and watch quantities auto-deduct on every invoice.", icon: Package, Art: StockArt, gradient: "bg-gradient-to-br from-[#FEE2E2] to-[#FECACA]", cta: "+ Manage Stock", onClick: () => onNavigate("stock"), stat: stock.length, alert: lowStock },
-    { id: "team", title: "Team Members", desc: "Invite your staff and control what each role can see and do.", icon: UsersRound, Art: TeamArt, gradient: "bg-gradient-to-br from-[#FEF3C7] to-[#FDE68A]", cta: "+ Add Member", onClick: () => onNavigate("team"), pro: !teamUnlocked },
-    { id: "procurement", title: "Inventory & Procurement", desc: "Connect stock, suppliers, purchasing and goods receiving in one workspace.", icon: Boxes, Art: StockArt, gradient: "bg-gradient-to-br from-[#E0E7FF] to-[#C7D2FE]", cta: "Open procurement", onClick: () => onNavigate("warehouses", "purchasing") },
-    { id: "warehouses", title: "Warehouses", desc: "Manage warehouse locations and see stock stored at each location.", icon: Warehouse, Art: StockArt, gradient: "bg-gradient-to-br from-[#CCFBF1] to-[#99F6E4]", cta: "Manage warehouses", onClick: () => onNavigate("warehouses", "warehouses") },
-    { id: "transfers", title: "Stock Transfers", desc: "Move inventory between warehouses with recorded stock movements.", icon: ArrowLeftRight, Art: StockArt, gradient: "bg-gradient-to-br from-[#DBEAFE] to-[#BFDBFE]", cta: "Transfer stock", onClick: () => onNavigate("warehouses", "transfers") },
-    { id: "purchaseOrders", title: "Purchase Orders", desc: "Create supplier orders and follow their receiving status.", icon: ClipboardList, Art: QuoteArt, gradient: "bg-gradient-to-br from-[#FCE7F3] to-[#FBCFE8]", cta: "Create purchase order", onClick: () => onNavigate("warehouses", "purchasing") },
-    { id: "receipts", title: "Goods Receipts", desc: "Receive ordered goods into a selected warehouse and update stock.", icon: PackageCheck, Art: ExpenseArt, gradient: "bg-gradient-to-br from-[#DCFCE7] to-[#BBF7D0]", cta: "Receive goods", onClick: () => onNavigate("warehouses", "purchasing") },
-    { id: "movements", title: "Stock Movement History", desc: "Review recorded transfers, receipts and inventory movements.", icon: History, Art: LeadArt, gradient: "bg-gradient-to-br from-[#FEF3C7] to-[#FDE68A]", cta: "View movement history", onClick: () => onNavigate("warehouses", "history") },
-    { id: "batches", title: "Batch & Expiry", desc: "Track batch numbers and expiry dates recorded on goods receipts.", icon: CalendarClock, Art: StockArt, gradient: "bg-gradient-to-br from-[#FFE4E6] to-[#FECDD3]", cta: "Track batches", onClick: () => onNavigate("warehouses", "history") },
+    { id: "invoices", title: "Invoices", desc: "Bill clients with GST-ready, print-perfect PDFs in under a minute.", icon: FileText, gradient: "bg-gradient-to-br from-[#EDE9FE] to-[#DDD6FE]", cta: "+ Create New Invoice", onClick: onCreateInvoice, stat: loadList(KEYS.history).length },
+    { id: "quotations", title: "Quotations", desc: "Send estimates clients can approve, then convert to invoices in one click.", icon: FilePlus2, gradient: "bg-gradient-to-br from-[#DBEAFE] to-[#BFDBFE]", cta: "+ Create New Quotation", onClick: () => onNavigate("sales", "new-quotation"), stat: loadList(KEYS.quotations).length },
+    { id: "expenses", title: "Expenses", desc: "Track vendor bills and purchases to see your real net profit.", icon: ShoppingCart, gradient: "bg-gradient-to-br from-[#DCFCE7] to-[#BBF7D0]", cta: "+ Record New Purchase", onClick: () => onNavigate("purchase", "new-expense") },
+    { id: "crm", title: "Client CRM", desc: "Save client details once and reuse them forever across invoices.", icon: Users, gradient: "bg-gradient-to-br from-[#FAE8FF] to-[#F5D0FE]", cta: "+ Add New Client", onClick: () => onNavigate("crm", "new-client"), stat: loadList(KEYS.clients).length },
+    { id: "leads", title: "Lead Tracker", desc: "Move leads from new to won and never miss a follow-up.", icon: UserPlus, gradient: "bg-gradient-to-br from-[#FEF3C7] to-[#FDE68A]", cta: "+ Add New Lead", onClick: () => onNavigate("crm", "new-lead"), stat: loadList(KEYS.leads).length },
+    { id: "stock", title: "Stock Inventory", desc: "Manage products and watch quantities auto-deduct on every invoice.", icon: Package, gradient: "bg-gradient-to-br from-[#FEE2E2] to-[#FECACA]", cta: "+ Manage Stock", onClick: () => onNavigate("stock"), stat: stock.length, alert: lowStock },
+    { id: "team", title: "Team Members", desc: "Invite your staff and control what each role can see and do.", icon: UsersRound, gradient: "bg-gradient-to-br from-[#FEF3C7] to-[#FDE68A]", cta: "+ Add Member", onClick: () => onNavigate("team"), pro: !teamUnlocked },
+    { id: "procurement", title: "Inventory & Procurement", desc: "Connect stock, suppliers, purchasing and goods receiving in one workspace.", icon: Boxes, gradient: "bg-gradient-to-br from-[#E0E7FF] to-[#C7D2FE]", cta: "Open procurement", onClick: () => onNavigate("warehouses", "purchasing") },
+    { id: "warehouses", title: "Warehouses", desc: "Manage warehouse locations and see stock stored at each location.", icon: Warehouse, gradient: "bg-gradient-to-br from-[#CCFBF1] to-[#99F6E4]", cta: "Manage warehouses", onClick: () => onNavigate("warehouses", "warehouses") },
+    { id: "transfers", title: "Stock Transfers", desc: "Move inventory between warehouses with recorded stock movements.", icon: ArrowLeftRight, gradient: "bg-gradient-to-br from-[#DBEAFE] to-[#BFDBFE]", cta: "Transfer stock", onClick: () => onNavigate("warehouses", "transfers") },
+    { id: "purchaseOrders", title: "Purchase Orders", desc: "Create supplier orders and follow their receiving status.", icon: ClipboardList, gradient: "bg-gradient-to-br from-[#FCE7F3] to-[#FBCFE8]", cta: "Create purchase order", onClick: () => onNavigate("warehouses", "purchasing") },
+    { id: "receipts", title: "Goods Receipts", desc: "Receive ordered goods into a selected warehouse and update stock.", icon: PackageCheck, gradient: "bg-gradient-to-br from-[#DCFCE7] to-[#BBF7D0]", cta: "Receive goods", onClick: () => onNavigate("warehouses", "purchasing") },
+    { id: "movements", title: "Stock Movement History", desc: "Review recorded transfers, receipts and inventory movements.", icon: History, gradient: "bg-gradient-to-br from-[#FEF3C7] to-[#FDE68A]", cta: "View movement history", onClick: () => onNavigate("warehouses", "history") },
+    { id: "batches", title: "Batch & Expiry", desc: "Track batch numbers and expiry dates recorded on goods receipts.", icon: CalendarClock, gradient: "bg-gradient-to-br from-[#FFE4E6] to-[#FECDD3]", cta: "Track batches", onClick: () => onNavigate("warehouses", "history") },
   ];
 
   const roleCards = ROLE_CARD_ACCESS[role] || ROLE_CARD_ACCESS.employee;
@@ -179,13 +178,12 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
         {visibleCards.map((c) => (
           <div key={c.id} className="flex flex-col overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm transition-transform hover:-translate-y-0.5">
             <div className={`relative flex h-28 items-center justify-center ${c.gradient}`}>
-              <c.Art />
+              <c.icon className="h-12 w-12 text-[#6D28D9]" strokeWidth={1.5} aria-hidden="true" />
               {c.stat !== undefined && <span className="absolute right-3 top-3 rounded-full bg-white/85 px-2.5 py-1 text-[11px] font-bold text-slate-700 shadow-sm">{c.stat} saved</span>}
               {c.alert > 0 && <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1 text-[10px] font-bold uppercase text-white shadow-sm"><AlertTriangle className="h-3 w-3" />Low Stock Alert</span>}
             </div>
             <div className="flex flex-1 flex-col p-5">
               <div className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#6D28D9]/10 text-[#6D28D9]"><c.icon className="h-4 w-4" /></span>
                 <h3 className="text-[15px] font-bold text-slate-900">{c.title}</h3>
                 {c.pro && <span className="ml-auto rounded-full bg-amber-400 px-2 py-0.5 text-[9px] font-bold text-amber-900">PRO</span>}
               </div>
