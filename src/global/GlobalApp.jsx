@@ -139,7 +139,7 @@ export default function GlobalApp({ section = "overview" }) {
     { label: "Products", value: counts.products, tab: "products", icon: Package, tone: "bg-violet-50 text-violet-700" },
     { label: "Expenses", value: counts.expenses, tab: "expenses", icon: Receipt, tone: "bg-emerald-50 text-emerald-700" },
     { label: "Invoices", value: counts.invoices, tab: "invoices", icon: FileText, tone: "bg-amber-50 text-amber-700" },
-    { label: "Stock items", value: counts.stock, tab: "inventory", icon: Boxes, tone: "bg-rose-50 text-rose-700" },
+    { label: "Stock items", value: counts.stock, tab: "products", icon: Boxes, tone: "bg-rose-50 text-rose-700" },
   ];
   const actionCards = [
     { title: "CRM & Leads", description: "Manage prospects, follow-ups and customer relationships.", tab: "crm", icon: Handshake, tone: "from-fuchsia-50 to-pink-50" },
@@ -151,6 +151,7 @@ export default function GlobalApp({ section = "overview" }) {
     if (item.tab === "crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
     if (item.tab === "inventory") return workspaceFeatures.includes("inventoryWorkspace");
     if (item.tab === "accounting") return workspaceFeatures.includes("reports");
+    if (item.tab === "enterprise") return workspaceFeatures.includes("enterprise");
     return true;
   });
 
