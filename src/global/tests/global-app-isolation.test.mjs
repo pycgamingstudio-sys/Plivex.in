@@ -26,7 +26,7 @@ test("India and Global use the same origin, authentication provider and responsi
   assert.match(app, /element={<AppLayout \/>}/);
   assert.match(layout, /Global Workspace/);
   assert.match(layout, /GLOBAL_NAV/);
-  assert.match(layout, /<NavLink key=\\{item.to\\} to=\\{item.to\\}/);
+  assert.ok(layout.includes('<NavLink key={item.to} to={item.to}'));
   assert.doesNotMatch(layout, /useSearchParams|setSearchParams/);
   assert.doesNotMatch(globalApp, /useSearchParams|setSearchParams/);
   assert.match(roleGuard, /APP_EDITION === "global"/);

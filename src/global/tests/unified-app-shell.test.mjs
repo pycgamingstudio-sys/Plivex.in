@@ -65,8 +65,8 @@ test("Android stock product form keeps Save and Cancel visible while fields scro
 test("shared CRM, warehouse, transfers and procurement remain accessible in India", () => {
   const app = read("../../App.jsx");
   const nav = read("../../lib/nav.js");
-  assert.match(app, /path="\/crm" element={<CrmTab \/>}/);
-  assert.match(app, /path="\/inventory-procurement" element={<IndiaPart4Tab user={user} \/>}/);
+  assert.ok(app.includes('<Route path="/crm" element={isGlobalWorkspace ? <GlobalApp section="crm" /> : <CrmTab />} />'));
+  assert.ok(app.includes('<Route path="/inventory-procurement" element={isGlobalWorkspace ? <GlobalApp section="inventory" /> : <IndiaPart4Tab user={user} />} />'));
   assert.match(nav, /label: "CRM & leads"/);
   assert.match(nav, /label: "Inventory & procurement"/);
 });

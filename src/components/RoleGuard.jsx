@@ -11,10 +11,9 @@ export default function RoleGuard() {
   const location = useLocation();
   // Global role checks are enforced by workspace-scoped Edge Functions and RLS.
   // Do not normalize Global owner/admin roles through the India-only route matrix.
-  if (APP_EDITION === "global") return <Outlet />;
-
+  const isGlobalWorkspace = APP_EDITION === "global";
   const role = user?.role || "employee";
-  const allowed = canAccessRoute(role, location.pathname);
+  const allowed = isGlobalWorkspace || canAccessRoute(role, location.pathname);
   const shown = useRef(false);
 
   useEffect(() => {
@@ -24,6 +23,7 @@ export default function RoleGuard() {
     }
   }, [allowed, toast]);
 
+  if (isGlobalWorkspace) return <Outlet />;
   if (!allowed) return <Navigate to="/" replace />;
   return <Outlet />;
 }
