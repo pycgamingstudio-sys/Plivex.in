@@ -117,7 +117,8 @@ const AuthenticatedApp = () => {
           <Route path="/expenses" element={isGlobalWorkspace ? <GlobalApp section="expenses" /> : <PageNotFound />} />
           <Route path="/accounting" element={isGlobalWorkspace ? <GlobalApp section="accounting" /> : <PageNotFound />} />
           <Route path="/enterprise" element={isGlobalWorkspace ? <GlobalApp section="enterprise" /> : <PageNotFound />} />
-          <Route path="/invoice-history" element={isGlobalWorkspace ? <GlobalApp section="invoices" /> : <InvoiceHistory />} />\n          <Route path="/quotations" element={isGlobalWorkspace ? <GlobalApp section="quotations" /> : <PageNotFound />} />
+          <Route path="/invoice-history" element={isGlobalWorkspace ? <GlobalApp section="invoices" /> : <InvoiceHistory />} />
+          <Route path="/quotations" element={isGlobalWorkspace ? <GlobalApp section="quotations" /> : <PageNotFound />} />
           <Route path="/invoice-shares" element={<GlobalFeatureGate feature="Shared invoice links"><InvoiceShareManagement /></GlobalFeatureGate>} />
           <Route path="/business-profile" element={<GlobalFeatureGate feature="Business profile"><BusinessProfile /></GlobalFeatureGate>} />
           <Route path="/client-database" element={isGlobalWorkspace ? <GlobalApp section="clients" /> : <ClientDatabase />} />
