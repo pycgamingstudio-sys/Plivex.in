@@ -17,12 +17,12 @@ export default function UnifiedWorkspaceOnboarding() {
   const [businessName, setBusinessName] = useState(() => initial.businessName || "");
   const [countryCode, setCountryCode] = useState(() => initial.countryCode || "");
   const [localeCode, setLocaleCode] = useState(() => initial.localeCode || "");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(() => initial.phone || "");
+  const [taxType, setTaxType] = useState(() => initial.taxType || "");
+  const [taxNumber, setTaxNumber] = useState(() => initial.taxNumber || "");
   const [workTypes, setWorkTypes] = useState(() => Array.isArray(initial.workTypes) ? initial.workTypes : []);
   const [features, setFeatures] = useState(() => Array.isArray(initial.features) ? initial.features : []);
   const [countrySearch, setCountrySearch] = useState("");
-  const [taxType, setTaxType] = useState("");
-  const [taxNumber, setTaxNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const country = useMemo(() => getCountryByCode(countryCode), [countryCode]);
@@ -33,7 +33,7 @@ export default function UnifiedWorkspaceOnboarding() {
   ), [countrySearch]);
 
   useEffect(() => {
-    try { sessionStorage.setItem(draftKey, JSON.stringify({ step, businessName, countryCode, localeCode, workTypes, features })); }
+    try { sessionStorage.setItem(draftKey, JSON.stringify({ step, businessName, countryCode, localeCode, phone, taxType, taxNumber, workTypes, features })); }
     catch { /* Setup remains usable when browser storage is unavailable. */ }
   }, [draftKey, step, businessName, countryCode, localeCode, workTypes, features]);
 
