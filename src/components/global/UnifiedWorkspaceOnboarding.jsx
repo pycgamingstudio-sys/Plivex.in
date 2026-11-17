@@ -35,12 +35,12 @@ export default function UnifiedWorkspaceOnboarding() {
   useEffect(() => {
     try { sessionStorage.setItem(draftKey, JSON.stringify({ step, businessName, countryCode, localeCode, phone, taxType, taxNumber, workTypes, features })); }
     catch { /* Setup remains usable when browser storage is unavailable. */ }
-  }, [draftKey, step, businessName, countryCode, localeCode, workTypes, features]);
+  }, [draftKey, step, businessName, countryCode, localeCode, phone, taxType, taxNumber, workTypes, features]);
 
   const chooseWorkType = (type) => {
     const next = workTypes.includes(type) ? workTypes.filter((item) => item !== type) : [...workTypes, type];
     setWorkTypes(next);
-    setFeatures(getSuggestedWorkspaceFeatures(next));
+    setFeatures(getSuggestedWorkspaceFeatures(next, countryCode));
   };
 
   const next = () => {
