@@ -22,7 +22,7 @@ export default function FeatureLibraryModal({ features, updateFeatures, saving, 
           })}
         </div>
         {WORKSPACE_FEATURE_CATALOG.every((item) => features.includes(item.id)) && <p className="mt-5 rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">All optional features are already part of your workspace.</p>}
-        <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/70 p-3 text-xs leading-5 text-emerald-900"><strong>Core tools stay available.</strong> Invoices, Stock and Team Members are permanent workspace cards. Removing an optional feature only hides its shortcut; it does not delete existing records.</div>
+        <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/70 p-3 text-xs leading-5 text-emerald-900"><strong>Core tools stay available.</strong> Invoices, Stock and Team Members are permanent workspace cards. Your core tools remain available. Feature preferences only control shortcuts and navigation; they never delete business records.</div>
         {error && <p role="alert" className="mt-3 rounded-xl bg-rose-50 p-3 text-xs text-rose-700">{error}</p>}
         <div className="mt-5 flex justify-end"><button type="button" onClick={onClose} className="min-h-10 rounded-xl bg-violet-700 px-5 text-sm font-bold text-white hover:bg-violet-800">Done</button></div>
       </section>
