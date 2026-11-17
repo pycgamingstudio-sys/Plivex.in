@@ -28,17 +28,17 @@ test("Global quotation API requires an authenticated workspace and validates lin
   assert.match(edge, /quotation_id/);
 });
 
-test("Global quotations are selectable in More Features and remain separate from invoice navigation", async () => {
+test("Global quotations remain permanently visible outside More Features", async () => {
   const features = await read("../../lib/workspaceFeatures.js");
   const layout = await read("../../components/AppLayout.jsx");
   const app = await read("../../App.jsx");
   const global = await read("../GlobalApp.jsx");
   const panel = await read("../../components/global/GlobalQuotationsPanel.jsx");
-  assert.match(features, /id: "quotations"/);
+  assert.doesNotMatch(features, /id: "quotations"/);
   assert.match(layout, /to: "\/quotations", label: "Quotations"/);
-  assert.match(layout, /workspaceFeatures\.includes\("quotations"\)/);
+  assert.match(layout, /if \(item\.to === "\/quotations"\) return true/);
   assert.match(app, /path="\/quotations".*GlobalApp section="quotations"/);
-  assert.match(global, /GlobalQuotationsPanel account=\{account\}/);
+  assert.match(global, /GlobalQuotationsPanel account=\{account\}/);\n  assert.doesNotMatch(global, /tab: "quotations", icon: FileText/);
   assert.match(panel, /Save quotation draft/);
   assert.match(panel, /Convert to invoice draft/);
   assert.match(panel, /Download PDF/);
