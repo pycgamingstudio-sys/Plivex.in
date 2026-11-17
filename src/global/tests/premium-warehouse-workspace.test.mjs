@@ -85,7 +85,8 @@ test("dashboard keeps its other premium cards but consolidates warehouse shortcu
   assert.match(globalApp, /title: "CRM & Leads"/);
   assert.match(globalApp, /title: "Inventory & Warehouse"/);
   assert.match(globalApp, /title: "Accounting & Reports"/);
-  assert.match(globalApp, /title: "Enterprise & Audit"/);
+  assert.match(globalApp, /title: "Team Members"/);
+  assert.doesNotMatch(globalApp, /title: "Enterprise & Audit"/);
   assert.doesNotMatch(globalApp, /title: "Stock Transfers"/);
   assert.doesNotMatch(globalApp, /title: "Purchase Orders & Goods Receipts"/);
   assert.match(globalApp, /\{actionCards\.length\} work areas/);
