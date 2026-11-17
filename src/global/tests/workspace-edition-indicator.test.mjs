@@ -14,11 +14,14 @@ test("India dashboard identifies the active workspace using server-resolved coun
   assert.match(backend, /workspaceRegion\?\.country_code/);
 });
 
-test("Global dashboard identifies the Global workspace and displays its country and currency", () => {
+test("Global workspace identity is shown by the shared application layout", () => {
+  const layout = read("../../components/AppLayout.jsx");
   const global = read("../GlobalApp.jsx");
-  assert.match(global, /Global Workspace/);
-  assert.match(global, /account\.workspace_name/);
-  assert.match(global, /account\.country_code/);
-  assert.match(global, /\{currency\}/);
-  assert.doesNotMatch(global, /Plivex <span className="text-slate-500">Global<\/span>/);
+  assert.match(layout, /Global Workspace/);
+  assert.match(layout, /user\?\.workspace_name/);
+  assert.match(layout, /user\?\.country_code/);
+  assert.match(layout, /user\?\.currency_code/);
+  assert.match(layout, /GLOBAL_NAV/);
+  assert.match(global, /useSearchParams/);
+  assert.doesNotMatch(global, /<header className="border-b border-slate-200 bg-white">/);
 });
