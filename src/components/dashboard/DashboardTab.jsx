@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FileText, FilePlus2, ShoppingCart, Users, UserPlus, ArrowRight, Phone, Mail, HelpCircle, Package, UsersRound, AlertTriangle, Settings2, X, Check, BellRing, Send } from "lucide-react";
+import { FileText, FilePlus2, ShoppingCart, Users, UserPlus, ArrowRight, Phone, Mail, HelpCircle, Package, UsersRound, AlertTriangle, Settings2, X, Check, BellRing, Send, Warehouse, ArrowLeftRight, ClipboardList, PackageCheck, History, CalendarClock, Boxes } from "lucide-react";
 import { KEYS, useLocalState, loadList } from "@/lib/stores";
 import { InvoiceArt, QuoteArt, ExpenseArt, CrmArt, LeadArt, StockArt, TeamArt } from "@/components/dashboard/CardArt";
 import OwnerMasterControl from "@/components/dashboard/OwnerMasterControl";
@@ -10,15 +10,15 @@ import { usePaywall } from "@/lib/paywall";
 import { supabase } from "@/api/backendClient";
 
 const CARD_KEY = "invoicepulse:cardVisibility";
-const DEFAULT_VIS = { invoices: true, quotations: true, expenses: true, crm: true, leads: true, stock: true, team: true };
+const DEFAULT_VIS = { invoices: true, quotations: true, expenses: true, crm: true, leads: true, stock: true, team: true, procurement: true, warehouses: true, transfers: true, purchaseOrders: true, receipts: true, movements: true, batches: true };
 
 // Strict per-role dashboard card visibility. A role can never see cards outside its allowlist.
 const ROLE_CARD_ACCESS = {
-  admin: ["invoices", "quotations", "expenses", "crm", "leads", "stock", "team"],
-  manager: ["invoices", "quotations", "crm", "leads", "team"],
+  admin: ["invoices", "quotations", "expenses", "crm", "leads", "stock", "team", "procurement", "warehouses", "transfers", "purchaseOrders", "receipts", "movements", "batches"],
+  manager: ["invoices", "quotations", "expenses", "crm", "leads", "stock", "team", "procurement", "warehouses", "transfers", "purchaseOrders", "receipts", "movements", "batches"],
   employee: ["invoices", "quotations", "crm", "leads"],
   accountant: ["invoices", "quotations", "expenses"],
-  storekeeper: ["stock"],
+  storekeeper: ["stock", "warehouses", "transfers", "movements", "batches"],
 };
 
 export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUnlocked }) {
@@ -105,6 +105,13 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
     { id: "leads", title: "Lead Tracker", desc: "Move leads from new to won and never miss a follow-up.", icon: UserPlus, Art: LeadArt, gradient: "bg-gradient-to-br from-[#FEF3C7] to-[#FDE68A]", cta: "+ Add New Lead", onClick: () => onNavigate("crm", "new-lead"), stat: loadList(KEYS.leads).length },
     { id: "stock", title: "Stock Inventory", desc: "Manage products and watch quantities auto-deduct on every invoice.", icon: Package, Art: StockArt, gradient: "bg-gradient-to-br from-[#FEE2E2] to-[#FECACA]", cta: "+ Manage Stock", onClick: () => onNavigate("stock"), stat: stock.length, alert: lowStock },
     { id: "team", title: "Team Members", desc: "Invite your staff and control what each role can see and do.", icon: UsersRound, Art: TeamArt, gradient: "bg-gradient-to-br from-[#FEF3C7] to-[#FDE68A]", cta: "+ Add Member", onClick: () => onNavigate("team"), pro: !teamUnlocked },
+    { id: "procurement", title: "Inventory & Procurement", desc: "Connect stock, suppliers, purchasing and goods receiving in one workspace.", icon: Boxes, Art: StockArt, gradient: "bg-gradient-to-br from-[#E0E7FF] to-[#C7D2FE]", cta: "Open procurement", onClick: () => onNavigate("warehouses", "purchasing") },
+    { id: "warehouses", title: "Warehouses", desc: "Manage warehouse locations and see stock stored at each location.", icon: Warehouse, Art: StockArt, gradient: "bg-gradient-to-br from-[#CCFBF1] to-[#99F6E4]", cta: "Manage warehouses", onClick: () => onNavigate("warehouses", "warehouses") },
+    { id: "transfers", title: "Stock Transfers", desc: "Move inventory between warehouses with recorded stock movements.", icon: ArrowLeftRight, Art: StockArt, gradient: "bg-gradient-to-br from-[#DBEAFE] to-[#BFDBFE]", cta: "Transfer stock", onClick: () => onNavigate("warehouses", "transfers") },
+    { id: "purchaseOrders", title: "Purchase Orders", desc: "Create supplier orders and follow their receiving status.", icon: ClipboardList, Art: QuoteArt, gradient: "bg-gradient-to-br from-[#FCE7F3] to-[#FBCFE8]", cta: "Create purchase order", onClick: () => onNavigate("warehouses", "purchasing") },
+    { id: "receipts", title: "Goods Receipts", desc: "Receive ordered goods into a selected warehouse and update stock.", icon: PackageCheck, Art: ExpenseArt, gradient: "bg-gradient-to-br from-[#DCFCE7] to-[#BBF7D0]", cta: "Receive goods", onClick: () => onNavigate("warehouses", "purchasing") },
+    { id: "movements", title: "Stock Movement History", desc: "Review recorded transfers, receipts and inventory movements.", icon: History, Art: LeadArt, gradient: "bg-gradient-to-br from-[#FEF3C7] to-[#FDE68A]", cta: "View movement history", onClick: () => onNavigate("warehouses", "history") },
+    { id: "batches", title: "Batch & Expiry", desc: "Track batch numbers and expiry dates recorded on goods receipts.", icon: CalendarClock, Art: StockArt, gradient: "bg-gradient-to-br from-[#FFE4E6] to-[#FECDD3]", cta: "Track batches", onClick: () => onNavigate("warehouses", "history") },
   ];
 
   const roleCards = ROLE_CARD_ACCESS[role] || ROLE_CARD_ACCESS.employee;

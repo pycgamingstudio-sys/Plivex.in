@@ -6,8 +6,9 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
 test("the application mounts one shared router instead of a separate GlobalApp", () => {
   const app = read("../../App.jsx");
-  assert.doesNotMatch(app, /import\s+GlobalApp\s+from/);
-  assert.doesNotMatch(app, /return\s+<GlobalApp\s*\/>/);
+  assert.match(app, /const GlobalApp = lazy\(\(\) => import\("@\/global\/GlobalApp"\)\)/);
+  assert.match(app, /APP_EDITION === "global" && isAuthenticated/);
+  assert.doesNotMatch(app, /window\.location\.hostname/);
   assert.match(app, /<AuthProvider>/);
   assert.match(app, /element={<AppLayout \/>}/);
 });

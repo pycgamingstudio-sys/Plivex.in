@@ -15,8 +15,9 @@ const scoreLead = (lead) => Math.min(100,
   + (lead.requirement.trim() ? 20 : 0) + (Number(lead.value) > 0 ? 20 : 0) + (lead.followUp ? 15 : 0)
   + (lead.source.trim() ? 10 : 0));
 
-export default function GlobalPart4Panel({ account }) {
-  const [section, setSection] = useState("crm");
+export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
+  const [section, setSection] = useState(initialSection);
+  useEffect(() => { if (["crm", "warehouses", "transfers", "purchasing", "movements"].includes(initialSection)) setSection(initialSection); }, [initialSection]);
   const [data, setData] = useState({ leads: [], activities: [], warehouses: [], stock: [], batches: [], movements: [], transfers: [], orders: [], orderItems: [], products: [] });
   const [lead, setLead] = useState(blankLead);
   const [warehouse, setWarehouse] = useState(blankWarehouse);

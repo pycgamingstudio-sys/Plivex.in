@@ -7,9 +7,10 @@ const secondary = "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm
 const newKey = () => crypto.randomUUID();
 const localDate = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
 
-export default function IndiaPart4Tab({ user }) {
+export default function IndiaPart4Tab({ user, initialSection = "purchasing" }) {
   const [workspaceId,setWorkspaceId]=useState("");
-  const [tab,setTab]=useState("purchasing");
+  const [tab,setTab]=useState(initialSection);
+  useEffect(()=>{ if (["purchasing","warehouses","transfers","history"].includes(initialSection)) setTab(initialSection); },[initialSection]);
   const [warehouses,setWarehouses]=useState([]);
   const [stock,setStock]=useState([]);
   const [orders,setOrders]=useState([]);
