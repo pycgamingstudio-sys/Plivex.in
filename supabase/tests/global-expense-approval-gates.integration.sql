@@ -14,6 +14,10 @@ DECLARE
 BEGIN
   result := public.global_set_approval_policy(requester,ws,'expense.create',true,1000,array['owner','admin']::text[],true);
   IF result->>'code' <> 'ADMIN_REQUIRED' THEN RAISE EXCEPTION 'Non-admin changed approval policy: %',result; END IF;
+  result := public.global_set_approval_policy(approver,ws,'expense.create',true,1000,array['viewer']::text[],true);
+  IF result->>'code' <> 'INVALID_APPROVAL_POLICY' THEN
+    RAISE EXCEPTION 'Read-only viewer was accepted as an approver: %',result;
+  END IF;
   result := public.global_set_approval_policy(approver,ws,'expense.create',true,1000,array['owner','admin']::text[],false);
   IF result->>'code' <> 'INVALID_APPROVAL_POLICY' THEN
     RAISE EXCEPTION 'Policy allowed self-approval protection to be disabled: %',result;
