@@ -212,7 +212,10 @@ jobs:
                       if lines[i].strip() == ");"), None)
           if end is None:
               raise SystemExit("app_role enum declaration is unterminated")
-          Path("/tmp/plivex-app-role.sql").write_text("\n".join(lines[start:end + 1]) + "\n")
+          enum_sql = "\n".join(lines[start:end + 1]) + "\n"
+          Path("/tmp/plivex-app-role.sql").write_text(
+              "DROP TYPE IF EXISTS public.app_role CASCADE;\n" + enum_sql
+          )
           filtered = []
           skipping = False
           for line in lines:
@@ -233,9 +236,6 @@ jobs:
           # The disposable Supabase image can contain a stale/preloaded
           # app_role type. Recreate it from the production dump before restoring
           # dependent functions. This database is disposable and isolated.
-          docker exec -u postgres plivex-production-restore-test \
-            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c \
-            "DROP TYPE IF EXISTS public.app_role CASCADE"
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -a -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < /tmp/plivex-app-role.sql
