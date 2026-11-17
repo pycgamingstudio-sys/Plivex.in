@@ -57,7 +57,7 @@ test("single-domain edition follows the active workspace country and base curren
   assert.match(paywall, /base_currency: true/);
   assert.match(paywall, /feature === "base_currency"/);
   assert.match(paywall, /multi_currency: false/);
-  assert.match(onboarding, /Your workspace base currency will be/);
+  assert.match(onboarding, /Workspace base currency/);
 });
 
 test("Android stock product form keeps Save and Cancel visible while fields scroll", () => {
