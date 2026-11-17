@@ -5,7 +5,7 @@ import { Users, Package, Receipt, FileText, Boxes, Handshake, Warehouse, Calcula
 import { supabase } from "@/api/backendClient";
 import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
 import FeatureLibraryModal from "@/components/dashboard/FeatureLibraryModal";
-import GlobalInvoicesPanel from "@/components/global/GlobalInvoicesPanel";
+import GlobalInvoicesPanel from "@/components/global/GlobalInvoicesPanel";\nimport GlobalQuotationsPanel from "@/components/global/GlobalQuotationsPanel";
 import GlobalAccountingPanel from "@/components/global/GlobalAccountingPanel";
 import GlobalEnterprisePanel from "@/components/global/GlobalEnterprisePanel";
 import GlobalPart4Panel from "@/components/global/GlobalPart4Panel";
@@ -18,7 +18,7 @@ const NAV = [
   { id: "expenses", label: "Expenses" },
   { id: "crm", label: "CRM" },
   { id: "inventory", label: "Inventory & Warehouse" },
-  { id: "invoices", label: "Invoices" },
+  { id: "invoices", label: "Invoices" },\n  { id: "quotations", label: "Quotations" },
   { id: "accounting", label: "Accounting" },
   { id: "enterprise", label: "Enterprise" },
 ];
@@ -30,7 +30,7 @@ const TAB_PATHS = {
   expenses: "/expenses",
   crm: "/crm",
   inventory: "/inventory-procurement",
-  invoices: "/invoice-history",
+  invoices: "/invoice-history",\n  quotations: "/quotations",
   accounting: "/accounting",
   enterprise: "/enterprise",
 };
@@ -77,14 +77,14 @@ export default function GlobalApp({ section = "overview" }) {
   }, [account?.workspace_id]);
 
   const loadRecords = useCallback(async (activeTab = tab) => {
-    if (!account?.workspace_id || ["crm", "inventory"].includes(activeTab)) return;
+    if (!account?.workspace_id || ["crm", "inventory", "quotations"].includes(activeTab)) return;
     const tables = activeTab === "overview" ? ["clients", "products", "expenses", "invoices", "stock_levels"] : [TABLES[activeTab]];
     const results = await Promise.all(tables.map(async (table) => [table, await invoke(table)]));
     setRecords((current) => ({ ...current, ...Object.fromEntries(results.map(([table, result]) => [table, result.records || []])) }));
   }, [account?.workspace_id, invoke, tab]);
 
   useEffect(() => {
-    if (!account?.workspace_id || tab === "accounting") return;
+    if (!account?.workspace_id || ["accounting", "quotations"].includes(tab)) return;
     loadRecords(tab).catch((loadError) => setError(loadError.message));
   }, [account?.workspace_id, tab, loadRecords]);
 
@@ -145,10 +145,10 @@ export default function GlobalApp({ section = "overview" }) {
     { title: "CRM & Leads", description: "Manage prospects, follow-ups and customer relationships.", tab: "crm", icon: Handshake, tone: "from-fuchsia-50 to-pink-50" },
     { title: "Inventory & Warehouse", description: "Manage stock, locations, transfers, purchase orders and movement history in one connected workspace.", tab: "inventory", icon: Warehouse, tone: "from-indigo-50 to-blue-50" },
     { title: "Accounting & Reports", description: "Open ledgers and financial statements for this workspace.", tab: "accounting", icon: Calculator, tone: "from-violet-50 to-purple-50" },
-    { title: "Team Members", description: "Manage workspace access, roles and team activity.", tab: "enterprise", icon: Users, tone: "from-amber-50 to-yellow-50" },
+    { title: "Team Members", description: "Manage workspace access, roles and team activity.", tab: "enterprise", icon: Users, tone: "from-amber-50 to-yellow-50" },\n    { title: "Quotations", description: "Prepare estimates, track customer decisions and convert accepted quotes into invoice drafts.", tab: "quotations", icon: FileText, tone: "from-violet-50 to-indigo-50" },
 
   ].filter((item) => {
-    if (item.tab === "crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
+    if (item.tab === "quotations") return workspaceFeatures.includes("quotations");\n    if (item.tab === "crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
     if (item.tab === "inventory") return workspaceFeatures.includes("inventoryWorkspace");
     if (item.tab === "accounting") return workspaceFeatures.includes("reports");
     return true;
@@ -178,7 +178,7 @@ export default function GlobalApp({ section = "overview" }) {
           </>
         ) : tab === "invoices" ? (
           <GlobalInvoicesPanel account={account} invoke={invoke} onRefresh={loadRecords} />
-        ) : tab === "accounting" ? (
+        ) : tab === "quotations" ? (\n          <GlobalQuotationsPanel account={account} />\n        ) : tab === "accounting" ? (
           <GlobalAccountingPanel account={account} />
         ) : tab === "enterprise" ? (
           <GlobalEnterprisePanel workspaceId={account.workspace_id} />
