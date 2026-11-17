@@ -257,7 +257,7 @@ export default function GlobalApp() {
     <main className="min-h-screen bg-[#F8F7FC] text-slate-900">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
-          <div><div className="text-xl font-black text-violet-700">Plivex <span className="text-slate-500">Global</span></div><div className="text-xs text-slate-500">{account.workspace_name} · {account.country_code} · {currency}</div></div>
+          <div><div className="text-xl font-black text-violet-700">Plivex</div><div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500"><span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 font-semibold text-violet-800">Global Workspace</span><span>{account.workspace_name} · {account.country_code} · {currency}</span></div></div>
           <div className="flex items-center gap-3"><a href="/pricing" className="rounded-lg border border-violet-200 px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50"><span className="sm:hidden">Plans</span><span className="hidden sm:inline">Plans & pricing</span></a><span className="hidden text-sm text-slate-500 sm:block">{account.email}</span><button onClick={signOut} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">Sign out</button></div>
         </div>
       </header>
