@@ -48,5 +48,7 @@ test("feature preference changes do not mutate or delete business records", asyn
   const helper = await read("../../lib/workspaceFeatures.js");
   const library = await read("../../components/dashboard/FeatureLibraryModal.jsx");
   assert.match(helper, /plivex_workspace_features/);
+  assert.match(helper, /plivex:workspace-features-updated/);
+  assert.match(helper, /window.dispatchEvent/);
   assert.match(library, /never delete business records/);
 });
