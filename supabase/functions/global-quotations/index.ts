@@ -29,7 +29,10 @@ Deno.serve(async (req: Request) => {
       return globalJson({ error: "Unsupported quotation request." }, 400, origin);
     }
 
-    const action = String(body.action);\n    if (typeof body.workspace_id !== "string" || !UUID.test(body.workspace_id)) {\n      return globalJson({ error: "A valid Global workspace is required." }, 400, origin);\n    }
+    const action = String(body.action);
+    if (typeof body.workspace_id !== "string" || !UUID.test(body.workspace_id)) {
+      return globalJson({ error: "A valid Global workspace is required." }, 400, origin);
+    }
     if (action === "create") {
       if (typeof body.idempotency_key !== "string" || !UUID.test(body.idempotency_key)
         || typeof body.currency_code !== "string" || !/^[A-Z]{3}$/.test(body.currency_code)
