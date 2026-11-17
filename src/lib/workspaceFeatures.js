@@ -50,6 +50,16 @@ export function useWorkspaceFeatures(userId) {
     return () => { active = false; };
   }, [userId]);
 
+  // Keep independently mounted dashboard and navigation consumers in sync.
+  useEffect(() => {
+    const onPreferencesChanged = (event) => {
+      const next = normalizeWorkspaceFeatures(event?.detail?.features);
+      if (next) setFeatures(next);
+    };
+    window.addEventListener("plivex:workspace-features-updated", onPreferencesChanged);
+    return () => window.removeEventListener("plivex:workspace-features-updated", onPreferencesChanged);
+  }, []);
+
   const updateFeatures = useCallback(async (nextValue) => {
     const next = normalizeWorkspaceFeatures(nextValue);
     if (!next) return false;
@@ -63,6 +73,7 @@ export function useWorkspaceFeatures(userId) {
       });
       if (updateError) throw updateError;
       setFeatures(next);
+      window.dispatchEvent(new CustomEvent("plivex:workspace-features-updated", { detail: { features: next } }));
       return true;
     } catch (saveError) {
       setError(saveError?.message || "Your feature preferences could not be saved.");
