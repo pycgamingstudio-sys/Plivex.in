@@ -30,3 +30,7 @@ verify_jwt = true
 # Global CRM, warehouse, transfers and procurement operations require a verified JWT.
 [functions.global-part4]
 verify_jwt = true
+
+# Global accounting operations require a verified Supabase JWT.
+[functions.global-accounting]
+verify_jwt = true
