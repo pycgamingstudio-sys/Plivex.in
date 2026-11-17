@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { Users, Package, Receipt, FileText, Boxes, Handshake, Warehouse, ArrowLeftRight, ClipboardList, History, Calculator, ShieldCheck, ShoppingBasket } from "lucide-react";
+import { Users, Package, Receipt, FileText, Boxes, Handshake, Warehouse, Calculator, ShieldCheck } from "lucide-react";
 import { supabase } from "@/api/backendClient";
 import GlobalInvoicesPanel from "@/components/global/GlobalInvoicesPanel";
 import GlobalAccountingPanel from "@/components/global/GlobalAccountingPanel";
