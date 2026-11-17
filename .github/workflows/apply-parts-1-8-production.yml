@@ -1,0 +1,211 @@
+name: Apply Parts 1-8 to production database
+
+on:
+  push:
+    branches:
+      - ops/apply-parts-1-8-production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plivex-production-db-parts-1-8
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout release candidate
+        uses: actions/checkout@v4
+
+      - name: Validate target and backup secret
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_DB_URL"
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlparse
+          u = urlparse(os.environ["SUPABASE_DB_URL"])
+          target = "sqzpaiibmfsvarrkwkvb"
+          if u.scheme not in ("postgres", "postgresql") or target not in (u.netloc + u.username):
+              raise SystemExit("SUPABASE_DB_URL does not identify the intended Plivex production project")
+          print("PASS: database connection targets the approved Plivex production project.")
+          PY
+
+      - name: Install PostgreSQL client and Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Confirm exact 26-migration production plan
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          supabase --version
+          supabase migration list --db-url "$SUPABASE_DB_URL"
+          supabase db push --db-url "$SUPABASE_DB_URL" --include-all --dry-run 2>&1 | tee /tmp/plivex-production-migration-plan.txt
+
+          expected=(
+            202611130003 202611130004 202611130006 202611130007
+            202611130008 202611130009 202611130010 20261114000002
+            20261114000003 20261114000004 20261114000005 202611150009
+            202611150010 202611150011 202611160001 202611160002
+            202611160003 202611160004 202611160005 202611160006
+            20261116100000 20261116110000 20261116120000 20261116121000
+            20261116122000 20261116123000
+          )
+          for version in "${expected[@]}"; do
+            grep -Fq "$version" /tmp/plivex-production-migration-plan.txt || {
+              echo "FAIL: expected migration $version is missing from the CLI dry-run plan."
+              exit 1
+            }
+          done
+
+          planned="$(grep -Eo '2026[0-9]{8,10}' /tmp/plivex-production-migration-plan.txt | sort -u | wc -l | tr -d ' ')"
+          if [ "$planned" != "26" ]; then
+            echo "FAIL: expected exactly 26 pending migrations, found $planned."
+            exit 1
+          fi
+          echo "PASS: dry-run plan contains exactly the approved 26 Parts 1-8 migrations."
+
+      - name: Capture India and Global production baseline counts
+        id: baseline
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          counts="$(psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "
+            SELECT concat_ws('|',
+              (SELECT count(*) FROM public.profiles),
+              (SELECT count(*) FROM public.subscriptions),
+              (SELECT count(*) FROM public.payment_logs),
+              (SELECT count(*) FROM public.invoices),
+              (SELECT count(*) FROM public.invoice_items),
+              (SELECT count(*) FROM global.workspaces),
+              (SELECT count(*) FROM global.workspace_members),
+              (SELECT count(*) FROM global.clients),
+              (SELECT count(*) FROM global.products),
+              (SELECT count(*) FROM global.invoices),
+              (SELECT count(*) FROM global.expenses)
+            );
+          ")"
+          echo "counts=$counts" >> "$GITHUB_OUTPUT"
+          echo "Captured production baseline row counts."
+
+      - name: Apply the 26 approved Parts 1-8 migrations
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          supabase db push --db-url "$SUPABASE_DB_URL" --include-all --yes
+
+      - name: Verify migration ledger, row preservation, tables, RLS and RPCs
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BASELINE_COUNTS: ${{ steps.baseline.outputs.counts }}
+        run: |
+          set -euo pipefail
+          expected_versions=(
+            202611130003 202611130004 202611130006 202611130007
+            202611130008 202611130009 202611130010 20261114000002
+            20261114000003 20261114000004 20261114000005 202611150009
+            202611150010 202611150011 202611160001 202611160002
+            202611160003 202611160004 202611160005 202611160006
+            20261116100000 20261116110000 20261116120000 20261116121000
+            20261116122000 20261116123000
+          )
+          versions_sql="$(printf "'%s'," "${expected_versions[@]}")"
+          versions_sql="${versions_sql%,}"
+          applied="$(psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "
+            SELECT count(DISTINCT version)
+            FROM supabase_migrations.schema_migrations
+            WHERE version IN ($versions_sql);
+          ")"
+          test "$applied" = "26" || { echo "FAIL: only $applied of 26 migration versions are recorded."; exit 1; }
+
+          current_counts="$(psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "
+            SELECT concat_ws('|',
+              (SELECT count(*) FROM public.profiles),
+              (SELECT count(*) FROM public.subscriptions),
+              (SELECT count(*) FROM public.payment_logs),
+              (SELECT count(*) FROM public.invoices),
+              (SELECT count(*) FROM public.invoice_items),
+              (SELECT count(*) FROM global.workspaces),
+              (SELECT count(*) FROM global.workspace_members),
+              (SELECT count(*) FROM global.clients),
+              (SELECT count(*) FROM global.products),
+              (SELECT count(*) FROM global.invoices),
+              (SELECT count(*) FROM global.expenses)
+            );
+          ")"
+          test "$current_counts" = "$BASELINE_COUNTS" || {
+            echo "FAIL: India/Global core row counts changed. Baseline=$BASELINE_COUNTS Current=$current_counts"
+            exit 1
+          }
+
+          psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          DO $verify$
+          DECLARE
+            missing_tables text;
+            unprotected_tables text;
+            missing_functions text;
+          BEGIN
+            SELECT string_agg(x.name, ',') INTO missing_tables
+            FROM (VALUES
+              ('global.accounting_accounts'),('global.journal_entries'),('global.journal_entry_lines'),
+              ('global.purchase_bills'),('global.stock_transfers'),('global.invoice_refunds'),
+              ('global.exchange_rate_snapshots'),('global.tax_rule_versions'),
+              ('global.tax_calculation_audit'),('global.approval_requests'),('global.export_jobs'),
+              ('global.audit_events'),('global.workspace_branches'),('public.stock_transfers'),
+              ('public.workspace_country_change_requests'),('public.invoice_share_rate_limits')
+            ) AS x(name)
+            WHERE to_regclass(x.name) IS NULL;
+            IF missing_tables IS NOT NULL THEN
+              RAISE EXCEPTION 'Missing required Parts 1-8 tables: %', missing_tables;
+            END IF;
+
+            SELECT string_agg(x.name, ',') INTO unprotected_tables
+            FROM (VALUES
+              ('global.accounting_accounts'),('global.journal_entries'),('global.journal_entry_lines'),
+              ('global.purchase_bills'),('global.stock_transfers'),('global.invoice_refunds'),
+              ('global.exchange_rate_snapshots'),('global.tax_rule_versions'),
+              ('global.tax_calculation_audit'),('global.approval_requests'),('global.export_jobs'),
+              ('global.audit_events'),('global.workspace_branches'),('public.stock_transfers'),
+              ('public.workspace_country_change_requests'),('public.invoice_share_rate_limits')
+            ) AS x(name)
+            WHERE NOT COALESCE((SELECT c.relrowsecurity FROM pg_class c WHERE c.oid=to_regclass(x.name)),false);
+            IF unprotected_tables IS NOT NULL THEN
+              RAISE EXCEPTION 'Required application tables without RLS: %', unprotected_tables;
+            END IF;
+
+            SELECT string_agg(x.signature, ',') INTO missing_functions
+            FROM (VALUES
+              ('public.apply_cashfree_subscription_payment(uuid,text,text,bigint,text,text,jsonb,text)'),
+              ('public.apply_cashfree_refund_event(uuid,text,text,text,bigint,text,text,jsonb)'),
+              ('public.global_record_stock_movement(uuid,uuid,uuid,text,numeric,text,uuid)'),
+              ('public.global_create_invoice_draft(uuid,uuid,uuid,text,date,date,text,jsonb,uuid)'),
+              ('public.global_create_expense_with_fx(uuid,uuid,text,text,bigint,text,date,uuid,numeric,numeric,text,text,timestamp with time zone,text)'),
+              ('public.global_publish_tax_rule_version(uuid,text)'),
+              ('public.global_append_tax_calculation_audit(uuid,uuid,uuid,integer,jsonb)'),
+              ('public.global_can_export(uuid,uuid,text)'),
+              ('public.global_cancel_approval_request(uuid,uuid,uuid)')
+            ) AS x(signature)
+            WHERE to_regprocedure(x.signature) IS NULL;
+            IF missing_functions IS NOT NULL THEN
+              RAISE EXCEPTION 'Missing required Parts 1-8 RPCs: %', missing_functions;
+            END IF;
+          END
+          $verify$;
+          SQL
+
+          echo "PASS: all 26 Parts 1-8 migrations are recorded in production."
+          echo "PASS: India and existing Global core row counts are unchanged ($current_counts)."
+          echo "PASS: required accounting, inventory, procurement, tax, refund and enterprise tables have RLS."
+          echo "PASS: required payment, invoice, FX, tax and enterprise RPCs exist."
