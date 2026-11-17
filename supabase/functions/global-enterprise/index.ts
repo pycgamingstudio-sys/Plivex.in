@@ -29,7 +29,7 @@ Deno.serve(async (req: Request) => {
         || !Array.isArray(body.approverRoles) || body.approverRoles.length < 1
         || body.approverRoles.length > 6
         || body.approverRoles.some((role: unknown) => typeof role !== "string" || !APPROVER_ROLES.has(role))
-        || typeof body.preventSelfApproval !== "boolean") {
+        || body.preventSelfApproval !== true) {
         return globalJson({ error: "Invalid approval policy." }, 400, origin);
       }
     }
