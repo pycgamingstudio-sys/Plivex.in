@@ -67,10 +67,12 @@ export default function AppLayout({ children }) {
         <nav className="mx-auto flex max-w-6xl snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain px-4 pb-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Workspace">
           {isGlobal ? GLOBAL_NAV.filter((item) => {
             if (item.to === "/client-database") return workspaceFeatures.includes("crm");
-            if (item.to === "/products" || item.to === "/inventory-procurement") return workspaceFeatures.includes("inventoryWorkspace");
+            if (item.to === "/products") return true;
+            if (item.to === "/inventory-procurement") return workspaceFeatures.includes("inventoryWorkspace");
             if (item.to === "/expenses") return workspaceFeatures.includes("expenses");
             if (item.to === "/crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
             if (item.to === "/accounting") return workspaceFeatures.includes("reports");
+            if (item.to === "/enterprise") return workspaceFeatures.includes("enterprise");
             return true;
           }).map((item) => (
             <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold transition-colors ${isActive ? "bg-primary text-primary-foreground" : "border bg-card text-muted-foreground hover:text-foreground"}`}>
