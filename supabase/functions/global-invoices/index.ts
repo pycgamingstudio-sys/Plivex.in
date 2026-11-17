@@ -166,11 +166,18 @@ Deno.serve(async (req: Request) => {
         p_limit: 1,
       });
       const ledgerReady = !error && data?.ok === true;
+      const commercialProbe = await auth.admin.rpc("global_issue_commercial_invoice", {
+        p_user_id:null, p_workspace_id:null, p_invoice_id:null, p_idempotency_key:null,
+      });
+      const commercialFunctionReady = !commercialProbe.error && commercialProbe.data?.reason === "invalid_request";
+      const commercialCountries = ["US","GB","AE","CA","AU","SG"];
       return globalJson({
         ok: true,
         ledger_ready: ledgerReady,
         issuance_ready: ledgerReady && data?.country_code === "GB",
         issuance_countries: ["GB"],
+        commercial_issuance_ready: ledgerReady && commercialFunctionReady && commercialCountries.includes(data?.country_code),
+        commercial_issuance_countries: commercialCountries,
         country_code: data?.country_code || null,
       }, 200, origin);
     }
@@ -207,6 +214,9 @@ Deno.serve(async (req: Request) => {
         if (message.includes("invoice_warehouse_not_found")) {
           return globalJson({ error: "Set up an active default warehouse before issuing stock-tracked invoices.", reason: "warehouse_not_found" }, 409, origin);
         }
+        if (message.includes("approval_required")) {
+          return globalJson({ error:"An authorised approver must approve this invoice before it can be issued.", reason:"approval_required" },409,origin);
+        }
         return globalJson({ error: "Invoice issuance service is not ready. Please try again later." }, 503, origin);
       }
       if (!data?.ok) {
@@ -229,6 +239,46 @@ Deno.serve(async (req: Request) => {
         return globalJson({ error: messages[reason] || "Could not issue this invoice.", reason }, status, origin);
       }
       return globalJson(data, 200, origin);
+    }
+
+    if (body.action === "issue_commercial") {
+      if (typeof body.invoice_id !== "string" || !UUID.test(body.invoice_id)
+        || typeof body.idempotency_key !== "string" || !UUID.test(body.idempotency_key)) {
+        return globalJson({ error:"Commercial invoice issuance details are invalid." },400,origin);
+      }
+      const { data, error } = await auth.admin.rpc("global_issue_commercial_invoice", {
+        p_user_id:auth.user.id,
+        p_workspace_id:workspaceId,
+        p_invoice_id:body.invoice_id,
+        p_idempotency_key:body.idempotency_key,
+      });
+      if (error) {
+        const message = String(error.message || "");
+        if (message.includes("approval_required")) {
+          return globalJson({ error:"An authorised approver must approve this invoice before it can be issued.", reason:"approval_required" },409,origin);
+        }
+        console.error("Global commercial invoice RPC failed", { code:error.code });
+        return globalJson({ error:"Commercial invoice issuance service is not ready. Please try again later." },503,origin);
+      }
+      if (!data?.ok) {
+        const reason = String(data?.reason || "request_failed");
+        const messages: Record<string,string> = {
+          access_denied:"You do not have access to this Global workspace.",
+          forbidden:"Your workspace role cannot issue invoices.",
+          invoice_not_found:"Invoice not found.",
+          invoice_not_draft:"Only a draft invoice can be issued.",
+          country_not_enabled:"Commercial invoices are not enabled for this workspace country/currency.",
+          seller_profile_incomplete:"Add the seller legal business name and registered business address before issuing.",
+          invalid_invoice_amounts:"Invoice amounts are invalid.",
+          invoice_total_limit:"The invoice total exceeds the supported limit.",
+          idempotency_conflict:"This request ID was already used for another invoice.",
+        };
+        const status = ["access_denied","forbidden"].includes(reason) ? 403
+          : reason === "invoice_not_found" ? 404
+          : ["invoice_not_draft","idempotency_conflict"].includes(reason) ? 409 : 400;
+        return globalJson({ error:messages[reason] || "Could not issue the commercial invoice.",reason },status,origin);
+      }
+      return globalJson(data,200,origin);
     }
 
     if (body.action === "record_refund") {

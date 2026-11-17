@@ -38,7 +38,7 @@ test("Global stock movements use the authenticated atomic stock ledger", async (
   assert.match(migration, /insufficient_stock/);
 });
 
-test("Global drafts are stored as drafts and cannot be shared as issued tax invoices", async () => {
+test("Global drafts remain drafts, can be securely shared, and only become issued through the server issuance gate", async () => {
   const stores = await read("../../lib/stores.js");
   const home = await read("../../pages/Home.jsx");
   const backend = await read("../../api/backendClient.js");
@@ -48,7 +48,11 @@ test("Global drafts are stored as drafts and cannot be shared as issued tax invo
   assert.match(backend, /global-invoices/);
   assert.match(backend, /global-stock-movements/);
   assert.match(home, /DRAFT · NOT A TAX INVOICE/);
-  assert.match(home, /Global invoices are draft-only/);
+  assert.doesNotMatch(home, /Global invoices are draft-only/);
+  assert.match(home, /createInvoiceShareLink\(savedInvoice\.id, user\?\.workspace_id/);
+  assert.match(home, /action:"issue_commercial"/);
+  const shareHelper = await read("../../lib/invoiceShare.js");
+  assert.match(shareHelper, /global-invoice-share/);
   assert.match(home, /This is not an issued tax invoice; payment-provider collection is not connected yet/);
   assert.match(home, /action:"capabilities"/);
   assert.match(home, /action:"issue"/);

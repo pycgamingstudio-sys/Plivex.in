@@ -390,10 +390,16 @@ const invoiceSignature = invoiceSaveSignature;
 
 export async function saveInvoiceToServer(inv) {
   const sig = invoiceSignature(inv);
-  if (APP_EDITION === "global") {
+  const workspaceCountry = String(inv.workspaceCountryCode || "").trim().toUpperCase();
+  const isGlobalWorkspaceInvoice = Boolean(workspaceCountry && workspaceCountry !== "IN");
+  if (APP_EDITION === "global" || isGlobalWorkspaceInvoice) {
     const already = _savedSignatures.get(sig);
     if (already) return already;
-    const currency = String(inv.currency || "USD").toUpperCase();
+    const currency = String(inv.currency || inv.workspaceCurrencyCode || "").trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Workspace base currency could not be verified. Invoice PDF export is paused rather than defaulting to USD or INR.");
+    if (inv.workspaceCurrencyCode && currency !== String(inv.workspaceCurrencyCode).trim().toUpperCase()) {
+      throw new Error("Invoice currency must match the workspace base currency. Multi-Currency applies only to additional currencies.");
+    }
     const digits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits;
     const scale = 10 ** digits;
     const rawLines = (inv.items || []).map((item) => ({

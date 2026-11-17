@@ -5,6 +5,7 @@ import GlobalTaxEditor from "@/components/invoice/GlobalTaxEditor";
 import { calculateInvoiceGlobalTax } from "@/global/tax/invoice-tax-integration.js";
 import { getCountryExperience } from "@/global/countries/country-experience.js";
 import { formatWorkspaceDate } from "@/global/localization/date-format.js";
+import { resolveGlobalInvoiceContext, canIssueCommercialInvoice, getGlobalInvoiceDocumentTitle, getGlobalInvoiceTaxDisclosure } from "@/global/invoices/invoice-readiness.js";
 
 const today = () => {
   const d = new Date();
@@ -26,18 +27,19 @@ const secondary = "rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-
 const newId = () => crypto.randomUUID();
 
 export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
-  const currency = account?.currency_code || "USD";
-  const countryCode = account?.country_code || "";
+  const workspaceContext = resolveGlobalInvoiceContext(account);
+  const currency = workspaceContext.ok ? workspaceContext.currencyCode : "";
+  const countryCode = workspaceContext.countryCode || String(account?.country_code || "").trim().toUpperCase();
   const money = (amount, currencyCode = currency) => new Intl.NumberFormat(
-    account?.locale_code || CURRENCY_LOCALES[currencyCode] || "en",
-    { style:"currency", currency:currencyCode },
-  ).format(Number(amount || 0) / (10 ** digits(currencyCode)));
+    CURRENCY_LOCALES[currencyCode] || account?.locale_code || "en",
+    { style:"currency", currency:currencyCode || "USD" },
+  ).format(Number(amount || 0) / (10 ** digits(currencyCode || "USD")));
   const [clients, setClients] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [items, setItems] = useState([]);
   const [profile, setProfile] = useState(null);
   const [reconciliation, setReconciliation] = useState([]);
-  const [backendCapabilities, setBackendCapabilities] = useState({ issuanceReady:false, ledgerReady:false });
+  const [backendCapabilities, setBackendCapabilities] = useState({ issuanceReady:false, commercialIssuanceReady:false, ledgerReady:false });
   const [selectedId, setSelectedId] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -52,6 +54,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   const [profileForm, setProfileForm] = useState({});
   const [paymentForm, setPaymentForm] = useState({ amount:"", date:today(), method:"bank_transfer", reference:"" });
   const [refundForm, setRefundForm] = useState({ amount:"", date:today(), method:"bank_transfer", reference:"", reason:"" });
+  const [activeShare, setActiveShare] = useState(null);
 
   const refresh = useCallback(async () => {
     const capabilityResult = await supabase.functions.invoke("global-invoices", {
@@ -59,6 +62,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     });
     const capabilities = {
       issuanceReady: capabilityResult.data?.ok === true && capabilityResult.data?.issuance_ready === true,
+      commercialIssuanceReady: capabilityResult.data?.ok === true && capabilityResult.data?.commercial_issuance_ready === true,
       ledgerReady: capabilityResult.data?.ok === true && capabilityResult.data?.ledger_ready === true,
     };
     setBackendCapabilities(capabilities);
@@ -135,6 +139,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   const createDraft = async (event) => {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
     try {
+      if (!workspaceContext.ok) throw new Error("Your workspace country and base currency could not be verified. No fallback currency has been applied.");
       const { data, error: invokeError } = await supabase.functions.invoke("global-invoices", {
         body:{
           action:"create_draft", workspace_id:account.workspace_id,
@@ -184,64 +189,146 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     finally { setBusy(false); }
   };
 
+
+  const issueCommercialInvoice = async () => {
+    if (!selected || selected.status !== "draft" || !workspaceContext.ok) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("global-invoices", {
+        body:{ action:"issue_commercial", workspace_id:account.workspace_id, invoice_id:selected.id, idempotency_key:newId() },
+      });
+      if (invokeError) throw invokeError;
+      if (!data?.ok || !data?.invoice?.invoice_number) throw new Error(data?.error || "Could not issue the commercial invoice.");
+      setNotice("Commercial invoice " + data.invoice.invoice_number + " issued. Tax has not been calculated or validated by Plivex.");
+      await refresh();
+    } catch (e) { setError(e.message || "Could not issue the commercial invoice."); }
+    finally { setBusy(false); }
+  };
+
   const downloadPdf = async (invoice) => {
     try {
       const lineItems = items.filter((item) => item.invoice_id === invoice.id).sort((a,b) => a.sort_order-b.sort_order);
-      const doc = new jsPDF();
       const snap = invoice.invoice_snapshot || {};
-      const seller = snap.seller || {};
-      const buyer = snap.buyer || {};
-      const experience = getCountryExperience(countryCode);
-      const locale = account?.locale_code || experience?.defaultLocale || "en";
+      const invoiceCurrency = invoice.currency_code || snap.currency_code || currency;
+      if (!invoiceCurrency) throw new Error("This invoice has no saved currency snapshot.");
+      const invoiceCountry = snap.country_code || countryCode;
+      const experience = getCountryExperience(invoiceCountry);
+      const locale = snap.locale_code || CURRENCY_LOCALES[invoiceCurrency] || account?.locale_code || "en";
       const requiresWorkspaceZone = experience?.timeZonePolicy === "workspace-select";
       const timeZone = account?.time_zone || (requiresWorkspaceZone ? "UTC" : experience?.timeZonePolicy || "UTC");
       const dateLabel = (value) => {
         if (!value) return "—";
-        try { return `${formatWorkspaceDate(value, { locale, timeZone })}${requiresWorkspaceZone && !account?.time_zone ? " (UTC)" : ""}`; }
+        try { return formatWorkspaceDate(value, { locale, timeZone }) + (requiresWorkspaceZone && !account?.time_zone ? " (UTC)" : ""); }
         catch { return String(value); }
       };
-      const taxName = experience?.business.taxName || "Tax";
       const registrationLabel = experience?.business.registrationLabel || "Tax registration";
-      doc.setFontSize(20); doc.text(invoice.status === "draft" ? "PLIVEX · DRAFT INVOICE" : "PLIVEX · TAX INVOICE", 16, 20);
-      if (invoice.status === "draft") { doc.setFontSize(9); doc.text("DRAFT — NOT ISSUED", 16, 25); }
-      doc.setFontSize(10);
-      doc.text(`Invoice: ${invoice.invoice_number}`,16,31);
-      doc.text(`Issue date: ${dateLabel(invoice.issue_date)}`,16,37);
-      doc.text(`Due date: ${dateLabel(invoice.due_date)}`,16,43);
-      doc.text(`Seller: ${seller.legal_name || profile?.legal_name || "—"}`,16,55);
-      doc.text(`Address: ${seller.address || profile?.address || "—"}`,16,61);
-      doc.text(`${registrationLabel}: ${seller.tax_registration_number || "—"}`,16,67);
-      const client=clients.find((c)=>c.id===invoice.client_id);
-      doc.text(`Bill to: ${buyer.name || client?.name || "Customer"}`,16,80);
-      if (buyer.email || client?.email) doc.text(`Customer email: ${buyer.email || client?.email}`,16,86);
-      doc.text("Description",16,96); doc.text("Qty",110,96); doc.text("Net",130,96); doc.text(taxName,160,96); doc.text("Total",190,96,{align:"right"});
-      let y=104;
-      for (const line of lineItems) {
-        if (y>260) { doc.addPage(); y=20; }
-        doc.text(String(line.description || "").slice(0,48),16,y);
-        doc.text(String(line.quantity),110,y);
-        doc.text(money(line.line_total_minor-(line.tax_minor||0),invoice.currency_code),130,y);
-        doc.text(money(line.tax_minor||0,invoice.currency_code),160,y);
-        doc.text(money(line.line_total_minor,invoice.currency_code),190,y,{align:"right"});
-        y+=8;
+      const seller = snap.seller || {};
+      const buyer = snap.buyer || {};
+      const doc = new jsPDF({ orientation:"portrait", unit:"mm", format:"a4" });
+      const title = getGlobalInvoiceDocumentTitle(snap, invoice.status);
+      doc.setFontSize(19); doc.text("PLIVEX · " + title, 16, 20);
+      doc.setFontSize(9);
+      if (invoice.status === "draft") doc.text("DRAFT — NOT ISSUED", 16, 26);
+      doc.text("Invoice: " + (snap.invoice_number || invoice.invoice_number || "DRAFT"), 16, 34);
+      doc.text("Issue date: " + dateLabel(snap.issue_date || invoice.issue_date), 16, 40);
+      doc.text("Due date: " + dateLabel(snap.due_date || invoice.due_date), 16, 46);
+      doc.text("Seller: " + (seller.legal_name || profile?.legal_name || "—"), 16, 58);
+      doc.text(doc.splitTextToSize("Address: " + String(seller.address || profile?.address || "—"), 175), 16, 64);
+      doc.text(registrationLabel + ": " + (seller.tax_registration_number || "—"), 16, 78);
+      const client = clients.find((c) => c.id === invoice.client_id);
+      doc.text("Bill to: " + (buyer.name || client?.name || "Customer"), 16, 90);
+      if (buyer.email || client?.email) doc.text("Customer email: " + (buyer.email || client?.email), 16, 96);
+      const drawTableHeader = (y) => {
+        doc.setFontSize(8); doc.setFont(undefined, "bold");
+        doc.text("Description",16,y); doc.text("Qty",112,y,{align:"right"});
+        doc.text("Rate",148,y,{align:"right"}); doc.text("Amount",190,y,{align:"right"});
+        doc.setFont(undefined, "normal");
+      };
+      drawTableHeader(108);
+      let y = 116;
+      const printableItems = Array.isArray(snap.items) && snap.items.length ? snap.items : lineItems;
+      for (const line of printableItems) {
+        const description = doc.splitTextToSize(String(line.description || "Item"), 82);
+        const rowHeight = Math.max(7, description.length * 4.5);
+        if (y + rowHeight > 265) { doc.addPage(); y = 20; drawTableHeader(y); y += 8; }
+        doc.text(description,16,y);
+        doc.text(String(line.quantity ?? "—"),112,y,{align:"right"});
+        doc.text(money(line.unit_price_minor || 0,invoiceCurrency),148,y,{align:"right"});
+        doc.text(money(line.line_total_minor || 0,invoiceCurrency),190,y,{align:"right"});
+        y += rowHeight;
       }
-      y+=10;
-      doc.text(`Subtotal: ${money(invoice.subtotal_minor,invoice.currency_code)}`,16,y); y+=7;
-      doc.text(`Discount: ${money(invoice.discount_minor,invoice.currency_code)}`,16,y); y+=7;
-      doc.text(`${taxName}: ${money(invoice.tax_minor,invoice.currency_code)}`,16,y); y+=7;
-      doc.setFontSize(13); doc.text(`Total: ${money(invoice.total_minor,invoice.currency_code)}`,16,y);
-      doc.setFontSize(8); doc.text("Tax treatment and registration information are based on seller-provided declarations.",16,285);
-      doc.save(`${invoice.invoice_number}.pdf`);
+      y += 10;
+      if (y > 260) { doc.addPage(); y = 20; }
+      doc.setFontSize(9);
+      doc.text("Subtotal: " + money(invoice.subtotal_minor,invoiceCurrency), 16, y); y += 7;
+      doc.text("Discount: " + money(invoice.discount_minor,invoiceCurrency), 16, y); y += 7;
+      if (snap.tax_status === "not_assessed" || snap.tax_status === "not_calculated") {
+        doc.text("Tax: Not assessed by Plivex", 16, y); y += 7;
+      } else {
+        const taxName = experience?.business.taxName || "Tax";
+        doc.text(taxName + ": " + money(invoice.tax_minor,invoiceCurrency), 16, y); y += 7;
+      }
+      doc.setFontSize(13); doc.text("Total: " + money(invoice.total_minor,invoiceCurrency), 16, y);
+      doc.setFontSize(7);
+      doc.text(doc.splitTextToSize(getGlobalInvoiceTaxDisclosure(snap), 178), 16, Math.min(282, y + 14));
+      doc.save((snap.invoice_number || invoice.invoice_number || "Plivex-invoice") + ".pdf");
     } catch (e) { setError(e.message || "Could not create invoice PDF."); }
   };
 
-  const shareInvoice = (invoice, channel) => {
-    const client=clients.find((c)=>c.id===invoice.client_id);
-    const buyer=invoice.invoice_snapshot?.buyer || {};
-    const recipient=buyer.email || client?.email || "";
-    const message=`Invoice ${invoice.invoice_number} · ${money(invoice.total_minor,invoice.currency_code)} · Status: ${invoice.status}. Download the PDF from Plivex and attach it before sending.`;
-    if (channel === "whatsapp") window.open("https://wa.me/?text="+encodeURIComponent(message),"_blank","noopener,noreferrer");
-    else window.location.href="mailto:"+recipient+"?subject="+encodeURIComponent("Invoice "+invoice.invoice_number)+"&body="+encodeURIComponent(message);
+  const shareInvoice = async (invoice, channel) => {
+    const client = clients.find((c) => c.id === invoice.client_id);
+    const buyer = invoice.invoice_snapshot?.buyer || {};
+    const recipient = buyer.email || client?.email || "";
+    const phone = buyer.phone || client?.phone || "";
+    if (channel === "email" && !recipient) { setError("Add a customer email before sharing by email."); return; }
+    if (channel === "sms" && !phone) { setError("Add a customer phone number before sharing by SMS."); return; }
+    const shareWindow = channel === "whatsapp" ? window.open("about:blank","_blank") : null;
+    setError(""); setNotice("");
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("global-invoice-share", {
+        body:{ action:"create", workspace_id:account.workspace_id, invoice_id:invoice.id, expires_in_days:7 },
+      });
+      if (invokeError) throw invokeError;
+      if (!data?.ok || !data?.url || !data?.share_id) throw new Error(data?.error || "Could not create a secure invoice link.");
+      setActiveShare({ id:data.share_id, url:data.url, invoiceId:invoice.id, expiresAt:data.expires_at });
+      const statusLine = invoice.status === "draft"
+        ? "DRAFT — NOT ISSUED. This is not a tax invoice."
+        : invoice.invoice_snapshot?.document_type === "commercial_invoice"
+          ? "Commercial invoice. Tax was not assessed by Plivex."
+          : "Issued invoice.";
+      const message = "Plivex invoice " + invoice.invoice_number + " · " + money(invoice.total_minor,invoice.currency_code) +
+        "\n" + statusLine + "\n\nView the secure invoice: " + data.url +
+        "\n\nThis link expires in 7 days. The sender must confirm before sending.";
+      if (channel === "whatsapp") {
+        if (shareWindow) shareWindow.location.href = "https://wa.me/?text=" + encodeURIComponent(message);
+        else window.location.href = "https://wa.me/?text=" + encodeURIComponent(message);
+      } else if (channel === "email") {
+        window.location.href = "mailto:" + encodeURIComponent(recipient) +
+          "?subject=" + encodeURIComponent("Invoice " + invoice.invoice_number) +
+          "&body=" + encodeURIComponent(message);
+      } else {
+        window.location.href = "sms:" + encodeURIComponent(phone) + "?body=" + encodeURIComponent(message);
+      }
+      setNotice("Secure invoice link created. Review the message and send it yourself; Plivex has not sent anything automatically.");
+    } catch (e) {
+      if (shareWindow) shareWindow.close();
+      setError(e.message || "Could not create a secure invoice link.");
+    }
+  };
+
+  const revokeActiveShare = async () => {
+    if (!activeShare?.id) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("global-invoice-share", {
+        body:{ action:"revoke", workspace_id:account.workspace_id, share_id:activeShare.id },
+      });
+      if (invokeError) throw invokeError;
+      if (!data?.ok) throw new Error(data?.error || "Could not revoke the invoice link.");
+      setActiveShare(null);
+      setNotice("The selected invoice share link has been revoked.");
+    } catch (e) { setError(e.message || "Could not revoke the invoice link."); }
+    finally { setBusy(false); }
   };
 
   const recordPayment = async (event) => {
@@ -250,7 +337,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     try {
       const { data, error: invokeError } = await supabase.functions.invoke("global-invoices", {
         body:{ action:"record_payment",workspace_id:account.workspace_id,invoice_id:selected.id,
-          amount_minor:minor(paymentForm.amount,currency),currency_code:currency,payment_date:paymentForm.date,
+          amount_minor:minor(paymentForm.amount,selected?.currency_code || currency),currency_code:selected?.currency_code || currency,payment_date:paymentForm.date,
           method:paymentForm.method,reference:paymentForm.reference,idempotency_key:newId() },
       });
       if (invokeError) throw invokeError;
@@ -268,7 +355,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     try {
       const { data, error: invokeError } = await supabase.functions.invoke("global-invoices", {
         body:{ action:"record_refund",workspace_id:account.workspace_id,invoice_id:selected.id,
-          amount_minor:minor(refundForm.amount,currency),currency_code:currency,refund_date:refundForm.date,
+          amount_minor:minor(refundForm.amount,selected?.currency_code || currency),currency_code:selected?.currency_code || currency,refund_date:refundForm.date,
           method:refundForm.method,reference:refundForm.reference,reason:refundForm.reason,idempotency_key:newId() },
       });
       if (invokeError) throw invokeError;
@@ -281,17 +368,25 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   };
 
   const selectedClient = clients.find((client) => client.id === selected?.client_id);
+  const selectedCurrency = selected?.currency_code || currency;
+  const sellerProfileReady = Boolean(profile?.legal_name?.trim() && profile?.address?.trim());
+  const canIssueCommercial = canIssueCommercialInvoice({
+    workspaceReady:workspaceContext.ok,
+    issuanceReady:backendCapabilities.commercialIssuanceReady,
+    status:selected?.status,
+    sellerProfileReady,
+  });
   const canIssue = backendCapabilities.issuanceReady && countryCode === "GB" && selected?.status === "draft" && taxPreview.ok === true;
 
   return (
     <section className="mt-6 space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h1 className="text-2xl font-bold">Global invoices</h1><p className="mt-1 text-sm text-slate-500">Draft, issue and reconcile invoices in {currency}. UK standard-rated VAT issuance will unlock only after the server migration and Edge Function are ready.</p></div>
+        <div><h1 className="text-2xl font-bold">Global invoices</h1><p className="mt-1 text-sm text-slate-500">Create and issue commercial invoices in your verified {currency || "workspace"} base currency. Tax invoices are separately enabled only where country rules and seller evidence are verified.</p></div>
         <button className={button} onClick={() => { setShowCreate((v)=>!v); setError(""); setNotice(""); }}> {showCreate ? "Close" : "Create draft"} </button>
       </div>
       {notice && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-      {!backendCapabilities.ledgerReady ? <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Server-side invoice issuance and ledger are not activated yet. You can save drafts, but Plivex will not mark them as issued until the database migration and Edge Function are deployed.</p> : countryCode !== "GB" ? <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">This country is draft-only in the first release. UK standard-rated VAT is the only issuance adapter currently supported.</p> : null}
+      {!workspaceContext.ok ? <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Workspace country/currency is not verified. Invoice actions are paused rather than defaulting to USD or INR.</p> : !backendCapabilities.ledgerReady || !backendCapabilities.commercialIssuanceReady ? <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">The commercial invoice migration and server function must be deployed before Global invoices can be issued. Drafts and base-currency PDF export remain available.</p> : null}
 
       <details className="rounded-xl border border-slate-200 bg-white p-4">
         <summary className="cursor-pointer font-semibold">Seller & tax registration profile</summary>
@@ -320,7 +415,12 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
             <label className="text-xs font-semibold text-slate-600">Due date<input type="date" className={field+" mt-1"} value={form.dueDate} onChange={(e)=>setForm((v)=>({...v,dueDate:e.target.value}))}/></label>
             <label className="text-xs font-semibold text-slate-600">Description<input required maxLength={500} className={field+" mt-1"} value={form.description} onChange={(e)=>setForm((v)=>({...v,description:e.target.value}))}/></label>
             <label className="text-xs font-semibold text-slate-600">Quantity<input required min="0.0001" step="0.0001" type="number" className={field+" mt-1"} value={form.quantity} onChange={(e)=>setForm((v)=>({...v,quantity:e.target.value}))}/></label>
-            <label className="text-xs font-semibold text-slate-600">Unit price ({currency})<input required min="0" step="0.01" type="number" className={field+" mt-1"} value={form.unitPrice} onChange={(e)=>setForm((v)=>({...v,unitPrice:e.target.value}))}/></label>
+            <label className="text-xs font-semibold text-slate-600">Unit price
+              <span className="mt-1 flex min-w-0 overflow-hidden rounded-lg border border-slate-300 bg-white focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-100" data-testid="global-invoice-unit-price">
+                <span className="flex shrink-0 items-center border-r border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-600">{currency || "Currency"}</span>
+                <input required min="0" step="0.01" type="number" className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm outline-none" value={form.unitPrice} onChange={(e)=>setForm((v)=>({...v,unitPrice:e.target.value}))}/>
+              </span>
+            </label>
             <div className="sm:col-span-2 flex items-center justify-between gap-3"><span className="text-sm text-slate-500">Draft amount: {money(minor(Number(form.quantity||0)*Number(form.unitPrice||0),currency),currency)}</span><button disabled={busy} className={button}>Save draft</button></div>
           </form>
         </div>
@@ -336,16 +436,23 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <h2 className="font-semibold">{selected.invoice_number}</h2>
               <p className="mt-1 text-sm text-slate-500">{selected.invoice_snapshot?.buyer?.name || selectedClient?.name || "Customer"} · {selected.status}</p>
-              <div className="mt-3 space-y-1 text-sm"><p>Subtotal: {money(selected.subtotal_minor,currency)}</p><p>Discount: {money(selected.discount_minor,currency)}</p><p>Tax: {money(selected.tax_minor,currency)}</p><p className="font-bold">Total: {money(selected.total_minor,currency)}</p></div>
+              <div className="mt-3 space-y-1 text-sm"><p>Subtotal: {money(selected.subtotal_minor,selected.currency_code)}</p><p>Discount: {money(selected.discount_minor,selected.currency_code)}</p><p>{selected.invoice_snapshot?.tax_status === "not_assessed" ? "Tax: Not assessed by Plivex" : "Tax: " + money(selected.tax_minor,selected.currency_code)}</p><p className="font-bold">Total: {money(selected.total_minor,selected.currency_code)}</p></div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button className={secondary} onClick={()=>downloadPdf(selected)}>Download PDF</button>
                 <button className={secondary} onClick={()=>shareInvoice(selected,"whatsapp")}>WhatsApp</button>
                 <button className={secondary} onClick={()=>shareInvoice(selected,"email")}>Email</button>
+                <button className={secondary} onClick={()=>shareInvoice(selected,"sms")}>SMS</button>
+                {activeShare?.invoiceId === selected.id && <button className={secondary} disabled={busy} onClick={revokeActiveShare}>Revoke active link</button>}
               </div>
-              {selected.status==="draft" && countryCode==="GB" && <>
-                <div className="mt-4"><GlobalTaxEditor invoice={previewInvoice} setInvoice={(updater)=>setTaxContext((old)=>typeof updater==="function"?updater({globalTax:old}).globalTax:updater.globalTax)} workspaceProfile={workspaceProfile}/></div>
-                <button className={button+" mt-3 w-full"} disabled={busy||!canIssue} onClick={issueInvoice}>Issue UK VAT invoice</button>
-                {!canIssue && <p className="mt-2 text-xs text-amber-700">Complete the registered GB VAT seller profile before issuing. Other countries remain draft-only in this release.</p>}
+              {selected.status==="draft" && <>
+                <button className={button+" mt-4 w-full"} disabled={busy||!canIssueCommercial} onClick={issueCommercialInvoice}>Issue commercial invoice</button>
+                {!canIssueCommercial && <p className="mt-2 text-xs text-amber-700">Complete the seller legal name and address, and wait for the commercial issuance service to be enabled. Commercial invoices do not certify tax treatment.</p>}
+                {countryCode==="GB" && <>
+                  <div className="mt-4"><GlobalTaxEditor invoice={previewInvoice} setInvoice={(updater)=>setTaxContext((old)=>typeof updater==="function"?updater({globalTax:old}).globalTax:updater.globalTax)} workspaceProfile={workspaceProfile}/></div>
+                  <button className={secondary+" mt-3 w-full"} disabled={busy||!canIssue} onClick={issueInvoice}>Issue UK VAT tax invoice</button>
+                  {!canIssue && <p className="mt-2 text-xs text-amber-700">The separate UK VAT tax-invoice path requires a complete registered seller profile and confirmed standard-rated VAT evidence.</p>}
+                </>}
+                <p className="mt-3 text-xs text-slate-500">Commercial invoices are not tax invoices. US and Canada address-level tax is not calculated automatically in this release.</p>
               </>}
               {selected.status!=="draft" && <p className="mt-3 text-xs text-slate-500">Issued invoice content and tax snapshot are locked. Payments and refunds are recorded separately.</p>}
             </div>
@@ -353,7 +460,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
               <div className="rounded-xl border border-slate-200 bg-white p-4">
                 <h3 className="font-semibold">Record payment</h3>
                 <form className="mt-3 grid gap-2" onSubmit={recordPayment}>
-                  <input required min="0.01" step="0.01" type="number" className={field} placeholder={`Amount (${currency})`} value={paymentForm.amount} onChange={(e)=>setPaymentForm((v)=>({...v,amount:e.target.value}))}/>
+                  <input required min="0.01" step="0.01" type="number" className={field} placeholder={`Amount (${selected?.currency_code || currency})`} value={paymentForm.amount} onChange={(e)=>setPaymentForm((v)=>({...v,amount:e.target.value}))}/>
                   <input required type="date" className={field} value={paymentForm.date} onChange={(e)=>setPaymentForm((v)=>({...v,date:e.target.value}))}/>
                   <input className={field} placeholder="Method" value={paymentForm.method} onChange={(e)=>setPaymentForm((v)=>({...v,method:e.target.value}))}/>
                   <input className={field} placeholder="Reference" value={paymentForm.reference} onChange={(e)=>setPaymentForm((v)=>({...v,reference:e.target.value}))}/>
@@ -365,7 +472,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
               <div className="rounded-xl border border-slate-200 bg-white p-4">
                 <h3 className="font-semibold">Record refund</h3>
                 <form className="mt-3 grid gap-2" onSubmit={recordRefund}>
-                  <input required min="0.01" step="0.01" type="number" className={field} placeholder={`Amount (${currency})`} value={refundForm.amount} onChange={(e)=>setRefundForm((v)=>({...v,amount:e.target.value}))}/>
+                  <input required min="0.01" step="0.01" type="number" className={field} placeholder={`Amount (${selected?.currency_code || currency})`} value={refundForm.amount} onChange={(e)=>setRefundForm((v)=>({...v,amount:e.target.value}))}/>
                   <input required type="date" className={field} value={refundForm.date} onChange={(e)=>setRefundForm((v)=>({...v,date:e.target.value}))}/>
                   <input className={field} placeholder="Method" value={refundForm.method} onChange={(e)=>setRefundForm((v)=>({...v,method:e.target.value}))}/>
                   <input className={field} placeholder="Reference" value={refundForm.reference} onChange={(e)=>setRefundForm((v)=>({...v,reference:e.target.value}))}/>

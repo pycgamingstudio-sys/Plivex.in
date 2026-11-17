@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { usePaywall } from "@/lib/paywall";
 import { Check, Sparkles, Crown, X } from "lucide-react";
-import { GLOBAL_BILLING, formatPlanPrice } from "@/global/billing/pricing.js";
+import { GLOBAL_BILLING, formatPlanPrice, resolveWorkspaceBillingContext } from "@/global/billing/pricing.js";
 import { getCountryByCode, getCountryFlag, COUNTRY_REGISTRY } from "@/global/countries/country-registry.js";
 
 const PLANS = [
@@ -21,13 +21,15 @@ export default function PricingSection() {
     if (isAuthenticated && !countryTouched && user?.country_code && GLOBAL_BILLING[user.country_code]) {
       setCountryCode(user.country_code);
     }
-  }, [isAuthenticated, user?.country_code, countryTouched]);
+  }, [isAuthenticated, user?.country_code, user?.currency_code, countryTouched]);
   const [billing, setBilling] = useState("monthly");
-  const country = countryCode ? GLOBAL_BILLING[countryCode] : null;
-  const countryInfo = getCountryByCode(countryCode);
+  const activeCountryCode = isAuthenticated ? String(user?.country_code || "").trim().toUpperCase() : countryCode;
+  const billingContext = resolveWorkspaceBillingContext(activeCountryCode, isAuthenticated ? user?.currency_code : "");
+  const country = billingContext.ok ? billingContext.config : null;
+  const countryInfo = getCountryByCode(activeCountryCode);
   const locale = countryInfo?.locales?.[0] || "en";
   const hasYearly = Boolean(country?.yearly);
-  const currency = country?.currency || "INR";
+  const currency = billingContext.ok ? billingContext.currencyCode : "";
 
   const changeCountry = (value) => {
     setCountryTouched(true);
@@ -47,7 +49,7 @@ export default function PricingSection() {
 
         <div className="mx-auto mt-5 flex max-w-xs flex-col gap-1.5 text-left">
           <label htmlFor="pricing-country" className="text-xs font-semibold text-slate-700">{isAuthenticated ? "Workspace country and billing currency" : "Select country to see pricing"}</label>
-          <select id="pricing-country" disabled={isAuthenticated} value={countryCode} onChange={(event) => changeCountry(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800">
+          <select id="pricing-country" disabled={isAuthenticated} value={activeCountryCode} onChange={(event) => changeCountry(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800">
             <option value="">🌍 Select your country</option>{COUNTRY_REGISTRY.filter(({ code }) => GLOBAL_BILLING[code]).map((entry) => <option key={entry.code} value={entry.code}>{getCountryFlag(entry.code)}  {entry.name} · {entry.currencyCode}</option>)}
           </select>
         </div>
@@ -57,6 +59,7 @@ export default function PricingSection() {
           <button type="button" onClick={() => setBilling("yearly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "yearly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Yearly</button>
         </div>}
 
+        {isAuthenticated && !billingContext.ok && <p role="alert" className="mx-auto mt-5 max-w-xl rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">Workspace country and base currency could not be verified. Plivex has not substituted Indian pricing.</p>}
         {!country ? <div className="mt-7 rounded-2xl border border-dashed border-[#D8CCF5] bg-[#FAF8FF] px-5 py-9 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">🌍</div><h3 className="mt-3 text-sm font-bold text-slate-900">Your pricing, in your currency</h3><p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-slate-500">Select your business country above to view the plans and prices available in your region.</p></div> : <><div className="mt-6 grid gap-4 sm:grid-cols-2">
           {PLANS.map((plan) => {
             const amountMinor = plan.id === "free" ? 0 : country[billing === "yearly" ? "yearly" : "monthly"]?.[plan.id];

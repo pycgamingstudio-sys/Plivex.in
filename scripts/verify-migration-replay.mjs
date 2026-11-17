@@ -13,8 +13,8 @@ const normalized = pairs.filter((x) => x.normalized_sql_match === true);
 const localOnly = manifest.local_only_files || [];
 
 if (manifest.remote_ledger_entries !== 52 || history.length !== 39 || missing.length !== 35
-  || manifest.local_migration_files !== 55 || pairs.length !== 17
-  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 38) {
+  || manifest.local_migration_files !== 56 || pairs.length !== 17
+  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 39) {
   fail("Migration reconciliation counts differ from the reviewed archive with 52 remote entries, 39 historical sources and 37 local-only migrations");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
@@ -44,8 +44,8 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 90 || new Set(candidatePlan.map((x) => x.path)).size !== 90) {
-  fail("Candidate replay plan must contain 35 recovered historical and all 55 current local migrations");
+if (candidatePlan.length !== 91 || new Set(candidatePlan.map((x) => x.path)).size !== 91) {
+  fail("Candidate replay plan must contain 35 recovered historical and all 56 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -126,6 +126,10 @@ function assertGlobalFoundation(port) {
   if (fxExpenseCatalog !== "true|true|true|true") fail("Global multi-currency expense RPC, provenance columns or idempotency index missing: " + fxExpenseCatalog);
   const taxAuditCatalog = query(port, "plivex_migration_replay", "SELECT (to_regprocedure('public.global_publish_tax_rule_version(uuid,text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_append_tax_calculation_audit(uuid,uuid,uuid,integer,jsonb)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='global' AND table_name='tax_calculation_audit')::text");
   if (taxAuditCatalog !== "true|true|true") fail("Global tax-rule publication or append-only tax audit storage missing: " + taxAuditCatalog);
+  const shareCatalog = query(port, "plivex_migration_replay", "SELECT (to_regclass('global.invoice_share_links') IS NOT NULL)::text || '|' || (to_regclass('global.invoice_share_rate_limits') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_create_invoice_share(uuid,uuid,uuid,text,timestamp with time zone)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_resolve_invoice_share(text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_check_invoice_share_rate_limit(text,integer,integer)') IS NOT NULL)::text || '|' || COALESCE((SELECT relrowsecurity::text FROM pg_class WHERE oid='global.invoice_share_rate_limits'::regclass),'false')");
+  if (shareCatalog !== "true|true|true|true|true|true") fail("Global secure invoice share tables, RLS or RPCs missing: " + shareCatalog);
+  const sharePrivileges = query(port, "plivex_migration_replay", "SELECT has_table_privilege('anon','global.invoice_share_rate_limits','SELECT')::text || '|' || has_table_privilege('authenticated','global.invoice_share_rate_limits','SELECT')::text || '|' || has_function_privilege('anon','public.global_check_invoice_share_rate_limit(text,integer,integer)','EXECUTE')::text || '|' || has_function_privilege('authenticated','public.global_check_invoice_share_rate_limit(text,integer,integer)','EXECUTE')::text || '|' || has_function_privilege('service_role','public.global_check_invoice_share_rate_limit(text,integer,integer)','EXECUTE')::text");
+  if (sharePrivileges !== "false|false|false|false|true") fail("Global invoice share rate limit privileges are not service-role-only: " + sharePrivileges);
   console.log("PASS Global foundation table/RLS/grant and inventory RPC catalog assertions");
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-isolation-foundation.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-owner-provisioning.integration.sql")]);
