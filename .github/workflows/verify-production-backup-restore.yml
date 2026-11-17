@@ -198,9 +198,31 @@ jobs:
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < backup/storage-data.sql
           echo "RESTORE PUBLIC/GLOBAL SCHEMA"
+          # Ensure the core app_role enum exists before restoring functions that
+          # reference it. Keep the enum definition sourced from the encrypted
+          # production schema dump, and remove only its duplicate declaration
+          # from the subsequent schema replay.
+          if ! docker exec -u postgres plivex-production-restore-test \
+            psql -X -U supabase_admin -d postgres -Atqc "SELECT to_regtype('public.app_role') IS NOT NULL" | grep -qx t; then
+            awk '
+              /^CREATE TYPE "public"\."app_role" AS ENUM \(/ { copy=1 }
+              copy { print; if ($0 ~ /^\);$/) exit }
+            ' backup/schema.sql > /tmp/plivex-app-role.sql
+            test -s /tmp/plivex-app-role.sql
+            docker exec -i -u postgres plivex-production-restore-test \
+              psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
+              < /tmp/plivex-app-role.sql
+          fi
+          awk '
+            /^CREATE TYPE "public"\."app_role" AS ENUM \(/ { skip=1; next }
+            skip { if ($0 ~ /^\);$/) skip=0; next }
+            /^ALTER TYPE "public"\."app_role" OWNER TO "postgres";$/ { next }
+            { print }
+          ' backup/schema.sql > /tmp/plivex-schema-without-app-role.sql
+          test -s /tmp/plivex-schema-without-app-role.sql
           docker exec -i -u postgres plivex-production-restore-test \
-            psql -X -a -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
-            < backup/schema.sql
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
+            < /tmp/plivex-schema-without-app-role.sql
           echo "RESTORE APPLICATION DATA"
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
