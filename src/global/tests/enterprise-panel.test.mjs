@@ -23,7 +23,8 @@ test("Enterprise panel exposes configurable server-enforced Global expense appro
   assert.match(panel, /approval\.policy\.list/);
   assert.match(panel, /approval\.policy\.set/);
   assert.match(panel, /Approval policies/);
-  assert.match(panel, /Prevent requesters from approving their own action/);
+  assert.match(panel, /Self-approval is always blocked for safety/);
+  assert.doesNotMatch(panel, /Prevent requesters from approving their own action/);
   assert.match(panel, /approvalExpenseAmount/);
   assert.ok(panel.includes('resourceId: isExpenseApproval && approvalAction.trim() === "expense.create" ? "*" : resourceId.trim()'));
   assert.match(panel, /invoice write gates/);
