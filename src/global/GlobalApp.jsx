@@ -1,22 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useAuth } from "@/lib/AuthContext";
 import { Users, Package, Receipt, FileText, Boxes, Handshake, Warehouse, ArrowLeftRight, ClipboardList, History, Calculator, ShieldCheck, ShoppingBasket } from "lucide-react";
 import { supabase } from "@/api/backendClient";
-import GlobalCountryOnboarding from "@/components/global/GlobalCountryOnboarding";
 import GlobalInvoicesPanel from "@/components/global/GlobalInvoicesPanel";
 import GlobalAccountingPanel from "@/components/global/GlobalAccountingPanel";
 import GlobalEnterprisePanel from "@/components/global/GlobalEnterprisePanel";
 import GlobalPart4Panel from "@/components/global/GlobalPart4Panel";
 
-const COUNTRY_OPTIONS = [
-  { code: "US", label: "United States", locale: "en-US", currency: "USD" },
-  { code: "GB", label: "United Kingdom", locale: "en-GB", currency: "GBP" },
-  { code: "CA", label: "Canada", locale: "en-CA", currency: "CAD" },
-  { code: "AU", label: "Australia", locale: "en-AU", currency: "AUD" },
-  { code: "AE", label: "United Arab Emirates", locale: "en-AE", currency: "AED" },
-  { code: "SG", label: "Singapore", locale: "en-SG", currency: "SGD" },
-  { code: "IN", label: "India", locale: "en-IN", currency: "INR" },
-];
+
 const NAV = [
   { id: "overview", label: "Overview" },
   { id: "clients", label: "Clients" },
@@ -50,14 +42,8 @@ const errorMessage = async (error, fallback) => {
 };
 
 export default function GlobalApp() {
-  const [session, setSession] = useState(null);
-  const [account, setAccount] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { user: account } = useAuth();
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState("login");
-  const [countryCode, setCountryCode] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
   const tab = NAV.some((item) => item.id === requestedTab) ? requestedTab : "overview";
@@ -66,8 +52,6 @@ export default function GlobalApp() {
   const [form, setForm] = useState({});
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
-
-  const country = COUNTRY_OPTIONS.find((item) => item.code === countryCode) || null;
 
   const invoke = useCallback(async (table, action = "list", values = undefined) => {
     if (!account?.workspace_id) throw new Error("Your Global workspace is not ready.");
@@ -78,14 +62,6 @@ export default function GlobalApp() {
     return data;
   }, [account?.workspace_id]);
 
-  const loadContext = useCallback(async (activeSession) => {
-    if (!activeSession) { setAccount(null); setRecords({}); return; }
-    let { data, error: contextError } = await supabase.functions.invoke("global-auth-context", { body: {} });
-    if (contextError) throw new Error(await errorMessage(contextError, "Could not load your Global account."));
-    if (!data?.user?.id) throw new Error("Your Global account could not be verified.");
-    setAccount(data.user);
-  }, []);
-
   const loadRecords = useCallback(async (activeTab = tab) => {
     if (!account?.workspace_id || ["crm", "inventory"].includes(activeTab)) return;
     const tables = activeTab === "overview" ? ["clients", "products", "expenses", "invoices", "stock_levels"] : [TABLES[activeTab]];
@@ -94,57 +70,9 @@ export default function GlobalApp() {
   }, [account?.workspace_id, invoke, tab]);
 
   useEffect(() => {
-    let active = true;
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!active) return;
-      setSession(data.session || null);
-      try { await loadContext(data.session); }
-      catch (loadError) { if (active) setError(loadError.message); }
-      finally { if (active) setLoading(false); }
-    });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession || null);
-      if (nextSession) {
-        loadContext(nextSession).catch((loadError) => setError(loadError.message)).finally(() => setLoading(false));
-      } else {
-        setAccount(null);
-        setRecords({});
-        setLoading(false);
-      }
-    });
-    return () => { active = false; listener?.subscription?.unsubscribe(); };
-  }, [loadContext]);
-
-  useEffect(() => {
     if (!account?.workspace_id || tab === "accounting") return;
     loadRecords(tab).catch((loadError) => setError(loadError.message));
   }, [account?.workspace_id, tab, loadRecords]);
-
-  const submitAuth = async (event) => {
-    event.preventDefault();
-    setBusy(true); setError(""); setNotice("");
-    try {
-      if (mode === "register") {
-        if (!country) throw new Error("Choose your business country before creating your Global account.");
-        const { error: signUpError, data } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: {
-            emailRedirectTo: window.location.origin,
-            data: { signup_country_code: country.code, signup_locale_code: country.locale },
-          },
-        });
-        if (signUpError) throw signUpError;
-        if (!data.session) setNotice("Account created. Confirm your email, then sign in to open your Global workspace.");
-        else await loadContext(data.session);
-      } else {
-        const { data, error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-        if (signInError) throw signInError;
-        await loadContext(data.session);
-      }
-    } catch (authError) { setError(authError.message || "Could not authenticate."); }
-    finally { setBusy(false); }
-  };
 
   const submitRecord = async (event) => {
     event.preventDefault();
@@ -154,7 +82,7 @@ export default function GlobalApp() {
       if (tab === "clients") {
         values = { name: form.name?.trim(), email: form.email?.trim() || null, phone: form.phone?.trim() || null };
       } else if (tab === "products") {
-        const digits = currencyDigits(account?.currency_code || country.currency);
+        const digits = currencyDigits(account?.currency_code || "USD");
         values = {
           name: form.name?.trim(),
           sku: form.sku?.trim() || null,
@@ -185,47 +113,9 @@ export default function GlobalApp() {
     finally { setBusy(false); }
   };
 
-  if (loading) return <div className="min-h-screen grid place-items-center bg-[#F8F7FC] text-slate-600">Loading Plivex…</div>;
+  if (!account?.workspace_id) return <div className="py-10 text-center text-sm text-slate-500">Your workspace is still being prepared. Please refresh in a moment.</div>;
 
-  if (session && account && !account.workspace_id) return <GlobalCountryOnboarding />;
-
-  if (!session || !account) {
-    return (
-      <main className="min-h-screen bg-[#F8F7FC] px-4 py-10 text-slate-900">
-        <div className="mx-auto max-w-md">
-          <a href="/" className="text-2xl font-black tracking-tight text-violet-700">Plivex</a>
-          <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h1 className="text-2xl font-bold">{mode === "register" ? "Create your Plivex account" : "Welcome to Plivex"}</h1>
-            <p className="mt-2 text-sm text-slate-500">Your Plivex workspace with country-specific settings.</p>
-            <form className="mt-6 space-y-4" onSubmit={submitAuth}>
-              {mode === "register" && <label className="block text-sm font-medium">Business country
-                <select required className="mt-1 w-full rounded-lg border border-slate-300 p-3" value={countryCode} onChange={(event) => setCountryCode(event.target.value)}>
-                  <option value="">Select your business country</option>
-                  {COUNTRY_OPTIONS.map((item) => <option key={item.code} value={item.code}>{item.label} · {item.currency}</option>)}
-                </select>
-              </label>}
-              <label className="block text-sm font-medium">Email
-                <input required type="email" autoComplete="email" className="mt-1 w-full rounded-lg border border-slate-300 p-3" value={email} onChange={(event) => setEmail(event.target.value)} />
-              </label>
-              <label className="block text-sm font-medium">Password
-                <input required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} className="mt-1 w-full rounded-lg border border-slate-300 p-3" value={password} onChange={(event) => setPassword(event.target.value)} />
-              </label>
-              {mode === "register" && <p className="text-xs text-slate-500">Your workspace country and currency are set at registration.</p>}
-              <button disabled={busy} className="w-full rounded-lg bg-violet-700 p-3 font-semibold text-white disabled:opacity-60">{busy ? "Please wait…" : mode === "register" ? "Create account" : "Sign in"}</button>
-            </form>
-            <button className="mt-4 text-sm font-semibold text-violet-700" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); setNotice(""); }}>
-              {mode === "register" ? "Already registered? Sign in" : "New to Plivex? Create account"}
-            </button>
-            {notice && <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
-            {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-          </section>
-          <p className="mt-6 text-center text-xs text-slate-500">One Plivex platform · Country-specific workspace</p>
-        </div>
-      </main>
-    );
-  }
-
-  const currency = account.currency_code || country.currency;
+  const currency = account.currency_code || "USD";
   const currentTable = TABLES[tab];
   const currentRecords = records[currentTable] || [];
   const counts = { clients: records.clients?.length || 0, products: records.products?.length || 0, expenses: records.expenses?.length || 0, invoices: records.invoices?.length || 0, stock: records.stock_levels?.length || 0 };
