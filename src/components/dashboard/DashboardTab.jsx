@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FileText, FilePlus2, ShoppingCart, Users, UserPlus, ArrowRight, Phone, Mail, HelpCircle, Package, UsersRound, AlertTriangle, Settings2, X, Check, BellRing, Send, Warehouse } from "lucide-react";
+import { FileText, FilePlus2, ShoppingCart, Users, UserPlus, BarChart3, ArrowRight, Phone, Mail, HelpCircle, Package, UsersRound, AlertTriangle, Settings2, X, Check, BellRing, Send, Warehouse } from "lucide-react";
 import { KEYS, useLocalState, loadList } from "@/lib/stores";
 import OwnerMasterControl from "@/components/dashboard/OwnerMasterControl";
 import OwnerTrackingWidgets from "@/components/dashboard/OwnerTrackingWidgets";
@@ -16,10 +16,10 @@ const DEFAULT_VIS = { invoices: true, quotations: true, expenses: true, crm: tru
 
 // Strict per-role dashboard card visibility. A role can never see cards outside its allowlist.
 const ROLE_CARD_ACCESS = {
-  admin: ["invoices", "quotations", "expenses", "crm", "leads", "stock", "team", "inventoryWorkspace"],
-  manager: ["invoices", "quotations", "expenses", "crm", "leads", "stock", "team", "inventoryWorkspace"],
+  admin: ["invoices", "quotations", "expenses", "crm", "leads", "reports", "stock", "team", "inventoryWorkspace"],
+  manager: ["invoices", "quotations", "expenses", "crm", "leads", "reports", "stock", "team", "inventoryWorkspace"],
   employee: ["invoices", "quotations", "crm", "leads"],
-  accountant: ["invoices", "quotations", "expenses"],
+  accountant: ["invoices", "quotations", "expenses", "reports"],
   storekeeper: ["stock", "inventoryWorkspace"],
 };
 
@@ -108,6 +108,7 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
     { id: "expenses", title: "Expenses", desc: "Track vendor bills and purchases to see your real net profit.", icon: ShoppingCart, gradient: "bg-gradient-to-br from-[#DCFCE7] to-[#BBF7D0]", cta: "+ Record New Purchase", onClick: () => onNavigate("purchase", "new-expense") },
     { id: "crm", title: "Client CRM", desc: "Save client details once and reuse them forever across invoices.", icon: Users, gradient: "bg-gradient-to-br from-[#FAE8FF] to-[#F5D0FE]", cta: "+ Add New Client", onClick: () => onNavigate("crm", "new-client"), stat: loadList(KEYS.clients).length },
     { id: "leads", title: "Lead Tracker", desc: "Move leads from new to won and never miss a follow-up.", icon: UserPlus, gradient: "bg-gradient-to-br from-[#FEF3C7] to-[#FDE68A]", cta: "+ Add New Lead", onClick: () => onNavigate("crm", "new-lead"), stat: loadList(KEYS.leads).length },
+    { id: "reports", title: "Reports", desc: "Understand sales, purchases and business performance with clear reports.", icon: BarChart3, gradient: "bg-gradient-to-br from-[#E0F2FE] to-[#BAE6FD]", cta: "View business reports", onClick: () => onNavigate("reports") },
     { id: "stock", title: "Stock Inventory", desc: "Manage products and watch quantities auto-deduct on every invoice.", icon: Package, gradient: "bg-gradient-to-br from-[#FEE2E2] to-[#FECACA]", cta: "+ Manage Stock", onClick: () => onNavigate("stock"), stat: stock.length, alert: lowStock },
     { id: "team", title: "Team Members", desc: "Invite your staff and control what each role can see and do.", icon: UsersRound, gradient: "bg-gradient-to-br from-[#FEF3C7] to-[#FDE68A]", cta: "+ Add Member", onClick: () => onNavigate("team"), pro: !teamUnlocked },
     { id: "inventoryWorkspace", title: "Inventory & Warehouse", desc: "Manage stock locations, transfers, purchase orders, goods receipts and movement history in one connected workspace.", icon: Warehouse, gradient: "bg-gradient-to-br from-[#E0E7FF] to-[#C7D2FE]", cta: "Open inventory workspace", onClick: () => onNavigate("warehouses") },
