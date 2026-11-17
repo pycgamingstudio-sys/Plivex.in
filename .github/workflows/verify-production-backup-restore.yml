@@ -241,6 +241,19 @@ jobs:
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < backup/auth-schema.sql
+          echo "Clear disposable Auth seed rows before restoring production Auth data"
+          docker exec -i -u postgres plivex-production-restore-test \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin <<'SQL'
+          DO $truncate_auth$
+          DECLARE r record;
+          BEGIN
+            FOR r IN SELECT schemaname, tablename FROM pg_tables WHERE schemaname = 'auth'
+            LOOP
+              EXECUTE format('TRUNCATE TABLE %I.%I CASCADE', r.schemaname, r.tablename);
+            END LOOP;
+          END
+          $truncate_auth$;
+          SQL
           echo "RESTORE AUTH DATA"
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
@@ -249,6 +262,19 @@ jobs:
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < backup/storage-schema.sql
+          echo "Clear disposable Storage seed rows before restoring production Storage metadata"
+          docker exec -i -u postgres plivex-production-restore-test \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin <<'SQL'
+          DO $truncate_storage$
+          DECLARE r record;
+          BEGIN
+            FOR r IN SELECT schemaname, tablename FROM pg_tables WHERE schemaname = 'storage'
+            LOOP
+              EXECUTE format('TRUNCATE TABLE %I.%I CASCADE', r.schemaname, r.tablename);
+            END LOOP;
+          END
+          $truncate_storage$;
+          SQL
           echo "RESTORE STORAGE DATA"
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
