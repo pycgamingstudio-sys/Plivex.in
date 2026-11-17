@@ -66,6 +66,7 @@ export default function Dashboard({ initialTab }) {
     return true;
   });
   const active = visibleTabs.find((t) => t.id === tab) || visibleTabs[0] || TABS[0];
+  useEffect(() => { if (!visibleTabs.some((item) => item.id === tab)) setTab("dashboard"); }, [visibleTabs, tab]);
   const hasGstrAccess = APP_EDITION === "global" || ["basic", "pro"].includes(String(plan || "").toLowerCase());
   const featureRouteEnabled = (path) => {
     if (path === "/crm" || path === "/client-database") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
