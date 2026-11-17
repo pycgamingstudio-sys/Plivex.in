@@ -236,9 +236,12 @@ jobs:
           # The disposable Supabase image can contain a stale/preloaded
           # app_role type. Recreate it from the production dump before restoring
           # dependent functions. This database is disposable and isolated.
+          echo "Extracted app_role SQL:"
+          cat /tmp/plivex-app-role.sql
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -a -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < /tmp/plivex-app-role.sql
+          echo "app_role immediately after bootstrap: $(docker exec -u postgres plivex-production-restore-test psql -X -U supabase_admin -d postgres -Atqc "SELECT COALESCE(to_regtype('public.app_role')::text, 'NULL')")"
           echo "Confirm app_role exists before public/global schema replay"
           docker exec -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c \
@@ -247,6 +250,7 @@ jobs:
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < /tmp/plivex-schema-without-app-role.sql
+          echo "app_role after schema replay: $(docker exec -u postgres plivex-production-restore-test psql -X -U supabase_admin -d postgres -Atqc "SELECT COALESCE(to_regtype('public.app_role')::text, 'NULL')")"
           echo "Confirm app_role remains after public/global schema replay"
           docker exec -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c \
