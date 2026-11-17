@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "@/api/backendClient";
+import { supabase, APP_EDITION } from "@/api/backendClient";
 
 export const PERMANENT_DASHBOARD_FEATURES = Object.freeze(["invoices", "stock", "team"]);
 export const WORKSPACE_FEATURE_CATALOG = Object.freeze([
@@ -11,19 +11,26 @@ export const WORKSPACE_FEATURE_CATALOG = Object.freeze([
   { id: "reports", label: "Reports", description: "Review business performance and operational reports." },
 ]);
 
-export function normalizeWorkspaceFeatures(value) {
+export function getAvailableWorkspaceFeatureCatalog(edition = APP_EDITION) {
+  // Quotations are currently implemented in India; Global must not offer a shortcut
+  // to a workflow that is not available in that edition yet.
+  return WORKSPACE_FEATURE_CATALOG.filter((item) => edition !== "global" || item.id !== "quotations");
+}
+
+export function normalizeWorkspaceFeatures(value, edition = APP_EDITION) {
   if (!Array.isArray(value)) return null;
-  const allowed = new Set(WORKSPACE_FEATURE_CATALOG.map((item) => item.id));
+  const allowed = new Set(getAvailableWorkspaceFeatureCatalog(edition).map((item) => item.id));
   return [...new Set(value.filter((id) => typeof id === "string" && allowed.has(id)))];
 }
 
-export function getSuggestedWorkspaceFeatures(workTypes = []) {
+export function getSuggestedWorkspaceFeatures(workTypes = [], countryCode = "IN") {
   const selected = new Set();
+  const regionalTools = countryCode === "IN" ? ["quotations"] : [];
   if (workTypes.includes("freelancer")) {
-    ["quotations", "expenses", "crm", "leads", "reports"].forEach((id) => selected.add(id));
+    [...regionalTools, "expenses", "crm", "leads", "reports"].forEach((id) => selected.add(id));
   }
   if (workTypes.includes("business")) {
-    ["quotations", "expenses", "crm", "leads", "inventoryWorkspace", "reports"].forEach((id) => selected.add(id));
+    [...regionalTools, "expenses", "crm", "leads", "inventoryWorkspace", "reports"].forEach((id) => selected.add(id));
   }
   return [...selected];
 }
