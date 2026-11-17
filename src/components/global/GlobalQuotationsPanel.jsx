@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileText, Plus, Download, ArrowRight, CheckCircle2, Clock3, XCircle, Send } from "lucide-react";
+import { FileText, Plus, Download, ArrowRight, CheckCircle2, XCircle, Send } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { supabase } from "@/api/backendClient";
 
