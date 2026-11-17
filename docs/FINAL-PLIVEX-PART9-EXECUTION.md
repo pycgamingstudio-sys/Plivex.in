@@ -19,7 +19,7 @@ Status: execution backlog; NOT a completion claim.
 ## Workstream A — approval and enterprise governance
 - Define an approval policy model (workspace, record type, action, amount/threshold, requester exclusions, approver roles, quorum, expiry, cancellation, escalation).
 - Enforce approval server-side in the same transaction as protected mutations; reject bypasses from direct RPC/Edge/API calls.
-- Make requests immutable/auditable; idempotent decisions; prevent self-approval where policy requires; handle stale records and concurrent decisions.
+- Make requests immutable/auditable; idempotent decisions; mandatory self-approval prevention for gated actions; handle stale records and concurrent decisions.
 - Add integration tests for allow/deny, role changes, revoked membership, race conditions, retries, cancellation, expiry, and bypass attempts.
 
 ## Workstream B — branches and data scope
