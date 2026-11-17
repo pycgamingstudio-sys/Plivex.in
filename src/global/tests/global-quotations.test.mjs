@@ -11,7 +11,7 @@ test("Global quotations use a separate workspace-scoped document model", async (
   assert.match(migration, /workspace_id uuid not null/);
   assert.match(migration, /status in \('draft','sent','accepted','rejected','expired','converted'\)/);
   assert.match(migration, /alter table global\.quotations enable row level security/);
-  assert.match(migration, /revoke all on global\.quotations, global\.quotation_items from public,anon,authenticated/);
+  assert.match(migration, /revoke all on global.quotations, global.quotation_items from public, anon, authenticated/);
   assert.match(migration, /grant execute on function public\.global_manage_quotation[\s\S]*to service_role/);
   assert.match(migration, /public\.global_create_invoice_draft\(/);
   assert.doesNotMatch(migration, /global_record_invoice_payment|global_record_invoice_refund/);
