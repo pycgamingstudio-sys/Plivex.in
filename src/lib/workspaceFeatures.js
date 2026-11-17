@@ -9,7 +9,6 @@ export const WORKSPACE_FEATURE_CATALOG = Object.freeze([
   { id: "leads", label: "Lead Tracker", description: "Track prospects and follow-ups." },
   { id: "inventoryWorkspace", label: "Warehouse & Operations", description: "Manage locations, transfers, purchase orders and goods receipts." },
   { id: "reports", label: "Reports", description: "Review business performance and operational reports." },
-  { id: "enterprise", label: "Enterprise & Audit", description: "Explore advanced controls, audit history and workspace governance." },
 ]);
 
 export function normalizeWorkspaceFeatures(value) {
@@ -24,7 +23,7 @@ export function getSuggestedWorkspaceFeatures(workTypes = []) {
     ["quotations", "expenses", "crm", "leads", "reports"].forEach((id) => selected.add(id));
   }
   if (workTypes.includes("business")) {
-    ["quotations", "expenses", "crm", "leads", "inventoryWorkspace", "reports", "enterprise"].forEach((id) => selected.add(id));
+    ["quotations", "expenses", "crm", "leads", "inventoryWorkspace", "reports"].forEach((id) => selected.add(id));
   }
   return [...selected];
 }
