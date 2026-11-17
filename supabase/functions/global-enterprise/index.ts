@@ -1,7 +1,7 @@
 import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowed } from "../_shared/global.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const APPROVER_ROLES = new Set(["owner", "admin", "manager", "employee", "accountant", "viewer"]);
+const APPROVER_ROLES = new Set(["owner", "admin", "manager", "employee", "accountant"]);
 const ALLOWED_ACTIONS = new Set([
   "branch.create", "branch.archive", "branch.list", "health.read", "fx.snapshot.create", "fx.convert", "permission.set", "approval.request", "approval.list",
   "approval.decide", "approval.cancel", "approval.policy.set", "approval.policy.list", "audit.list", "export.request", "retention.set",
