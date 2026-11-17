@@ -44,7 +44,7 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 92 || new Set(candidatePlan.map((x) => x.path)).size !== 91) {
+if (candidatePlan.length !== 92 || new Set(candidatePlan.map((x) => x.path)).size !== 92) {
   fail("Candidate replay plan must contain 35 recovered historical and all 57 current local migrations");
 }
 
@@ -152,10 +152,15 @@ function assertGlobalFoundation(port) {
 }
 function applyForcedMigrationRollback(port, db, migrationPath) {
   const migration = readFileSync(migrationPath, "utf8")
-    .replace(/(^|\n)begin;\s*/i, "$1")
-    .replace(/\ncommit;\s*$/i, "");
-  const forcedRollback = "BEGIN;\n" + migration +
-    "\nDO $global_rollback$ BEGIN RAISE EXCEPTION 'intentional Global migration rollback verification'; END $global_rollback$;\n";
+    .replace(/(^|
+)begin;\s*/i, "$1")
+    .replace(/
+commit;\s*$/i, "");
+  const forcedRollback = "BEGIN;
+" + migration +
+    "
+DO $global_rollback$ BEGIN RAISE EXCEPTION 'intentional Global migration rollback verification'; END $global_rollback$;
+";
   return spawnSync("psql", ["-X","-v","ON_ERROR_STOP=1","-d",db], {
     cwd: root, env: envFor(port, db), input: forcedRollback, encoding: "utf8",
   });
@@ -227,6 +232,7 @@ function assertGlobalMigrationRollback(port) {
     if (invoiceLedgerRollback.status === 0) fail("Global invoice/payment migration rollback probe unexpectedly committed");
     const invoiceLedgerResidue = query(port, db, "SELECT (to_regprocedure('public.global_create_invoice_draft(uuid,uuid,uuid,text,date,date,text,jsonb,uuid)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_record_invoice_payment(uuid,uuid,uuid,bigint,text,date,text,text,text,uuid)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoices' AND column_name='creation_idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='global' AND indexname='global_invoices_creation_idempotency_idx')::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoice_payments' AND column_name='idempotency_key')::text || '|' || EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='global' AND indexname='global_invoice_payments_idempotency_idx')::text");
     if (invoiceLedgerResidue !== "false|false|false|false|false|false") fail("Global invoice/payment rollback left functions, columns or indexes behind: " + invoiceLedgerResidue);
+    psql(port, db, ["-f", invoiceLedgerPath]);
     // Part 7 migrations are independently replayed and transactionally rolled back.
     const enterprisePath = resolve(root, "supabase/migrations/20261116120000_global_enterprise_controls.sql");
     const taxAuditPath = resolve(root, "supabase/migrations/20261116121000_global_tax_audit_and_publication.sql");
