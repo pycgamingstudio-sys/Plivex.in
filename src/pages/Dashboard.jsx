@@ -67,8 +67,17 @@ export default function Dashboard({ initialTab }) {
   });
   const active = visibleTabs.find((t) => t.id === tab) || visibleTabs[0] || TABS[0];
   const hasGstrAccess = APP_EDITION === "global" || ["basic", "pro"].includes(String(plan || "").toLowerCase());
-  const pages = navItems.filter((i) => i.to !== "/" && !["/crm", "/inventory-procurement"].includes(i.to) && (!HIDDEN_FROM_SIDEBAR.includes(i.to) || i.to === "/tax-summary") && (!i.roles || i.roles.includes(role)));
-  const morePages = navItems.filter((i) => i.to !== "/" && !["/crm", "/inventory-procurement"].includes(i.to) && (!i.roles || i.roles.includes(role)));
+  const featureRouteEnabled = (path) => {
+    if (path === "/crm" || path === "/client-database") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
+    if (path === "/inventory-procurement") return workspaceFeatures.includes("inventoryWorkspace");
+    if (["/usage-reports", "/tax-summary", "/account-activity"].includes(path)) return workspaceFeatures.includes("reports");
+    if (path === "/payment-logs") return workspaceFeatures.includes("expenses");
+    if (path === "/templates" || path === "/service-catalog") return workspaceFeatures.includes("quotations");
+    return true;
+  };
+  const primaryFeatureRoutes = ["/crm", "/client-database", "/inventory-procurement", "/usage-reports", "/tax-summary", "/payment-logs", "/templates", "/service-catalog"];
+  const pages = navItems.filter((i) => i.to !== "/" && !["/crm", "/inventory-procurement"].includes(i.to) && featureRouteEnabled(i.to) && (!HIDDEN_FROM_SIDEBAR.includes(i.to) || i.to === "/tax-summary") && (!i.roles || i.roles.includes(role)));
+  const morePages = navItems.filter((i) => i.to !== "/" && !primaryFeatureRoutes.includes(i.to) && featureRouteEnabled(i.to) && (!i.roles || i.roles.includes(role)));
   const teamUnlocked = canAccess("team_management");
 
   return (
