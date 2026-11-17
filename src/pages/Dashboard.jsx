@@ -22,6 +22,7 @@ import AccountProfileModal from "@/components/AccountProfileModal";
 import PresenceBeacon from "@/components/PresenceBeacon";
 import { processDueReminders } from "@/lib/reminders";
 import { APP_EDITION } from "@/api/backendClient";
+import { getCountryByCode, getCountryFlag } from "@/global/countries/country-registry.js";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -43,6 +44,8 @@ export default function Dashboard({ initialTab }) {
   const navigate = useNavigate();
   const { isPremium, openPaywall, planName, plan, planLoading, canAccess } = usePaywall();
   const { user } = useAuth();
+  const workspaceCountry = getCountryByCode(user?.country_code || (APP_EDITION === "india" ? "IN" : ""));
+  const workspaceEditionLabel = APP_EDITION === "india" ? "India Workspace" : "Global Workspace";
   const { role, isAccountant } = useRole();
   useEffect(() => {
     seedDashboard();
@@ -119,7 +122,7 @@ export default function Dashboard({ initialTab }) {
       <div className="md:pl-64">
         <header className="sticky top-0 z-20 border-b border-[#E5E7EB] bg-white/90 backdrop-blur-xl">
           <div className="flex min-w-0 items-center justify-between gap-2 px-3 py-3 sm:px-6">
-            <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2"><active.icon className="h-5 w-5 shrink-0 text-[#6D28D9]" /><h1 className="whitespace-nowrap text-[15px] font-bold tracking-[-0.03em] sm:text-[17px]">{active.label}</h1></div>
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2"><active.icon className="h-5 w-5 shrink-0 text-[#6D28D9]" /><h1 className="whitespace-nowrap text-[15px] font-bold tracking-[-0.03em] sm:text-[17px]">{active.label}</h1><span title="Edition is based on your active workspace country" className="ml-1 inline-flex max-w-[145px] items-center gap-1 rounded-full border border-violet-100 bg-violet-50 px-2 py-1 text-[9px] font-bold text-violet-700 sm:max-w-none sm:text-[10px]"><span aria-hidden="true">{workspaceCountry ? getCountryFlag(workspaceCountry.code) : "🌐"}</span><span className="truncate">{workspaceEditionLabel}{workspaceCountry ? ` · ${workspaceCountry.name}` : ""}</span></span></div>
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 sm:inline">{`● ${planName || "Free"}`}</span>
               <span className="hidden items-center gap-1.5 rounded-full bg-[#6D28D9]/10 px-2.5 py-1 text-[11px] font-semibold text-[#6D28D9] sm:inline-flex"><Sparkles className="h-3 w-3" />Current Plan: {planName}</span>
