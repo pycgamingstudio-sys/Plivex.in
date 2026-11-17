@@ -51,6 +51,7 @@ begin
     or p_action_type not in ('expense.create','expense.update')
     or p_enabled is null or p_minimum_amount_minor is null or p_minimum_amount_minor < 0
     or p_approver_roles is null or cardinality(p_approver_roles) < 1
+    or p_prevent_self_approval is distinct from true
     or not (p_approver_roles <@ array['owner','admin','manager','employee','accountant','viewer']::text[]) then
     return jsonb_build_object('ok',false,'code','INVALID_APPROVAL_POLICY');
   end if;
@@ -213,6 +214,8 @@ alter table global.approval_policies
   add constraint approval_policies_action_type_check check (
     action_type in ('expense.create','expense.update','invoice.issue','invoice.payment.record')
   );
+alter table global.approval_policies
+  add constraint approval_policies_self_approval_required check (prevent_self_approval);
 
 create or replace function public.global_set_approval_policy(
   p_user_id uuid,
@@ -234,6 +237,7 @@ begin
     or p_action_type not in ('expense.create','expense.update','invoice.issue','invoice.payment.record')
     or p_enabled is null or p_minimum_amount_minor is null or p_minimum_amount_minor < 0
     or p_approver_roles is null or cardinality(p_approver_roles) < 1
+    or p_prevent_self_approval is distinct from true
     or not (p_approver_roles <@ array['owner','admin','manager','employee','accountant','viewer']::text[]) then
     return jsonb_build_object('ok',false,'code','INVALID_APPROVAL_POLICY');
   end if;
