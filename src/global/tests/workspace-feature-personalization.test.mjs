@@ -14,6 +14,7 @@ test("new workspace onboarding follows business, country, regional welcome, work
   assert.match(source, /getCountryFlag\(country.code\)/);
   assert.match(source, /plivex_work_types: workTypes/);
   assert.match(source, /plivex_workspace_features: features/);
+  assert.match(source, /localeCode, phone, taxType, taxNumber, workTypes, features/);
   assert.match(source, /workTypes.length === 0/);
 });
 
@@ -25,6 +26,9 @@ test("freelancer and business can be selected independently or together", async 
   assert.match(source, /You can select one or both/);
   assert.match(features, /getSuggestedWorkspaceFeatures/);
   assert.match(features, /inventoryWorkspace/);
+  assert.match(features, /getSuggestedWorkspaceFeatures\(workTypes = \[\], countryCode = "IN"\)/);
+  assert.match(features, /countryCode === "IN" \? \["quotations"\] : \[\]/);
+  assert.match(features, /edition !== "global" \|\| item.id !== "quotations"/);
 });
 
 test("Invoices, Stock and Team are permanent dashboard cards", async () => {
@@ -40,10 +44,10 @@ test("More Features only offers optional tools not already in navigation", async
   const nav = await read("../../pages/Dashboard.jsx");
   const layout = await read("../../components/AppLayout.jsx");
   assert.match(dashboard, /More Features/);
-  assert.match(library, /WORKSPACE_FEATURE_CATALOG.filter\(\(item\) => !features.includes\(item.id\)\)/);
+  assert.match(library, /getAvailableWorkspaceFeatureCatalog\(APP_EDITION\)\.filter\(\(item\) => !features\.includes\(item\.id\)\)/);
   assert.match(nav, /workspaceFeatures.includes\("inventoryWorkspace"\)/);
   assert.match(nav, /workspaceFeatures.includes\("reports"\)/);
-  for (const label of ["Dashboard", "Sales", "Purchase & Expenses", "Reports", "Client CRM", "Stock", "Team", "Warehouse"]) assert.ok(layout.includes(`label: "${label}"`), "Missing Global navigation area: " + label);
+  for (const label of ["Dashboard", "Sales", "Purchase", "Reports", "Client CRM", "Stock", "Team", "Warehouse"]) assert.ok(layout.includes(`label: "${label}"`), "Missing Global navigation area: " + label);
 });
 
 test("feature preference changes do not mutate or delete business records", async () => {
