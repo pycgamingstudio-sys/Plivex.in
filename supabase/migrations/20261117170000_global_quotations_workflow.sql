@@ -21,6 +21,7 @@ create table if not exists global.quotations (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (workspace_id, quotation_number),
+  unique (id, workspace_id),
   unique (workspace_id, converted_invoice_id),
   unique (workspace_id, creation_idempotency_key)
 );
