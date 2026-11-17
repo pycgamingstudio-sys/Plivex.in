@@ -149,10 +149,8 @@ export default function GlobalApp({ section = "overview" }) {
     { title: "Inventory & Warehouse", description: "Manage stock, locations, transfers, purchase orders and movement history in one connected workspace.", tab: "inventory", icon: Warehouse, tone: "from-indigo-50 to-blue-50" },
     { title: "Accounting & Reports", description: "Open ledgers and financial statements for this workspace.", tab: "accounting", icon: Calculator, tone: "from-violet-50 to-purple-50" },
     { title: "Team Members", description: "Manage workspace access, roles and team activity.", tab: "enterprise", icon: Users, tone: "from-amber-50 to-yellow-50" },
-    { title: "Quotations", description: "Prepare estimates, track customer decisions and convert accepted quotes into invoice drafts.", tab: "quotations", icon: FileText, tone: "from-violet-50 to-indigo-50" },
 
   ].filter((item) => {
-    if (item.tab === "quotations") return workspaceFeatures.includes("quotations");
     if (item.tab === "crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
     if (item.tab === "inventory") return workspaceFeatures.includes("inventoryWorkspace");
     if (item.tab === "accounting") return workspaceFeatures.includes("reports");
