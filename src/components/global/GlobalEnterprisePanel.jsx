@@ -21,7 +21,6 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
   const [approvalPolicyEnabled, setApprovalPolicyEnabled] = useState(true);
   const [approvalMinimumAmount, setApprovalMinimumAmount] = useState("0");
   const [approvalRoles, setApprovalRoles] = useState(["owner", "admin", "accountant"]);
-  const [preventSelfApproval, setPreventSelfApproval] = useState(true);
   const [events, setEvents] = useState([]);
   const [health, setHealth] = useState(null);
   const [branchCode, setBranchCode] = useState("");
@@ -141,7 +140,7 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
       enabled: approvalPolicyEnabled,
       minimumAmountMinor: Number(approvalMinimumAmount),
       approverRoles: approvalRoles,
-      preventSelfApproval,
+      preventSelfApproval: true,
     }), "Approval policy saved.");
   };
 
@@ -281,10 +280,9 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
                 ))}
               </div>
             </fieldset>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={preventSelfApproval} onChange={(e) => setPreventSelfApproval(e.target.checked)} />
-              Prevent requesters from approving their own action
-            </label>
+            <p className="rounded-lg bg-violet-50 px-3 py-2 text-xs font-medium text-violet-800">
+              Self-approval is always blocked for safety.
+            </p>
             <button className={buttonClass} disabled={busy || approvalRoles.length === 0 || !Number.isSafeInteger(Number(approvalMinimumAmount)) || Number(approvalMinimumAmount) < 0}>Save approval policy</button>
           </form>
           <p className="mt-2 text-xs text-slate-500">{approvalPolicies.length} saved policy rule(s). Owner/admin authorization is enforced by the server.</p>
