@@ -3,7 +3,7 @@
   "captured_at": "2026-11-14",
   "source": "read-only SELECT from supabase_migrations.schema_migrations (version,name,statements)",
   "remote_ledger_entries": 52,
-  "local_migration_files": 54,
+  "local_migration_files": 55,
   "exact_version_matches": 0,
   "basename_matches": [
     {
@@ -375,7 +375,8 @@
     "202611150011_global_invoice_issuance_and_refunds.sql",
     "20261115131630_global_workspace_country_change_part7.sql",
     "20261115190000_self_service_country_reset.sql",
-    "20261115191500_country_reset_region_alignment.sql"
+    "20261115191500_country_reset_region_alignment.sql",
+    "202611170002_part9_manager_expense_accounting.sql"
   ],
   "notes": [
     "Recovered SQL is copied from the production migration ledger statements column.",

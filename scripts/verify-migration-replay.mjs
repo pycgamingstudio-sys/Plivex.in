@@ -13,8 +13,8 @@ const normalized = pairs.filter((x) => x.normalized_sql_match === true);
 const localOnly = manifest.local_only_files || [];
 
 if (manifest.remote_ledger_entries !== 52 || history.length !== 39 || missing.length !== 35
-  || manifest.local_migration_files !== 54 || pairs.length !== 17
-  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 37) {
+  || manifest.local_migration_files !== 55 || pairs.length !== 17
+  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 38) {
   fail("Migration reconciliation counts differ from the reviewed archive with 52 remote entries, 39 historical sources and 37 local-only migrations");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
@@ -44,8 +44,8 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 89 || new Set(candidatePlan.map((x) => x.path)).size !== 89) {
-  fail("Candidate replay plan must contain 35 recovered historical and all 54 current local migrations");
+if (candidatePlan.length !== 90 || new Set(candidatePlan.map((x) => x.path)).size !== 90) {
+  fail("Candidate replay plan must contain 35 recovered historical and all 55 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -240,11 +240,17 @@ function assertGlobalMigrationRollback(port) {
     if (hardeningResidue !== "false|false|false") fail("Global enterprise hardening rollback left functions or trigger changes behind: " + hardeningResidue);
     psql(port, db, ["-f", enterpriseHardeningPath]);
     const approvalPath = resolve(root, "supabase/migrations/20261116170000_part9_expense_approval_gates.sql");
+    const managerExpenseAccountingPath = resolve(root, "supabase/migrations/202611170002_part9_manager_expense_accounting.sql");
     const approvalRollback = applyForcedMigrationRollback(port, db, approvalPath);
     if (approvalRollback.status === 0) fail("Part 9 approval-gates migration rollback probe unexpectedly committed");
     const approvalResidue = query(port, db, "SELECT (to_regclass('global.approval_policies') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='approval_requests' AND column_name='consumed_at')::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_expense_approval_gate' AND NOT tgisinternal)::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_invoice_issue_approval_gate' AND NOT tgisinternal)::text || '|' || EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='global_invoice_payment_approval_gate' AND NOT tgisinternal)::text || '|' || (to_regprocedure('public.global_set_approval_policy(uuid,uuid,text,boolean,bigint,text[],boolean)') IS NOT NULL)::text");
     if (approvalResidue !== "false|false|false|false|false|false") fail("Part 9 approval-gates rollback left schema objects behind: " + approvalResidue);
-    console.log("PASS actual DDL rollback for Global foundation, inventory, invoice, tax-audit, FX-expense, enterprise-hardening and Part 9 approval-gates migrations");
+    const managerExpenseAccountingRollback = applyForcedMigrationRollback(port, db, managerExpenseAccountingPath);
+    if (managerExpenseAccountingRollback.status === 0) fail("Manager-expense accounting migration rollback probe unexpectedly committed");
+    const accountingRoleGuard = query(port, db, "SELECT position(\"invoice_issued\", pg_get_functiondef('public.global_post_journal_entry(uuid,uuid,date,text,text,text,uuid,jsonb,uuid)'::regprocedure)) > 0 AND position(\"expense\", pg_get_functiondef('public.global_post_journal_entry(uuid,uuid,date,text,text,text,uuid,jsonb,uuid)'::regprocedure)) = 0");
+    if (accountingRoleGuard !== "t") fail("Manager-expense accounting rollback did not restore the original role guard");
+    psql(port, db, ["-f", managerExpenseAccountingPath]);
+    console.log("PASS actual DDL rollback for Global foundation, inventory, invoice, tax-audit, FX-expense, enterprise-hardening, Part 9 approval-gates and manager-expense accounting migrations");
   } finally {
     const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], {
       cwd: root, env: envFor(port, "postgres"), encoding: "utf8",
