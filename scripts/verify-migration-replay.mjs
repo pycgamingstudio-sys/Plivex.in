@@ -239,6 +239,10 @@ function assertGlobalMigrationRollback(port) {
     const hardeningResidue = query(port, db, "SELECT (to_regprocedure('public.global_can_export(uuid,uuid,text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_cancel_approval_request(uuid,uuid,uuid)') IS NOT NULL)::text || '|' || (SELECT position('DELETE' in pg_get_triggerdef(t.oid)) > 0 FROM pg_trigger t WHERE t.tgname='audit_events_immutable')::text");
     if (hardeningResidue !== "false|false|false") fail("Global enterprise hardening rollback left functions or trigger changes behind: " + hardeningResidue);
     psql(port, db, ["-f", enterpriseHardeningPath]);
+    // The manager-expense migration replaces the accounting RPC, so its rollback
+    // probe must start from the real pre-Part-9 accounting function definition.
+    const accountingPath = resolve(root, "supabase/migrations/20261116100000_global_accounting_double_entry.sql");
+    psql(port, db, ["-f", accountingPath]);
     const approvalPath = resolve(root, "supabase/migrations/20261116170000_part9_expense_approval_gates.sql");
     const managerExpenseAccountingPath = resolve(root, "supabase/migrations/202611170002_part9_manager_expense_accounting.sql");
     const approvalRollback = applyForcedMigrationRollback(port, db, approvalPath);
