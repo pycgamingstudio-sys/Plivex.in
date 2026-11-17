@@ -22,12 +22,8 @@ const NAV = [
   { id: "clients", label: "Clients" },
   { id: "products", label: "Products" },
   { id: "expenses", label: "Expenses" },
-  { id: "inventory", label: "Inventory" },
   { id: "crm", label: "CRM" },
-  { id: "warehouses", label: "Warehouses" },
-  { id: "transfers", label: "Stock transfers" },
-  { id: "purchasing", label: "Purchasing" },
-  { id: "movements", label: "Movement history" },
+  { id: "inventory", label: "Inventory & Warehouse" },
   { id: "invoices", label: "Invoices" },
   { id: "accounting", label: "Accounting" },
   { id: "enterprise", label: "Enterprise" },
@@ -91,7 +87,7 @@ export default function GlobalApp() {
   }, []);
 
   const loadRecords = useCallback(async (activeTab = tab) => {
-    if (!account?.workspace_id || ["crm", "warehouses", "transfers", "purchasing", "movements"].includes(activeTab)) return;
+    if (!account?.workspace_id || ["crm", "inventory"].includes(activeTab)) return;
     const tables = activeTab === "overview" ? ["clients", "products", "expenses", "invoices", "stock_levels"] : [TABLES[activeTab]];
     const results = await Promise.all(tables.map(async (table) => [table, await invoke(table)]));
     setRecords((current) => ({ ...current, ...Object.fromEntries(results.map(([table, result]) => [table, result.records || []])) }));
@@ -243,19 +239,13 @@ export default function GlobalApp() {
   ];
   const actionCards = [
     { title: "CRM & Leads", description: "Manage prospects, follow-ups and customer relationships.", tab: "crm", icon: Handshake, tone: "from-fuchsia-50 to-pink-50" },
-    { title: "Inventory & Procurement", description: "Connect products, purchase orders and incoming goods.", tab: "purchasing", icon: ShoppingBasket, tone: "from-indigo-50 to-blue-50" },
-    { title: "Warehouses", description: "Manage locations and workspace stock levels.", tab: "warehouses", icon: Warehouse, tone: "from-teal-50 to-cyan-50" },
-    { title: "Stock Transfers", description: "Move products between active warehouse locations.", tab: "transfers", icon: ArrowLeftRight, tone: "from-sky-50 to-blue-50" },
-    { title: "Purchase Orders & Goods Receipts", description: "Create supplier orders and receive goods into stock.", tab: "purchasing", icon: ClipboardList, tone: "from-emerald-50 to-green-50" },
-    { title: "Stock Movement History", description: "Review recorded receipts, transfers and adjustments.", tab: "movements", icon: History, tone: "from-amber-50 to-orange-50" },
+    { title: "Inventory & Warehouse", description: "Manage stock, locations, transfers, purchase orders and movement history in one connected workspace.", tab: "inventory", icon: Warehouse, tone: "from-indigo-50 to-blue-50" },
     { title: "Accounting & Reports", description: "Open ledgers and financial statements for this workspace.", tab: "accounting", icon: Calculator, tone: "from-violet-50 to-purple-50" },
     { title: "Enterprise & Audit", description: "Review roles, audit history, exports and workspace controls.", tab: "enterprise", icon: ShieldCheck, tone: "from-slate-100 to-slate-50" },
   ];
 
   return (
     <div className="w-full text-slate-900">
-      <div className="w-full">
-      <div className="w-full">
         {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         {notice && <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
         {tab === "overview" ? (
@@ -264,7 +254,7 @@ export default function GlobalApp() {
             <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               {metricCards.map((item) => <button key={item.tab} onClick={() => setTab(item.tab)} className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${item.tone}`}><item.icon className="h-5 w-5" /></span><span className="mt-3 block text-sm font-semibold text-slate-500">{item.label}</span><span className="mt-1 block text-3xl font-bold tracking-tight text-slate-900">{item.value}</span><span className="mt-2 block text-xs font-semibold text-violet-700">Open section →</span></button>)}
             </div>
-            <div className="mt-8 flex items-end justify-between gap-3"><div><h2 className="text-xl font-bold">Business workspace</h2><p className="mt-1 text-sm text-slate-500">Quick access to the tools that run your operations.</p></div><span className="hidden rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700 sm:inline">8 work areas</span></div>
+            <div className="mt-8 flex items-end justify-between gap-3"><div><h2 className="text-xl font-bold">Business workspace</h2><p className="mt-1 text-sm text-slate-500">Quick access to the tools that run your operations.</p></div><span className="hidden rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700 sm:inline">{actionCards.length} work areas</span></div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {actionCards.map((item) => <button key={item.title} onClick={() => setTab(item.tab)} className="group flex min-h-44 flex-col rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md"><span className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${item.tone} text-violet-700`}><item.icon className="h-7 w-7" strokeWidth={1.6} /></span><span className="mt-4 text-sm font-bold text-slate-900">{item.title}</span><span className="mt-1 flex-1 text-xs leading-relaxed text-slate-500">{item.description}</span><span className="mt-3 text-xs font-semibold text-violet-700">Open workspace →</span></button>)}
             </div>
@@ -275,8 +265,8 @@ export default function GlobalApp() {
           <GlobalAccountingPanel account={account} />
         ) : tab === "enterprise" ? (
           <GlobalEnterprisePanel workspaceId={account.workspace_id} />
-        ) : ["crm", "warehouses", "transfers", "purchasing", "movements"].includes(tab) ? (
-          <GlobalPart4Panel account={account} initialSection={tab} />
+        ) : ["crm", "inventory"].includes(tab) ? (
+          <GlobalPart4Panel account={account} initialSection={tab === "crm" ? "crm" : "warehouses"} />
         ) : (
           <section className="mt-6">
             <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold">{NAV.find((item) => item.id === tab)?.label}</h1><p className="mt-1 text-sm text-slate-500">{tab === "inventory" || tab === "invoices" ? "Read-only until audited transaction workflows are enabled." : "Records are scoped to your active Global workspace."}</p></div><button onClick={() => loadRecords(tab).catch((loadError) => setError(loadError.message))} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Refresh</button></div>
