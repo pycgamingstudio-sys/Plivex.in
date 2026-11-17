@@ -42,7 +42,7 @@ test("Global overview has personalized interactive metrics and workspace action 
   assert.match(global, /const actionCards = \[/);
   assert.match(global, /actionCards\.map\(\(item\) => <button/);
   assert.match(global, /visibleMetricCards\.map\(\(item\) => <button/);
-  for (const title of ["CRM & Leads", "Inventory & Warehouse", "Accounting & Reports", "Enterprise & Audit"]) {
+  for (const title of ["CRM & Leads", "Inventory & Warehouse", "Accounting & Reports", "Team Members"]) {
     assert.ok(global.includes(`title: "${title}"`), `Missing dashboard card: ${title}`);
   }
   for (const section of ["warehouses", "transfers", "purchasing", "movements"]) {
