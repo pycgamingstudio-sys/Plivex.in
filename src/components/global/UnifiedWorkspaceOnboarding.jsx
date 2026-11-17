@@ -38,11 +38,9 @@ export default function UnifiedWorkspaceOnboarding() {
   }, [draftKey, step, businessName, countryCode, localeCode, workTypes, features]);
 
   const chooseWorkType = (type) => {
-    setWorkTypes((current) => {
-      const next = current.includes(type) ? current.filter((item) => item !== type) : [...current, type];
-      setFeatures(getSuggestedWorkspaceFeatures(next));
-      return next;
-    });
+    const next = workTypes.includes(type) ? workTypes.filter((item) => item !== type) : [...workTypes, type];
+    setWorkTypes(next);
+    setFeatures(getSuggestedWorkspaceFeatures(next));
   };
 
   const next = () => {
