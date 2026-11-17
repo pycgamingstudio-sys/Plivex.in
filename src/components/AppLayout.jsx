@@ -13,7 +13,7 @@ import { LayoutDashboard, Users, Package, Receipt, FileText, Handshake, Warehous
 const GLOBAL_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/invoice-history", label: "Sales", icon: FileText },
-  { to: "/expenses", label: "Purchase & Expenses", icon: Receipt },
+  { to: "/expenses", label: "Purchase", icon: Receipt },
   { to: "/accounting", label: "Reports", icon: Calculator },
   { to: "/crm", label: "Client CRM", icon: Handshake },
   { to: "/products", label: "Stock", icon: Package },
