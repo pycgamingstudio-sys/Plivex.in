@@ -143,8 +143,8 @@ function assertGlobalFoundation(port) {
 }
 function applyForcedMigrationRollback(port, db, migrationPath) {
   const migration = readFileSync(migrationPath, "utf8")
-    .replace(/(^|\\n)begin;\\s*/i, "$1")
-    .replace(/\\ncommit;\\s*$/i, "");
+    .replace(/(^|\n)begin;\s*/i, "$1")
+    .replace(/\ncommit;\s*$/i, "");
   const forcedRollback = "BEGIN;\\n" + migration +
     "\\nDO $global_rollback$ BEGIN RAISE EXCEPTION 'intentional Global migration rollback verification'; END $global_rollback$;\\n";
   return spawnSync("psql", ["-X","-v","ON_ERROR_STOP=1","-d",db], {
