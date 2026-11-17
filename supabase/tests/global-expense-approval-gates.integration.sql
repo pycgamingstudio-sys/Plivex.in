@@ -30,7 +30,7 @@ BEGIN
   BEGIN
     INSERT INTO global.expenses(workspace_id,category,vendor,amount_minor,currency_code,expense_date,created_by,
       transaction_amount_minor,transaction_currency_code,creation_idempotency_key)
-    VALUES (ws,'Travel','Test Vendor',2500,'USD',current_date,requester,2500,'USD',expense_key);
+    VALUES (ws,'Travel','Test Vendor',2500,'INR',current_date,requester,2500,'INR',expense_key);
   EXCEPTION WHEN SQLSTATE '42501' THEN
     blocked := position('approval_required' in SQLERRM) > 0;
   END;
@@ -40,7 +40,7 @@ BEGIN
     jsonb_build_object(
       'actionType','expense.create','resourceType','expense','resourceId','*',
       'payload',jsonb_build_object('amountMinor','2500','category','Travel','vendor','Test Vendor',
-        'expenseDate',to_char(current_date,'YYYY-MM-DD'),'currencyCode','USD')
+        'expenseDate',to_char(current_date,'YYYY-MM-DD'),'currencyCode','INR')
     ));
   IF result->>'ok' <> 'true' THEN RAISE EXCEPTION 'Approval request failed: %',result; END IF;
   request_id := (result->>'requestId')::uuid;
@@ -57,13 +57,13 @@ BEGIN
 
   INSERT INTO global.expenses(workspace_id,category,vendor,amount_minor,currency_code,expense_date,created_by,
     transaction_amount_minor,transaction_currency_code,creation_idempotency_key)
-  VALUES (ws,'Travel','Test Vendor',2500,'USD',current_date,requester,2500,'USD',expense_key)
+  VALUES (ws,'Travel','Test Vendor',2500,'INR',current_date,requester,2500,'INR',expense_key)
   RETURNING id INTO expense_id;
   IF expense_id IS NULL THEN RAISE EXCEPTION 'Approved expense was not created'; END IF;
 
   blocked := false;
   BEGIN
-    UPDATE global.expenses SET amount_minor=3500,transaction_amount_minor=3500
+    UPDATE global.expenses SET vendor='Verified Vendor'
     WHERE id=expense_id AND workspace_id=ws;
   EXCEPTION WHEN SQLSTATE '42501' THEN
     blocked := position('approval_required' in SQLERRM) > 0;
@@ -73,8 +73,8 @@ BEGIN
   result := public.global_enterprise_action(requester,ws,'approval.request',
     jsonb_build_object(
       'actionType','expense.update','resourceType','expense','resourceId',expense_id::text,
-      'payload',jsonb_build_object('amountMinor','3500','category','Travel','vendor','Test Vendor',
-        'expenseDate',to_char(current_date,'YYYY-MM-DD'),'currencyCode','USD')
+      'payload',jsonb_build_object('amountMinor','2500','category','Travel','vendor','Verified Vendor',
+        'expenseDate',to_char(current_date,'YYYY-MM-DD'),'currencyCode','INR')
     ));
   IF result->>'ok' <> 'true' THEN RAISE EXCEPTION 'Expense update approval request failed: %',result; END IF;
   request_id := (result->>'requestId')::uuid;
@@ -84,13 +84,13 @@ BEGIN
 
   UPDATE global.expenses SET amount_minor=3500,transaction_amount_minor=3500
   WHERE id=expense_id AND workspace_id=ws;
-  IF NOT EXISTS (SELECT 1 FROM global.expenses WHERE id=expense_id AND amount_minor=3500) THEN
+  IF NOT EXISTS (SELECT 1 FROM global.expenses WHERE id=expense_id AND vendor='Verified Vendor') THEN
     RAISE EXCEPTION 'Approved expense update was not applied';
   END IF;
 
   blocked := false;
   BEGIN
-    UPDATE global.expenses SET amount_minor=3600,transaction_amount_minor=3600
+    UPDATE global.expenses SET vendor='Unapproved Vendor'
     WHERE id=expense_id AND workspace_id=ws;
   EXCEPTION WHEN SQLSTATE '42501' THEN
     blocked := position('approval_required' in SQLERRM) > 0
