@@ -2,26 +2,25 @@ import { useEffect, useMemo, useState } from "react";
 import { backend as db, supabase, setRuntimeEdition } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
 import { COUNTRY_REGISTRY, getCountryByCode, getCountryFlag } from "@/global/countries/country-registry.js";
+import { getSuggestedWorkspaceFeatures } from "@/lib/workspaceFeatures";
+import { Check, ChevronLeft, ChevronRight, Globe2, MapPin, Phone, Search, Sparkles, Store, UserRound, Building2, ShieldCheck } from "lucide-react";
 
 const DRAFT_KEY = "plivex:workspace-onboarding:draft";
 function readDraft(key) { try { return JSON.parse(sessionStorage.getItem(key) || "{}"); } catch { return {}; } }
-
-const USE_CASES = [
-  ["billing", "Billing & invoicing"], ["inventory", "Inventory & stock"],
-  ["accounting", "Accounting & expenses"], ["crm", "CRM & customer management"],
-  ["business", "Complete business management"], ["explore", "Just exploring"],
-];
+const STEPS = ["Your business", "Country & region", "A local welcome", "Your work", "Review"];
 
 export default function UnifiedWorkspaceOnboarding() {
   const { user } = useAuth();
   const draftKey = `${DRAFT_KEY}:${user?.id || "unknown"}`;
-  const [step, setStep] = useState(() => Math.min(3, Number(readDraft(draftKey).step) || 0));
-  const [businessName, setBusinessName] = useState(() => readDraft(draftKey).businessName || "");
-  const [businessType, setBusinessType] = useState(() => readDraft(draftKey).businessType || "retail");
+  const initial = useMemo(() => readDraft(draftKey), [draftKey]);
+  const [step, setStep] = useState(() => Math.min(4, Math.max(0, Number(initial.step) || 0)));
+  const [businessName, setBusinessName] = useState(() => initial.businessName || "");
+  const [countryCode, setCountryCode] = useState(() => initial.countryCode || "");
+  const [localeCode, setLocaleCode] = useState(() => initial.localeCode || "");
   const [phone, setPhone] = useState("");
-  const [useCase, setUseCase] = useState(() => readDraft(draftKey).useCase || "business");
-  const [countryCode, setCountryCode] = useState(() => readDraft(draftKey).countryCode || "");
-  const [localeCode, setLocaleCode] = useState(() => readDraft(draftKey).localeCode || "");
+  const [workTypes, setWorkTypes] = useState(() => Array.isArray(initial.workTypes) ? initial.workTypes : []);
+  const [features, setFeatures] = useState(() => Array.isArray(initial.features) ? initial.features : []);
+  const [countrySearch, setCountrySearch] = useState("");
   const [taxType, setTaxType] = useState("");
   const [taxNumber, setTaxNumber] = useState("");
   const [loading, setLoading] = useState(false);
@@ -29,23 +28,34 @@ export default function UnifiedWorkspaceOnboarding() {
   const country = useMemo(() => getCountryByCode(countryCode), [countryCode]);
   const locales = country?.locales || [];
   const phoneCode = country?.phoneCode || "";
+  const filteredCountries = useMemo(() => COUNTRY_REGISTRY.filter((item) =>
+    `${item.name} ${item.code} ${item.currencyCode}`.toLowerCase().includes(countrySearch.trim().toLowerCase())
+  ), [countrySearch]);
 
-  // Keep non-sensitive progress in this browser tab so a refresh can resume setup.
-  // Phone and tax registration numbers are intentionally not written to storage.
   useEffect(() => {
-    try { sessionStorage.setItem(draftKey, JSON.stringify({ step, businessName, businessType, useCase, countryCode, localeCode })); } catch { /* onboarding can still proceed without storage */ }
-  }, [draftKey, step, businessName, businessType, useCase, countryCode, localeCode]);
+    try { sessionStorage.setItem(draftKey, JSON.stringify({ step, businessName, countryCode, localeCode, workTypes, features })); }
+    catch { /* Setup remains usable when browser storage is unavailable. */ }
+  }, [draftKey, step, businessName, countryCode, localeCode, workTypes, features]);
+
+  const chooseWorkType = (type) => {
+    setWorkTypes((current) => {
+      const next = current.includes(type) ? current.filter((item) => item !== type) : [...current, type];
+      setFeatures(getSuggestedWorkspaceFeatures(next));
+      return next;
+    });
+  };
 
   const next = () => {
     setError("");
-    if (step === 0 && !businessName.trim()) return setError("Enter your business name to continue.");
-    if (step === 2 && (!country || !locales.includes(localeCode || locales[0]))) return setError("Choose a supported business country and regional format.");
-    setStep((value) => Math.min(3, value + 1));
+    if (step === 0 && !businessName.trim()) return setError("Please enter your business or professional workspace name.");
+    if (step === 1 && !country) return setError("Choose the country where your business is based.");
+    if (step === 3 && workTypes.length === 0) return setError("Choose Freelancer, Business, or both to personalize your workspace.");
+    setStep((value) => Math.min(4, value + 1));
   };
 
   const createWorkspace = async () => {
-    if (!businessName.trim() || !country || !locales.includes(localeCode || locales[0])) {
-      setError("Complete the required business details first."); return;
+    if (!businessName.trim() || !country || !locales.includes(localeCode || locales[0]) || workTypes.length === 0) {
+      setError("Please complete the required details before creating your workspace."); return;
     }
     setLoading(true); setError("");
     try {
@@ -58,8 +68,8 @@ export default function UnifiedWorkspaceOnboarding() {
         full_name: businessName.trim().slice(0, 160),
         signup_country_code: country.code,
         signup_locale_code: selectedLocale,
-        plivex_business_type: businessType,
-        plivex_primary_use_case: useCase,
+        plivex_work_types: workTypes,
+        plivex_workspace_features: features,
         ...(phone.trim() ? { phone: phone.trim() } : {}),
       };
       const { error: metadataError } = await supabase.auth.updateUser({ data: metadata });
@@ -76,7 +86,6 @@ export default function UnifiedWorkspaceOnboarding() {
         });
         if (!result?.data?.ok) throw new Error(result?.data?.error || "Your workspace could not be created.");
       }
-
       setRuntimeEdition(country.code === "IN" ? "india" : "global");
 
       if (taxType.trim() || taxNumber.trim()) {
@@ -92,7 +101,7 @@ export default function UnifiedWorkspaceOnboarding() {
           if (taxResult?.error || !taxResult?.data?.record) throw taxResult?.error || new Error("Tax profile save was not confirmed.");
         } catch (taxError) {
           console.warn("Optional tax profile was not saved:", taxError);
-          setError("Your workspace has been created safely, but the optional tax details were not saved. Tap Create my workspace again to retry; this will not create a duplicate workspace.");
+          setError("Your workspace is ready, but the optional tax details were not saved. You can add them later in Business Profile.");
           setLoading(false);
           return;
         }
@@ -105,80 +114,104 @@ export default function UnifiedWorkspaceOnboarding() {
     }
   };
 
-  const steps = ["Your business", "How you'll use Plivex", "Business location", "Review & create"];
+  const selectedFeatureLabels = features.map((id) => ({
+    quotations: "Quotations", expenses: "Expenses", crm: "Client CRM",
+    leads: "Lead Tracker", inventoryWorkspace: "Warehouse & Operations", reports: "Reports",
+  }[id] || id));
+
   return (
     <main className="min-h-[100dvh] bg-[#F8F7FC] px-3 py-5 text-slate-900 sm:grid sm:place-items-center sm:px-5 sm:py-10">
-      <section className="mx-auto flex min-h-[min(760px,calc(100dvh-2.5rem))] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
+      <section className="mx-auto flex min-h-[min(780px,calc(100dvh-2.5rem))] w-full max-w-3xl flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_80px_rgba(36,20,74,0.10)]">
         <header className="shrink-0 border-b border-slate-100 px-5 py-5 sm:px-8">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <span className="text-lg font-black tracking-tight text-violet-700">Plivex</span>
-            <span className="text-xs font-semibold text-slate-500">Workspace setup · {step + 1} of 4</span>
+            <span className="text-xs font-semibold text-slate-500">Workspace setup · {step + 1} of 5</span>
           </div>
           <div className="mt-4 flex gap-1.5" aria-label="Setup progress">
-            {steps.map((label, index) => <div key={label} className={`h-1.5 flex-1 rounded-full ${index <= step ? "bg-violet-600" : "bg-slate-100"}`} />)}
+            {STEPS.map((label, index) => <div key={label} className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${index <= step ? "bg-violet-600" : "bg-slate-100"}`} />)}
           </div>
-          <p className="mt-2 text-[11px] text-slate-400">{steps[step]}</p>
+          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400"><span>{STEPS[step]}</span><span>{[20, 30, 55, 80, 100][step]}% complete</span></div>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-8 sm:py-8">
+
+        <div key={step} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-8 sm:py-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
           {step === 0 && <>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Tell us about your business</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">We'll use these details to set up your workspace. You can update them later.</p>
-            <label className="mt-7 block text-sm font-semibold">Business name <span className="text-rose-600">*</span>
-              <input autoFocus required maxLength={160} value={businessName} onChange={event => setBusinessName(event.target.value)} placeholder="e.g. Sharma Traders" className="mt-2 h-12 w-full rounded-xl border border-slate-200 px-4 text-base outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100" />
-            </label>
-            <label className="mt-5 block text-sm font-semibold">Business type
-              <select value={businessType} onChange={event => setBusinessType(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
-                <option value="retail">Retail / shop</option><option value="wholesale">Wholesale / distribution</option><option value="services">Services / freelancer</option><option value="manufacturing">Manufacturing</option><option value="ecommerce">E-commerce</option><option value="other">Other</option>
-              </select>
+            <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><Store className="h-6 w-6" /></div>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Let's start with your business.</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Give your workspace a name. You can add your legal and billing details later.</p>
+            <label className="mt-7 block text-sm font-semibold">Business or workspace name <span className="text-rose-600">*</span>
+              <input autoFocus required maxLength={160} value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="e.g. Sharma Traders" className="mt-2 h-13 w-full rounded-xl border border-slate-200 px-4 text-base outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" />
             </label>
           </>}
+
           {step === 1 && <>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">What would you like to manage?</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Choose the main reason you're setting up Plivex. You can use other features too.</p>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {USE_CASES.map(([value, label]) => <button type="button" key={value} onClick={() => setUseCase(value)} className={`rounded-2xl border p-4 text-left text-sm font-semibold transition ${useCase === value ? "border-violet-500 bg-violet-50 text-violet-800 ring-2 ring-violet-100" : "border-slate-200 hover:border-violet-200"}`}>{label}</button>)}
-            </div>
-          </>}
-          {step === 2 && <>
+            <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><Globe2 className="h-6 w-6" /></div>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Where is your business based?</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">This sets your workspace's base currency and regional formats. It does not verify tax residency or guarantee local tax compliance.</p>
-            <label className="mt-7 block text-sm font-semibold">Business country <span className="text-rose-600">*</span>
-              <select required value={countryCode} onChange={event => { const nextCountry = getCountryByCode(event.target.value); setCountryCode(nextCountry?.code || ""); setLocaleCode(nextCountry?.locales?.[0] || ""); }} className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
-                <option value="">Select your country</option>
-                {COUNTRY_REGISTRY.map(entry => <option key={entry.code} value={entry.code}>{getCountryFlag(entry.code)} {entry.name} · {entry.currencyCode}</option>)}
-              </select>
-            </label>
-            {country && <>
-              <label className="mt-5 block text-sm font-semibold">Phone number <span className="font-normal text-slate-400">(optional)</span>
-                <span className="mt-2 flex h-12 overflow-hidden rounded-xl border border-slate-200 focus-within:border-violet-500">
-                  <span className="flex items-center border-r border-slate-200 bg-slate-50 px-3 text-sm text-slate-500">{phoneCode}</span>
-                  <input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={event => setPhone(event.target.value)} placeholder="Mobile number" className="min-w-0 flex-1 px-3 text-base outline-none" />
-                </span>
-              </label>
-              <label className="mt-5 block text-sm font-semibold">Regional number and date format
-                <select value={localeCode || locales[0]} onChange={event => setLocaleCode(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
-                  {locales.map(locale => <option key={locale} value={locale}>{locale}</option>)}
-                </select>
-              </label>
-              <div className="mt-4 rounded-xl bg-violet-50 p-4 text-sm text-violet-900">Your workspace base currency will be <strong>{country.currencyCode}</strong>. Base currency is available on every plan, including Free.</div>
-            </>}
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <label className="block text-sm font-semibold">Tax registration type <span className="font-normal text-slate-400">(optional)</span><input value={taxType} onChange={event => setTaxType(event.target.value)} maxLength={32} placeholder="GST / VAT / Sales Tax" className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" /></label>
-              <label className="block text-sm font-semibold">Tax registration number <span className="font-normal text-slate-400">(optional)</span><input value={taxNumber} onChange={event => setTaxNumber(event.target.value)} maxLength={80} placeholder="Registration number" className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" /></label>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Choose the country where your business operates. We'll configure your workspace for that region.</p>
+            <div className="mt-5 rounded-2xl border border-violet-100 bg-violet-50/70 p-4 text-sm leading-6 text-violet-950">
+              <div className="flex items-start gap-2"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-violet-700" /><div><p className="font-semibold">A quick note before you choose</p><p className="mt-1 text-violet-900/80">Your country sets your workspace's base currency, regional formats and country-specific settings. Changing it after workspace creation requires a controlled reset or migration and may affect existing records. Please review your selection before continuing.</p></div></div>
             </div>
+            <label className="mt-6 flex h-12 items-center gap-2 rounded-xl border border-slate-200 px-3 focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-100">
+              <Search className="h-4 w-4 text-slate-400" /><input value={countrySearch} onChange={(event) => setCountrySearch(event.target.value)} placeholder="Search countries or currency" className="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none" aria-label="Search countries" />
+            </label>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {filteredCountries.map((entry) => {
+                const selected = countryCode === entry.code;
+                return <button type="button" key={entry.code} onClick={() => { setCountryCode(entry.code); setLocaleCode(entry.locales[0]); }} aria-pressed={selected} className={`group flex min-h-[68px] items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-md ${selected ? "border-violet-500 bg-violet-50 ring-2 ring-violet-100 shadow-sm" : "border-slate-200 bg-white"}`}>
+                  <span className="text-2xl" aria-hidden="true">{getCountryFlag(entry.code)}</span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-slate-900">{entry.name}</span><span className="mt-0.5 block text-xs text-slate-500">{entry.currencyCode} · {entry.phoneCode}</span></span>{selected && <Check className="h-5 w-5 text-violet-700" />}
+                </button>;
+              })}
+            </div>
+            {filteredCountries.length === 0 && <p className="mt-4 text-sm text-slate-500">No matching country found. Try another search.</p>}
+            <p className="mt-4 text-xs leading-5 text-slate-400">Your country selection does not verify tax residency or guarantee local tax compliance.</p>
           </>}
+
+          {step === 2 && country && <>
+            <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><MapPin className="h-6 w-6" /></div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-violet-700">{getCountryFlag(country.code)} {country.name}</p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Your {country.name} workspace is taking shape.</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-500">We've selected the regional defaults for your workspace. You can review them before setup is complete.</p>
+            <div className="mt-5 rounded-2xl bg-gradient-to-br from-violet-700 to-violet-600 p-4 text-white shadow-lg shadow-violet-200/60">
+              <p className="text-xs font-medium text-white/75">Workspace base currency</p><p className="mt-1 text-2xl font-bold">{country.currencyCode}</p><p className="mt-1 text-xs text-white/75">Regional format: {localeCode || locales[0]}</p>
+            </div>
+            <label className="mt-6 block text-sm font-semibold">Mobile number <span className="font-normal text-slate-400">(optional)</span>
+              <span className="mt-2 flex h-12 overflow-hidden rounded-xl border border-slate-200 focus-within:border-violet-500"><span className="flex items-center border-r border-slate-200 bg-slate-50 px-3 text-sm text-slate-500">{phoneCode}</span><input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Your mobile number" className="min-w-0 flex-1 px-3 text-base outline-none" /></span>
+            </label>
+            <p className="mt-2 text-xs text-slate-400">You can skip this and add a number later in your account settings.</p>
+            {locales.length > 1 && <label className="mt-5 block text-sm font-semibold">Regional number and date format<select value={localeCode || locales[0]} onChange={(event) => setLocaleCode(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">{locales.map((locale) => <option key={locale} value={locale}>{locale}</option>)}</select></label>}
+            <div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="block text-sm font-semibold">Tax registration type <span className="font-normal text-slate-400">(optional)</span><input value={taxType} onChange={(event) => setTaxType(event.target.value)} maxLength={32} placeholder="GST / VAT / Sales Tax" className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" /></label><label className="block text-sm font-semibold">Tax registration number <span className="font-normal text-slate-400">(optional)</span><input value={taxNumber} onChange={(event) => setTaxNumber(event.target.value)} maxLength={80} placeholder="Registration number" className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" /></label></div>
+          </>}
+
           {step === 3 && <>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Review your workspace</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Your workspace is created only after you confirm these details.</p>
+            <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><Sparkles className="h-6 w-6" /></div>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">What's your work based on?</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Choose the options that best describe your work. You can select one or both.</p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <button type="button" onClick={() => chooseWorkType("freelancer")} aria-pressed={workTypes.includes("freelancer")} className={`rounded-2xl border p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${workTypes.includes("freelancer") ? "border-violet-500 bg-violet-50 ring-2 ring-violet-100" : "border-slate-200 hover:border-violet-200"}`}><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-100 text-violet-700"><UserRound className="h-5 w-5" /></span><span className="mt-4 block text-base font-bold">Freelancer</span><span className="mt-1 block text-xs leading-5 text-slate-500">For independent professionals and service providers managing clients, quotations, expenses and follow-ups.</span>{workTypes.includes("freelancer") && <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-violet-700"><Check className="h-4 w-4" />Selected</span>}</button>
+              <button type="button" onClick={() => chooseWorkType("business")} aria-pressed={workTypes.includes("business")} className={`rounded-2xl border p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${workTypes.includes("business") ? "border-violet-500 bg-violet-50 ring-2 ring-violet-100" : "border-slate-200 hover:border-violet-200"}`}><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><Building2 className="h-5 w-5" /></span><span className="mt-4 block text-base font-bold">Business</span><span className="mt-1 block text-xs leading-5 text-slate-500">For shops and growing teams that manage sales, purchases, stock, warehouses and operations.</span>{workTypes.includes("business") && <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-violet-700"><Check className="h-4 w-4" />Selected</span>}</button>
+            </div>
+            <p className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">Your dashboard will be arranged around these choices. You can add or remove optional features at any time. Invoices, Stock and Team Members remain available as core workspace tools.</p>
+            <p className="mt-3 text-xs font-medium text-violet-700">Suggested tools: {features.length ? selectedFeatureLabels.join(" · ") : "Choose a work type to see recommendations."}</p>
+          </>}
+
+          {step === 4 && <>
+            <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700"><Check className="h-6 w-6" /></div>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Your workspace is ready to be created.</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Review your details. Plivex will configure your dashboard and regional settings after you confirm.</p>
             <dl className="mt-6 divide-y divide-slate-100 rounded-2xl border border-slate-200 px-4">
-              {[["Business", businessName],["Business type", businessType],["Primary use", USE_CASES.find(item => item[0] === useCase)?.[1] || "Business management"],["Country", country ? country.name : "Not selected"],["Base currency", country?.currencyCode || "—"],["Regional format", localeCode || locales[0] || "—"],["Phone", phone.trim() || "Not provided"],["Tax registration", taxType || taxNumber ? [taxType, taxNumber].filter(Boolean).join(" · ") : "Not provided"]].map(([label, value]) => <div key={label} className="flex justify-between gap-4 py-3 text-sm"><dt className="text-slate-500">{label}</dt><dd className="max-w-[60%] break-words text-right font-semibold text-slate-900">{value}</dd></div>)}
+              {[
+                ["Workspace", businessName], ["Country", country ? `${getCountryFlag(country.code)} ${country.name}` : "Not selected"],
+                ["Base currency", country?.currencyCode || "—"], ["Work type", workTypes.map((type) => type === "freelancer" ? "Freelancer" : "Business").join(" + ")],
+                ["Mobile", phone.trim() || "Skipped"], ["Optional features", selectedFeatureLabels.join(", ") || "None selected"],
+                ["Tax registration", taxType || taxNumber ? [taxType, taxNumber].filter(Boolean).join(" · ") : "Not provided"],
+              ].map(([label, value]) => <div key={label} className="flex justify-between gap-4 py-3 text-sm"><dt className="text-slate-500">{label}</dt><dd className="max-w-[62%] break-words text-right font-semibold text-slate-900">{value}</dd></div>)}
             </dl>
           </>}
           {error && <p role="alert" className="mt-5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
         </div>
+
         <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-100 bg-white px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-8">
-          <button type="button" onClick={() => { setError(""); setStep(value => Math.max(0, value - 1)); }} disabled={step === 0 || loading} className="min-h-11 rounded-xl border border-slate-200 px-5 text-sm font-semibold text-slate-600 disabled:opacity-40">Back</button>
-          {step < 3 ? <button type="button" onClick={next} className="min-h-11 rounded-xl bg-violet-700 px-6 text-sm font-bold text-white hover:bg-violet-800">Continue</button> : <button type="button" onClick={createWorkspace} disabled={loading || !country} className="min-h-11 rounded-xl bg-violet-700 px-6 text-sm font-bold text-white disabled:opacity-60">{loading ? "Creating workspace…" : "Create my workspace"}</button>}
+          <button type="button" onClick={() => { setError(""); setStep((value) => Math.max(0, value - 1)); }} disabled={step === 0 || loading} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40"><ChevronLeft className="h-4 w-4" />Back</button>
+          {step < 4 ? <button type="button" onClick={next} disabled={loading} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-700 px-6 text-sm font-bold text-white shadow-md shadow-violet-200 transition hover:-translate-y-0.5 hover:bg-violet-800 disabled:opacity-60">Continue<ChevronRight className="h-4 w-4" /></button> : <button type="button" onClick={createWorkspace} disabled={loading || !country || !workTypes.length} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-700 px-6 text-sm font-bold text-white shadow-md shadow-violet-200 transition hover:-translate-y-0.5 hover:bg-violet-800 disabled:opacity-60">{loading ? "Creating workspace…" : "Create my workspace"}<Sparkles className="h-4 w-4" /></button>}
         </footer>
       </section>
     </main>
