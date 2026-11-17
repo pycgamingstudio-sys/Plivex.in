@@ -42,7 +42,6 @@ create table if not exists global.quotation_items (
     references global.quotations(id, workspace_id) on delete cascade
 );
 
-create unique index if not exists global_quotations_workspace_id_id_idx on global.quotations(workspace_id,id);
 create index if not exists global_quotations_workspace_created_idx on global.quotations(workspace_id,created_at desc);
 create index if not exists global_quotation_items_quote_idx on global.quotation_items(workspace_id,quotation_id,sort_order);
 
@@ -162,8 +161,8 @@ begin
       ));
     end loop;
     v_number:='QUO-'||to_char(current_date,'YYYYMMDD')||'-'||upper(substr(replace(gen_random_uuid()::text,'-',''),1,8));
-    insert into global.quotations(workspace_id,client_id,quotation_number,currency_code,issue_date,valid_until,subtotal_minor,discount_minor,total_minor,notes,created_by,creation_idempotency_key)
-    values(p_workspace_id,p_client_id,v_number,v_currency,p_issue_date,p_valid_until,v_subtotal,v_subtotal-v_total,v_total,nullif(btrim(p_notes),''),p_user_id,p_idempotency_key)
+    insert into global.quotations(workspace_id,client_id,quotation_number,currency_code,issue_date,valid_until,subtotal_minor,discount_minor,total_minor,notes,created_by,creation_idempotency_key,creation_fingerprint)
+    values(p_workspace_id,p_client_id,v_number,v_currency,p_issue_date,p_valid_until,v_subtotal,v_subtotal-v_total,v_total,nullif(btrim(p_notes),''),p_user_id,p_idempotency_key,v_fingerprint)
     returning * into v_quote;
     for v_item in select value from jsonb_array_elements(v_items) loop
       insert into global.quotation_items(workspace_id,quotation_id,description,quantity,unit_price_minor,discount_minor,line_total_minor,sort_order)
