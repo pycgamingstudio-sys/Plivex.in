@@ -3,7 +3,7 @@
   "captured_at": "2026-11-14",
   "source": "read-only SELECT from supabase_migrations.schema_migrations (version,name,statements)",
   "remote_ledger_entries": 52,
-  "local_migration_files": 53,
+  "local_migration_files": 55,
   "exact_version_matches": 0,
   "basename_matches": [
     {
@@ -361,6 +361,7 @@
     "20261116122000_global_multicurrency_expenses.sql",
     "20261116120000_global_enterprise_controls.sql",
     "20261116123000_global_enterprise_hardening.sql",
+    "20261116170000_part9_expense_approval_gates.sql",
     "202611160001_global_part4_crm_warehouse_procurement.sql",
     "202611160002_global_part4_transactional_operations.sql",
     "202611160003_india_part4_warehouse_crm_purchase.sql",
@@ -374,7 +375,8 @@
     "202611150011_global_invoice_issuance_and_refunds.sql",
     "20261115131630_global_workspace_country_change_part7.sql",
     "20261115190000_self_service_country_reset.sql",
-    "20261115191500_country_reset_region_alignment.sql"
+    "20261115191500_country_reset_region_alignment.sql",
+    "202611170002_part9_manager_expense_accounting.sql"
   ],
   "notes": [
     "Recovered SQL is copied from the production migration ledger statements column.",
