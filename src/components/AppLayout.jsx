@@ -80,7 +80,7 @@ export default function AppLayout({ children }) {
         </nav>
       </header>
       <main className={`mx-auto max-w-6xl px-4 py-6 ${isGlobal ? "min-h-[calc(100vh-120px)] bg-[#F8F7FC]" : ""}`}>{children ?? <Outlet />}</main>
-      <PresenceBeacon />
+      {!isGlobal && <PresenceBeacon />}
     </div>
   );
 }
