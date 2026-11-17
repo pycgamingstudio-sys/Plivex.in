@@ -54,12 +54,13 @@ const PaymentResult = lazy(() => import("./pages/PaymentResult"));
 const PublicInvoicePage = lazy(() => import("./pages/PublicInvoicePage"));
 
 const AuthenticatedApp = () => {
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, isAuthenticated, user } = useAuth();
+
   // Payment callbacks must remain visible even if the customer session expires during checkout.
+  // Keep hooks unconditional so navigating to/from this public callback never changes hook order.
   if (window.location.pathname === "/payment-result") {
     return <Routes><Route path="/payment-result" element={<PaymentResult />} /></Routes>;
   }
-
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, isAuthenticated, user } = useAuth();
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {

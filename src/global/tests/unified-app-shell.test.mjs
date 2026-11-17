@@ -4,6 +4,12 @@ import { readFileSync } from "node:fs";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
+test("payment callback routing preserves unconditional hook order", () => {
+  const app = read("../../App.jsx");
+  const component = app.slice(app.indexOf("const AuthenticatedApp ="), app.indexOf("// Shows a message"));
+  assert.ok(component.indexOf("const { isLoadingAuth") < component.indexOf('if (window.location.pathname === "/payment-result")'));
+});
+
 test("India and Global experiences share the same Plivex application shell and navigation", () => {
   const app = read("../../App.jsx");
   const backend = read("../../api/backendClient.js");
