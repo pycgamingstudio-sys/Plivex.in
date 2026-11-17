@@ -82,7 +82,7 @@ BEGIN
     jsonb_build_object('requestId',request_id::text,'decision','approved','note','Verified expense change'));
   IF result->>'ok' <> 'true' THEN RAISE EXCEPTION 'Expense update approval decision failed: %',result; END IF;
 
-  UPDATE global.expenses SET amount_minor=3500,transaction_amount_minor=3500
+  UPDATE global.expenses SET vendor='Verified Vendor'
   WHERE id=expense_id AND workspace_id=ws;
   IF NOT EXISTS (SELECT 1 FROM global.expenses WHERE id=expense_id AND vendor='Verified Vendor') THEN
     RAISE EXCEPTION 'Approved expense update was not applied';
@@ -98,7 +98,6 @@ BEGIN
   END;
   IF NOT blocked THEN RAISE EXCEPTION 'Consumed approval was replayed for another expense update'; END IF;
 
-  DELETE FROM global.expenses WHERE id=expense_id AND workspace_id=ws;
   DELETE FROM global.approval_policies WHERE workspace_id=ws AND resource_type='expense';
 END
 $part9_expense_approval$;
