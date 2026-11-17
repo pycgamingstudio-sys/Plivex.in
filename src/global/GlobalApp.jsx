@@ -115,7 +115,7 @@ export default function GlobalApp() {
   }, [loadContext]);
 
   useEffect(() => {
-    if (!account?.workspace_id || activeTab === "accounting") return;
+    if (!account?.workspace_id || tab === "accounting") return;
     loadRecords(tab).catch((loadError) => setError(loadError.message));
   }, [account?.workspace_id, tab, loadRecords]);
 
