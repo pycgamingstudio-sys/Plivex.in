@@ -21,6 +21,13 @@ export const globalJson = (body: unknown, status: number, origin: string | null)
   });
 export const isGlobalOriginAllowed = allowedOrigin;
 
+export function createGlobalAdminClient() {
+  const url = Deno.env.get("SUPABASE_URL");
+  const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !service) throw new Error("Global service client is not configured.");
+  return createClient(url, service, { auth: { persistSession:false, autoRefreshToken:false } });
+}
+
 export async function authenticateGlobal(req: Request): Promise<
   { user: any; admin: any } | { error: string; status: number }
 > {
