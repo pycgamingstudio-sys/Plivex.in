@@ -4,13 +4,18 @@ import { readFileSync } from "node:fs";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("India and Global experiences stay on the same Plivex origin", () => {
+test("India and Global experiences share the same Plivex application shell and navigation", () => {
   const app = read("../../App.jsx");
   const backend = read("../../api/backendClient.js");
-  assert.match(app, /lazy\(\(\) => import\("@\/global\/GlobalApp"\)\)/);
-  assert.match(app, /APP_EDITION === "global" && isAuthenticated/);
+  const layout = read("../../components/AppLayout.jsx");
+  const global = read("../../global/GlobalApp.jsx");
+  assert.match(app, /return <AppLayout><GlobalApp \/><\/AppLayout>/);
   assert.match(app, /<AuthProvider>/);
-  assert.match(app, /element={<AppLayout \/>}/);
+  assert.match(layout, /GLOBAL_NAV/);
+  assert.match(layout, /Global Workspace/);
+  assert.match(global, /useSearchParams/);
+  assert.doesNotMatch(global, /<header className="border-b border-slate-200 bg-white">/);
+  assert.doesNotMatch(global, /<nav className="flex flex-wrap gap-2">/);
   assert.match(backend, /UNIFIED_EDITION_ID/);
   assert.doesNotMatch(app, /window\.location\.hostname/);
 });
