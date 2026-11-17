@@ -36,18 +36,82 @@ jobs:
           print("PASS: database connection targets the approved Plivex production project.")
           PY
 
-      - name: Install PostgreSQL client and Supabase CLI
+      - name: Install PostgreSQL client
+        run: |
+
+      - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
         with:
           version: latest
+
+      - name: Build an isolated migration set matching the production ledger
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          supabase --version
+          mkdir -p /tmp/plivex-release/supabase/migrations
+          cp supabase/config.toml /tmp/plivex-release/supabase/config.toml
+
+          expected=(
+            202611130003_invoice_share_rate_limit.sql
+            202611130004_converge_effective_subscription_priority.sql
+            202611130006_workspace_country_identity.sql
+            202611130007_global_billing_and_cashfree_atomicity.sql
+            202611130008_cashfree_refund_atomicity.sql
+            202611130009_global_billing_concurrency_and_definer_hardening.sql
+            202611130010_cashfree_refund_identity_immutability.sql
+            20261114000002_global_workspace_tax_registration_profile.sql
+            20261114000003_global_invoice_tax_calculation.sql
+            20261114000004_global_tax_snapshot_hardening.sql
+            20261114000005_cashfree_refund_exact_payment_mapping.sql
+            202611150009_safe_workspace_country_migration_requests.sql
+            202611150010_harden_country_migration_request_rls.sql
+            202611150011_global_invoice_issuance_and_refunds.sql
+            202611160001_global_part4_crm_warehouse_procurement.sql
+            202611160002_global_part4_transactional_operations.sql
+            202611160003_india_part4_warehouse_crm_purchase.sql
+            202611160004_india_part4_transactional_rpcs.sql
+            202611160005_india_invoice_stock_atomicity.sql
+            202611160006_global_invoice_stock_atomicity.sql
+            20261116100000_global_accounting_double_entry.sql
+            20261116110000_global_accounting_part3b_fx_purchases_refunds.sql
+            20261116120000_global_enterprise_controls.sql
+            20261116121000_global_tax_audit_and_publication.sql
+            20261116122000_global_multicurrency_expenses.sql
+            20261116123000_global_enterprise_hardening.sql
+          )
+          for migration in "${expected[@]}"; do
+            test -s "supabase/migrations/$migration" || {
+              echo "FAIL: source migration missing: $migration"
+              exit 1
+            }
+            cp "supabase/migrations/$migration" /tmp/plivex-release/supabase/migrations/
+          done
+
+          # The production ledger contains historical migrations whose source
+          # files are no longer in this repo. Create empty local placeholders
+          # for those already-applied versions, so the CLI can compare histories
+          # without proposing unsafe migration-history repairs.
+          psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -Atc \
+            "SELECT version FROM supabase_migrations.schema_migrations ORDER BY version" \
+            > /tmp/plivex-production-remote-versions.txt
+          test -s /tmp/plivex-production-remote-versions.txt
+          while IFS= read -r version; do
+            case "$version" in
+              *[!0-9]*|'') echo "FAIL: invalid remote migration version"; exit 1 ;;
+            esac
+            touch "/tmp/plivex-release/supabase/migrations/${version}_remote_baseline.sql"
+          done < /tmp/plivex-production-remote-versions.txt
+          echo "Prepared $(wc -l < /tmp/plivex-production-remote-versions.txt | tr -d ' ') exact remote-ledger placeholders and 26 candidate migrations."
 
       - name: Confirm exact 26-migration production plan
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -euo pipefail
-          supabase --version
-          supabase migration list --db-url "$SUPABASE_DB_URL"
+          cd /tmp/plivex-release
+          supabase migration list --db-url "$SUPABASE_DB_URL" 2>&1 | tee /tmp/plivex-production-migration-list.txt
           supabase db push --db-url "$SUPABASE_DB_URL" --include-all --dry-run 2>&1 | tee /tmp/plivex-production-migration-plan.txt
 
           expected=(
@@ -104,6 +168,7 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -euo pipefail
+          cd /tmp/plivex-release
           supabase db push --db-url "$SUPABASE_DB_URL" --include-all --yes
 
       - name: Verify migration ledger, row preservation, tables, RLS and RPCs
