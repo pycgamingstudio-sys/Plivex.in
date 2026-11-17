@@ -16,7 +16,7 @@ create table if not exists global.approval_policies (
   updated_at timestamptz not null default now(),
   unique (workspace_id, resource_type, action_type),
   check (cardinality(approver_roles) > 0),
-  check (approver_roles <@ array['owner','admin','manager','employee','accountant','viewer']::text[])
+  check (approver_roles <@ array['owner','admin','manager','employee','accountant']::text[])
 );
 
 alter table global.approval_policies enable row level security;
@@ -52,7 +52,7 @@ begin
     or p_enabled is null or p_minimum_amount_minor is null or p_minimum_amount_minor < 0
     or p_approver_roles is null or cardinality(p_approver_roles) < 1
     or p_prevent_self_approval is distinct from true
-    or not (p_approver_roles <@ array['owner','admin','manager','employee','accountant','viewer']::text[]) then
+    or not (p_approver_roles <@ array['owner','admin','manager','employee','accountant']::text[]) then
     return jsonb_build_object('ok',false,'code','INVALID_APPROVAL_POLICY');
   end if;
   select role into v_role from global.workspace_members
@@ -238,7 +238,7 @@ begin
     or p_enabled is null or p_minimum_amount_minor is null or p_minimum_amount_minor < 0
     or p_approver_roles is null or cardinality(p_approver_roles) < 1
     or p_prevent_self_approval is distinct from true
-    or not (p_approver_roles <@ array['owner','admin','manager','employee','accountant','viewer']::text[]) then
+    or not (p_approver_roles <@ array['owner','admin','manager','employee','accountant']::text[]) then
     return jsonb_build_object('ok',false,'code','INVALID_APPROVAL_POLICY');
   end if;
   select role into v_role from global.workspace_members
