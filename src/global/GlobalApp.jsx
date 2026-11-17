@@ -152,7 +152,6 @@ export default function GlobalApp({ section = "overview" }) {
     if (item.tab === "crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
     if (item.tab === "inventory") return workspaceFeatures.includes("inventoryWorkspace");
     if (item.tab === "accounting") return workspaceFeatures.includes("reports");
-    if (item.tab === "enterprise") return workspaceFeatures.includes("enterprise");
     return true;
   });
 
