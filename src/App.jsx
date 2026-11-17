@@ -19,6 +19,7 @@ import TrialGate from './components/TrialGate';
 const PageNotFound = lazy(() => import("./lib/PageNotFound"));
 const UserNotRegisteredError = lazy(() => import("@/components/UserNotRegisteredError"));
 const GlobalCountryOnboarding = lazy(() => import("@/components/global/GlobalCountryOnboarding"));
+const GlobalApp = lazy(() => import("@/global/GlobalApp"));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
@@ -80,6 +81,9 @@ const AuthenticatedApp = () => {
   if (APP_EDITION === "global" && isAuthenticated && user && (!user.workspace_id || !user.role)) {
     return <GlobalCountryOnboarding />;
   }
+
+  // Global workspaces use their dedicated international operations UI; India routes stay unchanged.
+  if (APP_EDITION === "global" && isAuthenticated) return <GlobalApp />;
 
   // Render the main app
   return (
