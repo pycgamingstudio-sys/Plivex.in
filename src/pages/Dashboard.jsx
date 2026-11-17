@@ -144,10 +144,16 @@ export default function Dashboard({ initialTab }) {
         </main>
       </div>
 
-      <nav className="plivex-bottom-nav fixed inset-x-0 bottom-0 z-30 flex overflow-x-auto border-t border-[#E5E7EB] bg-white md:hidden">
+      <nav aria-label="Primary and workspace navigation" className="plivex-bottom-nav fixed inset-x-0 bottom-0 z-30 flex overflow-x-auto overscroll-x-contain border-t border-[#E5E7EB] bg-white md:hidden">
         {visibleTabs.map((t) => (
-          <button key={t.id} onClick={() => go(t.id)} className={`flex shrink-0 min-w-[68px] flex-col items-center gap-1 px-2 py-2.5 text-[10px] font-semibold transition-colors ${tab === t.id ? "text-[#6D28D9]" : "text-slate-400"}`}><t.icon className="h-5 w-5" />{t.label}{t.id === "team" && !teamUnlocked && <span className="rounded bg-amber-100 px-1 text-[8px] font-extrabold text-amber-800">PRO</span>}</button>
+          <button key={t.id} onClick={() => go(t.id)} aria-current={tab === t.id ? "page" : undefined} className={`flex min-w-[72px] shrink-0 flex-col items-center gap-1 px-2.5 py-2.5 text-[10px] font-semibold transition-colors ${tab === t.id ? "text-[#6D28D9]" : "text-slate-400"}`}><t.icon className="h-5 w-5" />{t.label}{t.id === "team" && !teamUnlocked && <span className="rounded bg-amber-100 px-1 text-[8px] font-extrabold text-amber-800">PRO</span>}</button>
         ))}
+        {pages.map((p) => (
+          <NavLink key={p.to} to={p.to} className={({ isActive }) => `flex min-w-[72px] shrink-0 flex-col items-center gap-1 px-2.5 py-2.5 text-[10px] font-semibold transition-colors ${isActive ? "text-[#6D28D9]" : "text-slate-400"}`}>
+            <p.icon className="h-5 w-5" />{p.label}
+          </NavLink>
+        ))}
+        <button onClick={() => setMoreOpen(true)} className="flex min-w-[72px] shrink-0 flex-col items-center gap-1 px-2.5 py-2.5 text-[10px] font-bold text-[#6D28D9]"><LayoutGrid className="h-5 w-5" />More</button>
       </nav>
 
       {accountOpen && <AccountProfileModal onClose={() => setAccountOpen(false)} />}
