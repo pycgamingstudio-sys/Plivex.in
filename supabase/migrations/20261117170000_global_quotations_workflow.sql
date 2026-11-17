@@ -127,9 +127,13 @@ begin
     if p_client_id is not null and not exists(select 1 from global.clients where id=p_client_id and workspace_id=p_workspace_id and status='active') then
       return jsonb_build_object('ok',false,'reason','client_not_found');
     end if;
-    v_fingerprint:=md5(jsonb_build_object('client_id',p_client_id,'currency_code',v_currency,'issue_date',p_issue_date,'valid_until',p_valid_until,'notes',p_notes,'items',p_items)::text);\n    perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text||':quotation:'||p_idempotency_key::text,0));
+    v_fingerprint:=md5(jsonb_build_object('client_id',p_client_id,'currency_code',v_currency,'issue_date',p_issue_date,'valid_until',p_valid_until,'notes',p_notes,'items',p_items)::text);
+    perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text||':quotation:'||p_idempotency_key::text,0));
     select * into v_quote from global.quotations where workspace_id=p_workspace_id and creation_idempotency_key=p_idempotency_key for update;
-    if found then\n      if v_quote.creation_fingerprint is distinct from v_fingerprint then return jsonb_build_object('ok',false,'reason','idempotency_conflict'); end if;\n      return jsonb_build_object('ok',true,'duplicate',true,'quotation',to_jsonb(v_quote));\n    end if;
+    if found then
+      if v_quote.creation_fingerprint is distinct from v_fingerprint then return jsonb_build_object('ok',false,'reason','idempotency_conflict'); end if;
+      return jsonb_build_object('ok',true,'duplicate',true,'quotation',to_jsonb(v_quote));
+    end if;
 
     for v_item in select value from jsonb_array_elements(p_items) loop
       v_index:=v_index+1;
