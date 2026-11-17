@@ -44,8 +44,9 @@ export default function Dashboard({ initialTab }) {
   const navigate = useNavigate();
   const { isPremium, openPaywall, planName, plan, planLoading, canAccess } = usePaywall();
   const { user } = useAuth();
-  const workspaceCountry = getCountryByCode(user?.country_code || (APP_EDITION === "india" ? "IN" : ""));
-  const workspaceEditionLabel = APP_EDITION === "india" ? "India Workspace" : "Global Workspace";
+  const workspaceCountryCode = String(user?.country_code || "IN").trim().toUpperCase();
+  const workspaceCountry = getCountryByCode(workspaceCountryCode);
+  const workspaceEditionLabel = workspaceCountryCode === "IN" ? "India Workspace" : "Global Workspace";
   const { role, isAccountant } = useRole();
   useEffect(() => {
     seedDashboard();
