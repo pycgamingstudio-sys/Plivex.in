@@ -141,7 +141,7 @@ export default function Dashboard({ initialTab }) {
           {tab === "reports" && <ReportsTab />}
           {tab === "crm" && <CrmTab intent={intent} onConsumeIntent={consume} />}
           {tab === "stock" && <StockTab />}
-          {tab === "warehouses" && <IndiaPart4Tab user={user} initialSection={intent || "purchasing"} />}
+          {tab === "warehouses" && <IndiaPart4Tab user={user} />}
           {tab === "team" && (teamUnlocked ? <TeamManagement /> : <div className="mx-auto max-w-lg rounded-2xl border border-[#E5E7EB] bg-white p-8 text-center shadow-sm"><Lock className="mx-auto h-8 w-8 text-[#6D28D9]" /><h2 className="mt-3 text-lg font-bold">Team management is a Pro feature</h2><p className="mt-2 text-sm text-slate-500">Upgrade to Pro to add and manage workspace members.</p><button onClick={openPaywall} className="mt-5 rounded-xl bg-[#6D28D9] px-5 py-2.5 text-sm font-bold text-white">Upgrade to Pro</button></div>)}
           {tab === "reconciliation" && <ReconciliationTab />}
         </main>

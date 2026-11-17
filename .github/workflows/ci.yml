@@ -16,6 +16,8 @@ jobs:
         run: bash -n scripts/verify-production-baseline-replay.sh
       - run: npm run test:membership
       - run: npm run test:global
+      - run: npm run lint
+      - run: npm run typecheck
       - run: npm run build
       - name: Build the unified single-app edition
         run: VITE_APP_EDITION=unified npm run build

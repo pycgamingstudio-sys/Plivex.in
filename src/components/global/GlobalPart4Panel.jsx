@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/api/backendClient";
+import { ArrowLeftRight, ClipboardList, History, Plus, RefreshCw, Warehouse as WarehouseIcon } from "lucide-react";
 
 const input = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-500";
 const button = "rounded-lg bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50";
@@ -17,7 +18,9 @@ const scoreLead = (lead) => Math.min(100,
 
 export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   const [section, setSection] = useState(initialSection);
-  useEffect(() => { if (["crm", "warehouses", "transfers", "purchasing", "movements"].includes(initialSection)) setSection(initialSection); }, [initialSection]);
+  useEffect(() => {
+    if (["crm", "warehouses", "transfers", "purchasing", "movements"].includes(initialSection)) setSection(initialSection);
+  }, [initialSection]);
   const [data, setData] = useState({ leads: [], activities: [], warehouses: [], stock: [], batches: [], movements: [], transfers: [], orders: [], orderItems: [], products: [] });
   const [lead, setLead] = useState(blankLead);
   const [warehouse, setWarehouse] = useState(blankWarehouse);
@@ -30,6 +33,14 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [showWarehouseForm, setShowWarehouseForm] = useState(false);
+  const [showTransferForm, setShowTransferForm] = useState(false);
+  const [showOrderForm, setShowOrderForm] = useState(false);
+  const [showReceiptForm, setShowReceiptForm] = useState(false);
+  const [movementQuery, setMovementQuery] = useState("");
+  const [movementType, setMovementType] = useState("all");
+  const [movementFrom, setMovementFrom] = useState("");
+  const [movementTo, setMovementTo] = useState("");
 
   const call = useCallback(async (body) => {
     const { data: result, error: invokeError } = await supabase.functions.invoke("global-part4", { body: { workspace_id: account.workspace_id, ...body } });
@@ -69,13 +80,28 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
       await fn();
       setNotice(success);
       try { await refresh(); } catch { setError("Saved successfully, but the refreshed list could not load. Use Refresh to try again."); }
-    } catch (e) { setError(e.message || "Could not complete the operation."); }
+      return true;
+    } catch (e) { setError(e.message || "Could not complete the operation."); return false; }
     finally { setBusy(false); }
   };
 
   const productMap = useMemo(() => new Map(data.products.map((p) => [p.id, p])), [data.products]);
   const selectedOrder = data.orders.find((o) => o.id === receipt.order_id);
   const selectedOrderItems = data.orderItems.filter((i) => i.purchase_order_id === selectedOrder?.id && Number(i.quantity_received) < Number(i.quantity_ordered));
+  const activeWarehouses = data.warehouses.filter((w) => w.is_active);
+  const lowStockLines = data.stock.filter((line) => Number(line.quantity || 0) <= Number(line.reorder_level || 0));
+  const totalUnits = data.stock.reduce((sum, line) => sum + Number(line.quantity || 0), 0);
+  const inventoryValue = data.stock.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(productMap.get(line.product_id)?.purchase_cost_minor || 0), 0);
+  const movementTypes = useMemo(() => [...new Set(data.movements.map((item) => item.movement_type).filter(Boolean))].sort(), [data.movements]);
+  const filteredMovements = useMemo(() => data.movements.filter((item) => {
+    const product = productMap.get(item.product_id);
+    const haystack = [product?.name, product?.sku, item.reference_type, item.movement_type].filter(Boolean).join(" ").toLowerCase();
+    const day = String(item.created_at || "").slice(0, 10);
+    return haystack.includes(movementQuery.trim().toLowerCase())
+      && (movementType === "all" || item.movement_type === movementType)
+      && (!movementFrom || day >= movementFrom)
+      && (!movementTo || day <= movementTo);
+  }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)), [data.movements, movementQuery, movementType, movementFrom, movementTo, productMap]);
 
   const saveLead = (event) => {
     event.preventDefault();
@@ -97,7 +123,7 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
 
   const saveWarehouse = (event) => {
     event.preventDefault();
-    run(async () => {
+    return run(async () => {
       await call({ action: "mutate", operation: "create_warehouse", values: { ...warehouse, code: warehouse.code.trim().toUpperCase(), name: warehouse.name.trim() } });
       setWarehouse(blankWarehouse);
     }, "Warehouse created.");
@@ -113,7 +139,7 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
 
   const saveTransfer = (event) => {
     event.preventDefault();
-    run(async () => {
+    return run(async () => {
       await call({ action: "transfer", from_warehouse_id: transfer.from, to_warehouse_id: transfer.to,
         idempotency_key: transferKey, items: [{ product_id: transfer.product_id, quantity: Number(transfer.quantity) }] });
       setTransferKey(uid());
@@ -124,7 +150,7 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   const saveOrder = (event) => {
     event.preventDefault();
     const minor = Math.round(Number(order.unit_cost || 0) * (10 ** digits(account.currency_code)));
-    run(async () => {
+    return run(async () => {
       await call({ action: "mutate", operation: "create_purchase_order", values: {
         supplier_name: order.supplier_name.trim(), supplier_reference: order.supplier_reference.trim() || null,
         currency_code: account.currency_code, order_date: dateOnly(), expected_date: order.expected_date || null,
@@ -138,7 +164,7 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
     event.preventDefault();
     const item = selectedOrderItems.find((i) => i.id === receipt.item_id);
     if (!item) { setError("Select an outstanding purchase-order item."); return; }
-    run(async () => {
+    return run(async () => {
       await call({ action: "mutate", operation: "receive_purchase_order", values: {
         purchase_order_id: receipt.order_id, warehouse_id: receipt.warehouse_id, idempotency_key: receiptKey,
         items: [{ purchase_order_item_id: item.id, quantity: Number(receipt.quantity),
@@ -149,10 +175,42 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
     }, "Goods received. Warehouse stock and movement history updated.");
   };
 
-  const tabs = [{ id: "crm", label: "CRM" }, { id: "warehouses", label: "Warehouses" }, { id: "transfers", label: "Stock transfers" }, { id: "purchasing", label: "Purchasing" }, { id: "movements", label: "Movement history" }];
+  const tabs = section === "crm" ? [] : [
+      { id: "warehouses", label: "Stock & warehouses", icon: WarehouseIcon },
+      { id: "transfers", label: "Transfers", icon: ArrowLeftRight },
+      { id: "purchasing", label: "Purchase orders", icon: ClipboardList },
+      { id: "movements", label: "Movement history", icon: History },
+    ];
+
+  const sectionTitle = section === "crm" ? "Customer relationship management"
+    : section === "warehouses" ? "Inventory & warehouse"
+      : section === "transfers" ? "Stock transfers"
+        : section === "purchasing" ? "Purchase orders"
+          : "Movement history";
+  const sectionDescription = section === "crm" ? "Manage leads, follow-ups and customer activity."
+    : section === "warehouses" ? "One workspace for stock visibility, warehouse locations and reorder signals."
+      : section === "transfers" ? "Move stock between locations with a traceable transfer record."
+        : section === "purchasing" ? "Create supplier orders and receive goods into the right warehouse."
+          : "A searchable audit trail of receipts, transfers and stock adjustments.";
 
   return <section className="mt-6 space-y-5">
-    <div className="flex flex-wrap gap-2">{tabs.map((item) => <button key={item.id} onClick={() => setSection(item.id)} className={section === item.id ? button : secondary}>{item.label}</button>)}<button className={secondary} onClick={() => refresh().catch((e) => setError(e.message))}>Refresh</button></div>
+    <div className="overflow-hidden rounded-2xl border border-[#E7E2F2] bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8B7AAE]">Plivex workspace / {section === "crm" ? "CRM" : "Inventory"}</p>
+          <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{sectionTitle}</h1>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500 sm:text-sm">{sectionDescription}</p>
+        </div>
+        <button type="button" className={secondary + " inline-flex items-center gap-2"} onClick={() => refresh().catch((e) => setError(e.message))}>
+          <RefreshCw className="h-4 w-4" /> Refresh data
+        </button>
+      </div>
+      {section !== "crm" && <nav aria-label="Inventory workspace sections" className="flex gap-1 overflow-x-auto border-t border-slate-100 px-2 pt-2 sm:px-4">
+        {tabs.map((item) => <button key={item.id} type="button" role="tab" aria-selected={section === item.id} onClick={() => { setSection(item.id); setError(""); setNotice(""); }} className={`inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${section === item.id ? "border-[#6D28D9] text-[#6D28D9]" : "border-transparent text-slate-500 hover:border-violet-200 hover:text-slate-800"}`}>
+          <item.icon className="h-4 w-4" />{item.label}
+        </button>)}
+      </nav>}
+    </div>
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
 
@@ -186,56 +244,83 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
     </>}
 
     {section === "warehouses" && <>
-      <form onSubmit={saveWarehouse} className="grid gap-3 rounded-xl border bg-white p-4 sm:grid-cols-4">
-        <h2 className="font-semibold sm:col-span-4">Add warehouse</h2>
-        <input required className={input} placeholder="Code (e.g. MAIN)" value={warehouse.code} onChange={(e) => setWarehouse({ ...warehouse, code: e.target.value })}/>
+      <div className="rounded-xl border border-[#E7E2F2] bg-white px-4 py-3 shadow-sm">
+        <div className="grid grid-cols-2 gap-y-3 sm:grid-cols-4 sm:divide-x sm:divide-slate-100">
+          <div className="pr-3"><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Active warehouses</p><p className="mt-1 text-xl font-bold text-slate-900">{activeWarehouses.length}</p></div>
+          <div className="sm:px-4"><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Stock lines</p><p className="mt-1 text-xl font-bold text-slate-900">{data.stock.length}</p></div>
+          <div className="sm:px-4"><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Units on hand</p><p className="mt-1 text-xl font-bold text-slate-900">{totalUnits.toLocaleString()}</p></div>
+          <div className="sm:pl-4"><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Inventory value</p><p className="mt-1 text-xl font-bold text-[#6D28D9]">{money(inventoryValue, account.currency_code)}</p></div>
+        </div>
+        {lowStockLines.length > 0 && <p className="mt-3 border-t border-rose-100 pt-2 text-xs font-medium text-rose-700">{lowStockLines.length} stock lines are at or below their reorder level.</p>}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><h2 className="text-base font-bold text-slate-900">Warehouse locations</h2><p className="text-xs text-slate-500">Locations and their current stock footprint</p></div>
+        <button type="button" className={button + " inline-flex items-center gap-2"} onClick={() => setShowWarehouseForm((value) => !value)}><Plus className="h-4 w-4"/>{showWarehouseForm ? "Close form" : "Add warehouse"}</button>
+      </div>
+      {showWarehouseForm && <form onSubmit={async (event) => { if (await saveWarehouse(event)) setShowWarehouseForm(false); }} className="grid gap-3 rounded-xl border border-violet-100 bg-violet-50/40 p-4 sm:grid-cols-4">
+        <input required className={input} placeholder="Warehouse code (e.g. MAIN)" value={warehouse.code} onChange={(e) => setWarehouse({ ...warehouse, code: e.target.value })}/>
         <input required className={input} placeholder="Warehouse name" value={warehouse.name} onChange={(e) => setWarehouse({ ...warehouse, name: e.target.value })}/>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={warehouse.is_default} onChange={(e) => setWarehouse({ ...warehouse, is_default: e.target.checked })}/> Default warehouse</label>
-        <button disabled={busy} className={button}>Create warehouse</button>
-      </form>
-      <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl border bg-white p-4"><p className="text-sm text-slate-500">Inventory valuation</p><p className="mt-1 text-2xl font-bold">{money(data.stock.reduce((sum,s)=>sum+Number(s.quantity||0)*Number(productMap.get(s.product_id)?.purchase_cost_minor||0),0),account.currency_code)}</p></div>{data.warehouses.map((w)=><div key={w.id} className="rounded-xl border bg-white p-4"><div className="font-semibold">{w.name} {w.is_default && <span className="text-xs text-violet-700">· Default</span>}</div><p className="mt-1 text-sm text-slate-500">{w.code} · {w.is_active ? "Active" : "Inactive"}</p><p className="mt-2 text-sm">Stock lines: {data.stock.filter((s)=>s.warehouse_id===w.id).length}</p></div>)}</div>
-      <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm"><thead className="bg-slate-50"><tr><th className="p-3 text-left">Product</th><th className="p-3 text-left">Warehouse</th><th className="p-3 text-left">Quantity</th><th className="p-3 text-left">Reorder level</th></tr></thead><tbody className="divide-y">{data.stock.map((s)=><tr key={s.warehouse_id+s.product_id}><td className="p-3">{productMap.get(s.product_id)?.name || s.product_id}</td><td className="p-3">{data.warehouses.find((w)=>w.id===s.warehouse_id)?.name || "—"}</td><td className="p-3">{s.quantity}</td><td className="p-3">{s.reorder_level}</td></tr>)}</tbody></table></div>
+        <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={warehouse.is_default} onChange={(e) => setWarehouse({ ...warehouse, is_default: e.target.checked })}/> Default location</label>
+        <button disabled={busy} className={button}>Save warehouse</button>
+      </form>}
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+        <table className="w-full min-w-[650px] text-left text-sm"><thead className="bg-[#F8F7FC] text-[10px] font-bold uppercase tracking-wider text-slate-500"><tr><th className="px-4 py-3">Warehouse</th><th className="px-4 py-3">Code</th><th className="px-4 py-3">Stock lines</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Default</th></tr></thead>
+          <tbody className="divide-y divide-slate-100">{data.warehouses.map((w) => <tr key={w.id} className="hover:bg-violet-50/30"><td className="px-4 py-3 font-semibold text-slate-900">{w.name}</td><td className="px-4 py-3 text-slate-500">{w.code}</td><td className="px-4 py-3 tabular-nums">{data.stock.filter((line) => line.warehouse_id === w.id).length}</td><td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${w.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{w.is_active ? "Active" : "Inactive"}</span></td><td className="px-4 py-3 text-slate-500">{w.is_default ? "Default" : "—"}</td></tr>)}</tbody>
+        </table>
+        {!data.warehouses.length && <p className="p-8 text-center text-sm text-slate-500">No warehouse locations yet. Add your first warehouse to begin tracking stock by location.</p>}
+      </div>
+      <div><div className="mb-2 flex items-end justify-between gap-3"><div><h2 className="text-base font-bold text-slate-900">Stock by location</h2><p className="text-xs text-slate-500">Live quantities and reorder thresholds</p></div><span className="text-xs text-slate-400">{data.stock.length} lines</span></div>
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm"><table className="w-full min-w-[620px] text-left text-sm"><thead className="bg-[#F8F7FC] text-[10px] font-bold uppercase tracking-wider text-slate-500"><tr><th className="px-4 py-3">Product</th><th className="px-4 py-3">Warehouse</th><th className="px-4 py-3 text-right">On hand</th><th className="px-4 py-3 text-right">Reorder at</th><th className="px-4 py-3">Status</th></tr></thead><tbody className="divide-y divide-slate-100">{data.stock.map((line) => { const product = productMap.get(line.product_id); const low = Number(line.quantity || 0) <= Number(line.reorder_level || 0); return <tr key={line.warehouse_id + line.product_id} className="hover:bg-violet-50/30"><td className="px-4 py-3 font-semibold">{product?.name || line.product_id}</td><td className="px-4 py-3 text-slate-500">{data.warehouses.find((w) => w.id === line.warehouse_id)?.name || "—"}</td><td className="px-4 py-3 text-right font-semibold tabular-nums">{line.quantity}</td><td className="px-4 py-3 text-right text-slate-500 tabular-nums">{line.reorder_level}</td><td className="px-4 py-3">{low ? <span className="rounded-full bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-700">Reorder</span> : <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">Healthy</span>}</td></tr>; })}</tbody></table>
+          {!data.stock.length && <p className="p-8 text-center text-sm text-slate-500">Stock levels will appear here after goods are received or transferred.</p>}
+        </div>
+      </div>
     </>}
 
     {section === "transfers" && <>
-      <form onSubmit={saveTransfer} className="grid gap-3 rounded-xl border bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
-        <h2 className="font-semibold sm:col-span-2 lg:col-span-5">Transfer stock between warehouses</h2>
-        <select required className={input} value={transfer.from} onChange={(e)=>setTransfer({...transfer,from:e.target.value})}><option value="">From warehouse</option>{data.warehouses.filter((w)=>w.is_active).map((w)=><option key={w.id} value={w.id}>{w.name}</option>)}</select>
-        <select required className={input} value={transfer.to} onChange={(e)=>setTransfer({...transfer,to:e.target.value})}><option value="">To warehouse</option>{data.warehouses.filter((w)=>w.is_active && w.id!==transfer.from).map((w)=><option key={w.id} value={w.id}>{w.name}</option>)}</select>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-bold">Transfer register</h2><p className="text-xs text-slate-500">Every transfer is recorded against its source and destination.</p></div><button type="button" className={button + " inline-flex items-center gap-2"} onClick={() => setShowTransferForm((value) => !value)}><Plus className="h-4 w-4"/>{showTransferForm ? "Close form" : "New transfer"}</button></div>
+      {showTransferForm && <form onSubmit={async (event) => { if (await saveTransfer(event)) setShowTransferForm(false); }} className="grid gap-3 rounded-xl border border-violet-100 bg-violet-50/40 p-4 sm:grid-cols-2 lg:grid-cols-5">
+        <select required className={input} value={transfer.from} onChange={(e)=>setTransfer({...transfer,from:e.target.value})}><option value="">From warehouse</option>{activeWarehouses.map((w)=><option key={w.id} value={w.id}>{w.name}</option>)}</select>
+        <select required className={input} value={transfer.to} onChange={(e)=>setTransfer({...transfer,to:e.target.value})}><option value="">To warehouse</option>{activeWarehouses.filter((w)=>w.id!==transfer.from).map((w)=><option key={w.id} value={w.id}>{w.name}</option>)}</select>
         <select required className={input} value={transfer.product_id} onChange={(e)=>setTransfer({...transfer,product_id:e.target.value})}><option value="">Product</option>{data.products.map((p)=><option key={p.id} value={p.id}>{p.name} {p.sku ? "· "+p.sku : ""}</option>)}</select>
         <input required type="number" min="0.0001" step="0.0001" className={input} placeholder="Quantity" value={transfer.quantity} onChange={(e)=>setTransfer({...transfer,quantity:e.target.value})}/>
-        <button disabled={busy || !data.warehouses.length || !data.products.length} className={button}>Transfer stock</button>
-      </form>
-      <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm"><thead className="bg-slate-50"><tr><th className="p-3 text-left">Date</th><th className="p-3 text-left">From</th><th className="p-3 text-left">To</th><th className="p-3 text-left">Status</th></tr></thead><tbody className="divide-y">{data.transfers.map((t)=><tr key={t.id}><td className="p-3">{new Date(t.created_at).toLocaleString()}</td><td className="p-3">{data.warehouses.find((w)=>w.id===t.from_warehouse_id)?.name || "—"}</td><td className="p-3">{data.warehouses.find((w)=>w.id===t.to_warehouse_id)?.name || "—"}</td><td className="p-3 capitalize">{t.status}</td></tr>)}</tbody></table></div>
+        <button disabled={busy || activeWarehouses.length < 2 || !data.products.length} className={button}>Confirm transfer</button>
+      </form>}
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm"><table className="w-full min-w-[600px] text-sm"><thead className="bg-[#F8F7FC] text-[10px] font-bold uppercase tracking-wider text-slate-500"><tr><th className="px-4 py-3 text-left">Created</th><th className="px-4 py-3 text-left">Source</th><th className="px-4 py-3 text-left">Destination</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-left">Reference</th></tr></thead><tbody className="divide-y divide-slate-100">{data.transfers.map((t)=><tr key={t.id} className="hover:bg-violet-50/30"><td className="whitespace-nowrap px-4 py-3">{new Date(t.created_at).toLocaleString()}</td><td className="px-4 py-3 font-medium">{data.warehouses.find((w)=>w.id===t.from_warehouse_id)?.name || "—"}</td><td className="px-4 py-3 font-medium">{data.warehouses.find((w)=>w.id===t.to_warehouse_id)?.name || "—"}</td><td className="px-4 py-3 capitalize">{t.status}</td><td className="px-4 py-3 font-mono text-xs text-slate-400">{String(t.id).slice(0, 8)}</td></tr>)}</tbody></table>{!data.transfers.length && <p className="p-8 text-center text-sm text-slate-500">No transfers recorded yet.</p>}</div>
     </>}
 
     {section === "purchasing" && <>
-      <form onSubmit={saveOrder} className="grid gap-3 rounded-xl border bg-white p-4 sm:grid-cols-2 lg:grid-cols-3">
-        <h2 className="font-semibold sm:col-span-2 lg:col-span-3">Create purchase order</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-bold">Purchase order register</h2><p className="text-xs text-slate-500">Track supplier commitments, partial receipts and outstanding quantities.</p></div><div className="flex flex-wrap gap-2"><button type="button" className={secondary} onClick={() => setShowReceiptForm((value) => !value)}>Receive goods</button><button type="button" className={button + " inline-flex items-center gap-2"} onClick={() => setShowOrderForm((value) => !value)}><Plus className="h-4 w-4"/>{showOrderForm ? "Close form" : "New purchase order"}</button></div></div>
+      {showOrderForm && <form onSubmit={async (event) => { if (await saveOrder(event)) setShowOrderForm(false); }} className="grid gap-3 rounded-xl border border-violet-100 bg-violet-50/40 p-4 sm:grid-cols-2 lg:grid-cols-3">
         <input required className={input} placeholder="Supplier name" value={order.supplier_name} onChange={(e)=>setOrder({...order,supplier_name:e.target.value})}/>
-        <input className={input} placeholder="Supplier reference" value={order.supplier_reference} onChange={(e)=>setOrder({...order,supplier_reference:e.target.value})}/>
+        <input className={input} placeholder="Supplier reference (optional)" value={order.supplier_reference} onChange={(e)=>setOrder({...order,supplier_reference:e.target.value})}/>
         <input type="date" className={input} value={order.expected_date} onChange={(e)=>setOrder({...order,expected_date:e.target.value})}/>
         <select required className={input} value={order.product_id} onChange={(e)=>setOrder({...order,product_id:e.target.value})}><option value="">Choose product</option>{data.products.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}</select>
         <input required type="number" min="0.0001" step="0.0001" className={input} placeholder="Quantity" value={order.quantity} onChange={(e)=>setOrder({...order,quantity:e.target.value})}/>
         <input required type="number" min="0" step="0.01" className={input} placeholder={`Unit cost (${account.currency_code})`} value={order.unit_cost} onChange={(e)=>setOrder({...order,unit_cost:e.target.value})}/>
-        <button disabled={busy || !data.products.length} className={button+" sm:col-span-2 lg:col-span-3"}>Create purchase order</button>
-      </form>
-      <form onSubmit={receiveOrder} className="grid gap-3 rounded-xl border bg-white p-4 sm:grid-cols-2 lg:grid-cols-3">
-        <h2 className="font-semibold sm:col-span-2 lg:col-span-3">Receive goods into warehouse</h2>
+        <button disabled={busy || !data.products.length} className={button+" sm:col-span-2 lg:col-span-3"}>Save purchase order</button>
+      </form>}
+      {showReceiptForm && <form onSubmit={async (event) => { if (await receiveOrder(event)) setShowReceiptForm(false); }} className="grid gap-3 rounded-xl border border-emerald-100 bg-emerald-50/40 p-4 sm:grid-cols-2 lg:grid-cols-3">
         <select required className={input} value={receipt.order_id} onChange={(e)=>setReceipt({...receipt,order_id:e.target.value,item_id:""})}><option value="">Purchase order</option>{data.orders.filter((o)=>["ordered","partially_received"].includes(o.status)).map((o)=><option key={o.id} value={o.id}>{o.supplier_name} · {o.status}</option>)}</select>
-        <select required className={input} value={receipt.warehouse_id} onChange={(e)=>setReceipt({...receipt,warehouse_id:e.target.value})}><option value="">Warehouse</option>{data.warehouses.filter((w)=>w.is_active).map((w)=><option key={w.id} value={w.id}>{w.name}</option>)}</select>
+        <select required className={input} value={receipt.warehouse_id} onChange={(e)=>setReceipt({...receipt,warehouse_id:e.target.value})}><option value="">Destination warehouse</option>{activeWarehouses.map((w)=><option key={w.id} value={w.id}>{w.name}</option>)}</select>
         <select required className={input} value={receipt.item_id} onChange={(e)=>setReceipt({...receipt,item_id:e.target.value})}><option value="">Order line</option>{selectedOrderItems.map((i)=><option key={i.id} value={i.id}>{productMap.get(i.product_id)?.name || "Product"} · remaining {(Number(i.quantity_ordered)-Number(i.quantity_received)).toFixed(4)}</option>)}</select>
         <input required type="number" min="0.0001" step="0.0001" className={input} placeholder="Received quantity" value={receipt.quantity} onChange={(e)=>setReceipt({...receipt,quantity:e.target.value})}/>
         <input className={input} placeholder="Batch number (optional)" value={receipt.batch_number} onChange={(e)=>setReceipt({...receipt,batch_number:e.target.value})}/>
         <input type="date" className={input} value={receipt.expires_on} onChange={(e)=>setReceipt({...receipt,expires_on:e.target.value})}/>
-        <button disabled={busy || !selectedOrderItems.length || !receipt.warehouse_id} className={button+" sm:col-span-2 lg:col-span-3"}>Receive goods</button>
-      </form>
-      <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm"><thead className="bg-slate-50"><tr><th className="p-3 text-left">Supplier</th><th className="p-3 text-left">Date</th><th className="p-3 text-left">Order value</th><th className="p-3 text-left">Status</th></tr></thead><tbody className="divide-y">{data.orders.map((o)=><tr key={o.id}><td className="p-3 font-medium">{o.supplier_name}</td><td className="p-3">{o.order_date}</td><td className="p-3">{money(o.subtotal_minor, o.currency_code)}</td><td className="p-3 capitalize">{o.status.replaceAll("_"," ")}</td></tr>)}</tbody></table></div>
+        <button disabled={busy || !selectedOrderItems.length || !receipt.warehouse_id} className={button+" sm:col-span-2 lg:col-span-3"}>Confirm goods receipt</button>
+      </form>}
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm"><table className="w-full min-w-[650px] text-sm"><thead className="bg-[#F8F7FC] text-[10px] font-bold uppercase tracking-wider text-slate-500"><tr><th className="px-4 py-3 text-left">Supplier</th><th className="px-4 py-3 text-left">Order date</th><th className="px-4 py-3 text-right">Order value</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-left">Expected</th></tr></thead><tbody className="divide-y divide-slate-100">{data.orders.map((o)=><tr key={o.id} className="hover:bg-violet-50/30"><td className="px-4 py-3 font-semibold">{o.supplier_name}</td><td className="px-4 py-3 text-slate-500">{o.order_date}</td><td className="px-4 py-3 text-right tabular-nums">{money(o.subtotal_minor, o.currency_code)}</td><td className="px-4 py-3 capitalize">{o.status.replaceAll("_"," ")}</td><td className="px-4 py-3 text-slate-500">{o.expected_date || "—"}</td></tr>)}</tbody></table>{!data.orders.length && <p className="p-8 text-center text-sm text-slate-500">No purchase orders yet. Create an order to start tracking incoming stock.</p>}</div>
     </>}
 
     {section === "movements" && <>
-      <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm"><thead className="bg-slate-50"><tr>{["Date","Product","Warehouse","Movement","Quantity change","Reference"].map((x)=><th key={x} className="whitespace-nowrap p-3 text-left">{x}</th>)}</tr></thead><tbody className="divide-y">{data.movements.map((m)=><tr key={m.id}><td className="whitespace-nowrap p-3">{new Date(m.created_at).toLocaleString()}</td><td className="p-3">{productMap.get(m.product_id)?.name || m.product_id}</td><td className="p-3">{data.warehouses.find((w)=>w.id===m.warehouse_id)?.name || "—"}</td><td className="p-3">{m.movement_type.replaceAll("_"," ")}</td><td className="p-3">{Number(m.quantity_delta)>0?"+":""}{m.quantity_delta}</td><td className="p-3">{m.reference_type}</td></tr>)}</tbody></table>{!data.movements.length && <p className="p-6 text-center text-sm text-slate-500">No stock movements recorded.</p>}</div>
-      <div className="overflow-x-auto rounded-xl border bg-white"><h3 className="border-b p-3 font-semibold">Batch and expiry tracking</h3><table className="w-full text-sm"><thead className="bg-slate-50"><tr><th className="p-3 text-left">Product</th><th className="p-3 text-left">Batch</th><th className="p-3 text-left">Quantity</th><th className="p-3 text-left">Expiry</th></tr></thead><tbody className="divide-y">{data.batches.map((b)=><tr key={b.id}><td className="p-3">{productMap.get(b.product_id)?.name || b.product_id}</td><td className="p-3">{b.batch_number}</td><td className="p-3">{b.quantity}</td><td className="p-3">{b.expires_on || "—"}</td></tr>)}</tbody></table></div>
+      <div className="flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <label className="min-w-[190px] flex-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Search movement<input className={input + " mt-1"} value={movementQuery} onChange={(e) => setMovementQuery(e.target.value)} placeholder="Product, SKU or reference"/></label>
+        <label className="min-w-[150px] text-[10px] font-semibold uppercase tracking-wide text-slate-400">Movement type<select className={input + " mt-1"} value={movementType} onChange={(e) => setMovementType(e.target.value)}><option value="all">All types</option>{movementTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_"," ")}</option>)}</select></label>
+        <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">From<input type="date" className={input + " mt-1"} value={movementFrom} onChange={(e) => setMovementFrom(e.target.value)}/></label>
+        <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">To<input type="date" className={input + " mt-1"} value={movementTo} onChange={(e) => setMovementTo(e.target.value)}/></label>
+        <button type="button" className={secondary} onClick={() => { setMovementQuery(""); setMovementType("all"); setMovementFrom(""); setMovementTo(""); }}>Clear filters</button>
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm"><div className="flex items-center justify-between border-b border-slate-100 px-4 py-3"><div><h2 className="text-sm font-bold">Stock movement ledger</h2><p className="text-xs text-slate-500">Chronological, read-only record of inventory changes</p></div><span className="text-xs font-semibold text-slate-500">{filteredMovements.length} records</span></div><table className="w-full min-w-[720px] text-sm"><thead className="bg-[#F8F7FC] text-[10px] font-bold uppercase tracking-wider text-slate-500"><tr>{["Date & time","Product","Warehouse","Movement","Quantity change","Reference"].map((x)=><th key={x} className="whitespace-nowrap px-4 py-3 text-left">{x}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{filteredMovements.map((m)=><tr key={m.id} className="hover:bg-violet-50/30"><td className="whitespace-nowrap px-4 py-3 text-slate-500">{new Date(m.created_at).toLocaleString()}</td><td className="px-4 py-3 font-semibold">{productMap.get(m.product_id)?.name || m.product_id}</td><td className="px-4 py-3">{data.warehouses.find((w)=>w.id===m.warehouse_id)?.name || "—"}</td><td className="px-4 py-3 capitalize">{m.movement_type.replaceAll("_"," ")}</td><td className={`px-4 py-3 font-semibold tabular-nums ${Number(m.quantity_delta)>0 ? "text-emerald-700" : "text-rose-700"}`}>{Number(m.quantity_delta)>0?"+":""}{m.quantity_delta}</td><td className="px-4 py-3 font-mono text-xs text-slate-400">{m.reference_type || "—"}</td></tr>)}</tbody></table>{!filteredMovements.length && <p className="p-8 text-center text-sm text-slate-500">No movements match these filters.</p>}</div>
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 px-4 py-3"><h3 className="text-sm font-bold">Batch & expiry register</h3><p className="text-xs text-slate-500">Received batches and their remaining quantities</p></div><table className="w-full min-w-[520px] text-sm"><thead className="bg-[#F8F7FC] text-[10px] font-bold uppercase tracking-wider text-slate-500"><tr><th className="px-4 py-3 text-left">Product</th><th className="px-4 py-3 text-left">Batch</th><th className="px-4 py-3 text-right">Quantity</th><th className="px-4 py-3 text-left">Expiry</th></tr></thead><tbody className="divide-y divide-slate-100">{data.batches.map((b)=><tr key={b.id} className="hover:bg-violet-50/30"><td className="px-4 py-3 font-medium">{productMap.get(b.product_id)?.name || b.product_id}</td><td className="px-4 py-3">{b.batch_number}</td><td className="px-4 py-3 text-right tabular-nums">{b.quantity}</td><td className="px-4 py-3">{b.expires_on || "—"}</td></tr>)}</tbody></table>{!data.batches.length && <p className="p-6 text-center text-sm text-slate-500">No batch records yet.</p>}</div>
     </>}
   </section>;
 }
