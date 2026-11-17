@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/AuthContext";
+import { usePaywall } from "@/lib/paywall";
 import { Check, Sparkles, Crown, X } from "lucide-react";
 import { GLOBAL_BILLING, formatPlanPrice } from "@/global/billing/pricing.js";
 import { getCountryByCode, getCountryFlag, COUNTRY_REGISTRY } from "@/global/countries/country-registry.js";
@@ -11,7 +13,15 @@ const PLANS = [
 ];
 
 export default function PricingSection() {
+  const { user, isAuthenticated } = useAuth();
+  const { planName } = usePaywall();
   const [countryCode, setCountryCode] = useState("");
+  const [countryTouched, setCountryTouched] = useState(false);
+  useEffect(() => {
+    if (isAuthenticated && !countryTouched && user?.country_code && GLOBAL_BILLING[user.country_code]) {
+      setCountryCode(user.country_code);
+    }
+  }, [isAuthenticated, user?.country_code, countryTouched]);
   const [billing, setBilling] = useState("monthly");
   const country = countryCode ? GLOBAL_BILLING[countryCode] : null;
   const countryInfo = getCountryByCode(countryCode);
@@ -20,6 +30,7 @@ export default function PricingSection() {
   const currency = country?.currency || "INR";
 
   const changeCountry = (value) => {
+    setCountryTouched(true);
     setCountryCode(value);
     if (!GLOBAL_BILLING[value]?.yearly) setBilling("monthly");
   };
@@ -31,11 +42,12 @@ export default function PricingSection() {
           <div className="inline-flex items-center gap-1.5 rounded-full bg-[#6D28D9]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#6D28D9]"><Sparkles className="h-3 w-3" />Pricing</div>
           <h2 className="mt-3 text-[22px] font-bold text-slate-900 sm:text-[26px]">Simple, honest pricing for every business.</h2>
           <p className="mx-auto mt-1.5 max-w-xl text-[12px] text-slate-500">Free plan, no card needed. Choose your country to see local pricing and currency.</p>
+          {isAuthenticated && <p className="mt-2 text-[11px] font-semibold text-violet-700">Current plan: {planName || "Free"} · Workspace billing currency is shown below.</p>}
         </div>
 
         <div className="mx-auto mt-5 flex max-w-xs flex-col gap-1.5 text-left">
-          <label htmlFor="pricing-country" className="text-xs font-semibold text-slate-700">Select country to see pricing</label>
-          <select id="pricing-country" value={countryCode} onChange={(event) => changeCountry(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800">
+          <label htmlFor="pricing-country" className="text-xs font-semibold text-slate-700">{isAuthenticated ? "Workspace country and billing currency" : "Select country to see pricing"}</label>
+          <select id="pricing-country" disabled={isAuthenticated} value={countryCode} onChange={(event) => changeCountry(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800">
             <option value="">🌍 Select your country</option>{COUNTRY_REGISTRY.filter(({ code }) => GLOBAL_BILLING[code]).map((entry) => <option key={entry.code} value={entry.code}>{getCountryFlag(entry.code)}  {entry.name} · {entry.currencyCode}</option>)}
           </select>
         </div>
@@ -72,8 +84,7 @@ export default function PricingSection() {
           })}
         </div>
         <p className="mt-4 text-center text-[10px] text-slate-400">Prices shown in {currency}. Applicable taxes, if any, are shown before payment.</p>
-        {!country.paymentEnabled && <p role="status" className="mt-2 text-center text-xs text-amber-700">Cashfree checkout in {currency} is not enabled yet. Pricing is displayed, but payment will remain unavailable until Cashfree confirms this currency for the merchant account.</p>}
-        <p className="mt-2 text-center text-[10px] text-slate-400">Secure checkout via Cashfree where the selected currency is enabled.</p></>}
+        <p role="status" className="mt-2 text-center text-xs text-slate-500">International checkout is being prepared. Plan selection and payment activation will be available after Plivex confirms its payment provider for your region.</p></>}
       </div>
     </section>
   );

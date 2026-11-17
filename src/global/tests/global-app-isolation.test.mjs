@@ -12,13 +12,13 @@ const [app, auth, backend, onboarding, worker, vite] = await Promise.all([
   read("../../../vite.config.js"),
 ]);
 
-test("India and Global workspaces mount one shared router and AppLayout", () => {
-  assert.match(app, /const GlobalApp = lazy\(\(\) => import\("@\/global\/GlobalApp"\)\)/);
+test("India and Global remain on one origin with workspace-driven regional app routing", () => {
+  assert.match(app, /lazy\(\(\) => import\("@\/global\/GlobalApp"\)\)/);
   assert.match(app, /APP_EDITION === "global" && isAuthenticated/);
+  assert.match(app, /isUnifiedBuild/);
   assert.doesNotMatch(app, /window\.location\.hostname/);
   assert.match(app, /<AuthProvider>/);
   assert.match(app, /element={<AppLayout \/>}/);
-  assert.match(app, /APP_EDITION === "global" && isAuthenticated/);
 });
 
 test("shared authentication resolves Global workspace membership without reading India profiles for Global", () => {

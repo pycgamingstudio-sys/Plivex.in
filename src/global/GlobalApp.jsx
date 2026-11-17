@@ -190,7 +190,7 @@ export default function GlobalApp() {
     setSession(null); setAccount(null); setRecords({});
   };
 
-  if (loading) return <div className="min-h-screen grid place-items-center bg-[#F8F7FC] text-slate-600">Loading Plivex Global…</div>;
+  if (loading) return <div className="min-h-screen grid place-items-center bg-[#F8F7FC] text-slate-600">Loading Plivex…</div>;
 
   if (session && account && !account.workspace_id) return <GlobalCountryOnboarding />;
 
@@ -198,10 +198,10 @@ export default function GlobalApp() {
     return (
       <main className="min-h-screen bg-[#F8F7FC] px-4 py-10 text-slate-900">
         <div className="mx-auto max-w-md">
-          <a href="/" className="text-2xl font-black tracking-tight text-violet-700">Plivex <span className="text-slate-500">Global</span></a>
+          <a href="/" className="text-2xl font-black tracking-tight text-violet-700">Plivex</a>
           <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h1 className="text-2xl font-bold">{mode === "register" ? "Create your Global account" : "Welcome to Plivex Global"}</h1>
-            <p className="mt-2 text-sm text-slate-500">International business workspace for clients, products and expenses.</p>
+            <h1 className="text-2xl font-bold">{mode === "register" ? "Create your Plivex account" : "Welcome to Plivex"}</h1>
+            <p className="mt-2 text-sm text-slate-500">Your Plivex workspace with country-specific settings.</p>
             <form className="mt-6 space-y-4" onSubmit={submitAuth}>
               {mode === "register" && <label className="block text-sm font-medium">Business country
                 <select required className="mt-1 w-full rounded-lg border border-slate-300 p-3" value={countryCode} onChange={(event) => setCountryCode(event.target.value)}>
@@ -219,12 +219,12 @@ export default function GlobalApp() {
               <button disabled={busy} className="w-full rounded-lg bg-violet-700 p-3 font-semibold text-white disabled:opacity-60">{busy ? "Please wait…" : mode === "register" ? "Create account" : "Sign in"}</button>
             </form>
             <button className="mt-4 text-sm font-semibold text-violet-700" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); setNotice(""); }}>
-              {mode === "register" ? "Already registered? Sign in" : "New to Plivex Global? Create account"}
+              {mode === "register" ? "Already registered? Sign in" : "New to Plivex? Create account"}
             </button>
             {notice && <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
             {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
           </section>
-          <p className="mt-6 text-center text-xs text-slate-500">Plivex Global · Separate from Plivex India</p>
+          <p className="mt-6 text-center text-xs text-slate-500">One Plivex platform · Country-specific workspace</p>
         </div>
       </main>
     );
@@ -258,7 +258,7 @@ export default function GlobalApp() {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
           <div><div className="text-xl font-black text-violet-700">Plivex <span className="text-slate-500">Global</span></div><div className="text-xs text-slate-500">{account.workspace_name} · {account.country_code} · {currency}</div></div>
-          <div className="flex items-center gap-3"><span className="hidden text-sm text-slate-500 sm:block">{account.email}</span><button onClick={signOut} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">Sign out</button></div>
+          <div className="flex items-center gap-3"><a href="/pricing" className="rounded-lg border border-violet-200 px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50"><span className="sm:hidden">Plans</span><span className="hidden sm:inline">Plans & pricing</span></a><span className="hidden text-sm text-slate-500 sm:block">{account.email}</span><button onClick={signOut} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">Sign out</button></div>
         </div>
       </header>
       <div className="mx-auto max-w-6xl px-4 py-6">

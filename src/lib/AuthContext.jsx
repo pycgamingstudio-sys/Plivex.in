@@ -55,8 +55,12 @@ async function resolveSignedInEdition(currentUser) {
     // country onboarding screen; that screen provisions the Global workspace.
   }
 
-  // An older account without country metadata is India unless a Global membership
-  // explicitly proves otherwise. No country is inferred from IP or browser locale.
+  // New identities without a workspace must complete shared onboarding first.
+  if (!currentUser?.workspace_id && !currentUser?.role && !countryCode) {
+    setRuntimeEdition('india');
+    return currentUser;
+  }
+  // Existing unstamped workspaces remain India; never infer country from IP.
   if (!countryCode) countryCode = 'IN';
   const supportedCodes = listSelectableCountries().map((country) => country.code);
   const edition = resolveWorkspaceEdition(countryCode, supportedCodes);
@@ -147,6 +151,11 @@ export const AuthProvider = ({ children }) => {
       let currentUser = await db.auth.me();
       if (isUnifiedBuild) currentUser = await resolveSignedInEdition(currentUser);
 
+      // Unified signup is authenticated first; provisioning waits for completed onboarding.
+      if (isUnifiedBuild && !currentUser?.workspace_id && !getPendingInviteCode()) {
+        setUser(currentUser); signedInRef.current = true; setIsAuthenticated(true);
+        setAuthError(null); setIsLoadingAuth(false); setAuthChecked(true); return;
+      }
       // Global identity and workspace authorization are read only from Global RPCs.
       // Never consult India public.profiles, invites, or workspace-record endpoints.
       if (APP_EDITION === "global") {

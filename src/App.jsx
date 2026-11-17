@@ -7,7 +7,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes, Navigate, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import { APP_EDITION } from '@/api/backendClient';
+import { APP_EDITION, isUnifiedBuild } from '@/api/backendClient';
 import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import RoleGuard from '@/components/RoleGuard';
@@ -15,10 +15,12 @@ import { PaywallProvider, usePaywall } from '@/lib/paywall';
 import AppLayout from './components/AppLayout';
 import WorkspaceTeamProvider from '@/components/team/WorkspaceTeamProvider';
 import TrialGate from './components/TrialGate';
+import { getPendingInviteCode } from "@/components/auth/workspaceInvite";
 // Route-level lazy loading keeps the initial mobile bundle small.
 const PageNotFound = lazy(() => import("./lib/PageNotFound"));
 const UserNotRegisteredError = lazy(() => import("@/components/UserNotRegisteredError"));
 const GlobalCountryOnboarding = lazy(() => import("@/components/global/GlobalCountryOnboarding"));
+const UnifiedWorkspaceOnboarding = lazy(() => import("@/components/global/UnifiedWorkspaceOnboarding"));
 const GlobalApp = lazy(() => import("@/global/GlobalApp"));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
@@ -38,6 +40,8 @@ const HelpCenter = lazy(() => import("./pages/HelpCenter"));
 const AccountActivity = lazy(() => import("./pages/AccountActivity"));
 const ServiceCatalog = lazy(() => import("./pages/ServiceCatalog"));
 const TeamManagement = lazy(() => import("./pages/TeamManagement"));
+const CrmTab = lazy(() => import("@/components/dashboard/CrmTab"));
+const IndiaPart4Tab = lazy(() => import("@/components/dashboard/IndiaPart4Tab"));
 const ContactUs = lazy(() => import("./pages/ContactUs"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
@@ -77,9 +81,13 @@ const AuthenticatedApp = () => {
     }
   }
 
-  // Global users without a workspace must choose their business country first.
-  if (APP_EDITION === "global" && isAuthenticated && user && (!user.workspace_id || !user.role)) {
-    return <GlobalCountryOnboarding />;
+  // One shared post-auth onboarding provisions either regional workspace.
+  if (isUnifiedBuild && isAuthenticated && user && !user.workspace_id && !getPendingInviteCode()) return <UnifiedWorkspaceOnboarding />;
+  if (APP_EDITION === "global" && isAuthenticated && user && !user.workspace_id && !getPendingInviteCode()) return <GlobalCountryOnboarding />;
+
+  // Keep country-aware pricing reachable for signed-in Global workspaces on the same origin.
+  if (APP_EDITION === "global" && isAuthenticated && window.location.pathname === "/pricing") {
+    return <Routes><Route path="/pricing" element={<PricingPage />} /></Routes>;
   }
 
   // Global workspaces use their dedicated international operations UI; India routes stay unchanged.
@@ -113,6 +121,8 @@ const AuthenticatedApp = () => {
           <Route path="/invoice-shares" element={<GlobalFeatureGate feature="Shared invoice links"><InvoiceShareManagement /></GlobalFeatureGate>} />
           <Route path="/business-profile" element={<BusinessProfile />} />
           <Route path="/client-database" element={<ClientDatabase />} />
+          <Route path="/crm" element={<CrmTab />} />
+          <Route path="/inventory-procurement" element={<IndiaPart4Tab user={user} />} />
           <Route path="/usage-reports" element={<GlobalFeatureGate feature="Usage reports"><UsageReports /></GlobalFeatureGate>} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/templates" element={<GlobalFeatureGate feature="Quick templates"><QuickTemplates /></GlobalFeatureGate>} />

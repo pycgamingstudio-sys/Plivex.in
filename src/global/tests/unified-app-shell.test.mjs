@@ -4,13 +4,15 @@ import { readFileSync } from "node:fs";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("the application mounts one shared router instead of a separate GlobalApp", () => {
+test("India and Global experiences stay on the same Plivex origin", () => {
   const app = read("../../App.jsx");
-  assert.match(app, /const GlobalApp = lazy\(\(\) => import\("@\/global\/GlobalApp"\)\)/);
+  const backend = read("../../api/backendClient.js");
+  assert.match(app, /lazy\(\(\) => import\("@\/global\/GlobalApp"\)\)/);
   assert.match(app, /APP_EDITION === "global" && isAuthenticated/);
-  assert.doesNotMatch(app, /window\.location\.hostname/);
   assert.match(app, /<AuthProvider>/);
   assert.match(app, /element={<AppLayout \/>}/);
+  assert.match(backend, /UNIFIED_EDITION_ID/);
+  assert.doesNotMatch(app, /window\.location\.hostname/);
 });
 
 test("unified authentication resolves workspace country before selecting regional handlers", () => {
@@ -30,4 +32,34 @@ test("Global country onboarding uses the shared Plivex brand", () => {
   assert.match(onboarding, /<p className="text-sm font-semibold text-primary">Plivex<\/p>/);
   assert.doesNotMatch(onboarding, />Plivex Global</);
   assert.match(onboarding, /filter\(\(entry\) => entry.code !== "IN"\)/);
+});
+
+test("single-domain edition follows the active workspace country and base currency stays free", async () => {
+  const backend = read("../../api/backendClient.js");
+  const auth = read("../../lib/AuthContext.jsx");
+  const paywall = read("../../lib/paywall.jsx");
+  const onboarding = read("../../components/global/UnifiedWorkspaceOnboarding.jsx");
+  assert.match(backend, /workspaceRegion\?\.country_code/);
+  assert.match(auth, /resolveWorkspaceEdition\(countryCode, supportedCodes\)/);
+  assert.match(paywall, /base_currency: true/);
+  assert.match(paywall, /feature === "base_currency"/);
+  assert.match(paywall, /multi_currency: false/);
+  assert.match(onboarding, /Your workspace base currency will be/);
+});
+
+test("Android stock product form keeps Save and Cancel visible while fields scroll", () => {
+  const stock = read("../../components/dashboard/StockTab.jsx");
+  assert.match(stock, /max-h-\[calc\(100dvh-2rem\)\]/);
+  assert.match(stock, /flex-1 overflow-y-auto overscroll-contain/);
+  assert.match(stock, /sticky bottom-0/);
+  assert.match(stock, /safe-area-inset-bottom/);
+});
+
+test("shared CRM, warehouse, transfers and procurement remain accessible in India", () => {
+  const app = read("../../App.jsx");
+  const nav = read("../../lib/nav.js");
+  assert.match(app, /path="\/crm" element={<CrmTab \/>}/);
+  assert.match(app, /path="\/inventory-procurement" element={<IndiaPart4Tab user={user} \/>}/);
+  assert.match(nav, /label: "CRM & leads"/);
+  assert.match(nav, /label: "Inventory & procurement"/);
 });

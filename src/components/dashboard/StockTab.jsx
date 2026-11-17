@@ -125,9 +125,9 @@ function ProductModal({ value, isEdit, items = [], onClose, onSave }) {
   const isCustomUnit = customUnit;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-[440px] rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between"><h3 className="text-lg font-bold text-slate-900">{isEdit ? "Edit product" : "Add product"}</h3><button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <div role="dialog" aria-modal="true" aria-labelledby="stock-product-modal-title" className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[440px] flex-col overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-slate-100 bg-white px-5 py-4"><h3 id="stock-product-modal-title" className="text-lg font-bold text-slate-900">{isEdit ? "Edit product" : "Add product"}</h3><button type="button" onClick={onClose} aria-label="Close product form" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4"><div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-[12px] font-semibold text-slate-500 sm:col-span-2">Product name<input className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Product name" /></label>
           <label className="block text-[12px] font-semibold text-slate-500">SKU<input className={inputCls} value={form.sku} onChange={(e) => set("sku", e.target.value)} placeholder="SKU-001" /></label>
           <label className="block text-[12px] font-semibold text-slate-500">Barcode<input className={inputCls} value={form.barcode || ""} onChange={(e) => set("barcode", e.target.value)} placeholder="EAN / UPC / internal barcode" /></label>
@@ -143,8 +143,8 @@ function ProductModal({ value, isEdit, items = [], onClose, onSave }) {
           <label className="block text-[12px] font-semibold text-slate-500">Quantity<input type="number" className={inputCls} value={form.quantity} onChange={(e) => set("quantity", e.target.value)} placeholder="0" /></label>
           <label className="block text-[12px] font-semibold text-slate-500">Low-stock at<input type="number" className={inputCls} value={form.lowStock} onChange={(e) => set("lowStock", e.target.value)} placeholder={String(DEFAULT_LOW)} /></label>
           <label className="block text-[12px] font-semibold text-slate-500 sm:col-span-2">Price (₹)<input type="number" className={inputCls} value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="0" /></label>
-        </div>
-        <div className="mt-4 flex justify-end gap-2"><button onClick={onClose} className={btnGhost}>Cancel</button><button onClick={() => onSave(form)} className={btnAccent}>Save product</button></div>
+        </div></div>
+        <div className="sticky bottom-0 z-10 flex shrink-0 justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"><button type="button" onClick={onClose} className={btnGhost}>Cancel</button><button type="button" onClick={() => onSave(form)} className={btnAccent}>Save product</button></div>
       </div>
     </div>
   );

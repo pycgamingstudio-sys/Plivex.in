@@ -21,7 +21,7 @@ async function loadAccessStatus() {
       plan: "free", tier: "free",
       limits: { invoices_monthly: -1, clients: -1, stock: -1 },
       usage: { invoices_monthly: 0, clients: 0, stock: 0 },
-      features: { download_pdf: true, save: true },
+      features: { download_pdf: true, save: true, base_currency: true, multi_currency: false },
       startedAt: "", expiresAt: null,
     };
   }
@@ -176,7 +176,7 @@ export function PaywallProvider({ children }) {
     return Math.max(0, Number(limit) - used);
   }, [limits, usage]);
   const canAccess = useCallback((feature) => {
-    if (feature === "download_pdf" || feature === "save") return true;
+    if (feature === "download_pdf" || feature === "save" || feature === "base_currency" || feature === "workspace_currency") return true;
     const key = FEATURE_ALIASES[feature] || feature;
     if (Object.prototype.hasOwnProperty.call(accessStatus.features || {}, key)) return !!accessStatus.features[key];
     if (key === "team" && Object.prototype.hasOwnProperty.call(accessStatus.features || {}, "team_management")) return !!accessStatus.features.team_management;
@@ -309,14 +309,14 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   const billingPeriod = billing === "yearly" && billingConfig.yearly ? "yearly" : "monthly";
   const visiblePlans = [
     { id: "free", name: "Free", price: formatPlanPrice(0, billingConfig.currency, billingLocale), period: billingPeriod === "monthly" ? "month" : "year", included: DISPLAY_PLANS.free.bullets, locked: [], accent: false, badge: null, checkoutPlan: null },
-    { id: "basic", name: "Basic", price: formatPlanPrice(billingConfig[billingPeriod].basic, billingConfig.currency, billingLocale), period: billingPeriod === "monthly" ? "month" : "year", included: DISPLAY_PLANS.basic.bullets, locked: [], accent: false, badge: null, checkoutPlan: APP_EDITION !== "global" && billingConfig.paymentEnabled ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "basic_monthly" : "basic_yearly")) : null, paymentUnavailable: APP_EDITION === "global" || !billingConfig.paymentEnabled },
-    { id: "pro", name: "Pro", price: formatPlanPrice(billingConfig[billingPeriod].pro, billingConfig.currency, billingLocale), period: billingPeriod === "monthly" ? "month" : "year", included: DISPLAY_PLANS.pro.bullets, locked: [], accent: true, badge: "MOST POPULAR", checkoutPlan: APP_EDITION !== "global" && billingConfig.paymentEnabled ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "pro_monthly" : "enterprise_yearly")) : null, paymentUnavailable: APP_EDITION === "global" || !billingConfig.paymentEnabled },
+    { id: "basic", name: "Basic", price: formatPlanPrice(billingConfig[billingPeriod].basic, billingConfig.currency, billingLocale), period: billingPeriod === "monthly" ? "month" : "year", included: DISPLAY_PLANS.basic.bullets, locked: [], accent: false, badge: null, checkoutPlan: APP_EDITION === "global" ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "basic_monthly" : "basic_yearly")) : billingConfig.paymentEnabled ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "basic_monthly" : "basic_yearly")) : null, paymentUnavailable: APP_EDITION !== "global" && !billingConfig.paymentEnabled },
+    { id: "pro", name: "Pro", price: formatPlanPrice(billingConfig[billingPeriod].pro, billingConfig.currency, billingLocale), period: billingPeriod === "monthly" ? "month" : "year", included: DISPLAY_PLANS.pro.bullets, locked: [], accent: true, badge: "MOST POPULAR", checkoutPlan: APP_EDITION === "global" ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "pro_monthly" : "enterprise_yearly")) : billingConfig.paymentEnabled ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "pro_monthly" : "enterprise_yearly")) : null, paymentUnavailable: APP_EDITION !== "global" && !billingConfig.paymentEnabled },
   ];
 
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const startCheckout = async (plan) => {
     if (APP_EDITION === "global") {
-      setNotice("Payments are not enabled in Plivex Global yet.");
+      setNotice("We are preparing checkout for the " + (plan?.name || "selected") + " plan in " + billingConfig.currency + ". Your plan and workspace have not been changed. Please wait.");
       return;
     }
     setCheckoutLoading(true);
@@ -334,6 +334,10 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
     return billingCountryCode === "IN" && digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
   };
   const checkout = async (plan) => {
+    if (APP_EDITION === "global") {
+      setNotice("We are preparing checkout for the " + (plan?.name || "selected") + " plan in " + billingConfig.currency + ". Your plan and workspace have not been changed.");
+      return;
+    }
     const normalized = normalizePhone(user?.phone || "");
     if (!validPhone(normalized)) {
       setPhone(user?.phone || "");
@@ -402,7 +406,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
                 <div className="flex items-center gap-2"><p className="text-[13px] font-bold text-slate-900">{plan.name}</p></div>
                 <p className="mt-2 text-[26px] font-bold leading-none text-slate-900">{plan.price}<span className="text-[12px] font-medium text-slate-400">/{plan.period}</span></p>
                 <div className="mt-3 flex-1 space-y-1.5">{plan.included.map((item) => <div key={item} className="flex items-start gap-2 text-[11px] font-medium text-slate-700"><span className="mt-0.5 text-emerald-600">✓</span>{item}</div>)}</div>
-                {plan.checkoutPlan ? <button onClick={() => checkout(plan.checkoutPlan)} disabled={checkoutLoading} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9]"}`}>{checkoutLoading ? "Connecting to Cashfree…" : `Pay with Cashfree · ${plan.price}/${plan.period}`}</button> : plan.paymentUnavailable ? <button type="button" disabled className="mt-4 w-full rounded-xl border border-amber-200 bg-amber-50 py-2.5 text-[11px] font-bold text-amber-700">{APP_EDITION === "global" ? "Payments coming soon" : "Cashfree currency not enabled"}</button> : <button onClick={onClose} className="mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-[12px] font-bold text-slate-600">{currentPlan?.plan === "free" ? "Current plan" : "Use Free plan"}</button>}
+                {plan.checkoutPlan ? <button onClick={() => checkout(plan.checkoutPlan)} disabled={checkoutLoading} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9]"}`}>{checkoutLoading ? "Connecting to payment provider…" : APP_EDITION === "global" ? `Prepare checkout · ${plan.price}/${plan.period}` : `Pay with Cashfree · ${plan.price}/${plan.period}`}</button> : plan.paymentUnavailable ? <button type="button" disabled className="mt-4 w-full rounded-xl border border-amber-200 bg-amber-50 py-2.5 text-[11px] font-bold text-amber-700">{APP_EDITION === "global" ? "Checkout is being prepared" : "Cashfree currency not enabled"}</button> : <button onClick={onClose} className="mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-[12px] font-bold text-slate-600">{currentPlan?.plan === "free" ? "Current plan" : "Use Free plan"}</button>}
               </div>
             ))}
           </div>
