@@ -198,31 +198,56 @@ jobs:
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < backup/storage-data.sql
           echo "RESTORE PUBLIC/GLOBAL SCHEMA"
-          # Ensure the core app_role enum exists before restoring functions that
-          # reference it. Keep the enum definition sourced from the encrypted
-          # production schema dump, and remove only its duplicate declaration
-          # from the subsequent schema replay.
+          # Restore app_role before any functions/tables that depend on it.
+          # Parse the enum statement from the encrypted production schema dump
+          # with Python so quoting/awk-regex differences cannot silently skip it.
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = Path("backup/schema.sql").read_text().splitlines()
+          start = next((i for i, line in enumerate(lines)
+                        if line.strip().startswith('CREATE TYPE "public"."app_role" AS ENUM (')), None)
+          if start is None:
+              raise SystemExit("app_role enum declaration missing from production schema dump")
+          end = next((i for i in range(start + 1, len(lines))
+                      if lines[i].strip() == ");"), None)
+          if end is None:
+              raise SystemExit("app_role enum declaration is unterminated")
+          Path("/tmp/plivex-app-role.sql").write_text("\\n".join(lines[start:end + 1]) + "\\n")
+          filtered = []
+          skipping = False
+          for line in lines:
+              if line.strip().startswith('CREATE TYPE "public"."app_role" AS ENUM ('):
+                  skipping = True
+                  continue
+              if skipping:
+                  if line.strip() == ");":
+                      skipping = False
+                  continue
+              if line.strip() == 'ALTER TYPE "public"."app_role" OWNER TO "postgres";':
+                  continue
+              filtered.append(line)
+          if skipping:
+              raise SystemExit("app_role enum removal did not terminate")
+          Path("/tmp/plivex-schema-without-app-role.sql").write_text("\\n".join(filtered) + "\\n")
+          PY
           if ! docker exec -u postgres plivex-production-restore-test \
             psql -X -U supabase_admin -d postgres -Atqc "SELECT to_regtype('public.app_role') IS NOT NULL" | grep -qx t; then
-            awk '
-              /^CREATE TYPE "public"\."app_role" AS ENUM \(/ { copy=1 }
-              copy { print; if ($0 ~ /^\);$/) exit }
-            ' backup/schema.sql > /tmp/plivex-app-role.sql
-            test -s /tmp/plivex-app-role.sql
             docker exec -i -u postgres plivex-production-restore-test \
               psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
               < /tmp/plivex-app-role.sql
           fi
-          awk '
-            /^CREATE TYPE "public"\."app_role" AS ENUM \(/ { skip=1; next }
-            skip { if ($0 ~ /^\);$/) skip=0; next }
-            /^ALTER TYPE "public"\."app_role" OWNER TO "postgres";$/ { next }
-            { print }
-          ' backup/schema.sql > /tmp/plivex-schema-without-app-role.sql
-          test -s /tmp/plivex-schema-without-app-role.sql
+          echo "Confirm app_role exists before public/global schema replay"
+          docker exec -u postgres plivex-production-restore-test \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c \
+            "DO \\$verify\\$ BEGIN IF to_regtype('public.app_role') IS NULL THEN RAISE EXCEPTION 'public.app_role bootstrap failed'; END IF; END \\$verify\\$;"
+          echo "Restore public/global schema without duplicate app_role declaration"
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
             < /tmp/plivex-schema-without-app-role.sql
+          echo "Confirm app_role remains after public/global schema replay"
+          docker exec -u postgres plivex-production-restore-test \
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c \
+            "DO \\$verify\\$ BEGIN IF to_regtype('public.app_role') IS NULL THEN RAISE EXCEPTION 'public.app_role disappeared during schema restore'; END IF; END \\$verify\\$;"
           echo "RESTORE APPLICATION DATA"
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
