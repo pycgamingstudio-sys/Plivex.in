@@ -11,10 +11,8 @@ export const WORKSPACE_FEATURE_CATALOG = Object.freeze([
   { id: "reports", label: "Reports", description: "Review business performance and operational reports." },
 ]);
 
-export function getAvailableWorkspaceFeatureCatalog(edition = APP_EDITION) {
-  // Quotations are currently implemented in India; Global must not offer a shortcut
-  // to a workflow that is not available in that edition yet.
-  return WORKSPACE_FEATURE_CATALOG.filter((item) => edition !== "global" || item.id !== "quotations");
+export function getAvailableWorkspaceFeatureCatalog() {
+  return WORKSPACE_FEATURE_CATALOG;
 }
 
 export function normalizeWorkspaceFeatures(value, edition = APP_EDITION) {
