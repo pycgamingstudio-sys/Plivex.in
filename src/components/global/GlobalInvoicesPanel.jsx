@@ -337,7 +337,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     try {
       const { data, error: invokeError } = await supabase.functions.invoke("global-invoices", {
         body:{ action:"record_payment",workspace_id:account.workspace_id,invoice_id:selected.id,
-          amount_minor:minor(paymentForm.amount,currency),currency_code:currency,payment_date:paymentForm.date,
+          amount_minor:minor(paymentForm.amount,selected?.currency_code || currency),currency_code:selected?.currency_code || currency,payment_date:paymentForm.date,
           method:paymentForm.method,reference:paymentForm.reference,idempotency_key:newId() },
       });
       if (invokeError) throw invokeError;
@@ -355,7 +355,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     try {
       const { data, error: invokeError } = await supabase.functions.invoke("global-invoices", {
         body:{ action:"record_refund",workspace_id:account.workspace_id,invoice_id:selected.id,
-          amount_minor:minor(refundForm.amount,currency),currency_code:currency,refund_date:refundForm.date,
+          amount_minor:minor(refundForm.amount,selected?.currency_code || currency),currency_code:selected?.currency_code || currency,refund_date:refundForm.date,
           method:refundForm.method,reference:refundForm.reference,reason:refundForm.reason,idempotency_key:newId() },
       });
       if (invokeError) throw invokeError;
@@ -381,12 +381,12 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   return (
     <section className="mt-6 space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h1 className="text-2xl font-bold">Global invoices</h1><p className="mt-1 text-sm text-slate-500">Draft, issue and reconcile invoices in {currency}. UK standard-rated VAT issuance will unlock only after the server migration and Edge Function are ready.</p></div>
+        <div><h1 className="text-2xl font-bold">Global invoices</h1><p className="mt-1 text-sm text-slate-500">Create and issue commercial invoices in your verified {currency || "workspace"} base currency. Tax invoices are separately enabled only where country rules and seller evidence are verified.</p></div>
         <button className={button} onClick={() => { setShowCreate((v)=>!v); setError(""); setNotice(""); }}> {showCreate ? "Close" : "Create draft"} </button>
       </div>
       {notice && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-      {!backendCapabilities.ledgerReady ? <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Server-side invoice issuance and ledger are not activated yet. You can save drafts, but Plivex will not mark them as issued until the database migration and Edge Function are deployed.</p> : countryCode !== "GB" ? <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">This country is draft-only in the first release. UK standard-rated VAT is the only issuance adapter currently supported.</p> : null}
+      {!workspaceContext.ok ? <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Workspace country/currency is not verified. Invoice actions are paused rather than defaulting to USD or INR.</p> : !backendCapabilities.ledgerReady || !backendCapabilities.commercialIssuanceReady ? <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">The commercial invoice migration and server function must be deployed before Global invoices can be issued. Drafts and base-currency PDF export remain available.</p> : null}
 
       <details className="rounded-xl border border-slate-200 bg-white p-4">
         <summary className="cursor-pointer font-semibold">Seller & tax registration profile</summary>
@@ -415,7 +415,12 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
             <label className="text-xs font-semibold text-slate-600">Due date<input type="date" className={field+" mt-1"} value={form.dueDate} onChange={(e)=>setForm((v)=>({...v,dueDate:e.target.value}))}/></label>
             <label className="text-xs font-semibold text-slate-600">Description<input required maxLength={500} className={field+" mt-1"} value={form.description} onChange={(e)=>setForm((v)=>({...v,description:e.target.value}))}/></label>
             <label className="text-xs font-semibold text-slate-600">Quantity<input required min="0.0001" step="0.0001" type="number" className={field+" mt-1"} value={form.quantity} onChange={(e)=>setForm((v)=>({...v,quantity:e.target.value}))}/></label>
-            <label className="text-xs font-semibold text-slate-600">Unit price ({currency})<input required min="0" step="0.01" type="number" className={field+" mt-1"} value={form.unitPrice} onChange={(e)=>setForm((v)=>({...v,unitPrice:e.target.value}))}/></label>
+            <label className="text-xs font-semibold text-slate-600">Unit price
+              <span className="mt-1 flex min-w-0 overflow-hidden rounded-lg border border-slate-300 bg-white focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-100" data-testid="global-invoice-unit-price">
+                <span className="flex shrink-0 items-center border-r border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-600">{currency || "Currency"}</span>
+                <input required min="0" step="0.01" type="number" className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm outline-none" value={form.unitPrice} onChange={(e)=>setForm((v)=>({...v,unitPrice:e.target.value}))}/>
+              </span>
+            </label>
             <div className="sm:col-span-2 flex items-center justify-between gap-3"><span className="text-sm text-slate-500">Draft amount: {money(minor(Number(form.quantity||0)*Number(form.unitPrice||0),currency),currency)}</span><button disabled={busy} className={button}>Save draft</button></div>
           </form>
         </div>
@@ -431,16 +436,23 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <h2 className="font-semibold">{selected.invoice_number}</h2>
               <p className="mt-1 text-sm text-slate-500">{selected.invoice_snapshot?.buyer?.name || selectedClient?.name || "Customer"} · {selected.status}</p>
-              <div className="mt-3 space-y-1 text-sm"><p>Subtotal: {money(selected.subtotal_minor,currency)}</p><p>Discount: {money(selected.discount_minor,currency)}</p><p>Tax: {money(selected.tax_minor,currency)}</p><p className="font-bold">Total: {money(selected.total_minor,currency)}</p></div>
+              <div className="mt-3 space-y-1 text-sm"><p>Subtotal: {money(selected.subtotal_minor,selected.currency_code)}</p><p>Discount: {money(selected.discount_minor,selected.currency_code)}</p><p>{selected.invoice_snapshot?.tax_status === "not_assessed" ? "Tax: Not assessed by Plivex" : "Tax: " + money(selected.tax_minor,selected.currency_code)}</p><p className="font-bold">Total: {money(selected.total_minor,selected.currency_code)}</p></div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button className={secondary} onClick={()=>downloadPdf(selected)}>Download PDF</button>
                 <button className={secondary} onClick={()=>shareInvoice(selected,"whatsapp")}>WhatsApp</button>
                 <button className={secondary} onClick={()=>shareInvoice(selected,"email")}>Email</button>
+                <button className={secondary} onClick={()=>shareInvoice(selected,"sms")}>SMS</button>
+                {activeShare?.invoiceId === selected.id && <button className={secondary} disabled={busy} onClick={revokeActiveShare}>Revoke active link</button>}
               </div>
-              {selected.status==="draft" && countryCode==="GB" && <>
-                <div className="mt-4"><GlobalTaxEditor invoice={previewInvoice} setInvoice={(updater)=>setTaxContext((old)=>typeof updater==="function"?updater({globalTax:old}).globalTax:updater.globalTax)} workspaceProfile={workspaceProfile}/></div>
-                <button className={button+" mt-3 w-full"} disabled={busy||!canIssue} onClick={issueInvoice}>Issue UK VAT invoice</button>
-                {!canIssue && <p className="mt-2 text-xs text-amber-700">Complete the registered GB VAT seller profile before issuing. Other countries remain draft-only in this release.</p>}
+              {selected.status==="draft" && <>
+                <button className={button+" mt-4 w-full"} disabled={busy||!canIssueCommercial} onClick={issueCommercialInvoice}>Issue commercial invoice</button>
+                {!canIssueCommercial && <p className="mt-2 text-xs text-amber-700">Complete the seller legal name and address, and wait for the commercial issuance service to be enabled. Commercial invoices do not certify tax treatment.</p>}
+                {countryCode==="GB" && <>
+                  <div className="mt-4"><GlobalTaxEditor invoice={previewInvoice} setInvoice={(updater)=>setTaxContext((old)=>typeof updater==="function"?updater({globalTax:old}).globalTax:updater.globalTax)} workspaceProfile={workspaceProfile}/></div>
+                  <button className={secondary+" mt-3 w-full"} disabled={busy||!canIssue} onClick={issueInvoice}>Issue UK VAT tax invoice</button>
+                  {!canIssue && <p className="mt-2 text-xs text-amber-700">The separate UK VAT tax-invoice path requires a complete registered seller profile and confirmed standard-rated VAT evidence.</p>}
+                </>}
+                <p className="mt-3 text-xs text-slate-500">Commercial invoices are not tax invoices. US and Canada address-level tax is not calculated automatically in this release.</p>
               </>}
               {selected.status!=="draft" && <p className="mt-3 text-xs text-slate-500">Issued invoice content and tax snapshot are locked. Payments and refunds are recorded separately.</p>}
             </div>
@@ -448,7 +460,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
               <div className="rounded-xl border border-slate-200 bg-white p-4">
                 <h3 className="font-semibold">Record payment</h3>
                 <form className="mt-3 grid gap-2" onSubmit={recordPayment}>
-                  <input required min="0.01" step="0.01" type="number" className={field} placeholder={`Amount (${currency})`} value={paymentForm.amount} onChange={(e)=>setPaymentForm((v)=>({...v,amount:e.target.value}))}/>
+                  <input required min="0.01" step="0.01" type="number" className={field} placeholder={`Amount (${selected?.currency_code || currency})`} value={paymentForm.amount} onChange={(e)=>setPaymentForm((v)=>({...v,amount:e.target.value}))}/>
                   <input required type="date" className={field} value={paymentForm.date} onChange={(e)=>setPaymentForm((v)=>({...v,date:e.target.value}))}/>
                   <input className={field} placeholder="Method" value={paymentForm.method} onChange={(e)=>setPaymentForm((v)=>({...v,method:e.target.value}))}/>
                   <input className={field} placeholder="Reference" value={paymentForm.reference} onChange={(e)=>setPaymentForm((v)=>({...v,reference:e.target.value}))}/>
@@ -460,7 +472,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
               <div className="rounded-xl border border-slate-200 bg-white p-4">
                 <h3 className="font-semibold">Record refund</h3>
                 <form className="mt-3 grid gap-2" onSubmit={recordRefund}>
-                  <input required min="0.01" step="0.01" type="number" className={field} placeholder={`Amount (${currency})`} value={refundForm.amount} onChange={(e)=>setRefundForm((v)=>({...v,amount:e.target.value}))}/>
+                  <input required min="0.01" step="0.01" type="number" className={field} placeholder={`Amount (${selected?.currency_code || currency})`} value={refundForm.amount} onChange={(e)=>setRefundForm((v)=>({...v,amount:e.target.value}))}/>
                   <input required type="date" className={field} value={refundForm.date} onChange={(e)=>setRefundForm((v)=>({...v,date:e.target.value}))}/>
                   <input className={field} placeholder="Method" value={refundForm.method} onChange={(e)=>setRefundForm((v)=>({...v,method:e.target.value}))}/>
                   <input className={field} placeholder="Reference" value={refundForm.reference} onChange={(e)=>setRefundForm((v)=>({...v,reference:e.target.value}))}/>

@@ -276,13 +276,16 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   const { user, checkUserAuth } = useAuth();
   const [notice, setNotice] = useState("");
   const [billing, setBilling] = useState("monthly");
-  const [billingCountryCode, setBillingCountryCode] = useState("IN");
+  const [billingCountryCode, setBillingCountryCode] = useState(() => APP_EDITION === "global" ? String(user?.country_code || "").toUpperCase() : "IN");
   useEffect(() => {
     let active = true;
     const loadCountry = async () => {
       if (!user?.workspace_id) return;
       if (APP_EDITION === "global") {
-        const nextCountry = typeof user.country_code === "string" && GLOBAL_BILLING[user.country_code] ? user.country_code : "IN";
+        const candidate = String(user.country_code || "").trim().toUpperCase();
+        const candidateConfig = GLOBAL_BILLING[candidate];
+        const currencyMatches = !user.currency_code || candidateConfig?.currency === String(user.currency_code).toUpperCase();
+        const nextCountry = candidateConfig && currencyMatches ? candidate : "";
         setBillingCountryCode(nextCountry);
         if (!GLOBAL_BILLING[nextCountry]?.yearly) setBilling("monthly");
         return;
@@ -296,8 +299,11 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
     };
     void loadCountry();
     return () => { active = false; };
-  }, [user?.workspace_id]);
-  const billingConfig = GLOBAL_BILLING[billingCountryCode] || GLOBAL_BILLING.IN;
+  }, [user?.workspace_id, user?.country_code, user?.currency_code]);
+  const selectedBillingConfig = GLOBAL_BILLING[billingCountryCode] || null;
+  const billingConfig = APP_EDITION === "global" && user?.currency_code && selectedBillingConfig?.currency !== String(user.currency_code).toUpperCase()
+    ? null
+    : selectedBillingConfig || (APP_EDITION === "global" ? null : GLOBAL_BILLING.IN);
   const billingLocale = getCountryByCode(billingCountryCode)?.locales?.[0] || "en";
   const [phone, setPhone] = useState(() => { const digits = String(user?.phone || "").replace(/\D/g, ""); return digits.length > 10 && digits.startsWith("91") ? digits.slice(-10) : digits; });
   const [phonePrompt, setPhonePrompt] = useState(false);
@@ -306,17 +312,17 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   // Callers may accidentally pass an Error/object as the reason; never call string methods on it.
   const safeBlockReason = typeof blockReason === "string" ? blockReason : String(blockReason?.message || blockReason?.error || "");
   const activePlan = currentPlan?.planId ? PLANS.find((plan) => plan.id === currentPlan.planId) : null;
-  const billingPeriod = billing === "yearly" && billingConfig.yearly ? "yearly" : "monthly";
-  const visiblePlans = [
-    { id: "free", name: "Free", price: formatPlanPrice(0, billingConfig.currency, billingLocale), period: billingPeriod === "monthly" ? "month" : "year", included: DISPLAY_PLANS.free.bullets, locked: [], accent: false, badge: null, checkoutPlan: null },
-    { id: "basic", name: "Basic", price: formatPlanPrice(billingConfig[billingPeriod].basic, billingConfig.currency, billingLocale), period: billingPeriod === "monthly" ? "month" : "year", included: DISPLAY_PLANS.basic.bullets, locked: [], accent: false, badge: null, checkoutPlan: APP_EDITION === "global" ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "basic_monthly" : "basic_yearly")) : billingConfig.paymentEnabled ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "basic_monthly" : "basic_yearly")) : null, paymentUnavailable: APP_EDITION !== "global" && !billingConfig.paymentEnabled },
-    { id: "pro", name: "Pro", price: formatPlanPrice(billingConfig[billingPeriod].pro, billingConfig.currency, billingLocale), period: billingPeriod === "monthly" ? "month" : "year", included: DISPLAY_PLANS.pro.bullets, locked: [], accent: true, badge: "MOST POPULAR", checkoutPlan: APP_EDITION === "global" ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "pro_monthly" : "enterprise_yearly")) : billingConfig.paymentEnabled ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "pro_monthly" : "enterprise_yearly")) : null, paymentUnavailable: APP_EDITION !== "global" && !billingConfig.paymentEnabled },
-  ];
+  const billingPeriod = billing === "yearly" && billingConfig?.yearly ? "yearly" : "monthly";
+  const visiblePlans = billingConfig ? [
+    { id: "free", name: "Free", price: formatPlanPrice(0, billingConfig.currency, billingLocale), period: "month", included: DISPLAY_PLANS.free.bullets, locked: [], accent: false, badge: null, checkoutPlan: null },
+    { id: "basic", name: "Basic", price: formatPlanPrice(billingConfig[billingPeriod].basic, billingConfig.currency, billingLocale), period: billingPeriod === "monthly" ? "month" : "year", included: DISPLAY_PLANS.basic.bullets, locked: [], accent: false, badge: null, checkoutPlan: APP_EDITION === "global" ? null : billingConfig.paymentEnabled ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "basic_monthly" : "basic_yearly")) : null, paymentUnavailable: APP_EDITION === "global" || !billingConfig.paymentEnabled },
+    { id: "pro", name: "Pro", price: formatPlanPrice(billingConfig[billingPeriod].pro, billingConfig.currency, billingLocale), period: billingPeriod === "monthly" ? "month" : "year", included: DISPLAY_PLANS.pro.bullets, locked: [], accent: true, badge: "MOST POPULAR", checkoutPlan: APP_EDITION === "global" ? null : billingConfig.paymentEnabled ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "pro_monthly" : "enterprise_yearly")) : null, paymentUnavailable: APP_EDITION === "global" || !billingConfig.paymentEnabled },
+  ] : [];
 
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const startCheckout = async (plan) => {
     if (APP_EDITION === "global") {
-      setNotice("We are preparing checkout for the " + (plan?.name || "selected") + " plan in " + billingConfig.currency + ". Your plan and workspace have not been changed. Please wait.");
+      setNotice("International subscription checkout is not active yet. Your plan and workspace have not been changed.");
       return;
     }
     setCheckoutLoading(true);
@@ -335,7 +341,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   };
   const checkout = async (plan) => {
     if (APP_EDITION === "global") {
-      setNotice("We are preparing checkout for the " + (plan?.name || "selected") + " plan in " + billingConfig.currency + ". Your plan and workspace have not been changed.");
+      setNotice("International subscription checkout is not active yet. Your plan and workspace have not been changed.");
       return;
     }
     const normalized = normalizePhone(user?.phone || "");
@@ -394,11 +400,12 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
           {currentPlan?.active && (
             <CurrentPlanCard planName={currentPlan.planName} benefits={activePlan?.included || []} startedAt={currentPlan.startedAt} expiresAt={currentPlan.expiresAt} />
           )}
-          <p className="mb-3 text-center text-xs text-slate-500">Billing country: {getCountryByCode(billingCountryCode)?.name || "India"} · {billingConfig.currency}</p>
-          <div className="mb-4 flex items-center justify-center gap-2 rounded-xl bg-slate-100 p-1">
+          <p className="mb-3 text-center text-xs text-slate-500">Billing country: {getCountryByCode(billingCountryCode)?.name || (APP_EDITION === "global" ? "Not resolved" : "India")} · {billingConfig?.currency || "Currency not resolved"}</p>
+          {!billingConfig && <p role="alert" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">Workspace country and currency could not be verified. Plivex has not substituted Indian pricing. Confirm the workspace country and base currency before choosing a paid plan.</p>}
+          {billingConfig && <div className="mb-4 flex items-center justify-center gap-2 rounded-xl bg-slate-100 p-1">
             <button onClick={() => setBilling("monthly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "monthly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Monthly</button>
             {billingConfig.yearly && <button onClick={() => setBilling("yearly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "yearly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Yearly</button>}
-          </div>
+          </div>}
           <div className="grid gap-3 md:grid-cols-3">
             {visiblePlans.map((plan) => (
               <div key={plan.id} className={`relative flex flex-col rounded-2xl border p-4 ${plan.accent ? "border-[#6D28D9] bg-[#6D28D9]/5" : "border-[#E5E7EB] bg-white"}`}>
@@ -406,7 +413,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
                 <div className="flex items-center gap-2"><p className="text-[13px] font-bold text-slate-900">{plan.name}</p></div>
                 <p className="mt-2 text-[26px] font-bold leading-none text-slate-900">{plan.price}<span className="text-[12px] font-medium text-slate-400">/{plan.period}</span></p>
                 <div className="mt-3 flex-1 space-y-1.5">{plan.included.map((item) => <div key={item} className="flex items-start gap-2 text-[11px] font-medium text-slate-700"><span className="mt-0.5 text-emerald-600">✓</span>{item}</div>)}</div>
-                {plan.checkoutPlan ? <button onClick={() => checkout(plan.checkoutPlan)} disabled={checkoutLoading} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9]"}`}>{checkoutLoading ? "Connecting to payment provider…" : APP_EDITION === "global" ? `Prepare checkout · ${plan.price}/${plan.period}` : `Pay with Cashfree · ${plan.price}/${plan.period}`}</button> : plan.paymentUnavailable ? <button type="button" disabled className="mt-4 w-full rounded-xl border border-amber-200 bg-amber-50 py-2.5 text-[11px] font-bold text-amber-700">{APP_EDITION === "global" ? "Checkout is being prepared" : "Cashfree currency not enabled"}</button> : <button onClick={onClose} className="mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-[12px] font-bold text-slate-600">{currentPlan?.plan === "free" ? "Current plan" : "Use Free plan"}</button>}
+                {plan.checkoutPlan ? <button onClick={() => checkout(plan.checkoutPlan)} disabled={checkoutLoading} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9]"}`}>{checkoutLoading ? "Connecting to payment provider…" : APP_EDITION === "global" ? `Prepare checkout · ${plan.price}/${plan.period}` : `Pay with Cashfree · ${plan.price}/${plan.period}`}</button> : plan.paymentUnavailable ? <button type="button" disabled className="mt-4 w-full rounded-xl border border-amber-200 bg-amber-50 py-2.5 text-[11px] font-bold text-amber-700">{APP_EDITION === "global" ? "International checkout not active" : "Cashfree currency not enabled"}</button> : <button onClick={onClose} className="mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-[12px] font-bold text-slate-600">{currentPlan?.plan === "free" ? "Current plan" : "Use Free plan"}</button>}
               </div>
             ))}
           </div>

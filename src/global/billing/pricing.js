@@ -21,3 +21,14 @@ export function formatPlanPrice(amountMinor, currency, locale) {
   if (!Number.isSafeInteger(amountMinor) || amountMinor < 0) throw new TypeError("Invalid minor-unit amount");
   return new Intl.NumberFormat(locale || "en", { style: "currency", currency }).format(amountMinor / 100);
 }
+
+export function resolveWorkspaceBillingContext(countryCode, currencyCode) {
+  const normalizedCountry = typeof countryCode === "string" ? countryCode.trim().toUpperCase() : "";
+  const config = getBillingForCountry(normalizedCountry);
+  if (!config) return { ok:false, reason:"country_not_configured", countryCode:normalizedCountry, config:null, currencyCode:"" };
+  const normalizedCurrency = typeof currencyCode === "string" ? currencyCode.trim().toUpperCase() : "";
+  if (normalizedCurrency && normalizedCurrency !== config.currency) {
+    return { ok:false, reason:"workspace_currency_mismatch", countryCode:normalizedCountry, expectedCurrency:config.currency, config:null, currencyCode:"" };
+  }
+  return { ok:true, reason:null, countryCode:normalizedCountry, config, currencyCode:config.currency };
+}

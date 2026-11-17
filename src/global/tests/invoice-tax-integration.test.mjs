@@ -178,7 +178,7 @@ test("workspace country always selects its required invoice currency, including 
   }
   assert.equal(resolveInvoiceCurrencyForWorkspace("CA", "GBP"), "CAD");
   assert.equal(resolveInvoiceCurrencyForWorkspace("IN", "GBP"), "GBP");
-  assert.equal(resolveInvoiceCurrencyForWorkspace("ZZ", "EUR"), "EUR");
+  assert.equal(resolveInvoiceCurrencyForWorkspace("ZZ", "EUR"), "");
 });
 
 test("manual treatment uses an explicit allowlist and rejects unknown labels", () => {

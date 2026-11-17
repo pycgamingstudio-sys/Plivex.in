@@ -30,3 +30,12 @@ test("Document title never mislabels a commercial invoice as a tax invoice", () 
   assert.equal(getGlobalInvoiceDocumentTitle({ document_type:"commercial_invoice" },"draft"),"DRAFT INVOICE");
   assert.match(getGlobalInvoiceTaxDisclosure({ tax_status:"not_assessed" }),/not been calculated or validated/i);
 });
+
+import { resolveWorkspaceBillingContext } from "../billing/pricing.js";
+
+test("workspace pricing requires the exact country and currency, with no INR fallback", () => {
+  assert.equal(resolveWorkspaceBillingContext("US","USD").ok,true);
+  assert.equal(resolveWorkspaceBillingContext("US","INR").reason,"workspace_currency_mismatch");
+  assert.equal(resolveWorkspaceBillingContext("XX","INR").reason,"country_not_configured");
+  assert.equal(resolveWorkspaceBillingContext("GB","").currencyCode,"GBP");
+});

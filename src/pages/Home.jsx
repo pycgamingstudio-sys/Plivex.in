@@ -13,10 +13,11 @@ import CurrentPlanCard from "@/components/CurrentPlanCard";
 import DesignPicker from "@/components/invoice/DesignPicker";
 import { DEFAULT_DESIGN_ID, InvoiceDesign, isPremiumDesign } from "@/components/invoice/designs";
 import { SUPPORTED_CURRENCIES, formatMoney, amountInWords } from "@/lib/currency";
-import { backend } from "@/api/backendClient";
+import { backend, APP_EDITION } from "@/api/backendClient";
 import GlobalTaxEditor from "@/components/invoice/GlobalTaxEditor";
 import { calculateInvoiceGlobalTax, GLOBAL_COUNTRY_CURRENCIES, resolveInvoiceCurrencyForWorkspace } from "@/global/tax/invoice-tax-integration.js";
 import { getCountryByCode } from "@/global/countries/country-registry.js";
+import { getBillingForCountry, formatPlanPrice } from "@/global/billing/pricing.js";
 import { getCountryExperience } from "@/global/countries/country-experience.js";
 import { getGlobalInvoiceTaxValidationError } from "@/global/tax/invoice-export-policy.js";
 import {
@@ -126,6 +127,13 @@ function SectionCard({ icon: Icon, title, eyebrow, children, action }) {
 
 function Sidebar({ onNew, onPricing }) {
   const { user } = useAuth();
+  const regionalBilling = getBillingForCountry(user?.country_code);
+  const regionalLocale = getCountryByCode(user?.country_code)?.locales?.[0] || "en";
+  const regionalPricingText = user?.country_code && user.country_code !== "IN"
+    ? regionalBilling
+      ? `Basic ${formatPlanPrice(regionalBilling.monthly.basic, regionalBilling.currency, regionalLocale)} · Pro ${formatPlanPrice(regionalBilling.monthly.pro, regionalBilling.currency, regionalLocale)}/month. International checkout is not active yet.`
+      : `Workspace currency ${user.currency_code || ""}. Pricing is unavailable until country and currency are verified.`
+    : "Three polished PDF exports, then keep going for ₹249/month.";
   return (
     <aside className="app-chrome hidden w-[228px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
       <div className="flex items-center gap-2.5 px-5 py-6">
@@ -145,7 +153,7 @@ function Sidebar({ onNew, onPricing }) {
       <div className="mt-auto p-3">
         <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/60 p-3.5">
           <div className="mb-2 flex items-center gap-2 text-[11px] font-bold"><Sparkles className="h-3.5 w-3.5 text-sidebar-primary" />Free workspace</div>
-          <p className="text-[11px] leading-relaxed text-sidebar-foreground/55">{user?.country_code && user.country_code !== "IN" ? (user.country_code === "US" ? "Basic $5.99 · Pro $9.99/month. USD checkout activation is pending." : `Workspace currency ${user.currency_code || ""}. Local subscription pricing is not configured yet.`) : "Three polished PDF exports, then keep going for ₹249/month."}</p>
+          <p className="text-[11px] leading-relaxed text-sidebar-foreground/55">{regionalPricingText}</p>
           <button data-testid="button-upgrade-sidebar" onClick={onPricing} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-sidebar-primary px-3 py-2.5 text-[11px] font-bold text-sidebar-primary-foreground transition-transform hover:-translate-y-0.5"><Sparkles className="h-3.5 w-3.5" />Pricing Plans</button>
         </div>
         <div className="mt-4 flex items-center gap-2 border-t border-sidebar-border pt-4">{user?.profilePicture ? <img src={user.profilePicture} alt="avatar" className="h-7 w-7 rounded-full object-cover" /> : <div className="flex h-7 w-7 items-center justify-center rounded-full bg-sidebar-primary/15 text-[10px] font-bold text-sidebar-primary">{(user?.full_name || user?.email || "U").charAt(0).toUpperCase()}</div>}<div className="min-w-0"><p className="truncate text-[11px] font-semibold">{user?.full_name || "Account"}</p><p className="truncate text-[10px] text-sidebar-foreground/45">{user?.email || ""}</p></div><MoreHorizontal className="ml-auto h-4 w-4 text-sidebar-foreground/45" /></div>
@@ -176,6 +184,7 @@ function MobileMenu({ open, onClose, onNew, onPricing }) {
 function InvoiceEditor({ invoice, setInvoice, workspaceTaxProfile, globalTaxCalculation, errors, onClearError, onToast, onSignature, canAccess = () => true, onLocked = () => {}, design }) {
   const stockItems = loadList(KEYS.stock);
   const isGlobalWorkspace = Boolean(workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN");
+  const baseCurrencyCode = workspaceTaxProfile?.currencyCode || invoice.currency || "";
   const countryExperience = getCountryExperience(workspaceTaxProfile?.countryCode);
   const setBusiness = (key, value) => { setInvoice((old) => ({ ...old, business: { ...old.business, [key]: value } })); if (key === "name") onClearError("businessName"); };
   const setClient = (key, value) => { setInvoice((old) => ({ ...old, client: { ...old.client, [key]: value } })); if (key === "name") onClearError("clientName"); };
@@ -202,7 +211,7 @@ function InvoiceEditor({ invoice, setInvoice, workspaceTaxProfile, globalTaxCalc
         <div className="grid gap-3 sm:grid-cols-2"><Field label="Client Business Name" error={errors.clientName}><input required data-testid="input-client-name" className={withErrorClass(inputClass, errors.clientName)} value={invoice.client.name} onChange={(e) => setClient("name", e.target.value)} placeholder="Client Business Name (required)" /></Field><Field label="Company" hint="Optional"><input data-testid="input-client-company" className={inputClass} value={invoice.client.company} onChange={(e) => setClient("company", e.target.value)} placeholder="Company name (optional)" /></Field><Field label="Email"><input data-testid="input-client-email" type="email" className={inputClass} value={invoice.client.email} onChange={(e) => setClient("email", e.target.value)} placeholder="accounts@client.com" /></Field><Field label="Phone"><input data-testid="input-client-phone" className={inputClass} value={invoice.client.phone} onChange={(e) => setClient("phone", e.target.value)} placeholder={getCountryByCode(workspaceTaxProfile?.countryCode)?.phoneCode || "+91"} /></Field><Field label={isGlobalWorkspace ? "Client tax registration number" : "GSTIN"} hint="Optional"><input data-testid="input-client-gstin" className={inputClass} value={invoice.client.gstin} onChange={(e) => setClient("gstin", e.target.value)} placeholder={isGlobalWorkspace ? "Enter local tax number (optional)" : "22AAAAA0000A1Z5"} /></Field></div><Field label="Client address"><textarea data-testid="input-client-address" className={`${inputClass} min-h-[68px]`} value={invoice.client.address} onChange={(e) => setClient("address", e.target.value)} placeholder="Enter address (optional)" /></Field>
       </SectionCard>
       <SectionCard icon={CalendarDays} eyebrow="Control the details" title="Invoice settings">
-        <div className="grid gap-3 sm:grid-cols-2"><Field label="Invoice no."><input data-testid="input-invoice-number" className={inputClass} value={invoice.number} onChange={(e) => setInvoice((old) => ({ ...old, number: e.target.value }))} placeholder="INV-0001 (optional)" /></Field><Field label={isGlobalWorkspace ? `Workspace currency · ${invoice.currency}` : "Currency"}><select data-testid="select-currency" className={`${inputClass} ${!canAccess("multi_currency") ? "opacity-60" : ""}`} disabled={!canAccess("multi_currency")} value={invoice.currency} onChange={(e) => setInvoice((old) => ({ ...old, currency: e.target.value }))}>{SUPPORTED_CURRENCIES.map((currency) => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select>{!canAccess("multi_currency") && <button type="button" onClick={onLocked} className="mt-1.5 flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline"><LockKeyhole className="h-3 w-3" />Unlock Multi-Currency</button>}</Field><Field label="Issue date" error={errors.issueDate}><input data-testid="input-issue-date" type="date" onClick={openPicker} className={withErrorClass(dateInputClass, errors.issueDate)} value={invoice.issueDate} onChange={(e) => { setInvoice((old) => ({ ...old, issueDate: e.target.value })); if (e.target.value) onClearError("issueDate"); }} /></Field><Field label="Due date"><input data-testid="input-due-date" type="date" min={invoice.issueDate || undefined} onClick={openPicker} className={dateInputClass} value={invoice.dueDate} onChange={(e) => setInvoice((old) => ({ ...old, dueDate: e.target.value }))} /></Field></div>
+        <div className="grid gap-3 sm:grid-cols-2"><Field label="Invoice no."><input data-testid="input-invoice-number" className={inputClass} value={invoice.number} onChange={(e) => setInvoice((old) => ({ ...old, number: e.target.value }))} placeholder="INV-0001 (optional)" /></Field><Field label={isGlobalWorkspace ? `Workspace currency · ${baseCurrencyCode || invoice.currency}` : "Currency"}><select data-testid="select-currency" className={`${inputClass} ${!canAccess("multi_currency") ? "opacity-60" : ""}`} disabled={!canAccess("multi_currency")} value={invoice.currency} onChange={(e) => setInvoice((old) => ({ ...old, currency: e.target.value }))}>{SUPPORTED_CURRENCIES.map((currency) => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select>{!canAccess("multi_currency") && <div className="mt-1.5"><p className="text-[10px] leading-4 text-muted-foreground">{isGlobalWorkspace ? `Your ${baseCurrencyCode || "workspace"} base currency is included. Multi-Currency only unlocks additional invoice currencies.` : "Your workspace base currency is included. Multi-Currency unlocks additional currencies."}</p><button type="button" onClick={onLocked} className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline"><LockKeyhole className="h-3 w-3" />Unlock additional currencies</button></div>}</Field><Field label="Issue date" error={errors.issueDate}><input data-testid="input-issue-date" type="date" onClick={openPicker} className={withErrorClass(dateInputClass, errors.issueDate)} value={invoice.issueDate} onChange={(e) => { setInvoice((old) => ({ ...old, issueDate: e.target.value })); if (e.target.value) onClearError("issueDate"); }} /></Field><Field label="Due date"><input data-testid="input-due-date" type="date" min={invoice.issueDate || undefined} onClick={openPicker} className={dateInputClass} value={invoice.dueDate} onChange={(e) => setInvoice((old) => ({ ...old, dueDate: e.target.value }))} /></Field></div>
         {!isGlobalWorkspace && <div className="mt-3"><Field label="Your UPI ID / VPA" hint="Optional · adds a pay QR"><input data-testid="input-upi-id" className={inputClass} value={invoice.upiId || ""} onChange={(e) => setInvoice((old) => ({ ...old, upiId: e.target.value }))} placeholder="9876543210@paytm" /></Field></div>}
       </SectionCard>
       <SectionCard icon={FileText} eyebrow="What you did" title="Line items" action={<span className="font-mono-ui text-[10px] text-muted-foreground">{invoice.items.length.toString().padStart(2, "0")} items</span>}>
@@ -225,7 +234,7 @@ function InvoiceEditor({ invoice, setInvoice, workspaceTaxProfile, globalTaxCalc
               <div className="flex items-center gap-2 w-full">
                 <span className="w-10 shrink-0 text-[10px] font-semibold text-muted-foreground">Rate</span>
                 <div className="flex-1">
-                  <Field label="" error={errors[`item.${item.id}.rate`]}><div className="relative w-full"><span className="pointer-events-none absolute left-2.5 top-2 text-[11px] text-muted-foreground">{invoice.currency || "INR"}</span><input required data-testid={`input-item-rate-${item.id}`} type="number" min="0" className={withErrorClass(`${smallInputClass} pl-6 w-full`, errors[`item.${item.id}.rate`])} value={item.rate} onChange={(e) => updateItem(item.id, "rate", e.target.value)} placeholder="0.00" aria-label="Rate or amount" /></div></Field>
+                  <Field label="" error={errors[`item.${item.id}.rate`]}><div data-testid={`currency-rate-field-${item.id}`} className={withErrorClass("flex min-w-0 w-full items-stretch overflow-hidden rounded-md border bg-background focus-within:border-primary", errors[`item.${item.id}.rate`])}><span className="flex shrink-0 items-center border-r bg-muted/50 px-2.5 text-[10px] font-semibold text-muted-foreground">{invoice.currency || baseCurrencyCode || "Currency"}</span><input required data-testid={`input-item-rate-${item.id}`} type="number" min="0" className={`${smallInputClass} min-w-0 flex-1 border-0 bg-transparent px-2.5 focus-visible:ring-0`} value={item.rate} onChange={(e) => updateItem(item.id, "rate", e.target.value)} placeholder="0.00" aria-label="Rate or amount" /></div></Field>
                 </div>
               </div>
               <div className="flex items-center gap-2 w-full">
@@ -415,20 +424,22 @@ const PRICING_PLANS = [
 function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEmail, countryCode = "IN", currencyCode = "INR" }) {
   const isGlobalPricing = countryCode !== "IN";
   const isVirendraAccount = String(userEmail || "").trim().toLowerCase() === "virendra.sharma99978@gmail.com";
-  const displayPlans = countryCode === "US"
-    ? [
-        { ...PRICING_PLANS[0], price: 5.99, amount: 599, badge: null, included: ["USD workspace base currency", "Invoices and quotations", "Client and product records", "Inventory and expense tracking", "Regional number and date formats"], locked: ["Additional invoice currencies", "Automated tax calculations without verified jurisdiction rules"] },
-        { ...PRICING_PLANS[1], price: 9.99, amount: 999, badge: "MOST POPULAR", included: ["Everything in Basic", "Advanced CRM and business reports", "Expanded invoice and inventory limits", "Additional currencies when enabled", "Priority support"], locked: [] },
-      ]
-    : isGlobalPricing
-      ? []
-      : PRICING_PLANS.map((plan) => isVirendraAccount && plan.id === "basic_monthly" ? { ...plan, price: 25, amount: 2500, badge: "SPECIAL PRICE" } : plan);
-  const priceLabel = (price) => new Intl.NumberFormat(countryCode === "US" ? "en-US" : "en-IN", {
-    style: "currency",
-    currency: currencyCode,
-    minimumFractionDigits: currencyCode === "INR" ? 0 : 2,
-    maximumFractionDigits: currencyCode === "INR" ? 0 : 2,
+  const billingConfig = getBillingForCountry(countryCode);
+  const displayCurrency = billingConfig?.currency || currencyCode;
+  const billingLocale = getCountryByCode(countryCode)?.locales?.[0] || "en";
+  const displayPlans = countryCode === "IN"
+    ? PRICING_PLANS.map((plan) => isVirendraAccount && plan.id === "basic_monthly" ? { ...plan, price:25, amount:2500, badge:"SPECIAL PRICE" } : plan)
+    : billingConfig ? [
+        { ...PRICING_PLANS[0], id:"basic_global", name:"Basic", price:billingConfig.monthly.basic/100, amount:billingConfig.monthly.basic, period:"month", badge:null, accent:false, included:["Workspace base currency", "Invoices and quotations", "Client and product records", "Inventory and expense tracking", "Regional number and date formats"], locked:["Additional invoice currencies", "Automated tax calculations without verified jurisdiction rules"] },
+        { ...PRICING_PLANS[1], id:"pro_global", name:"Pro", price:billingConfig.monthly.pro/100, amount:billingConfig.monthly.pro, period:"month", badge:"MOST POPULAR", accent:true, included:["Everything in Basic", "Advanced CRM and business reports", "Expanded invoice and inventory limits", "Additional currencies when enabled", "Priority support"], locked:[] },
+      ] : [];
+  const priceLabel = (price) => new Intl.NumberFormat(billingLocale, {
+    style:"currency",
+    currency:displayCurrency || "USD",
+    minimumFractionDigits:displayCurrency === "INR" ? 0 : 2,
+    maximumFractionDigits:displayCurrency === "INR" ? 0 : 2,
   }).format(price);
+
   const activePlan = currentPlan?.planId ? PRICING_PLANS.find((plan) => plan.id === currentPlan.planId) : null;
   return (
     <div className="app-chrome fixed inset-0 z-50 flex items-start justify-center bg-[#1f1c35]/55 p-4 backdrop-blur-md sm:items-center">
@@ -447,8 +458,8 @@ function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEm
           {currentPlan?.active && (
             <CurrentPlanCard planName={currentPlan.planName} benefits={activePlan?.included || []} startedAt={currentPlan.startedAt} expiresAt={currentPlan.expiresAt} />
           )}
-          {countryCode === "US" && <p className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-950">USD plan prices are displayed for the United States, but USD checkout is not enabled yet. Cashfree multi-currency activation is still pending, so purchase is temporarily unavailable.</p>}
-          {isGlobalPricing && displayPlans.length === 0 && <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Subscription pricing in {currencyCode} is not configured yet. Your workspace home currency and country-based invoice defaults remain available.</p>}
+          {isGlobalPricing && billingConfig && <p className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-950">Prices are displayed for your verified workspace country and currency. International subscription checkout is not active yet; invoice base-currency downloads remain separate from additional-currency access.</p>}
+          {isGlobalPricing && displayPlans.length === 0 && <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Subscription pricing for this workspace country is not available or could not be verified. Plivex has not substituted Indian pricing. Your workspace base-currency invoices and PDF downloads remain available.</p>}
           <div className="grid gap-3 sm:grid-cols-2">
             {displayPlans.map((plan) => (
               <div key={plan.id} className={`relative flex flex-col rounded-2xl border p-4 ${plan.accent ? "border-primary bg-primary/[.05]" : "border-border bg-background/40"}`}>
@@ -459,7 +470,7 @@ function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEm
                   {plan.included.map((f) => <div key={f} className="flex items-start gap-2 text-[11px] font-medium text-foreground"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Check className="h-2.5 w-2.5" /></span>{f}</div>)}
                   {plan.locked.map((f) => <div key={f} className="flex items-start gap-2 text-[11px] font-medium text-muted-foreground/70"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600"><X className="h-2.5 w-2.5" /></span>{f} (Locked)</div>)}
                 </div>
-                <button data-testid={`button-checkout-${plan.id}`} onClick={() => onCheckout(plan)} disabled={isGlobalPricing} className={`mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[12px] font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${plan.accent ? "bg-primary text-primary-foreground" : "border border-primary text-primary hover:bg-secondary"}`}>{plan.accent ? <Zap className="h-3.5 w-3.5" /> : <LockKeyhole className="h-3.5 w-3.5" />}{isGlobalPricing ? "USD checkout unavailable" : `Buy ${priceLabel(plan.price)}/${plan.period}`}</button>
+                <button data-testid={`button-checkout-${plan.id}`} onClick={() => onCheckout(plan)} disabled={isGlobalPricing} className={`mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[12px] font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${plan.accent ? "bg-primary text-primary-foreground" : "border border-primary text-primary hover:bg-secondary"}`}>{plan.accent ? <Zap className="h-3.5 w-3.5" /> : <LockKeyhole className="h-3.5 w-3.5" />}{isGlobalPricing ? "International checkout not active" : `Buy ${priceLabel(plan.price)}/${plan.period}`}</button>
               </div>
             ))}
           </div>
@@ -541,11 +552,11 @@ export default function Home() {
         if (response?.error) throw response.error;
         const record = response?.data?.record || {};
         if (!active) return;
-        const countryCode = String(record.country_code || user?.country_code || "IN").toUpperCase();
+        const countryCode = String(record.country_code || user?.country_code || (APP_EDITION === "global" ? "" : "IN")).toUpperCase();
         setWorkspaceTaxProfile({
           countryCode,
           currencyCode: GLOBAL_COUNTRY_CURRENCIES[countryCode] || user?.currency_code || (countryCode === "IN" ? "INR" : ""),
-          localeCode: record.locale_code || user?.locale_code || (countryCode === "IN" ? "en-IN" : "en-US"),
+          localeCode: record.locale_code || user?.locale_code || getCountryExperience(countryCode)?.defaultLocale || getCountryByCode(countryCode)?.locales?.[0] || (countryCode === "IN" ? "en-IN" : ""),
           registrationNumber: record.tax_registration_number || "",
           registrationType: record.tax_registration_type || "",
           registrationStatus: record.tax_registration_status || "unregistered",
@@ -559,7 +570,7 @@ export default function Home() {
           }));
         }
       } catch {
-        if (active) setWorkspaceTaxProfile({ countryCode: "UNKNOWN", currencyCode: "", loadError: true });
+        if (active) setWorkspaceTaxProfile({ countryCode: APP_EDITION === "global" ? "" : "UNKNOWN", currencyCode: "", loadError: true });
       }
     }
     loadWorkspaceTaxProfile();
@@ -1043,7 +1054,7 @@ export default function Home() {
         </main>
       </div>
       {signatureOpen && <SignatureModal onClose={() => setSignatureOpen(false)} onSave={(data) => { setInvoice((old) => ({ ...old, signature: data })); notify("Signature saved"); }} />}
-      {pricingOpen && <PricingModal onClose={() => { setPricingOpen(false); setCheckoutNotice(""); }} onCheckout={checkout} checkoutNotice={checkoutNotice} userEmail={user?.email} countryCode={workspaceTaxProfile?.countryCode || user?.country_code || "IN"} currencyCode={workspaceTaxProfile?.currencyCode || user?.currency_code || "INR"} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} />}
+      {pricingOpen && <PricingModal onClose={() => { setPricingOpen(false); setCheckoutNotice(""); }} onCheckout={checkout} checkoutNotice={checkoutNotice} userEmail={user?.email} countryCode={workspaceTaxProfile?.countryCode || user?.country_code || (APP_EDITION === "global" ? "" : "IN")} currencyCode={workspaceTaxProfile?.currencyCode || user?.currency_code || (APP_EDITION === "global" ? "" : "INR")} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} />}
       {whatsappOpen && <WhatsAppNumberModal value={whatsappNumber} onChange={setWhatsappNumber} onClose={() => setWhatsappOpen(false)} onSend={() => sendWhatsApp(whatsappNumber)} sending={whatsappSending} />}
       <PresenceBeacon />
       <Toast toast={toast} onClose={() => setToast(null)} />
