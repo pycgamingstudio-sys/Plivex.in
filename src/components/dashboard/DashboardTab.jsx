@@ -114,7 +114,7 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
   ];
 
   const roleCards = ROLE_CARD_ACCESS[role] || ROLE_CARD_ACCESS.employee;
-  const visibleCards = cards.filter((card) => roleCards.includes(card.id) && (PERMANENT_DASHBOARD_FEATURES.includes(card.id) || (features.includes(card.id) && vis[card.id] !== false)));
+  const visibleCards = cards.filter((card) => roleCards.includes(card.id) && (PERMANENT_DASHBOARD_FEATURES.includes(card.id) || (features.includes(card.id) && (isAdmin || vis[card.id] !== false))));
 
   return (
     <div className="plivex-dashboard-tab space-y-5 sm:space-y-6">
