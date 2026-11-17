@@ -13,8 +13,8 @@ const normalized = pairs.filter((x) => x.normalized_sql_match === true);
 const localOnly = manifest.local_only_files || [];
 
 if (manifest.remote_ledger_entries !== 52 || history.length !== 39 || missing.length !== 35
-  || manifest.local_migration_files !== 56 || pairs.length !== 17
-  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 39) {
+  || manifest.local_migration_files !== 57 || pairs.length !== 17
+  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 40) {
   fail("Migration reconciliation counts differ from the reviewed archive with 52 remote entries, 39 historical sources and 37 local-only migrations");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
@@ -44,8 +44,8 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 91 || new Set(candidatePlan.map((x) => x.path)).size !== 91) {
-  fail("Candidate replay plan must contain 35 recovered historical and all 56 current local migrations");
+if (candidatePlan.length !== 92 || new Set(candidatePlan.map((x) => x.path)).size !== 91) {
+  fail("Candidate replay plan must contain 35 recovered historical and all 57 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -113,7 +113,7 @@ function assertRls(port, includeGlobal) {
   if (unsafe) fail("Required public tables missing or without RLS: " + unsafe);
 }
 function assertGlobalFoundation(port) {
-  const missing = query(port, "plivex_migration_replay", "SELECT string_agg(t.name, ',') FROM (VALUES ('workspaces'),('user_profiles'),('workspace_members'),('business_profiles'),('clients'),('products'),('stock_levels'),('stock_movements'),('invoices'),('invoice_items'),('invoice_payments'),('expenses')) AS t(name) WHERE to_regclass('global.' || t.name) IS NULL OR NOT COALESCE((SELECT c.relrowsecurity FROM pg_class c WHERE c.oid = to_regclass('global.' || t.name)), false);");
+  const missing = query(port, "plivex_migration_replay", "SELECT string_agg(t.name, ',') FROM (VALUES ('workspaces'),('user_profiles'),('workspace_members'),('business_profiles'),('clients'),('products'),('stock_levels'),('stock_movements'),('invoices'),('invoice_items'),('invoice_payments'),('expenses'),('quotations'),('quotation_items')) AS t(name) WHERE to_regclass('global.' || t.name) IS NULL OR NOT COALESCE((SELECT c.relrowsecurity FROM pg_class c WHERE c.oid = to_regclass('global.' || t.name)), false);");
   if (missing) fail("Global foundation tables missing or RLS disabled: " + missing);
   const usage = query(port, "plivex_migration_replay", "SELECT has_schema_privilege('authenticated','global','USAGE')::text || '|' || has_schema_privilege('anon','global','USAGE')::text;");
   if (usage !== "true|false") fail("Global schema grants are not least-privilege: " + usage);
@@ -126,6 +126,10 @@ function assertGlobalFoundation(port) {
   if (fxExpenseCatalog !== "true|true|true|true") fail("Global multi-currency expense RPC, provenance columns or idempotency index missing: " + fxExpenseCatalog);
   const taxAuditCatalog = query(port, "plivex_migration_replay", "SELECT (to_regprocedure('public.global_publish_tax_rule_version(uuid,text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_append_tax_calculation_audit(uuid,uuid,uuid,integer,jsonb)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='global' AND table_name='tax_calculation_audit')::text");
   if (taxAuditCatalog !== "true|true|true") fail("Global tax-rule publication or append-only tax audit storage missing: " + taxAuditCatalog);
+  const quotationCatalog = query(port, "plivex_migration_replay", "SELECT (to_regclass('global.quotations') IS NOT NULL)::text || '|' || (to_regclass('global.quotation_items') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_manage_quotation(uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='quotations' AND column_name='creation_fingerprint')::text || '|' || COALESCE((SELECT relrowsecurity::text FROM pg_class WHERE oid='global.quotations'::regclass),'false')");
+  if (quotationCatalog !== "true|true|true|true|true") fail("Global quotation tables, fingerprint, RLS or RPC missing: " + quotationCatalog);
+  const quotationPrivileges = query(port, "plivex_migration_replay", "SELECT has_table_privilege('anon','global.quotations','SELECT')::text || '|' || has_table_privilege('authenticated','global.quotations','SELECT')::text || '|' || has_function_privilege('anon','public.global_manage_quotation(uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid)','EXECUTE')::text || '|' || has_function_privilege('authenticated','public.global_manage_quotation(uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid)','EXECUTE')::text || '|' || has_function_privilege('service_role','public.global_manage_quotation(uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid)','EXECUTE')::text");
+  if (quotationPrivileges !== "false|false|false|false|true") fail("Global quotation data/RPC privileges are not service-role-only: " + quotationPrivileges);
   const shareCatalog = query(port, "plivex_migration_replay", "SELECT (to_regclass('global.invoice_share_links') IS NOT NULL)::text || '|' || (to_regclass('global.invoice_share_rate_limits') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_create_invoice_share(uuid,uuid,uuid,text,timestamp with time zone)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_resolve_invoice_share(text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_check_invoice_share_rate_limit(text,integer,integer)') IS NOT NULL)::text || '|' || COALESCE((SELECT relrowsecurity::text FROM pg_class WHERE oid='global.invoice_share_rate_limits'::regclass),'false')");
   if (shareCatalog !== "true|true|true|true|true|true") fail("Global secure invoice share tables, RLS or RPCs missing: " + shareCatalog);
   const sharePrivileges = query(port, "plivex_migration_replay", "SELECT has_table_privilege('anon','global.invoice_share_rate_limits','SELECT')::text || '|' || has_table_privilege('authenticated','global.invoice_share_rate_limits','SELECT')::text || '|' || has_function_privilege('anon','public.global_check_invoice_share_rate_limit(text,integer,integer)','EXECUTE')::text || '|' || has_function_privilege('authenticated','public.global_check_invoice_share_rate_limit(text,integer,integer)','EXECUTE')::text || '|' || has_function_privilege('service_role','public.global_check_invoice_share_rate_limit(text,integer,integer)','EXECUTE')::text");
@@ -135,6 +139,7 @@ function assertGlobalFoundation(port) {
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-owner-provisioning.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-business-data.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-invoice-ledger.integration.sql")]);
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-quotations.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-accounting.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-accounting-part3b.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-multicurrency-expense.integration.sql")]);
@@ -258,6 +263,11 @@ function assertGlobalMigrationRollback(port) {
     const accountingRoleGuard = query(port, db, "SELECT position($guard$v_role='manager'andcoalesce(p_source_type,'manual')in('invoice_issued','invoice_payment')$guard$ in regexp_replace(lower(pg_get_functiondef(p.oid)), '[[:space:]]+', '', 'g')) > 0 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname='global_post_journal_entry'");
     if (accountingRoleGuard !== "t") fail("Manager-expense accounting rollback did not restore the original role guard");
     psql(port, db, ["-f", managerExpenseAccountingPath]);
+    const quotationPath = resolve(root, "supabase/migrations/20261117170000_global_quotations_workflow.sql");
+    const quotationRollback = applyForcedMigrationRollback(port, db, quotationPath);
+    if (quotationRollback.status === 0) fail("Global quotations migration rollback probe unexpectedly committed");
+    const quotationResidue = query(port, db, "SELECT (to_regclass('global.quotations') IS NOT NULL)::text || '|' || (to_regclass('global.quotation_items') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_manage_quotation(uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid)') IS NOT NULL)::text");
+    if (quotationResidue !== "false|false|false") fail("Global quotations rollback left tables or RPC behind: " + quotationResidue);
     console.log("PASS actual DDL rollback for Global foundation, inventory, invoice, tax-audit, FX-expense, enterprise-hardening, Part 9 approval-gates and manager-expense accounting migrations");
   } finally {
     const drop = spawnSync("dropdb", ["-h","127.0.0.1","-p",String(port),"-U",process.env.PGUSER || "supabase_admin",db], {
@@ -358,7 +368,7 @@ function summary(port, remote) {
 
 const remotePort = Number(process.env.REMOTE_PGPORT || 5433);
 const candidatePort = Number(process.env.CANDIDATE_PGPORT || 5434);
-console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 74 candidate replay entries.");
+console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 92 candidate replay entries including Global quotations.");
 resetDb(remotePort);
 replay(remotePort, remotePlan, true);
 assertRls(remotePort, false);
@@ -373,5 +383,5 @@ assertGlobalFoundation(candidatePort);
 assertRollback(candidatePort);
 assertGlobalMigrationRollback(candidatePort);
 assertGlobalBackupRestore(candidatePort);
-console.log("PASS global-dev candidate replay 35 recovered + 38 local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
+console.log("PASS global-dev candidate replay 35 recovered + 40 local-only; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
 console.log("PASS archive hashes, version ordering, replay, Global workspace isolation, migration rollback, RLS and India data-integrity checks.");
