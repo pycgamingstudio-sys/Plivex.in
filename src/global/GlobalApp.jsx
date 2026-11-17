@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { Users, Package, Receipt, FileText, Boxes, Handshake, Warehouse, Calculator, ShieldCheck } from "lucide-react";
+import { Users, Package, Receipt, FileText, Boxes, Handshake, Warehouse, Calculator } from "lucide-react";
 import { supabase } from "@/api/backendClient";
 import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
 import FeatureLibraryModal from "@/components/dashboard/FeatureLibraryModal";
@@ -146,7 +146,6 @@ export default function GlobalApp({ section = "overview" }) {
     { title: "Inventory & Warehouse", description: "Manage stock, locations, transfers, purchase orders and movement history in one connected workspace.", tab: "inventory", icon: Warehouse, tone: "from-indigo-50 to-blue-50" },
     { title: "Accounting & Reports", description: "Open ledgers and financial statements for this workspace.", tab: "accounting", icon: Calculator, tone: "from-violet-50 to-purple-50" },
     { title: "Team Members", description: "Manage workspace access, roles and team activity.", tab: "enterprise", icon: Users, tone: "from-amber-50 to-yellow-50" },
-    { title: "Enterprise & Audit", description: "Review audit history, exports and advanced workspace controls.", tab: "enterprise", icon: ShieldCheck, tone: "from-slate-100 to-slate-50" },
 
   ].filter((item) => {
     if (item.tab === "crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
