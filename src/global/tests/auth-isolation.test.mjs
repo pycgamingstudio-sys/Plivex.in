@@ -45,7 +45,7 @@ test("Global login and registration do not call India invite verification", () =
 
 test("Global paywall uses provider-neutral checkout warm-up without changing subscriptions", () => {
   assert.match(paywall, /if \(APP_EDITION === "global"\)/);
-  assert.match(paywall, /We are preparing checkout for the/);
+  assert.match(paywall, /International subscription checkout is not active yet/);
   assert.match(paywall, /Your plan and workspace have not been changed/);
   const start = paywall.indexOf("const startCheckout");
   const end = paywall.indexOf("const validPhone", start);

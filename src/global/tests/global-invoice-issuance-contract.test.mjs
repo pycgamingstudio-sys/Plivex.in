@@ -57,7 +57,7 @@ test("Global invoice Edge Function exposes issue, refund and reconciliation acti
 });
 
 test("Global invoice workspace exposes PDF, WhatsApp/email share, payment, refund and reconciliation", () => {
-  assert.match(panel, /new jsPDF\(\)/);
+  assert.match(panel, /new jsPDF\(\{ orientation:"portrait", unit:"mm", format:"a4" \}\)/);
   assert.match(panel, /wa\.me/);
   assert.match(panel, /mailto:/);
   assert.match(panel, /record_payment/);
@@ -87,7 +87,8 @@ test("Global invoice drafts preserve the customer relationship for final buyer s
 
 test("Global invoice manager fails closed until backend migration and Edge Function are ready", () => {
   assert.match(panel, /action:"capabilities"/);
-  assert.match(panel, /issuanceReady:false, ledgerReady:false/);
+  assert.match(panel, /issuanceReady:false, commercialIssuanceReady:false, ledgerReady:false/);
   assert.match(panel, /backendCapabilities\.issuanceReady/);
+  assert.match(panel, /backendCapabilities\.commercialIssuanceReady/);
   assert.match(panel, /backendCapabilities\.ledgerReady/);
 });

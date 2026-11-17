@@ -1,4 +1,4 @@
-import { GLOBAL_COUNTRY_CURRENCIES } from "@/global/tax/invoice-tax-integration.js";
+import { GLOBAL_COUNTRY_CURRENCIES } from "../tax/invoice-tax-integration.js";
 
 export const GLOBAL_COMMERCIAL_INVOICE_COUNTRIES = Object.freeze(["US", "GB", "AE", "CA", "AU", "SG"]);
 
