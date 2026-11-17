@@ -11,7 +11,7 @@ test("Global Enterprise workspace is reachable from the Global app navigation", 
 });
 
 test("Enterprise panel uses authenticated server functions for privileged operations", () => {
-  for (const action of ["branch.list", "branch.create", "branch.archive", "approval.list", "approval.request", "approval.decide", "permission.set", "retention.set", "audit.list", "health.read", "export.request"]) {
+  for (const action of ["branch.list", "branch.create", "branch.archive", "approval.list", "approval.request", "approval.decide", "approval.policy.list", "approval.policy.set", "permission.set", "retention.set", "audit.list", "health.read", "export.request"]) {
     assert.ok(panel.includes(action), "missing action " + action);
   }
   assert.match(panel, /functions\.invoke\("global-enterprise"/);
@@ -19,6 +19,16 @@ test("Enterprise panel uses authenticated server functions for privileged operat
   assert.doesNotMatch(panel, /\.from\(["'](?:workspace_branches|approval_requests|audit_events|export_jobs|workspace_permission_overrides)["']\)\.(?:insert|update|delete)/);
 });
 
-test("Enterprise panel clearly identifies the current approval enforcement boundary", () => {
-  assert.match(panel, /do not yet automatically block invoice or expense writes/);
+test("Enterprise panel exposes configurable server-enforced Global expense approval policies", () => {
+  assert.match(panel, /approval\.policy\.list/);
+  assert.match(panel, /approval\.policy\.set/);
+  assert.match(panel, /Approval policies/);
+  assert.match(panel, /Self-approval is always blocked for safety/);
+  assert.match(panel, /preventSelfApproval: true/);
+  assert.doesNotMatch(panel, /Prevent requesters from approving their own action/);
+  assert.match(panel, /approvalExpenseAmount/);
+  assert.ok(panel.includes('resourceId: isExpenseApproval && approvalAction.trim() === "expense.create" ? "*" : resourceId.trim()'));
+  assert.match(panel, /invoice write gates/);
+  assert.match(panel, /invoice.payment.record/);
+  assert.match(panel, /eventDate: approvalExpenseDate/);
 });
