@@ -275,7 +275,7 @@ jobs:
               raise SystemExit("auth.flow_state COPY block did not terminate")
           if not found:
               raise SystemExit("expected auth.flow_state COPY block not found in Auth dump")
-          Path("/tmp/plivex-auth-data.sql").write_text("\\n".join(filtered) + "\\n")
+          Path("/tmp/plivex-auth-data.sql").write_text("\n".join(filtered) + "\n")
           PY
           echo "RESTORE AUTH DATA"
           docker exec -i -u postgres plivex-production-restore-test \
