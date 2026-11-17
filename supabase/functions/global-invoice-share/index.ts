@@ -44,6 +44,20 @@ Deno.serve(async (req: Request) => {
         return globalJson({ ok:false, error:"This invoice link is invalid or expired." }, 404, origin);
       }
       const admin = createGlobalAdminClient();
+      const clientIp = req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || "";
+      if (clientIp) {
+        const pepper = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+        const keyHash = await hashToken(pepper + ":" + clientIp);
+        const { data:rateLimit, error:rateError } = await admin.rpc("global_check_invoice_share_rate_limit", {
+          p_key_hash:keyHash, p_limit:60, p_window_seconds:3600,
+        });
+        if (rateError || rateLimit?.ok !== true) {
+          return globalJson({ ok:false, error:"Secure invoice sharing is temporarily unavailable." },503,origin);
+        }
+        if (rateLimit.allowed !== true) {
+          return globalJson({ ok:false, error:"Too many invoice-link requests. Please wait and try again." },429,origin);
+        }
+      }
       const tokenHash = await hashToken(body.token);
       const { data, error } = await admin.rpc("global_resolve_invoice_share", { p_token_hash:tokenHash });
       if (error || data?.ok !== true || !data?.snapshot) {

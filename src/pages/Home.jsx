@@ -587,6 +587,8 @@ export default function Home() {
       globalTax: { ...(invoice.globalTax || {}), countryCode: workspaceTaxProfile.countryCode, mode: globalTaxCalculation?.mode || (["US", "CA"].includes(workspaceTaxProfile.countryCode) ? "manual" : (invoice.globalTax?.mode || "automatic")) },
       globalTaxCalculation,
       globalTaxProfileSnapshot: workspaceTaxProfile,
+      workspaceCountryCode: workspaceTaxProfile.countryCode,
+      workspaceCurrencyCode: workspaceTaxProfile.currencyCode,
     };
   }, [invoice, workspaceTaxProfile, globalTaxCalculation]);
   useEffect(() => { document.documentElement.classList.toggle("dark", isDark); }, [isDark]);
@@ -788,6 +790,37 @@ export default function Home() {
               revenue:Number(issuedInvoice.total_minor || 0) / 100,
             });
           }
+        } else {
+          let capabilities = null;
+          try {
+            capabilities = await backend.functions.invoke("globalInvoices", { action:"capabilities", workspace_id:user?.workspace_id });
+          } catch {
+            // Keep the saved draft downloadable if the server capability is not deployed.
+          }
+          if (capabilities?.data?.commercial_issuance_ready === true
+            && capabilities.data.commercial_issuance_countries?.includes(workspaceTaxProfile?.countryCode)) {
+            const commercialResponse = await backend.functions.invoke("globalInvoices", {
+              action:"issue_commercial",
+              workspace_id:user?.workspace_id,
+              invoice_id:saved.id,
+              idempotency_key:crypto.randomUUID(),
+            });
+            if (!commercialResponse?.data?.ok || !commercialResponse?.data?.invoice?.invoice_number) {
+              throw new Error(commercialResponse?.data?.error || "Commercial invoice issuance failed. Your saved draft remains available.");
+            }
+            issuedInvoice = commercialResponse.data.invoice;
+            setInvoice((current) => ({
+              ...current,
+              number:issuedInvoice.invoice_number,
+              documentStatus:"issued",
+              globalTaxSnapshot:issuedInvoice.invoice_snapshot,
+            }));
+            trackStaffAction({
+              label:`Global commercial invoice ${issuedInvoice.invoice_number} issued for ${invoice.client.name || "client"}`,
+              type:"invoice",
+              revenue:Number(issuedInvoice.total_minor || 0) / 100,
+            });
+          }
         }
 
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -875,7 +908,6 @@ export default function Home() {
     }
   };
   const handleWhatsApp = () => {
-    if (workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN") { notify("Global invoices are draft-only in this release. Sharing and payment collection will be enabled after invoice issuance is verified.", "info"); return; }
     if (!canAccess("whatsapp_share")) { openPaywall("WhatsApp sharing is available on Pro."); return; }
     if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
     if (!requireValid()) {
@@ -891,7 +923,6 @@ export default function Home() {
     }
   };
   const sendWhatsApp = async (phone) => {
-    if (workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN") { notify("Global invoices are draft-only in this release. Sharing and payment collection will be enabled after invoice issuance is verified.", "info"); return; }
     if (!canAccess("whatsapp_share")) { openPaywall("WhatsApp sharing is available on Pro."); return; }
     if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
     if (!requireValid()) { notify("Please complete all required invoice details before sharing on WhatsApp", "error"); return; }
@@ -907,7 +938,7 @@ export default function Home() {
       // exactly once. This prevents WhatsApp sharing from creating an unsaved invoice.
       const savedInvoice = await recordInvoice();
       if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
-      const shareLink = await createInvoiceShareLink(savedInvoice.id);
+      const shareLink = await createInvoiceShareLink(savedInvoice.id, user?.workspace_id, Boolean(workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN"));
       if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
         setInvoice((current) => ({ ...current, number: savedInvoice.number }));
         // Let React update the visible invoice preview before rasterizing it.
@@ -975,7 +1006,6 @@ export default function Home() {
     }
   };
   const shareViaEmailOrSms = async (channel) => {
-    if (workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN") { notify("Global invoices are draft-only in this release. Email/SMS sharing and payment collection are disabled until invoice issuance is verified.", "info"); return; }
     if (!canAccess("whatsapp_share")) { openPaywall("Gmail and SMS invoice sharing are available on Pro."); return; }
     if (manualShareBusy || whatsappSending || pdfDownloading) return;
     if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
@@ -997,7 +1027,7 @@ export default function Home() {
     try {
       const savedInvoice = await recordInvoice();
       if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
-      const shareLink = await createInvoiceShareLink(savedInvoice.id);
+      const shareLink = await createInvoiceShareLink(savedInvoice.id, user?.workspace_id, Boolean(workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN"));
       if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
         setInvoice((current) => ({ ...current, number: savedInvoice.number }));
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));

@@ -24,7 +24,8 @@ const globalDocumentTitle=(snapshot)=>{
 };
 
 function GlobalPublicInvoice({ snapshot }) {
- const currency=snapshot.currency_code||"USD";
+ const currency=String(snapshot.currency_code||"").trim().toUpperCase();
+ if(!/^[A-Z]{3}$/.test(currency))return <main className="min-h-screen grid place-items-center bg-slate-50 p-5"><section className="rounded-2xl border bg-white p-8 text-center shadow-sm"><h1 className="text-lg font-bold">Invoice unavailable</h1><p className="mt-2 text-sm text-slate-600">The saved invoice currency is missing or invalid. Contact the issuing business for a corrected link.</p></section></main>;
  const locale=snapshot.locale_code||"en";
  const seller=snapshot.seller||{};
  const buyer=snapshot.buyer||{};
@@ -77,7 +78,11 @@ export default function PublicInvoicePage(){
   try{
    const globalResult=await supabase.functions.invoke("global-invoice-share",{body:{action:"resolve",token}});
    if(!globalResult.error&&globalResult.data?.ok&&globalResult.data?.snapshot){
-    if(live)setGlobalSnapshot(globalResult.data.snapshot);
+    const shared=globalResult.data.snapshot;
+    if(!/^[A-Z]{3}$/.test(String(shared.currency_code||"").trim().toUpperCase())||typeof shared.country_code!=="string"||!shared.country_code.trim()){
+     throw new Error("This Global invoice link has an incomplete country or currency snapshot.");
+    }
+    if(live)setGlobalSnapshot(shared);
     return;
    }
    const {data,error:invokeError}=await supabase.functions.invoke("invoice-share",{body:{action:"public_view",token}});
