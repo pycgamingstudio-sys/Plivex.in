@@ -11,7 +11,9 @@ DECLARE
   requester uuid := '88888888-8888-4888-8888-888888888888';
   approver uuid := '66666666-6666-4666-8666-666666666666';
   blocked boolean := false;
+  workspace_currency text;
 BEGIN
+  SELECT currency_code INTO workspace_currency FROM global.workspaces WHERE id=ws;
   result := public.global_set_approval_policy(requester,ws,'expense.create',true,1000,array['owner','admin']::text[],true);
   IF result->>'code' <> 'ADMIN_REQUIRED' THEN RAISE EXCEPTION 'Non-admin changed approval policy: %',result; END IF;
   result := public.global_set_approval_policy(approver,ws,'expense.create',true,1000,array['viewer']::text[],true);
@@ -30,7 +32,7 @@ BEGIN
   BEGIN
     INSERT INTO global.expenses(workspace_id,category,vendor,amount_minor,currency_code,expense_date,created_by,
       transaction_amount_minor,transaction_currency_code,creation_idempotency_key)
-    VALUES (ws,'Travel','Test Vendor',2500,'INR',current_date,requester,2500,'INR',expense_key);
+    VALUES (ws,'Travel','Test Vendor',2500,workspace_currency,current_date,requester,2500,workspace_currency,expense_key);
   EXCEPTION WHEN SQLSTATE '42501' THEN
     blocked := position('approval_required' in SQLERRM) > 0;
   END;
@@ -40,7 +42,7 @@ BEGIN
     jsonb_build_object(
       'actionType','expense.create','resourceType','expense','resourceId','*',
       'payload',jsonb_build_object('amountMinor','2500','category','Travel','vendor','Test Vendor',
-        'expenseDate',to_char(current_date,'YYYY-MM-DD'),'currencyCode','INR')
+        'expenseDate',to_char(current_date,'YYYY-MM-DD'),'currencyCode',workspace_currency)
     ));
   IF result->>'ok' <> 'true' THEN RAISE EXCEPTION 'Approval request failed: %',result; END IF;
   request_id := (result->>'requestId')::uuid;
@@ -57,7 +59,7 @@ BEGIN
 
   INSERT INTO global.expenses(workspace_id,category,vendor,amount_minor,currency_code,expense_date,created_by,
     transaction_amount_minor,transaction_currency_code,creation_idempotency_key)
-  VALUES (ws,'Travel','Test Vendor',2500,'INR',current_date,requester,2500,'INR',expense_key)
+  VALUES (ws,'Travel','Test Vendor',2500,workspace_currency,current_date,requester,2500,workspace_currency,expense_key)
   RETURNING id INTO expense_id;
   IF expense_id IS NULL THEN RAISE EXCEPTION 'Approved expense was not created'; END IF;
 
@@ -74,7 +76,7 @@ BEGIN
     jsonb_build_object(
       'actionType','expense.update','resourceType','expense','resourceId',expense_id::text,
       'payload',jsonb_build_object('amountMinor','2500','category','Travel','vendor','Verified Vendor',
-        'expenseDate',to_char(current_date,'YYYY-MM-DD'),'currencyCode','INR')
+        'expenseDate',to_char(current_date,'YYYY-MM-DD'),'currencyCode',workspace_currency)
     ));
   IF result->>'ok' <> 'true' THEN RAISE EXCEPTION 'Expense update approval request failed: %',result; END IF;
   request_id := (result->>'requestId')::uuid;
