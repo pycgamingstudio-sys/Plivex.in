@@ -1,4 +1,4 @@
-import { X, Settings2, ArrowRight } from "lucide-react";
+import { X } from "lucide-react";
 import { WORKSPACE_FEATURE_CATALOG } from "@/lib/workspaceFeatures";
 
 export default function FeatureLibraryModal({ features, updateFeatures, saving, error, onClose }) {
