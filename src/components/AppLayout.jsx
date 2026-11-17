@@ -11,15 +11,15 @@ import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
 import { LayoutDashboard, Users, Package, Receipt, FileText, Handshake, Warehouse, Calculator, ShieldCheck } from "lucide-react";
 
 const GLOBAL_NAV = [
-  { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { to: "/client-database", label: "Clients", icon: Users },
-  { to: "/products", label: "Products", icon: Package },
-  { to: "/expenses", label: "Expenses", icon: Receipt },
-  { to: "/crm", label: "CRM & Leads", icon: Handshake },
-  { to: "/inventory-procurement", label: "Inventory & Warehouse", icon: Warehouse },
-  { to: "/invoice-history", label: "Invoices", icon: FileText },
-  { to: "/accounting", label: "Accounting", icon: Calculator },
-  { to: "/enterprise", label: "Enterprise", icon: ShieldCheck },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/invoice-history", label: "Sales", icon: FileText },
+  { to: "/expenses", label: "Purchase & Expenses", icon: Receipt },
+  { to: "/accounting", label: "Reports", icon: Calculator },
+  { to: "/crm", label: "Client CRM", icon: Handshake },
+  { to: "/products", label: "Stock", icon: Package },
+  { to: "/enterprise", label: "Team", icon: Users },
+  { to: "/inventory-procurement", label: "Warehouse", icon: Warehouse },
+
 ];
 
 export default function AppLayout({ children }) {
@@ -66,7 +66,6 @@ export default function AppLayout({ children }) {
         </div>
         <nav className="mx-auto flex max-w-6xl snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain px-4 pb-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Workspace">
           {isGlobal ? GLOBAL_NAV.filter((item) => {
-            if (item.to === "/client-database") return workspaceFeatures.includes("crm");
             if (item.to === "/products") return true;
             if (item.to === "/inventory-procurement") return workspaceFeatures.includes("inventoryWorkspace");
             if (item.to === "/expenses") return workspaceFeatures.includes("expenses");
