@@ -22,6 +22,8 @@ test("Global workspace identity is shown by the shared application layout", () =
   assert.match(layout, /user\?\.country_code/);
   assert.match(layout, /user\?\.currency_code/);
   assert.match(layout, /GLOBAL_NAV/);
-  assert.match(global, /useSearchParams/);
+  assert.match(global, /useNavigate/);
+  assert.match(global, /export default function GlobalApp\(\{ section = "overview" \}\)/);
+  assert.match(global, /TAB_PATHS/);
   assert.doesNotMatch(global, /<header className="border-b border-slate-200 bg-white">/);
 });

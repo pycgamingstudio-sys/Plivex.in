@@ -122,7 +122,7 @@ const AuthenticatedApp = () => {
           <Route path="/client-database" element={isGlobalWorkspace ? <GlobalApp section="clients" /> : <ClientDatabase />} />
           <Route path="/crm" element={isGlobalWorkspace ? <GlobalApp section="crm" /> : <CrmTab />} />
           <Route path="/inventory-procurement" element={isGlobalWorkspace ? <GlobalApp section="inventory" /> : <IndiaPart4Tab user={user} />} />
-          <Route path="/usage-reports" element={isGlobalWorkspace ? <GlobalApp section="accounting" /> : <UsageReports />} />
+          <Route path="/usage-reports" element={<GlobalFeatureGate feature="Usage reports"><UsageReports /></GlobalFeatureGate>} />
           <Route path="/settings" element={<GlobalFeatureGate feature="Workspace settings"><Settings /></GlobalFeatureGate>} />
           <Route path="/templates" element={<GlobalFeatureGate feature="Quick templates"><QuickTemplates /></GlobalFeatureGate>} />
           <Route path="/payment-logs" element={<GlobalFeatureGate feature="Payment logs"><PaymentLogs /></GlobalFeatureGate>} />
