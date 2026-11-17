@@ -90,8 +90,8 @@ const AuthenticatedApp = () => {
     return <Routes><Route path="/pricing" element={<PricingPage />} /></Routes>;
   }
 
-  // Global workspaces use their dedicated international operations UI; India routes stay unchanged.
-  if (APP_EDITION === "global" && isAuthenticated) return <GlobalApp />;
+  // Both editions use the same Plivex application shell; only workspace data and capabilities vary by country.
+  if (APP_EDITION === "global" && isAuthenticated) return <AppLayout><GlobalApp /></AppLayout>;
 
   // Render the main app
   return (
