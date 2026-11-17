@@ -15,15 +15,13 @@ create table if not exists global.quotations (
   total_minor bigint not null default 0 check (total_minor >= 0),
   notes text,
   converted_invoice_id uuid,
-  conversion_idempotency_key uuid,
+  creation_idempotency_key uuid,
   created_by uuid not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (workspace_id, quotation_number),
   unique (workspace_id, converted_invoice_id),
-  unique (workspace_id, conversion_idempotency_key),
-  constraint quotations_client_workspace_fk foreign key (client_id, workspace_id)
-    references global.clients(id, workspace_id) on delete set null
+  unique (workspace_id, creation_idempotency_key)
 );
 
 create table if not exists global.quotation_items (
@@ -128,7 +126,7 @@ begin
       return jsonb_build_object('ok',false,'reason','client_not_found');
     end if;
     perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text||':quotation:'||p_idempotency_key::text,0));
-    select * into v_quote from global.quotations where workspace_id=p_workspace_id and conversion_idempotency_key=p_idempotency_key for update;
+    select * into v_quote from global.quotations where workspace_id=p_workspace_id and creation_idempotency_key=p_idempotency_key for update;
     if found then return jsonb_build_object('ok',true,'duplicate',true,'quotation',to_jsonb(v_quote)); end if;
 
     for v_item in select value from jsonb_array_elements(p_items) loop
@@ -157,7 +155,7 @@ begin
       ));
     end loop;
     v_number:='QUO-'||to_char(current_date,'YYYYMMDD')||'-'||upper(substr(replace(gen_random_uuid()::text,'-',''),1,8));
-    insert into global.quotations(workspace_id,client_id,quotation_number,currency_code,issue_date,valid_until,subtotal_minor,discount_minor,total_minor,notes,created_by,conversion_idempotency_key)
+    insert into global.quotations(workspace_id,client_id,quotation_number,currency_code,issue_date,valid_until,subtotal_minor,discount_minor,total_minor,notes,created_by,creation_idempotency_key)
     values(p_workspace_id,p_client_id,v_number,v_currency,p_issue_date,p_valid_until,v_subtotal,v_subtotal-v_total,v_total,nullif(btrim(p_notes),''),p_user_id,p_idempotency_key)
     returning * into v_quote;
     for v_item in select value from jsonb_array_elements(v_items) loop
