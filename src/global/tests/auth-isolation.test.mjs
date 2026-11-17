@@ -43,7 +43,13 @@ test("Global login and registration do not call India invite verification", () =
   assert.match(register, /APP_EDITION === "global" && code/);
 });
 
-test("Global paywall does not read India profiles or enable Cashfree", () => {
+test("Global paywall uses provider-neutral checkout warm-up without changing subscriptions", () => {
   assert.match(paywall, /if \(APP_EDITION === "global"\)/);
-  assert.match(paywall, /Payments are not enabled in Plivex Global yet/);
+  assert.match(paywall, /We are preparing checkout for the/);
+  assert.match(paywall, /Your plan and workspace have not been changed/);
+  const start = paywall.indexOf("const startCheckout");
+  const end = paywall.indexOf("const validPhone", start);
+  assert.ok(start >= 0 && end > start);
+  const checkout = paywall.slice(start, end);
+  assert.ok(checkout.indexOf('if (APP_EDITION === "global")') < checkout.indexOf("startCashfreeCheckout"));
 });

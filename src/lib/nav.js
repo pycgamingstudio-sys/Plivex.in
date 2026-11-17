@@ -13,6 +13,8 @@ import {
   Package,
   FilePenLine,
   Link2,
+  Warehouse,
+  Handshake,
 } from "lucide-react";
 
 const ALL = ["admin", "employee", "accountant"];
@@ -23,6 +25,8 @@ export const navItems = [
   { to: "/invoice-shares", label: "Shared invoice links", icon: Link2, roles: ["admin"] },
   { to: "/business-profile", label: "Business profile", icon: Store, roles: ["admin"] },
   { to: "/client-database", label: "Client database", icon: Users, roles: ["admin", "employee"] },
+  { to: "/crm", label: "CRM & leads", icon: Handshake, roles: ["admin", "manager", "employee"] },
+  { to: "/inventory-procurement", label: "Inventory & procurement", icon: Warehouse, roles: ["admin", "manager", "storekeeper"] },
   { to: "/usage-reports", label: "Usage reports", icon: BarChart3, roles: ["admin", "accountant"] },
   { to: "/templates", label: "Quick templates", icon: LayoutTemplate, roles: ["admin", "employee"] },
   { to: "/service-catalog", label: "Service catalog", icon: Package, roles: ["admin", "employee"] },

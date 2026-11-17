@@ -22,6 +22,7 @@ import AccountProfileModal from "@/components/AccountProfileModal";
 import PresenceBeacon from "@/components/PresenceBeacon";
 import { processDueReminders } from "@/lib/reminders";
 import { APP_EDITION } from "@/api/backendClient";
+import { getCountryByCode } from "@/global/countries/country-registry.js";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -122,6 +123,7 @@ export default function Dashboard({ initialTab }) {
             <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2"><active.icon className="h-5 w-5 shrink-0 text-[#6D28D9]" /><h1 className="whitespace-nowrap text-[15px] font-bold tracking-[-0.03em] sm:text-[17px]">{active.label}</h1></div>
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 sm:inline">{`● ${planName || "Free"}`}</span>
+              {APP_EDITION === "india" && <span data-testid="active-workspace-edition" className="hidden rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-800 sm:inline-flex">India Workspace · {getCountryByCode(user?.country_code)?.name || "India"}</span>}
               <span className="hidden items-center gap-1.5 rounded-full bg-[#6D28D9]/10 px-2.5 py-1 text-[11px] font-semibold text-[#6D28D9] sm:inline-flex"><Sparkles className="h-3 w-3" />Current Plan: {planName}</span>
               {!isAccountant && <button onClick={createInvoice} aria-label="Create new invoice" title="Create new invoice" className="flex h-9 items-center gap-1 rounded-lg bg-[#6D28D9] px-2 sm:px-2.5 text-[11px] font-bold text-white hover:bg-[#7C3AED] md:hidden">+ <span>Invoice</span></button>}
               <button onClick={() => setAccountOpen(true)} aria-label="Account" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E5E7EB] p-0.5 hover:bg-slate-50 sm:w-auto sm:gap-2 sm:py-1 sm:pl-1 sm:pr-2.5">
@@ -139,7 +141,7 @@ export default function Dashboard({ initialTab }) {
           {tab === "reports" && <ReportsTab />}
           {tab === "crm" && <CrmTab intent={intent} onConsumeIntent={consume} />}
           {tab === "stock" && <StockTab />}
-          {tab === "warehouses" && <IndiaPart4Tab user={user} initialSection={intent || "purchasing"} />}
+          {tab === "warehouses" && <IndiaPart4Tab user={user} />}
           {tab === "team" && (teamUnlocked ? <TeamManagement /> : <div className="mx-auto max-w-lg rounded-2xl border border-[#E5E7EB] bg-white p-8 text-center shadow-sm"><Lock className="mx-auto h-8 w-8 text-[#6D28D9]" /><h2 className="mt-3 text-lg font-bold">Team management is a Pro feature</h2><p className="mt-2 text-sm text-slate-500">Upgrade to Pro to add and manage workspace members.</p><button onClick={openPaywall} className="mt-5 rounded-xl bg-[#6D28D9] px-5 py-2.5 text-sm font-bold text-white">Upgrade to Pro</button></div>)}
           {tab === "reconciliation" && <ReconciliationTab />}
         </main>

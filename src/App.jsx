@@ -7,7 +7,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes, Navigate, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import { APP_EDITION } from '@/api/backendClient';
+import { APP_EDITION, isUnifiedBuild } from '@/api/backendClient';
 import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import RoleGuard from '@/components/RoleGuard';
@@ -15,10 +15,12 @@ import { PaywallProvider, usePaywall } from '@/lib/paywall';
 import AppLayout from './components/AppLayout';
 import WorkspaceTeamProvider from '@/components/team/WorkspaceTeamProvider';
 import TrialGate from './components/TrialGate';
+import { getPendingInviteCode } from "@/components/auth/workspaceInvite";
 // Route-level lazy loading keeps the initial mobile bundle small.
 const PageNotFound = lazy(() => import("./lib/PageNotFound"));
 const UserNotRegisteredError = lazy(() => import("@/components/UserNotRegisteredError"));
 const GlobalCountryOnboarding = lazy(() => import("@/components/global/GlobalCountryOnboarding"));
+const UnifiedWorkspaceOnboarding = lazy(() => import("@/components/global/UnifiedWorkspaceOnboarding"));
 const GlobalApp = lazy(() => import("@/global/GlobalApp"));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
@@ -38,6 +40,8 @@ const HelpCenter = lazy(() => import("./pages/HelpCenter"));
 const AccountActivity = lazy(() => import("./pages/AccountActivity"));
 const ServiceCatalog = lazy(() => import("./pages/ServiceCatalog"));
 const TeamManagement = lazy(() => import("./pages/TeamManagement"));
+const CrmTab = lazy(() => import("@/components/dashboard/CrmTab"));
+const IndiaPart4Tab = lazy(() => import("@/components/dashboard/IndiaPart4Tab"));
 const ContactUs = lazy(() => import("./pages/ContactUs"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
@@ -50,12 +54,13 @@ const PaymentResult = lazy(() => import("./pages/PaymentResult"));
 const PublicInvoicePage = lazy(() => import("./pages/PublicInvoicePage"));
 
 const AuthenticatedApp = () => {
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, isAuthenticated, user } = useAuth();
+
   // Payment callbacks must remain visible even if the customer session expires during checkout.
+  // Keep hooks unconditional so navigating to/from this public callback never changes hook order.
   if (window.location.pathname === "/payment-result") {
     return <Routes><Route path="/payment-result" element={<PaymentResult />} /></Routes>;
   }
-
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, isAuthenticated, user } = useAuth();
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -77,15 +82,14 @@ const AuthenticatedApp = () => {
     }
   }
 
-  // Global users without a workspace must choose their business country first.
-  if (APP_EDITION === "global" && isAuthenticated && user && (!user.workspace_id || !user.role)) {
-    return <GlobalCountryOnboarding />;
-  }
+  // One shared post-auth onboarding provisions either regional workspace.
+  if (isUnifiedBuild && isAuthenticated && user && !user.workspace_id && !getPendingInviteCode()) return <UnifiedWorkspaceOnboarding />;
+  if (APP_EDITION === "global" && isAuthenticated && user && !user.workspace_id && !getPendingInviteCode()) return <GlobalCountryOnboarding />;
 
-  // Global workspaces use their dedicated international operations UI; India routes stay unchanged.
-  if (APP_EDITION === "global" && isAuthenticated) return <GlobalApp />;
+  // Both editions resolve core business destinations through this shared React Router tree.
+  const isGlobalWorkspace = APP_EDITION === "global";
 
-  // Render the main app
+  // Render the shared application routes
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -102,24 +106,30 @@ const AuthenticatedApp = () => {
       <Route path="/features" element={<FeaturesPage />} />
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/i/:token" element={<PublicInvoicePage />} />
-      <Route path="/" element={<HomeGate />} />
-      <Route path="/dashboard" element={<HomeGate />} />
+      <Route path="/" element={isGlobalWorkspace && isAuthenticated ? <Navigate to="/dashboard" replace /> : <HomeGate />} />
+      <Route path="/dashboard" element={isGlobalWorkspace && isAuthenticated ? <AppLayout><GlobalApp section="overview" /></AppLayout> : <HomeGate />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/" replace />} />}>
         <Route element={<TrialGate />}>
           <Route element={<RoleGuard />}>
-            <Route path="/invoice-builder" element={<Home />} />
+            <Route path="/invoice-builder" element={isGlobalWorkspace ? <AppLayout><GlobalApp section="invoices" /></AppLayout> : <Home />} />
         <Route element={<AppLayout />}>
-          <Route path="/invoice-history" element={<InvoiceHistory />} />
+          <Route path="/products" element={isGlobalWorkspace ? <GlobalApp section="products" /> : <PageNotFound />} />
+          <Route path="/expenses" element={isGlobalWorkspace ? <GlobalApp section="expenses" /> : <PageNotFound />} />
+          <Route path="/accounting" element={isGlobalWorkspace ? <GlobalApp section="accounting" /> : <PageNotFound />} />
+          <Route path="/enterprise" element={isGlobalWorkspace ? <GlobalApp section="enterprise" /> : <PageNotFound />} />
+          <Route path="/invoice-history" element={isGlobalWorkspace ? <GlobalApp section="invoices" /> : <InvoiceHistory />} />
           <Route path="/invoice-shares" element={<GlobalFeatureGate feature="Shared invoice links"><InvoiceShareManagement /></GlobalFeatureGate>} />
-          <Route path="/business-profile" element={<BusinessProfile />} />
-          <Route path="/client-database" element={<ClientDatabase />} />
+          <Route path="/business-profile" element={<GlobalFeatureGate feature="Business profile"><BusinessProfile /></GlobalFeatureGate>} />
+          <Route path="/client-database" element={isGlobalWorkspace ? <GlobalApp section="clients" /> : <ClientDatabase />} />
+          <Route path="/crm" element={isGlobalWorkspace ? <GlobalApp section="crm" /> : <CrmTab />} />
+          <Route path="/inventory-procurement" element={isGlobalWorkspace ? <GlobalApp section="inventory" /> : <IndiaPart4Tab user={user} />} />
           <Route path="/usage-reports" element={<GlobalFeatureGate feature="Usage reports"><UsageReports /></GlobalFeatureGate>} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="/settings" element={<GlobalFeatureGate feature="Workspace settings"><Settings /></GlobalFeatureGate>} />
           <Route path="/templates" element={<GlobalFeatureGate feature="Quick templates"><QuickTemplates /></GlobalFeatureGate>} />
           <Route path="/payment-logs" element={<GlobalFeatureGate feature="Payment logs"><PaymentLogs /></GlobalFeatureGate>} />
-          <Route path="/tax-summary" element={<TaxSummary />} />
+          <Route path="/tax-summary" element={<GlobalFeatureGate feature="Tax summary"><TaxSummary /></GlobalFeatureGate>} />
           <Route path="/help-center" element={<HelpCenter />} />
-          <Route path="/account-activity" element={<AccountActivity />} />
+          <Route path="/account-activity" element={<GlobalFeatureGate feature="Account activity"><AccountActivity /></GlobalFeatureGate>} />
           <Route path="/service-catalog" element={<GlobalFeatureGate feature="Service catalog"><ServiceCatalog /></GlobalFeatureGate>} />
           <Route path="/team-management" element={<GlobalFeatureGate feature="Team management"><ProTeamRoute /></GlobalFeatureGate>} />
             </Route>

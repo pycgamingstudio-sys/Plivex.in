@@ -16,13 +16,23 @@ async function responseError(error, fallback) {
 export default function GlobalEnterprisePanel({ workspaceId }) {
   const [branches, setBranches] = useState([]);
   const [approvals, setApprovals] = useState([]);
+  const [approvalPolicies, setApprovalPolicies] = useState([]);
+  const [approvalPolicyAction, setApprovalPolicyAction] = useState("expense.create");
+  const [approvalPolicyEnabled, setApprovalPolicyEnabled] = useState(true);
+  const [approvalMinimumAmount, setApprovalMinimumAmount] = useState("0");
+  const [approvalRoles, setApprovalRoles] = useState(["owner", "admin", "accountant"]);
   const [events, setEvents] = useState([]);
   const [health, setHealth] = useState(null);
   const [branchCode, setBranchCode] = useState("");
   const [branchName, setBranchName] = useState("");
-  const [approvalAction, setApprovalAction] = useState("expense.approve");
+  const [approvalAction, setApprovalAction] = useState("expense.create");
   const [resourceType, setResourceType] = useState("expense");
-  const [resourceId, setResourceId] = useState("");
+  const [resourceId, setResourceId] = useState("*");
+  const [approvalExpenseAmount, setApprovalExpenseAmount] = useState("");
+  const [approvalExpenseCategory, setApprovalExpenseCategory] = useState("");
+  const [approvalExpenseVendor, setApprovalExpenseVendor] = useState("");
+  const [approvalExpenseDate, setApprovalExpenseDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [approvalExpenseCurrency, setApprovalExpenseCurrency] = useState("USD");
   const [permissionRole, setPermissionRole] = useState("manager");
   const [permissionKey, setPermissionKey] = useState("export.request");
   const [permissionEffect, setPermissionEffect] = useState("deny");
@@ -49,18 +59,27 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
     const results = await Promise.allSettled([
       enterprise("branch.list"),
       enterprise("approval.list"),
+      enterprise("approval.policy.list"),
       enterprise("audit.list", { limit: 50 }),
       enterprise("health.read"),
     ]);
     if (results[0].status === "fulfilled") setBranches(results[0].value.branches || []);
     if (results[1].status === "fulfilled") setApprovals(results[1].value.requests || []);
-    if (results[2].status === "fulfilled") setEvents(results[2].value.events || []);
-    if (results[3].status === "fulfilled") setHealth(results[3].value.health || null);
+    if (results[2].status === "fulfilled") setApprovalPolicies(results[2].value.policies || []);
+    if (results[3].status === "fulfilled") setEvents(results[3].value.events || []);
+    if (results[4].status === "fulfilled") setHealth(results[4].value.health || null);
     const denied = results.find((result) => result.status === "rejected");
     if (denied) setError(denied.reason?.message || "Some enterprise information could not be loaded. Your role may not have access.");
   }, [enterprise, workspaceId]);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  useEffect(() => {
+    const policy = approvalPolicies.find((item) => item.action_type === approvalPolicyAction);
+    setApprovalPolicyEnabled(policy?.enabled ?? false);
+    setApprovalMinimumAmount(String(policy?.minimum_amount_minor ?? 0));
+    setApprovalRoles(policy?.approver_roles || ["owner", "admin", "accountant"]);
+  }, [approvalPolicies, approvalPolicyAction]);
 
   const perform = async (work, successMessage) => {
     setBusy(true); setError(""); setNotice("");
@@ -89,12 +108,45 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
   const submitApproval = (event) => {
     event.preventDefault();
     perform(async () => {
+      const isExpenseApproval = resourceType.trim() === "expense"
+        && ["expense.create", "expense.update"].includes(approvalAction.trim());
+      const isInvoiceApproval = resourceType.trim() === "invoice"
+        && ["invoice.issue", "invoice.payment.record"].includes(approvalAction.trim());
+      const requestPayload = isExpenseApproval ? {
+        amountMinor: String(Number(approvalExpenseAmount)),
+        category: approvalExpenseCategory.trim(),
+        vendor: approvalExpenseVendor.trim(),
+        expenseDate: approvalExpenseDate,
+        currencyCode: approvalExpenseCurrency.trim().toUpperCase(),
+      } : isInvoiceApproval ? {
+        amountMinor: String(Number(approvalExpenseAmount)),
+        currencyCode: approvalExpenseCurrency.trim().toUpperCase(),
+        eventDate: approvalExpenseDate,
+      } : { source: "global-enterprise-panel" };
       await enterprise("approval.request", {
         actionType: approvalAction.trim(), resourceType: resourceType.trim(),
-        resourceId: resourceId.trim(), payload: { source: "global-enterprise-panel" },
+        resourceId: isExpenseApproval && approvalAction.trim() === "expense.create" ? "*" : resourceId.trim(),
+        payload: requestPayload,
       });
-      setResourceId("");
+      setResourceId("*");
     }, "Approval request submitted.");
+  };
+
+  const saveApprovalPolicy = (event) => {
+    event.preventDefault();
+    perform(() => enterprise("approval.policy.set", {
+      actionType: approvalPolicyAction,
+      enabled: approvalPolicyEnabled,
+      minimumAmountMinor: Number(approvalMinimumAmount),
+      approverRoles: approvalRoles,
+      preventSelfApproval: true,
+    }), "Approval policy saved.");
+  };
+
+  const toggleApproverRole = (role) => {
+    setApprovalRoles((current) => current.includes(role)
+      ? current.filter((item) => item !== role)
+      : [...current, role]);
   };
 
   const setPermission = (event) => {
@@ -159,8 +211,26 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
           <form onSubmit={submitApproval} className="mt-3 grid gap-2 sm:grid-cols-2">
             <input className={inputClass} required maxLength={80} value={approvalAction} onChange={(e) => setApprovalAction(e.target.value)} aria-label="Action type" />
             <input className={inputClass} required maxLength={80} value={resourceType} onChange={(e) => setResourceType(e.target.value)} aria-label="Resource type" />
-            <input className={inputClass + " sm:col-span-2"} required maxLength={160} placeholder="Resource ID / reference" value={resourceId} onChange={(e) => setResourceId(e.target.value)} />
-            <button className={buttonClass} disabled={busy}>Request approval</button>
+            {!(resourceType === "expense" && approvalAction === "expense.create") && (
+              <input className={inputClass + " sm:col-span-2"} required maxLength={160} placeholder="Resource ID / reference" value={resourceId} onChange={(e) => setResourceId(e.target.value)} />
+            )}
+            {(resourceType === "expense" && ["expense.create", "expense.update"].includes(approvalAction)
+              || resourceType === "invoice" && ["invoice.issue", "invoice.payment.record"].includes(approvalAction)) && (
+              <>
+                <input className={inputClass} required type="number" min="1" max="9000000000000000" step="1" placeholder="Amount (minor units)" value={approvalExpenseAmount} onChange={(e) => setApprovalExpenseAmount(e.target.value)} />
+                {resourceType === "expense" && <>
+                  <input className={inputClass} required maxLength={100} placeholder="Expense category" value={approvalExpenseCategory} onChange={(e) => setApprovalExpenseCategory(e.target.value)} />
+                  <input className={inputClass} maxLength={200} placeholder="Vendor (optional)" value={approvalExpenseVendor} onChange={(e) => setApprovalExpenseVendor(e.target.value)} />
+                </>}
+                <input className={inputClass} required type="date" value={approvalExpenseDate} onChange={(e) => setApprovalExpenseDate(e.target.value)} />
+                <input className={inputClass} required maxLength={3} minLength={3} placeholder="Currency code" value={approvalExpenseCurrency} onChange={(e) => setApprovalExpenseCurrency(e.target.value.toUpperCase())} />
+              </>
+            )}
+            <button className={buttonClass} disabled={busy || ((resourceType === "expense" && ["expense.create", "expense.update"].includes(approvalAction)
+              || resourceType === "invoice" && ["invoice.issue", "invoice.payment.record"].includes(approvalAction))
+              && (!Number.isSafeInteger(Number(approvalExpenseAmount)) || Number(approvalExpenseAmount) <= 0
+                || (resourceType === "expense" && !approvalExpenseCategory.trim())
+                || !/^[A-Z]{3}$/.test(approvalExpenseCurrency.toUpperCase())))}>Request approval</button>
           </form>
           <div className="mt-3 divide-y divide-slate-100">
             {approvals.length === 0 ? <p className="py-3 text-sm text-slate-500">No pending requests.</p> : approvals.map((item) => (
@@ -174,7 +244,47 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
               </div>
             ))}
           </div>
-          <p className="mt-2 text-xs text-amber-700">Approval requests can be submitted, decided or cancelled. They do not yet automatically block invoice or expense writes.</p>
+          <p className="mt-2 text-xs text-slate-500">Approved requests are consumed by server-side Global expense and invoice write gates when a matching workspace policy is enabled. India approval gates remain outside this Global-only candidate.</p>
+        </section>
+
+        <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="font-semibold text-slate-900">Approval policies</h2>
+          <p className="mt-1 text-xs text-slate-500">Configure server-enforced approval before protected Global expense or invoice actions.</p>
+          <form onSubmit={saveApprovalPolicy} className="mt-3 space-y-3">
+            <label className="block text-sm font-medium text-slate-700">
+              Protected action
+              <select className={inputClass + " mt-1 w-full"} value={approvalPolicyAction} onChange={(e) => setApprovalPolicyAction(e.target.value)}>
+                <option value="expense.create">Create expense</option>
+                <option value="expense.update">Change expense</option>
+                <option value="invoice.issue">Issue invoice</option>
+                <option value="invoice.payment.record">Record invoice payment</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={approvalPolicyEnabled} onChange={(e) => setApprovalPolicyEnabled(e.target.checked)} />
+              Require approval for matching actions
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Minimum amount (workspace base-currency minor units)
+              <input className={inputClass + " mt-1 w-full"} type="number" min="0" max="9000000000000000" step="1" required value={approvalMinimumAmount} onChange={(e) => setApprovalMinimumAmount(e.target.value)} />
+            </label>
+            <fieldset>
+              <legend className="text-sm font-medium text-slate-700">Allowed approver roles</legend>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-slate-700">
+                {["owner", "admin", "manager", "accountant", "employee"].map((role) => (
+                  <label key={role} className="flex items-center gap-2">
+                    <input type="checkbox" checked={approvalRoles.includes(role)} onChange={() => toggleApproverRole(role)} />
+                    {role}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <p className="rounded-lg bg-violet-50 px-3 py-2 text-xs font-medium text-violet-800">
+              Self-approval is always blocked for safety.
+            </p>
+            <button className={buttonClass} disabled={busy || approvalRoles.length === 0 || !Number.isSafeInteger(Number(approvalMinimumAmount)) || Number(approvalMinimumAmount) < 0}>Save approval policy</button>
+          </form>
+          <p className="mt-2 text-xs text-slate-500">{approvalPolicies.length} saved policy rule(s). Owner/admin authorization is enforced by the server.</p>
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white p-4">

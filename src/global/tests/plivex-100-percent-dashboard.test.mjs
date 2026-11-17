@@ -4,22 +4,29 @@ import { readFileSync } from "node:fs";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("India dashboard exposes all seven original and seven operations action cards", () => {
+test("India dashboard keeps core cards and one consolidated Inventory & Warehouse card", () => {
   const dashboard = read("../../components/dashboard/DashboardTab.jsx");
-  for (const id of ["invoices", "quotations", "expenses", "crm", "leads", "stock", "team", "procurement", "warehouses", "transfers", "purchaseOrders", "receipts", "movements", "batches"]) {
+  for (const id of ["invoices", "quotations", "expenses", "crm", "leads", "stock", "team", "inventoryWorkspace"]) {
     assert.match(dashboard, new RegExp('id: "' + id + '"'));
   }
-  assert.match(dashboard, /grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3/);
+  for (const legacyId of ["procurement", "warehouses", "transfers", "purchaseOrders", "receipts", "movements", "batches"]) {
+    assert.doesNotMatch(dashboard, new RegExp('id: "' + legacyId + '"'));
+  }
+  assert.match(dashboard, /title: "Inventory & Warehouse"/);
+  assert.match(dashboard, /onClick: \(\) => onNavigate\("warehouses"\)/);
 });
 
-test("India operations cards deep-link to the matching operations subsection", () => {
+test("India inventory workspace opens one consolidated operations screen", () => {
   const dashboard = read("../../components/dashboard/DashboardTab.jsx");
   const page = read("../../pages/Dashboard.jsx");
   const operations = read("../../components/dashboard/IndiaPart4Tab.jsx");
-  assert.match(dashboard, /onNavigate\("warehouses", "transfers"\)/);
-  assert.match(dashboard, /onNavigate\("warehouses", "history"\)/);
-  assert.match(page, /initialSection=\{intent \|\| "purchasing"\}/);
-  assert.match(operations, /setTab\(initialSection\)/);
+  assert.match(dashboard, /onNavigate\("warehouses"\)/);
+  assert.match(page, /tab === "warehouses" && <IndiaPart4Tab user=\{user\} \/>/);
+  assert.match(operations, /useState\("warehouses"\)/);
+  assert.match(operations, /\["warehouses","Stock & warehouses"/);
+  assert.match(operations, /\["transfers","Transfers"/);
+  assert.match(operations, /\["purchasing","Purchase orders"/);
+  assert.match(operations, /\["history","Movement history"/);
 });
 
 test("CRM and inventory procurement shortcuts are removed from the duplicate More list", () => {
@@ -28,13 +35,19 @@ test("CRM and inventory procurement shortcuts are removed from the duplicate Mor
   assert.match(page, /\{tab === "crm" && <CrmTab/);
 });
 
-test("Global overview has five interactive metrics and eight workspace action cards", () => {
+test("Global overview has five interactive metrics and four workspace action cards", () => {
   const global = read("../GlobalApp.jsx");
+  const warehousePanel = read("../../components/global/GlobalPart4Panel.jsx");
   assert.match(global, /const metricCards = \[/);
   assert.match(global, /const actionCards = \[/);
   assert.match(global, /actionCards\.map\(\(item\) => <button/);
   assert.match(global, /metricCards\.map\(\(item\) => <button/);
-  for (const tab of ["crm", "purchasing", "warehouses", "transfers", "movements", "accounting", "enterprise"]) {
-    assert.match(global, new RegExp('tab: "' + tab + '"'));
+  for (const title of ["CRM & Leads", "Inventory & Warehouse", "Accounting & Reports", "Enterprise & Audit"]) {
+    assert.ok(global.includes(`title: "${title}"`), `Missing dashboard card: ${title}`);
   }
+  for (const section of ["warehouses", "transfers", "purchasing", "movements"]) {
+    assert.match(warehousePanel, new RegExp('id: "' + section + '"'));
+  }
+  assert.doesNotMatch(global, /title: "Stock Transfers"/);
+  assert.doesNotMatch(global, /title: "Purchase Orders & Goods Receipts"/);
 });

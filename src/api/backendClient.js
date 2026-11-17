@@ -296,14 +296,22 @@ const auth = {
     if (!session) throw new ApiError('Not signed in', 401);
     const uid = session.user.id;
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
+    // For India workspaces the business profile is the authoritative regional
+    // setting; user profile country fields may be stale after an approved reset.
+    let workspaceRegion = null;
+    if (profile?.workspace_id) {
+      const { data } = await supabase.from('business_profile')
+        .select('country_code,locale_code').eq('workspace_id', profile.workspace_id).maybeSingle();
+      workspaceRegion = data;
+    }
     return {
       id: uid,
       email: session.user.email,
       full_name: profile?.full_name || session.user.user_metadata?.full_name || '',
       role: profile?.role,
       workspace_id: profile?.workspace_id || undefined,
-      country_code: profile?.country_code || undefined,
-      locale_code: profile?.locale_code || undefined,
+      country_code: workspaceRegion?.country_code || profile?.country_code || undefined,
+      locale_code: workspaceRegion?.locale_code || profile?.locale_code || undefined,
       user_ref: profile?.user_ref,
       trial_start_at: profile?.trial_start_at,
       trial_expires_at: profile?.trial_expires_at,
@@ -317,10 +325,14 @@ const auth = {
     if (error) throw authError(error, 'Invalid email or password');
     return data;
   },
-  async register({ email, password, countryCode = "IN", localeCode = "en-IN", businessName = "" }) {
+  async register({ email, password, countryCode = "", localeCode = "", businessName = "" }) {
+    const signupMetadata = {};
+    if (countryCode) signupMetadata.signup_country_code = countryCode;
+    if (localeCode) signupMetadata.signup_locale_code = localeCode;
+    if (businessName) signupMetadata.full_name = String(businessName).trim().slice(0, 160);
     const { data, error } = await supabase.auth.signUp({
       email, password,
-      options: { emailRedirectTo: `${window.location.origin}/`, data: APP_EDITION === "global" ? {} : { signup_country_code: countryCode, signup_locale_code: localeCode, full_name: String(businessName || "").trim().slice(0, 160) } },
+      options: { emailRedirectTo: `${window.location.origin}/`, data: signupMetadata },
     });
     if (error) throw authError(error, 'Registration failed');
     // Supabase hides "already registered" by returning a user with no identities.

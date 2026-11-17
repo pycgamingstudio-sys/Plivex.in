@@ -11,6 +11,7 @@ const RESET_COPY = {
     intro: "Changing your country permanently deletes the current workspace and its business data. This cannot be undone.",
     data: "Invoices, customers, products, stock, expenses, quotations, leads, team access and business settings will be deleted.",
     preserved: "Your login account, email, password, subscription and payment history will be preserved.",
+    backup: "No automatic backup is created by this reset. Before continuing, export your business records and verify that the backup can be opened.",
     type: "Type DELETE to confirm.",
     cancel: "Cancel — keep my current workspace",
     confirm: "Confirm & permanently delete",
@@ -21,6 +22,7 @@ const RESET_COPY = {
     intro: "Country badalne par aapka maujooda workspace aur uska business data hamesha ke liye delete ho jayega. Ise wapas nahi laya ja sakta.",
     data: "Invoices, customers, products, stock, expenses, quotations, leads, team access aur business settings delete ho jayenge.",
     preserved: "Aapka login account, email, password, subscription aur payment history safe rahenge.",
+    backup: "Is reset se automatic backup nahi banta. Aage badhne se pehle apne business records export karein aur backup khulne ki jaanch karein.",
     type: "Confirm karne ke liye DELETE type karein.",
     cancel: "Cancel — purana workspace rakhein",
     confirm: "Confirm karein aur permanently delete karein",
@@ -107,6 +109,7 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
   const [requestReason, setRequestReason] = useState("");
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [confirmationText, setConfirmationText] = useState("");
+  const [backupConfirmed, setBackupConfirmed] = useState(false);
   const [taxProfile, setTaxProfile] = useState({ number: "", type: "", status: "unregistered", effectiveFrom: "", jurisdiction: "" });
   const [savedTaxProfile, setSavedTaxProfile] = useState({ number: "", type: "", status: "unregistered", effectiveFrom: "", jurisdiction: "" });
 
@@ -158,6 +161,7 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
   const cancelCountryReset = () => {
     setShowResetConfirm(false);
     setConfirmationText("");
+    setBackupConfirmed(false);
     setCountryCode(savedCountry || "");
     setLocale(savedLocale || "");
     setError("");
@@ -196,6 +200,7 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
     }
     if (countryChanged) {
       setShowResetConfirm(true);
+      setBackupConfirmed(false);
       setConfirmationText("");
       setError("");
       setMessage("");
@@ -234,7 +239,7 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
   };
 
   const confirmCountryReset = async () => {
-    if (confirmationText.trim() !== "DELETE") return;
+    if (!backupConfirmed || confirmationText.trim() !== "DELETE") return;
     setSaving(true);
     setError("");
     setMessage("");
@@ -348,13 +353,15 @@ export default function WorkspaceCountrySettings({ lockCountry = false } = {}) {
             <p className="mt-3 text-sm">{resetCopy.intro}</p>
             <p className="mt-2 text-sm font-medium">{resetCopy.data}</p>
             <p className="mt-3 rounded-lg bg-muted p-3 text-sm">{resetCopy.preserved}</p>
+            <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">{resetCopy.backup || RESET_COPY.en.backup}</p>
+            <label className="mt-3 flex items-start gap-2 text-xs font-medium"><input type="checkbox" checked={backupConfirmed} onChange={(event) => setBackupConfirmed(event.target.checked)} className="mt-0.5" /><span>I have exported and verified a backup of the business data I need to keep.</span></label>
             <p className="mt-2 text-xs font-medium text-amber-700">{resetCopy.cooldown}</p>
             {error && <p role="alert" className="mt-3 rounded-lg bg-destructive/10 p-3 text-xs text-destructive">{error}</p>}
             <p className="mt-4 text-xs font-semibold">{resetCopy.type}</p>
             <input value={confirmationText} onChange={(event) => setConfirmationText(event.target.value)} autoComplete="off" className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm" placeholder="DELETE" />
             <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button type="button" onClick={cancelCountryReset} disabled={saving} className="rounded-lg border px-4 py-2 text-xs font-semibold disabled:opacity-50">{resetCopy.cancel}</button>
-              <button type="button" onClick={confirmCountryReset} disabled={saving || confirmationText.trim() !== "DELETE"} className="inline-flex items-center justify-center gap-2 rounded-lg bg-destructive px-4 py-2 text-xs font-semibold text-destructive-foreground disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="button" onClick={confirmCountryReset} disabled={saving || !backupConfirmed || confirmationText.trim() !== "DELETE"} className="inline-flex items-center justify-center gap-2 rounded-lg bg-destructive px-4 py-2 text-xs font-semibold text-destructive-foreground disabled:cursor-not-allowed disabled:opacity-50">
                 {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{resetCopy.confirm}
               </button>
             </div>

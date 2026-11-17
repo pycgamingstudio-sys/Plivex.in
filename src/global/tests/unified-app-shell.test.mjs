@@ -4,13 +4,28 @@ import { readFileSync } from "node:fs";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("the application mounts one shared router instead of a separate GlobalApp", () => {
+test("payment callback routing preserves unconditional hook order", () => {
   const app = read("../../App.jsx");
-  assert.match(app, /const GlobalApp = lazy\(\(\) => import\("@\/global\/GlobalApp"\)\)/);
-  assert.match(app, /APP_EDITION === "global" && isAuthenticated/);
-  assert.doesNotMatch(app, /window\.location\.hostname/);
+  const component = app.slice(app.indexOf("const AuthenticatedApp ="), app.indexOf("// Shows a message"));
+  assert.ok(component.indexOf("const { isLoadingAuth") < component.indexOf('if (window.location.pathname === "/payment-result")'));
+});
+
+test("India and Global experiences share the same Plivex application shell and navigation", () => {
+  const app = read("../../App.jsx");
+  const backend = read("../../api/backendClient.js");
+  const layout = read("../../components/AppLayout.jsx");
+  const global = read("../../global/GlobalApp.jsx");
+  assert.doesNotMatch(app, /return <AppLayout><GlobalApp \/><\/AppLayout>/);
   assert.match(app, /<AuthProvider>/);
-  assert.match(app, /element={<AppLayout \/>}/);
+  assert.ok(app.includes('<Route path="/dashboard" element={isGlobalWorkspace && isAuthenticated ? <AppLayout><GlobalApp section="overview" /></AppLayout> : <HomeGate />} />'));
+  assert.ok(app.includes('<Route path="/invoice-history" element={isGlobalWorkspace ? <GlobalApp section="invoices" /> : <InvoiceHistory />} />'));
+  assert.match(layout, /GLOBAL_NAV/);
+  assert.match(layout, /Global Workspace/);
+  assert.ok(layout.includes('<NavLink key={item.to} to={item.to}'));
+  assert.doesNotMatch(layout, /useSearchParams|setSearchParams/);
+  assert.doesNotMatch(global, /useSearchParams|setSearchParams/);
+  assert.match(backend, /UNIFIED_EDITION_ID/);
+  assert.doesNotMatch(app, /window\.location\.hostname/);
 });
 
 test("unified authentication resolves workspace country before selecting regional handlers", () => {
@@ -30,4 +45,34 @@ test("Global country onboarding uses the shared Plivex brand", () => {
   assert.match(onboarding, /<p className="text-sm font-semibold text-primary">Plivex<\/p>/);
   assert.doesNotMatch(onboarding, />Plivex Global</);
   assert.match(onboarding, /filter\(\(entry\) => entry.code !== "IN"\)/);
+});
+
+test("single-domain edition follows the active workspace country and base currency stays free", async () => {
+  const backend = read("../../api/backendClient.js");
+  const auth = read("../../lib/AuthContext.jsx");
+  const paywall = read("../../lib/paywall.jsx");
+  const onboarding = read("../../components/global/UnifiedWorkspaceOnboarding.jsx");
+  assert.match(backend, /workspaceRegion\?\.country_code/);
+  assert.match(auth, /resolveWorkspaceEdition\(countryCode, supportedCodes\)/);
+  assert.match(paywall, /base_currency: true/);
+  assert.match(paywall, /feature === "base_currency"/);
+  assert.match(paywall, /multi_currency: false/);
+  assert.match(onboarding, /Your workspace base currency will be/);
+});
+
+test("Android stock product form keeps Save and Cancel visible while fields scroll", () => {
+  const stock = read("../../components/dashboard/StockTab.jsx");
+  assert.match(stock, /max-h-\[calc\(100dvh-2rem\)\]/);
+  assert.match(stock, /flex-1 overflow-y-auto overscroll-contain/);
+  assert.match(stock, /sticky bottom-0/);
+  assert.match(stock, /safe-area-inset-bottom/);
+});
+
+test("shared CRM, warehouse, transfers and procurement remain accessible in India", () => {
+  const app = read("../../App.jsx");
+  const nav = read("../../lib/nav.js");
+  assert.ok(app.includes('<Route path="/crm" element={isGlobalWorkspace ? <GlobalApp section="crm" /> : <CrmTab />} />'));
+  assert.ok(app.includes('<Route path="/inventory-procurement" element={isGlobalWorkspace ? <GlobalApp section="inventory" /> : <IndiaPart4Tab user={user} />} />'));
+  assert.match(nav, /label: "CRM & leads"/);
+  assert.match(nav, /label: "Inventory & procurement"/);
 });
