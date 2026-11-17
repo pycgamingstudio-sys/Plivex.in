@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { APP_EDITION } from "@/api/backendClient";
 import { getCountryByCode } from "@/global/countries/country-registry.js";
 import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
-import { LayoutDashboard, Users, Package, Receipt, FileText, Handshake, Warehouse, Calculator, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Users, Package, Receipt, FileText, Handshake, Warehouse, Calculator } from "lucide-react";
 
 const GLOBAL_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
