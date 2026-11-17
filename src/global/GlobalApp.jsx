@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Users, Package, Receipt, FileText, Boxes, Handshake, Warehouse, ArrowLeftRight, ClipboardList, History, Calculator, ShieldCheck } from "lucide-react";
+import { Users, Package, Receipt, FileText, Boxes, Handshake, Warehouse, ArrowLeftRight, ClipboardList, History, Calculator, ShieldCheck, ShoppingBasket } from "lucide-react";
 import { supabase } from "@/api/backendClient";
 import GlobalCountryOnboarding from "@/components/global/GlobalCountryOnboarding";
 import GlobalInvoicesPanel from "@/components/global/GlobalInvoicesPanel";
@@ -244,7 +244,7 @@ export default function GlobalApp() {
   ];
   const actionCards = [
     { title: "CRM & Leads", description: "Manage prospects, follow-ups and customer relationships.", tab: "crm", icon: Handshake, tone: "from-fuchsia-50 to-pink-50" },
-    { title: "Inventory & Procurement", description: "Connect products, purchase orders and incoming goods.", tab: "purchasing", icon: Boxes, tone: "from-indigo-50 to-blue-50" },
+    { title: "Inventory & Procurement", description: "Connect products, purchase orders and incoming goods.", tab: "purchasing", icon: ShoppingBasket, tone: "from-indigo-50 to-blue-50" },
     { title: "Warehouses", description: "Manage locations and workspace stock levels.", tab: "warehouses", icon: Warehouse, tone: "from-teal-50 to-cyan-50" },
     { title: "Stock Transfers", description: "Move products between active warehouse locations.", tab: "transfers", icon: ArrowLeftRight, tone: "from-sky-50 to-blue-50" },
     { title: "Purchase Orders & Goods Receipts", description: "Create supplier orders and receive goods into stock.", tab: "purchasing", icon: ClipboardList, tone: "from-emerald-50 to-green-50" },
@@ -275,7 +275,7 @@ export default function GlobalApp() {
             </div>
             <div className="mt-8 flex items-end justify-between gap-3"><div><h2 className="text-xl font-bold">Business workspace</h2><p className="mt-1 text-sm text-slate-500">Quick access to the tools that run your operations.</p></div><span className="hidden rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700 sm:inline">8 work areas</span></div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {actionCards.map((item) => <button key={item.title} onClick={() => setTab(item.tab)} className="group flex min-h-44 flex-col rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md"><span className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${item.tone} text-violet-700`}><item.icon className="h-5 w-5" /></span><span className="mt-4 text-sm font-bold text-slate-900">{item.title}</span><span className="mt-1 flex-1 text-xs leading-relaxed text-slate-500">{item.description}</span><span className="mt-3 text-xs font-semibold text-violet-700">Open workspace →</span></button>)}
+              {actionCards.map((item) => <button key={item.title} onClick={() => setTab(item.tab)} className="group flex min-h-44 flex-col rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md"><span className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${item.tone} text-violet-700`}><item.icon className="h-7 w-7" strokeWidth={1.6} /></span><span className="mt-4 text-sm font-bold text-slate-900">{item.title}</span><span className="mt-1 flex-1 text-xs leading-relaxed text-slate-500">{item.description}</span><span className="mt-3 text-xs font-semibold text-violet-700">Open workspace →</span></button>)}
             </div>
           </>
         ) : tab === "invoices" ? (

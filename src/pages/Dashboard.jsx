@@ -58,6 +58,7 @@ export default function Dashboard({ initialTab }) {
   const active = visibleTabs.find((t) => t.id === tab) || visibleTabs[0] || TABS[0];
   const hasGstrAccess = APP_EDITION === "global" || ["basic", "pro"].includes(String(plan || "").toLowerCase());
   const pages = navItems.filter((i) => i.to !== "/" && !["/crm", "/inventory-procurement"].includes(i.to) && (!HIDDEN_FROM_SIDEBAR.includes(i.to) || i.to === "/tax-summary") && (!i.roles || i.roles.includes(role)));
+  const morePages = navItems.filter((i) => i.to !== "/" && !["/crm", "/inventory-procurement"].includes(i.to) && (!i.roles || i.roles.includes(role)));
   const teamUnlocked = canAccess("team_management");
 
   return (
@@ -144,10 +145,16 @@ export default function Dashboard({ initialTab }) {
         </main>
       </div>
 
-      <nav className="plivex-bottom-nav fixed inset-x-0 bottom-0 z-30 flex overflow-x-auto border-t border-[#E5E7EB] bg-white md:hidden">
+      <nav aria-label="Primary and workspace navigation" className="plivex-bottom-nav fixed inset-x-0 bottom-0 z-30 flex overflow-x-auto overscroll-x-contain border-t border-[#E5E7EB] bg-white md:hidden">
         {visibleTabs.map((t) => (
-          <button key={t.id} onClick={() => go(t.id)} className={`flex shrink-0 min-w-[68px] flex-col items-center gap-1 px-2 py-2.5 text-[10px] font-semibold transition-colors ${tab === t.id ? "text-[#6D28D9]" : "text-slate-400"}`}><t.icon className="h-5 w-5" />{t.label}{t.id === "team" && !teamUnlocked && <span className="rounded bg-amber-100 px-1 text-[8px] font-extrabold text-amber-800">PRO</span>}</button>
+          <button key={t.id} onClick={() => go(t.id)} aria-current={tab === t.id ? "page" : undefined} className={`flex min-w-[72px] shrink-0 flex-col items-center gap-1 px-2.5 py-2.5 text-[10px] font-semibold transition-colors ${tab === t.id ? "text-[#6D28D9]" : "text-slate-400"}`}><t.icon className="h-5 w-5" />{t.label}{t.id === "team" && !teamUnlocked && <span className="rounded bg-amber-100 px-1 text-[8px] font-extrabold text-amber-800">PRO</span>}</button>
         ))}
+        {morePages.map((p) => (
+          <NavLink key={p.to} to={p.to} className={({ isActive }) => `flex min-w-[72px] shrink-0 flex-col items-center gap-1 px-2.5 py-2.5 text-[10px] font-semibold transition-colors ${isActive ? "text-[#6D28D9]" : "text-slate-400"}`}>
+            <p.icon className="h-5 w-5" />{p.label}
+          </NavLink>
+        ))}
+        <button onClick={() => setMoreOpen(true)} className="flex min-w-[72px] shrink-0 flex-col items-center gap-1 px-2.5 py-2.5 text-[10px] font-bold text-[#6D28D9]"><LayoutGrid className="h-5 w-5" />More</button>
       </nav>
 
       {accountOpen && <AccountProfileModal onClose={() => setAccountOpen(false)} />}
@@ -161,7 +168,7 @@ export default function Dashboard({ initialTab }) {
           <div className="w-full rounded-t-2xl border border-[#E5E7EB] bg-white p-5 sm:max-w-[520px] sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between"><h3 className="text-[15px] font-bold text-slate-900">All workspace pages</h3><button onClick={() => setMoreOpen(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
             <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-              {pages.map((p) => p.to === "/tax-summary" && !hasGstrAccess ? (
+              {morePages.map((p) => p.to === "/tax-summary" && !hasGstrAccess ? (
                 <button key={p.to} onClick={() => { setMoreOpen(false); openPaywall("Tax reporting is available on eligible plans."); }} className="flex flex-col items-center gap-2 rounded-xl border border-[#E5E7EB] p-4 text-center hover:border-[#6D28D9] hover:bg-slate-50">
                   <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#6D28D9]/10 text-[#6D28D9]"><p.icon className="h-4.5 w-4.5" /></span>
                   <span className="text-[11px] font-semibold text-slate-700">{p.label}</span>
