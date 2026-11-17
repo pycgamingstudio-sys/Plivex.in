@@ -13,8 +13,9 @@ const [app, auth, backend, onboarding, worker, vite] = await Promise.all([
 ]);
 
 test("India and Global workspaces mount one shared router and AppLayout", () => {
-  assert.doesNotMatch(app, /import\s+GlobalApp\s+from/);
-  assert.doesNotMatch(app, /return\s+<GlobalApp\s*\/>/);
+  assert.match(app, /const GlobalApp = lazy\(\(\) => import\("@\/global\/GlobalApp"\)\)/);
+  assert.match(app, /APP_EDITION === "global" && isAuthenticated/);
+  assert.doesNotMatch(app, /window\.location\.hostname/);
   assert.match(app, /<AuthProvider>/);
   assert.match(app, /element={<AppLayout \/>}/);
   assert.match(app, /APP_EDITION === "global" && isAuthenticated/);
