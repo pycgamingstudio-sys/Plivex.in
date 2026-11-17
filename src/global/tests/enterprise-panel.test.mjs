@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 
 const panel = readFileSync(new URL("../../components/global/GlobalEnterprisePanel.jsx", import.meta.url), "utf8");
 const app = readFileSync(new URL("../GlobalApp.jsx", import.meta.url), "utf8");
+const edge = readFileSync(new URL("../../../supabase/functions/global-enterprise/index.ts", import.meta.url), "utf8");
+const migration = readFileSync(new URL("../../../supabase/migrations/20261116170000_part9_expense_approval_gates.sql", import.meta.url), "utf8");
 
 test("Global Enterprise workspace is reachable from the Global app navigation", () => {
   assert.match(app, /id: "enterprise", label: "Enterprise"/);
@@ -31,4 +33,12 @@ test("Enterprise panel exposes configurable server-enforced Global expense appro
   assert.match(panel, /invoice write gates/);
   assert.match(panel, /invoice.payment.record/);
   assert.match(panel, /eventDate: approvalExpenseDate/);
+});
+
+test("Read-only viewers cannot be configured as transaction approvers", () => {
+  assert.match(panel, /\["owner", "admin", "manager", "accountant", "employee"\]/);
+  assert.doesNotMatch(panel, /\["owner", "admin", "manager", "accountant", "employee", "viewer"\]/);
+  assert.match(edge, /APPROVER_ROLES = new Set\(\["owner", "admin", "manager", "employee", "accountant"\]\)/);
+  assert.doesNotMatch(edge, /APPROVER_ROLES = new Set\([^)]*viewer/);
+  assert.doesNotMatch(migration, /approver_roles <@ array\[[^\]]*viewer/);
 });
