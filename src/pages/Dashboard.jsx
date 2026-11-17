@@ -32,8 +32,8 @@ const TABS = [
   { id: "reports", label: "Reports", icon: BarChart3 },
   { id: "crm", label: "Client CRM", icon: Users },
   { id: "stock", label: "Stock", icon: Package },
-  { id: "warehouses", label: "Warehouses", icon: Boxes },
   { id: "team", label: "Team", icon: UsersRound },
+  { id: "warehouses", label: "Warehouse", icon: Boxes },
   { id: "reconciliation", label: "Reconcile", icon: RefreshCw },
 ];
 
