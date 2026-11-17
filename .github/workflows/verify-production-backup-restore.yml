@@ -230,24 +230,15 @@ jobs:
               raise SystemExit("app_role enum removal did not terminate")
           Path("/tmp/plivex-schema-without-app-role.sql").write_text("\n".join(filtered) + "\n")
           PY
-          echo "Pre-restore app_role lookup:"
+          # The disposable Supabase image can contain a stale/preloaded
+          # app_role type. Recreate it from the production dump before restoring
+          # dependent functions. This database is disposable and isolated.
           docker exec -u postgres plivex-production-restore-test \
-            psql -X -U supabase_admin -d postgres -Atqc "SELECT COALESCE(to_regtype('public.app_role')::text, 'NULL')"
-          if ! docker exec -u postgres plivex-production-restore-test \
-            psql -X -U supabase_admin -d postgres -Atqc "SELECT to_regtype('public.app_role') IS NOT NULL" | grep -qx t; then
-            echo "Creating app_role from production dump:"
-            cat /tmp/plivex-app-role.sql
-            docker exec -i -u postgres plivex-production-restore-test \
-              psql -X -a -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
-              < /tmp/plivex-app-role.sql
-          fi
-          echo "Public schema drop statements:"
-          grep -n -E '^[[:space:]]*DROP ' backup/schema.sql | head -100 || true
-          echo "Remaining custom types in filtered schema:"
-          grep -n '^CREATE TYPE' /tmp/plivex-schema-without-app-role.sql || true
-          echo "Current app_role lookup:"
-          docker exec -u postgres plivex-production-restore-test \
-            psql -X -U supabase_admin -d postgres -Atqc "SELECT COALESCE(to_regtype('public.app_role')::text, 'NULL')"
+            psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c \
+            "DROP TYPE IF EXISTS public.app_role CASCADE"
+          docker exec -i -u postgres plivex-production-restore-test \
+            psql -X -a -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
+            < /tmp/plivex-app-role.sql
           echo "Confirm app_role exists before public/global schema replay"
           docker exec -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c \
