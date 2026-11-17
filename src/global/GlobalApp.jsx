@@ -145,7 +145,8 @@ export default function GlobalApp({ section = "overview" }) {
     { title: "CRM & Leads", description: "Manage prospects, follow-ups and customer relationships.", tab: "crm", icon: Handshake, tone: "from-fuchsia-50 to-pink-50" },
     { title: "Inventory & Warehouse", description: "Manage stock, locations, transfers, purchase orders and movement history in one connected workspace.", tab: "inventory", icon: Warehouse, tone: "from-indigo-50 to-blue-50" },
     { title: "Accounting & Reports", description: "Open ledgers and financial statements for this workspace.", tab: "accounting", icon: Calculator, tone: "from-violet-50 to-purple-50" },
-    { title: "Enterprise & Audit", description: "Review roles, audit history, exports and workspace controls.", tab: "enterprise", icon: ShieldCheck, tone: "from-slate-100 to-slate-50" },
+    { title: "Team Members", description: "Manage workspace access, roles and team activity.", tab: "enterprise", icon: Users, tone: "from-amber-50 to-yellow-50" },
+    { title: "Enterprise & Audit", description: "Review audit history, exports and advanced workspace controls.", tab: "enterprise", icon: ShieldCheck, tone: "from-slate-100 to-slate-50" },
 
   ].filter((item) => {
     if (item.tab === "crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
