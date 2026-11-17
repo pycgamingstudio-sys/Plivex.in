@@ -29,7 +29,7 @@ Deno.serve(async (req: Request) => {
       return globalJson({ error: "Unsupported quotation request." }, 400, origin);
     }
 
-    const action = String(body.action);
+    const action = String(body.action);\n    if (typeof body.workspace_id !== "string" || !UUID.test(body.workspace_id)) {\n      return globalJson({ error: "A valid Global workspace is required." }, 400, origin);\n    }
     if (action === "create") {
       if (typeof body.idempotency_key !== "string" || !UUID.test(body.idempotency_key)
         || typeof body.currency_code !== "string" || !/^[A-Z]{3}$/.test(body.currency_code)
@@ -59,7 +59,7 @@ Deno.serve(async (req: Request) => {
 
     const { data, error } = await auth.admin.rpc("global_manage_quotation", {
       p_user_id: auth.user.id,
-      p_workspace_id: auth.user.workspace_id,
+      p_workspace_id: body.workspace_id,
       p_action: action,
       p_quotation_id: body.quotation_id || null,
       p_client_id: body.client_id || null,
