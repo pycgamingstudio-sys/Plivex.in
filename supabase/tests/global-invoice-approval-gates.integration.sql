@@ -67,8 +67,6 @@ BEGIN
   RETURNING id INTO payment_id;
   IF payment_id IS NULL THEN RAISE EXCEPTION 'Approved invoice payment was not recorded'; END IF;
 
-  DELETE FROM global.invoice_payments WHERE id=payment_id AND workspace_id=ws;
-  DELETE FROM global.invoices WHERE id=invoice_id AND workspace_id=ws;
   DELETE FROM global.approval_policies WHERE workspace_id=ws AND resource_type='invoice';
 END
 $part9_invoice_approval$;
