@@ -36,6 +36,7 @@ export function useWorkspaceFeatures(userId) {
 
   useEffect(() => {
     let active = true;
+    setFeatures(null);
     if (!userId) { setFeatures(null); return () => { active = false; }; }
     supabase.auth.getUser().then(({ data, error: readError }) => {
       if (!active) return;
