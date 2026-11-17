@@ -293,7 +293,6 @@ export default function GlobalApp() {
             </div>
           </section>
         )}
-      </div>
     </div>
   );
 }
