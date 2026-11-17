@@ -272,7 +272,7 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
             <fieldset>
               <legend className="text-sm font-medium text-slate-700">Allowed approver roles</legend>
               <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-slate-700">
-                {["owner", "admin", "manager", "accountant", "employee", "viewer"].map((role) => (
+                {["owner", "admin", "manager", "accountant", "employee"].map((role) => (
                   <label key={role} className="flex items-center gap-2">
                     <input type="checkbox" checked={approvalRoles.includes(role)} onChange={() => toggleApproverRole(role)} />
                     {role}
