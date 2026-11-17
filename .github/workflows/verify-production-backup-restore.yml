@@ -93,7 +93,9 @@ jobs:
           cd ..
           echo "Encrypted artifact checksum, decryption and archive structure verified."
           echo "Schema dump custom-type declarations:"
-          grep -n -C 2 -E 'app_role|CREATE TYPE' backup/schema.sql | head -80 || true
+          grep -n -C 3 'app_role' backup/schema.sql | head -240 || true
+          echo "Schema dump statements affecting public schema:"
+          grep -n -E '^(DROP SCHEMA|CREATE SCHEMA|DROP TYPE|CREATE TYPE).*public|app_role' backup/schema.sql | head -160 || true
 
       - name: Compare archived migration ledger with current production
         shell: bash
