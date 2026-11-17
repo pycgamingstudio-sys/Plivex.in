@@ -254,10 +254,33 @@ jobs:
           END
           $truncate_auth$;
           SQL
+          echo "Filter transient Auth PKCE flow state from the recovery snapshot"
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = Path("backup/auth-data.sql").read_text().splitlines()
+          filtered = []
+          skipping = False
+          found = False
+          for line in lines:
+              if line.startswith("COPY auth.flow_state "):
+                  skipping = True
+                  found = True
+                  continue
+              if skipping:
+                  if line.strip() == r"\\.":
+                      skipping = False
+                  continue
+              filtered.append(line)
+          if skipping:
+              raise SystemExit("auth.flow_state COPY block did not terminate")
+          if not found:
+              raise SystemExit("expected auth.flow_state COPY block not found in Auth dump")
+          Path("/tmp/plivex-auth-data.sql").write_text("\\n".join(filtered) + "\\n")
+          PY
           echo "RESTORE AUTH DATA"
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
-            < backup/auth-data.sql
+            < /tmp/plivex-auth-data.sql
           echo "RESTORE STORAGE SCHEMA"
           docker exec -i -u postgres plivex-production-restore-test \
             psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -f /dev/stdin \
