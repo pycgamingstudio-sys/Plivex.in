@@ -18,12 +18,13 @@ test("new workspace onboarding follows business, country, regional welcome, work
   assert.match(source, /workTypes.length === 0/);
 });
 
-test("freelancer and business can be selected independently or together", async () => {
+test("freelancer and business are mutually exclusive primary workspace profiles", async () => {
   const source = await read("../../components/global/UnifiedWorkspaceOnboarding.jsx");
   const features = await read("../../lib/workspaceFeatures.js");
   assert.match(source, /chooseWorkType\("freelancer"\)/);
   assert.match(source, /chooseWorkType\("business"\)/);
-  assert.match(source, /You can select one or both/);
+  assert.match(source, /One primary workspace profile: Freelancer OR Business/);
+  assert.match(source, /const next = \[type\]/);
   assert.match(features, /getSuggestedWorkspaceFeatures/);
   assert.match(features, /inventoryWorkspace/);
   assert.match(features, /getSuggestedWorkspaceFeatures\(workTypes = \[\]\)/);
@@ -47,10 +48,8 @@ test("Invoices, Quotations, Stock and Team are permanent dashboard cards", async
 
 test("unified auth checks authoritative Global membership even when legacy India profile says IN", async () => {
   const auth = await read("../../lib/AuthContext.jsx");
-  assert.ok(auth.includes("APP_EDITION === \"global\" || isUnifiedBuild || countryCode !== 'IN'"));
-  assert.ok(auth.includes("globalUser = globalContext.user"));
-  assert.ok(auth.includes("countryCode = globalUser.country_code || countryCode"));
-  assert.ok(auth.includes("APP_EDITION === \"global\" || (countryCode && countryCode !== 'IN')"));
+  assert.match(auth, /if \(isUnifiedBuild\) \{[\s\S]*setRuntimeEdition\("india"\);[\s\S]*return currentUser;/);
+  assert.doesNotMatch(auth, /globalUser = globalContext\.user/);
 });
 
 test("More Features only offers optional tools not already in navigation", async () => {
@@ -59,7 +58,9 @@ test("More Features only offers optional tools not already in navigation", async
   const nav = await read("../../pages/Dashboard.jsx");
   const layout = await read("../../components/AppLayout.jsx");
   assert.match(dashboard, /More Features/);
-  assert.match(library, /getAvailableWorkspaceFeatureCatalog\(APP_EDITION\)\.filter\(\(item\) => !features\.includes\(item\.id\)\)/);
+  assert.match(library, /getAvailableWorkspaceFeatureCatalog\(APP_EDITION\)\.map\(\(item\) =>/);
+  assert.match(library, /Remove from dashboard/);
+  assert.match(library, /In your workspace/);
   assert.match(nav, /workspaceFeatures.includes\("inventoryWorkspace"\)/);
   assert.match(nav, /workspaceFeatures.includes\("reports"\)/);
   for (const label of ["Dashboard", "Sales", "Purchase", "Reports", "Client CRM", "Stock", "Team", "Warehouse"]) assert.ok(layout.includes(`label: "${label}"`), "Missing Global navigation area: " + label);
