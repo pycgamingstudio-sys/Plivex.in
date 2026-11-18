@@ -125,6 +125,7 @@ test("invoice country, currency and non-India draft rules are enforced below the
   const migration = await read("../../../supabase/migrations/20261118121500_plivex_one_workspace_settings.sql");
   assert.match(migration, /create or replace function public\.enforce_workspace_invoice_currency/);
   assert.match(migration, /invoice_currency_must_match_workspace_base_currency/);
+  assert.match(migration, /unsupported_invoice_currency/);
   assert.match(migration, /non_india_invoices_must_remain_drafts_until_issuance_is_verified/);
   assert.match(migration, /india_gst_item_rates_not_allowed_for_non_india_workspace/);
   assert.match(migration, /revoke all on function public\.save_invoice\(jsonb, jsonb, uuid\) from public, anon/);
