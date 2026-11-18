@@ -396,13 +396,14 @@ export default function GlobalApp() {
             {workspaceBilling ? (
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
                 {[
-                  { id: "basic", label: "Basic", features: ["Workspace-based billing currency", "Core business management"] },
-                  { id: "pro", label: "Pro", features: ["Advanced business tools", "Expanded workspace capabilities"] },
+                  { id: "free", label: "Free", amount: 0, features: ["Get started with your workspace", "No payment required"] },
+                  { id: "basic", label: "Basic", amount: workspaceBilling.monthly.basic, features: ["Workspace-based billing currency", "Core business management"] },
+                  { id: "pro", label: "Pro", amount: workspaceBilling.monthly.pro, features: ["Advanced business tools", "Expanded workspace capabilities"] },
                 ].map((plan) => (
                   <article key={plan.id} className="rounded-xl border border-slate-200 p-5">
                     <h3 className="text-lg font-bold">{plan.label}</h3>
-                    <p className="mt-2 text-3xl font-bold">{formatPlanPrice(workspaceBilling.monthly[plan.id], currency, workspaceLocale)}</p>
-                    <p className="text-xs text-slate-500">per month · {currency}</p>
+                    <p className="mt-2 text-3xl font-bold">{formatPlanPrice(plan.amount, currency, workspaceLocale)}</p>
+                    <p className="text-xs text-slate-500">{plan.id === "free" ? "forever" : `per month · ${currency}`}</p>
                     <ul className="mt-4 space-y-2 text-sm text-slate-600">{plan.features.map((feature) => <li key={feature}>✓ {feature}</li>)}</ul>
                     <p className="mt-4 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">{workspaceBilling.paymentEnabled ? "Payment availability is subject to the enabled merchant currency." : "Checkout is not enabled for this workspace currency yet."}</p>
                   </article>
