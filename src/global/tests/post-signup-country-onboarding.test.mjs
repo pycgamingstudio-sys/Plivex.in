@@ -48,8 +48,8 @@ test("Global owner provisioning rejects a missing country instead of defaulting 
   const edgeFunction = await read("../../../supabase/functions/ensure-owner-role/index.ts");
   assert.match(edgeFunction, /Choose a supported business country before creating your workspace/);
   assert.match(edgeFunction, /Choose a valid regional format for your selected country/);
-  assert.match(edgeFunction, /requestedCountryValue = typeof body\\?\\.countryCode === "string" \\? body\\.countryCode : ""/);
-  assert.doesNotMatch(edgeFunction, /metadata\\.signup_country_code/);
+  assert.match(edgeFunction, /requestedCountryValue = typeof body\?\.countryCode === "string" \? body\.countryCode : ""/);
+  assert.doesNotMatch(edgeFunction, /metadata\.signup_country_code/);
   assert.match(edgeFunction, /already has a country selection/);
   assert.doesNotMatch(edgeFunction, /requestedCountry.*: "IN"/);
 });
