@@ -36,6 +36,8 @@ test("authenticated users cannot self-promote or reassign their workspace throug
   assert.match(migration, /revoke update on table public\.profiles from authenticated/);
   assert.match(migration, /revoke update \([\s\S]*role, workspace_id[\s\S]*\) on public\.profiles from authenticated/);
   assert.match(migration, /grant update \(full_name, profile_picture\) on public\.profiles to authenticated/);
+  assert.match(migration, /revoke insert, update on public\.workspace_settings from authenticated/);
+  assert.match(migration, /grant update \(optional_features, updated_at\) on public\.workspace_settings to authenticated/);
 });
 
 test("legacy isolated storage never imports India localStorage keys", () => {
