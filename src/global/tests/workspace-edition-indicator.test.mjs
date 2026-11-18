@@ -102,3 +102,14 @@ test("Workspace locale changes validate the selected country and update canonica
   assert.match(handler, /update_workspace_locale_atomic/);
   assert.doesNotMatch(handler, /en-IN.*hi-IN/);
 });
+
+test("historical monetary records retain their recorded legacy currency", () => {
+  const migration = read("../../../supabase/migrations/20261118121500_plivex_one_workspace_settings.sql");
+  const stores = read("../../lib/stores.js");
+  assert.match(migration, /global\.workspaces w[\s\S]*w\.created_by = p\.id/);
+  assert.match(migration, /case when p\.country_code = 'IN' then 'INR' end/);
+  assert.match(migration, /update public\.expenses t[\s\S]*currency_code is null/);
+  assert.match(migration, /update public\.stock t[\s\S]*currency_code is null/);
+  assert.match(migration, /update public\.quotations t[\s\S]*currency_code is null/);
+  assert.match(stores, /currencyCode: str\(r\.currency_code\)\.toUpperCase\(\)/);
+});
