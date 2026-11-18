@@ -37,7 +37,15 @@ Deno.serve(async (req: Request) => {
     if (profile.role !== "admin" && profile.workspace_id) {
       return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
     }
-    if (profile.workspace_id && !reset) return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
+    if (profile.workspace_id && !reset) {
+      const { data: existingBusinessProfile, error: existingBusinessProfileError } = await auth.admin.from("business_profile")
+        .select("country_code").eq("workspace_id", profile.workspace_id).maybeSingle();
+      if (existingBusinessProfileError) return jsonResponse({ error: "Could not verify the existing workspace country." }, 500, origin);
+      if (existingBusinessProfile?.country_code) {
+        return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
+      }
+      // Country-less legacy workspaces are completed in place; no second workspace is created.
+    }
 
     const email = String(profile?.email || auth.user.email || "").trim().toLowerCase();
     const metadata = auth.user.user_metadata || {};
