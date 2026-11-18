@@ -67,9 +67,10 @@ export default function UnifiedWorkspaceOnboarding() {
         full_name: businessName.trim().slice(0, 160),
         signup_country_code: country.code,
         signup_locale_code: selectedLocale,
+        plivex_work_type: workTypes[0],
         plivex_work_types: workTypes,
         plivex_workspace_features: features,
-        ...(phone.trim() ? { phone: phone.trim() } : {}),
+        phone: phone.trim() || null,
       };
       const { error: metadataError } = await supabase.auth.updateUser({ data: metadata });
       if (metadataError) throw metadataError;
