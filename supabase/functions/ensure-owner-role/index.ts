@@ -41,7 +41,7 @@ Deno.serve(async (req: Request) => {
     if (profile.workspace_id) {
       const [{ data: existingBusinessProfile, error: existingBusinessProfileError }, { data: existingSettings, error: existingSettingsError }] = await Promise.all([
         auth.admin.from("business_profile").select("country_code").eq("workspace_id", profile.workspace_id).maybeSingle(),
-        auth.admin.from("workspace_settings").select("country_code,onboarding_version,migration_status,legacy_review_required").eq("workspace_id", profile.workspace_id).maybeSingle(),
+        auth.admin.from("workspace_settings").select("country_code,workspace_type,onboarding_version,migration_status,legacy_review_required").eq("workspace_id", profile.workspace_id).maybeSingle(),
       ]);
       if (existingBusinessProfileError || existingSettingsError) return jsonResponse({ error: "Could not verify the existing workspace settings." }, 500, origin);
       existingWorkspaceCountry = String(existingSettings?.country_code || "").trim().toUpperCase();
