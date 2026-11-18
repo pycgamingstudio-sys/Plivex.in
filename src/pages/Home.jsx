@@ -315,6 +315,34 @@ const loadPdfLibraries = () => {
   return pdfLibraryPromise;
 };
 
+function downloadPdfBlob(pdf, filename) {
+  const blob = pdf.output("blob");
+  if (!blob || !Number.isFinite(blob.size) || blob.size <= 0) {
+    throw new Error("The invoice PDF was empty and could not be downloaded. Please try again.");
+  }
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  link.rel = "noopener";
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+  return blob;
+}
+
+async function waitForInvoicePreview(timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const preview = document.querySelector("[data-testid='invoice-preview']");
+    if (preview) return preview;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  }
+  return null;
+}
+
 // Draws the invoice at its true A4 width and shrinks it to fit whatever space is available,
 // so the whole preview is always visible without sideways scrolling.
 function ScaledPreview({ children }) {
@@ -421,24 +449,34 @@ const PRICING_PLANS = [
     locked: [] },
 ];
 
-function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEmail, countryCode = "IN", currencyCode = "INR" }) {
-  const isGlobalPricing = countryCode !== "IN";
+function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEmail, countryCode = "", currencyCode = "" }) {
+  const normalizedCountryCode = String(countryCode || "").trim().toUpperCase();
+  const normalizedCurrencyCode = String(currencyCode || "").trim().toUpperCase();
+  const isIndiaPricing = normalizedCountryCode === "IN";
+  const isGlobalPricing = Boolean(normalizedCountryCode && !isIndiaPricing);
   const isVirendraAccount = String(userEmail || "").trim().toLowerCase() === "virendra.sharma99978@gmail.com";
-  const billingConfig = getBillingForCountry(countryCode);
-  const displayCurrency = billingConfig?.currency || currencyCode;
-  const billingLocale = getCountryByCode(countryCode)?.locales?.[0] || "en";
-  const displayPlans = countryCode === "IN"
+  const billingConfig = getBillingForCountry(normalizedCountryCode);
+  const displayCurrency = billingConfig?.currency || normalizedCurrencyCode;
+  const billingLocale = getCountryByCode(normalizedCountryCode)?.locales?.[0] || "en";
+  const currencyMatches = isIndiaPricing
+    ? (!normalizedCurrencyCode || normalizedCurrencyCode === "INR")
+    : Boolean(billingConfig && (!normalizedCurrencyCode || normalizedCurrencyCode === billingConfig.currency));
+  const pricingVerified = isIndiaPricing ? currencyMatches : Boolean(isGlobalPricing && billingConfig && currencyMatches);
+  const displayPlans = isIndiaPricing && pricingVerified
     ? PRICING_PLANS.map((plan) => isVirendraAccount && plan.id === "basic_monthly" ? { ...plan, price:25, amount:2500, badge:"SPECIAL PRICE" } : plan)
-    : billingConfig ? [
+    : isGlobalPricing && pricingVerified ? [
         { ...PRICING_PLANS[0], id:"basic_global", name:"Basic", price:billingConfig.monthly.basic/100, amount:billingConfig.monthly.basic, period:"month", badge:null, accent:false, included:["Workspace base currency", "Invoices and quotations", "Client and product records", "Inventory and expense tracking", "Regional number and date formats"], locked:["Additional invoice currencies", "Automated tax calculations without verified jurisdiction rules"] },
         { ...PRICING_PLANS[1], id:"pro_global", name:"Pro", price:billingConfig.monthly.pro/100, amount:billingConfig.monthly.pro, period:"month", badge:"MOST POPULAR", accent:true, included:["Everything in Basic", "Advanced CRM and business reports", "Expanded invoice and inventory limits", "Additional currencies when enabled", "Priority support"], locked:[] },
       ] : [];
-  const priceLabel = (price) => new Intl.NumberFormat(billingLocale, {
-    style:"currency",
-    currency:displayCurrency || "USD",
-    minimumFractionDigits:displayCurrency === "INR" ? 0 : 2,
-    maximumFractionDigits:displayCurrency === "INR" ? 0 : 2,
-  }).format(price);
+  const priceLabel = (price) => {
+    if (!displayCurrency) return "Price unavailable";
+    return new Intl.NumberFormat(billingLocale, {
+      style:"currency",
+      currency:displayCurrency,
+      minimumFractionDigits:displayCurrency === "INR" ? 0 : 2,
+      maximumFractionDigits:displayCurrency === "INR" ? 0 : 2,
+    }).format(price);
+  };
 
   const activePlan = currentPlan?.planId ? PRICING_PLANS.find((plan) => plan.id === currentPlan.planId) : null;
   return (
@@ -449,17 +487,19 @@ function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEm
           <div className="absolute -bottom-12 -left-8 h-40 w-40 rounded-full bg-accent/30 blur-2xl" />
           <button data-testid="button-close-pricing" onClick={onClose} className="absolute right-4 top-4 rounded-lg p-2 text-primary-foreground/80 transition-colors hover:bg-white/10" aria-label="Close pricing"><X className="h-4 w-4" /></button>
           <div className="relative">
-            <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /><p className="font-mono-ui text-[10px] font-medium uppercase tracking-[0.18em]">{isGlobalPricing ? "Plivex Global" : "Plivex Pro"}</p></div>
+            <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /><p className="font-mono-ui text-[10px] font-medium uppercase tracking-[0.18em]">{isGlobalPricing ? "Plivex Global" : isIndiaPricing ? "Plivex Pro" : "Plivex"}</p></div>
             <h3 className="mt-2 text-[22px] font-bold leading-tight tracking-[-0.04em]">Choose your subscription</h3>
-            <p className="mt-1.5 text-[12px] leading-relaxed text-primary-foreground/85">{isGlobalPricing ? "Country-based workspace plans and regional features." : "Unlock unlimited invoices, WhatsApp sharing &amp; premium features."}</p>
+            <p className="mt-1.5 text-[12px] leading-relaxed text-primary-foreground/85">{isGlobalPricing ? "Country-based workspace plans and regional features." : isIndiaPricing ? "Unlock unlimited invoices, WhatsApp sharing &amp; premium features." : "Workspace pricing is being verified."}</p>
           </div>
         </div>
         <div className="max-h-[60vh] overflow-y-auto px-4 py-5 sm:px-6">
           {currentPlan?.active && (
             <CurrentPlanCard planName={currentPlan.planName} benefits={activePlan?.included || []} startedAt={currentPlan.startedAt} expiresAt={currentPlan.expiresAt} />
           )}
-          {isGlobalPricing && billingConfig && <p className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-950">Prices are displayed for your verified workspace country and currency. International subscription checkout is not active yet; invoice base-currency downloads remain separate from additional-currency access.</p>}
-          {isGlobalPricing && displayPlans.length === 0 && <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Subscription pricing for this workspace country is not available or could not be verified. Plivex has not substituted Indian pricing. Your workspace base-currency invoices and PDF downloads remain available.</p>}
+          {isGlobalPricing && pricingVerified && <p className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-950">Prices are displayed for your verified workspace country and currency. International subscription checkout is not active yet; invoice base-currency downloads remain separate from additional-currency access.</p>}
+          {!normalizedCountryCode && <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Your workspace country is still being verified. Plivex will not substitute Indian pricing. Your saved invoice data remains available.</p>}
+          {normalizedCountryCode && !pricingVerified && <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Workspace country and currency do not match a verified pricing configuration. No substitute pricing is shown.</p>}
+          {isGlobalPricing && !pricingVerified && <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Subscription pricing for this workspace country is not available or could not be verified. Plivex has not substituted Indian pricing. Your workspace base-currency invoices and PDF downloads remain available.</p>}
           <div className="grid gap-3 sm:grid-cols-2">
             {displayPlans.map((plan) => (
               <div key={plan.id} className={`relative flex flex-col rounded-2xl border p-4 ${plan.accent ? "border-primary bg-primary/[.05]" : "border-border bg-background/40"}`}>
@@ -484,7 +524,6 @@ function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEm
     </div>
   );
 }
-
 function Toast({ toast, onClose }) {
   if (!toast) return null;
   return (
@@ -552,11 +591,20 @@ export default function Home() {
         if (response?.error) throw response.error;
         const record = response?.data?.record || {};
         if (!active) return;
-        const countryCode = String(record.country_code || user?.country_code || (APP_EDITION === "global" ? "" : "IN")).toUpperCase();
+        const profileCountry = String(user?.country_code || "").trim().toUpperCase();
+        const recordCountry = String(record.country_code || "").trim().toUpperCase();
+        // A verified non-India workspace from Global auth outranks stale legacy
+        // business_profile metadata left by the former India workspace.
+        const countryCode = profileCountry && profileCountry !== "IN"
+          ? profileCountry
+          : recordCountry || profileCountry || (APP_EDITION === "global" ? "" : "IN");
+        const setLocale = profileCountry && profileCountry !== "IN"
+          ? user?.locale_code || record.locale_code
+          : record.locale_code || user?.locale_code;
         setWorkspaceTaxProfile({
           countryCode,
           currencyCode: GLOBAL_COUNTRY_CURRENCIES[countryCode] || user?.currency_code || (countryCode === "IN" ? "INR" : ""),
-          localeCode: record.locale_code || user?.locale_code || getCountryExperience(countryCode)?.defaultLocale || getCountryByCode(countryCode)?.locales?.[0] || (countryCode === "IN" ? "en-IN" : ""),
+          localeCode: setLocale || getCountryExperience(countryCode)?.defaultLocale || getCountryByCode(countryCode)?.locales?.[0] || (countryCode === "IN" ? "en-IN" : ""),
           registrationNumber: record.tax_registration_number || "",
           registrationType: record.tax_registration_type || "",
           registrationStatus: record.tax_registration_status || "unregistered",
@@ -570,7 +618,15 @@ export default function Home() {
           }));
         }
       } catch {
-        if (active) setWorkspaceTaxProfile({ countryCode: APP_EDITION === "global" ? "" : "UNKNOWN", currencyCode: "", loadError: true });
+        if (active) {
+          const countryCode = String(user?.country_code || (APP_EDITION === "global" ? "" : "UNKNOWN")).trim().toUpperCase();
+          setWorkspaceTaxProfile({
+            countryCode,
+            currencyCode: GLOBAL_COUNTRY_CURRENCIES[countryCode] || user?.currency_code || "",
+            localeCode: user?.locale_code || getCountryByCode(countryCode)?.locales?.[0] || "",
+            loadError: true,
+          });
+        }
       }
     }
     loadWorkspaceTaxProfile();
@@ -669,8 +725,8 @@ export default function Home() {
   const recordActivity = (label, type = "action") => pushItem(KEYS.activity, { id: genId("act"), type, label, date: new Date().toISOString() });
   const filename = `Plivex_${(invoice.number || "INV-000").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "")}.pdf`;
   const renderPdfDocument = async () => {
-    const source = document.querySelector("[data-testid='invoice-preview']");
-    if (!source) return null;
+    const source = await waitForInvoicePreview();
+    if (!source) throw new Error("Invoice preview could not be prepared. Please wait for the invoice to finish loading, then try again.");
     const [{ default: html2canvas }, { jsPDF }] = await loadPdfLibraries();
     const stage = document.createElement("div");
     stage.style.cssText = `position:fixed;left:0;top:0;width:${INVOICE_WIDTH}px;z-index:-1;pointer-events:none;background:#fff;`;
@@ -729,10 +785,7 @@ export default function Home() {
   };
   const generatePdf = async (shouldValidate = true) => {
     if (shouldValidate && !requireValid()) return;
-    const preview = document.querySelector("[data-testid='invoice-preview']");
-    if (!preview) { notify("Preview is still loading. Try again in a moment.", "info"); return; }
     try {
-      notify("Download pending — preparing your invoice PDF…", "info", 0);
       notify("Preparing invoice PDF… please wait.", "info", 0);
       const isGlobalDraft = workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN";
       if (isGlobalDraft) {
@@ -838,7 +891,7 @@ export default function Home() {
         const exportFilename = issuedInvoice
           ? `Plivex_${String(exportNumber).replace(/[^a-zA-Z0-9]+/g, "-")}.pdf`
           : `Plivex_DRAFT_${String(exportNumber).replace(/[^a-zA-Z0-9]+/g, "-")}.pdf`;
-        pdf.save(exportFilename);
+        downloadPdfBlob(pdf, exportFilename);
         recordActivity(issuedInvoice ? "Global invoice issued and PDF exported" : "Global draft invoice exported");
         if (issuedInvoice) {
           notify(`UK VAT invoice ${issuedInvoice.invoice_number} issued and PDF downloaded. Payment-provider collection is not connected yet.`);
@@ -856,7 +909,7 @@ export default function Home() {
       const [, pdf] = await Promise.all([recordInvoice(), renderPdfDocument()]);
       if (!pdf) return;
       notify("PDF ready — starting download…", "info", 0);
-      pdf.save(filename);
+      downloadPdfBlob(pdf, filename);
       deductStockForInvoice(invoice);
       recordActivity("Invoice generated");
       notify(`Downloaded ${filename}`);
@@ -991,7 +1044,7 @@ export default function Home() {
 
       // Fallback: download the PDF and open WhatsApp with text. Never put a data: URL
       // in the message because it is not a public download link.
-      pdf.save(safeFilename);
+      downloadPdfBlob(pdf, safeFilename);
       const fallbackMessage = `${message}\n\n📎 The invoice PDF has been downloaded. Please attach it from your Downloads before sending.`;
       const url = `https://wa.me/${digits}?text=${encodeURIComponent(fallbackMessage)}`;
       if (waWindow) waWindow.location.href = url;
@@ -1044,7 +1097,7 @@ export default function Home() {
       if (!pdf) throw new Error("Invoice preview is not ready. Please try again.");
       const safeNumber = savedInvoice?.number || invoice.number || "INV-000";
       const safeFilename = `Plivex_${String(safeNumber).replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "")}.pdf`;
-      pdf.save(safeFilename);
+      downloadPdfBlob(pdf, safeFilename);
 
       const clientName = invoice.client.name || "there";
       const totalAmt = money(computeTotal(invoiceForPreview), invoice.currency);
@@ -1092,7 +1145,7 @@ export default function Home() {
         </main>
       </div>
       {signatureOpen && <SignatureModal onClose={() => setSignatureOpen(false)} onSave={(data) => { setInvoice((old) => ({ ...old, signature: data })); notify("Signature saved"); }} />}
-      {pricingOpen && <PricingModal onClose={() => { setPricingOpen(false); setCheckoutNotice(""); }} onCheckout={checkout} checkoutNotice={checkoutNotice} userEmail={user?.email} countryCode={workspaceTaxProfile?.countryCode || user?.country_code || (APP_EDITION === "global" ? "" : "IN")} currencyCode={workspaceTaxProfile?.currencyCode || user?.currency_code || (APP_EDITION === "global" ? "" : "INR")} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} />}
+      {pricingOpen && <PricingModal onClose={() => { setPricingOpen(false); setCheckoutNotice(""); }} onCheckout={checkout} checkoutNotice={checkoutNotice} userEmail={user?.email} countryCode={user?.country_code || workspaceTaxProfile?.countryCode || ""} currencyCode={user?.currency_code || workspaceTaxProfile?.currencyCode || GLOBAL_COUNTRY_CURRENCIES[user?.country_code] || ""} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} />}
       {whatsappOpen && <WhatsAppNumberModal value={whatsappNumber} onChange={setWhatsappNumber} onClose={() => setWhatsappOpen(false)} onSend={() => sendWhatsApp(whatsappNumber)} sending={whatsappSending} />}
       <PresenceBeacon />
       <Toast toast={toast} onClose={() => setToast(null)} />
