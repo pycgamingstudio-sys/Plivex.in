@@ -45,3 +45,9 @@ test("multi-currency invoice summaries group amounts by recorded currency withou
   assert.match(sales, /const totalPaid = currencyTotals/);
   assert.match(sales, /const totalPending = currencyTotals/);
 });
+
+test("additional invoice currency selector is restricted to India Pro workspaces", () => {
+  const home = read("../../pages/Home.jsx");
+  assert.match(home, /activeWorkspaceCountry === "IN" && canAccess\("multi_currency"\)/);
+  assert.match(home, /Additional invoice currencies are not available for this Workspace country yet/);
+});
