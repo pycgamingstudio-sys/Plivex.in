@@ -16,8 +16,11 @@ export const isUnifiedBuild = BUILD_EDITION === UNIFIED_EDITION_ID;
 // Runtime starts fail-closed as India; AuthContext switches it only after the
 // signed-in user's workspace country has been verified by Supabase.
 export let APP_EDITION = isUnifiedBuild ? "india" : BUILD_EDITION;
-export function setRuntimeEdition(edition) {
-  if (!isUnifiedBuild || !isSupportedEditionId(edition)) return false;
+export function setRuntimeEdition(edition, { verifiedGlobal = false } = {}) {
+  if (!isSupportedEditionId(edition)) return false;
+  // A non-unified build may switch to Global only after AuthContext has
+  // verified the membership and workspace ID with the server auth RPC.
+  if (!isUnifiedBuild && edition === "global" && !verifiedGlobal) return false;
   APP_EDITION = edition;
   return true;
 }
