@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { backend as api, APP_EDITION } from "@/api/backendClient";
+import { backend as api } from "@/api/backendClient";
 import { invoiceSaveSignature } from "@/global/tax/invoice-save-signature.js";
 
 // ──────────────────────────────────────────────────────────────────────────
