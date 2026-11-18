@@ -37,13 +37,19 @@ Deno.serve(async (req: Request) => {
     if (profile.role !== "admin" && profile.workspace_id) {
       return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
     }
-    if (profile.workspace_id && !reset) {
+    let existingBusinessCountry = "";
+    let existingWorkspaceCountry = "";
+    let existingWorkspaceType = "";
+    if (profile.workspace_id) {
       const [{ data: existingBusinessProfile, error: existingBusinessProfileError }, { data: existingSettings, error: existingSettingsError }] = await Promise.all([
         auth.admin.from("business_profile").select("country_code").eq("workspace_id", profile.workspace_id).maybeSingle(),
         auth.admin.from("workspace_settings").select("country_code").eq("workspace_id", profile.workspace_id).maybeSingle(),
       ]);
       if (existingBusinessProfileError || existingSettingsError) return jsonResponse({ error: "Could not verify the existing workspace settings." }, 500, origin);
-      if (existingBusinessProfile?.country_code && existingSettings?.country_code) {
+      existingBusinessCountry = String(existingBusinessProfile?.country_code || "").trim().toUpperCase();
+      existingWorkspaceCountry = String(existingSettings?.country_code || "").trim().toUpperCase();
+      existingWorkspaceType = String(existingSettings?.workspace_type || "").trim().toLowerCase();
+      if (existingBusinessCountry && existingWorkspaceCountry) {
         return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
       }
       // Legacy or partially provisioned workspaces are completed in place; no second workspace is created.
@@ -61,9 +67,15 @@ Deno.serve(async (req: Request) => {
     const countryCode = typeof requestedCountryValue === "string" ? requestedCountryValue.trim().toUpperCase() : "";
     const localeCode = typeof requestedLocaleValue === "string" ? requestedLocaleValue.trim() : "";
     if (!countryLocales[countryCode]) return jsonResponse({ error: "Choose a supported business country before creating your workspace." }, 400, origin);
+    if ((existingBusinessCountry && existingBusinessCountry !== countryCode) || (existingWorkspaceCountry && existingWorkspaceCountry !== countryCode)) {
+      return jsonResponse({ error: "This Workspace already has a country selection. Changing it requires a separately reviewed migration." }, 409, origin);
+    }
     if (!countryLocales[countryCode].includes(localeCode)) return jsonResponse({ error: "Choose a valid regional format for your selected country." }, 400, origin);
     const workspaceType = String(body?.businessType || "").trim().toLowerCase();
     if (!["freelancer", "business"].includes(workspaceType)) return jsonResponse({ error: "Choose Freelancer or Business for your workspace." }, 400, origin);
+    if (existingWorkspaceType && existingWorkspaceType !== workspaceType) {
+      return jsonResponse({ error: "This Workspace already has a primary work profile. Changing it requires a separately reviewed migration." }, 409, origin);
+    }
     const allowedFeatures = new Set(["expenses", "crm", "leads", "inventoryWorkspace", "reports"]);
     const requestedFeatures = body?.optionalFeatures;
     const optionalFeatures = Array.isArray(requestedFeatures)
