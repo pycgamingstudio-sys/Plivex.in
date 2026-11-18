@@ -25,7 +25,7 @@ test("retired Global backend adapters remain blocked from unified runtime", () =
 test("unified build keeps one public workspace identity and provisions through canonical endpoint", () => {
   assert.match(authContext, /if \(isUnifiedBuild\) \{[\s\S]*setRuntimeEdition\("india"\);[\s\S]*return currentUser;/);
   assert.ok(authContext.indexOf('if (isUnifiedBuild)') < authContext.indexOf('const shouldResolveGlobal = APP_EDITION === "global" || isUnifiedBuild'));
-  assert.match(app, /\(!user\.workspace_id \|\| !user\.country_code \|\| !user\.workspace_type \|\| Number\(user\.onboarding_version \|\| 0\) < 1 \|\| user\.migration_status !== "ready"\)/);
+  assert.match(app, /\(!user\.workspace_id \|\| !user\.country_code \|\| !user\.workspace_type \|\| Number\(user\.onboarding_version \|\| 0\) < 1 \|\| user\.migration_status !== "ready" \|\| user\.legacy_review_required\)/);
   assert.match(onboarding, /ensureOwnerRole/);
   assert.doesNotMatch(onboarding, /globalEnsureOwner/);
   assert.match(backend, /workspace_settings/);
