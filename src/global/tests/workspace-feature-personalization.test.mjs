@@ -38,11 +38,16 @@ test("freelancer and business are mutually exclusive primary workspace profiles"
   assert.doesNotMatch(globalApp, /tab: "quotations", icon: FileText, tone:.*feature catalog/);
 });
 
-test("Invoices, Quotations, Stock and Team are permanent dashboard cards", async () => {
+test("Freelancer and Business profiles receive the right permanent dashboard cards", async () => {
   const helper = await read("../../lib/workspaceFeatures.js");
   const dashboard = await read("../../components/dashboard/DashboardTab.jsx");
-  assert.match(helper, /PERMANENT_DASHBOARD_FEATURES.*invoices.*quotations.*stock.*team/);
-  assert.ok(dashboard.includes("PERMANENT_DASHBOARD_FEATURES.includes(card.id)"));
+  const app = await read("../../pages/Dashboard.jsx");
+  assert.match(helper, /getPermanentDashboardFeatures/);
+  assert.match(helper, /workspaceType === "freelancer"/);
+  assert.match(helper, /\[\.\.\.PERMANENT_DASHBOARD_FEATURES, "stock", "team"\]/);
+  assert.match(dashboard, /getPermanentDashboardFeatures\(user\?\.workspace_type\)/);
+  assert.match(app, /useWorkspaceFeatures\(user\?\.workspace_id\)/);
+  assert.match(app, /workspace_type === "freelancer".*stock.*team.*warehouses/);
   assert.ok(dashboard.indexOf('id: "invoices"') < dashboard.indexOf('id: "quotations"'));
 });
 
