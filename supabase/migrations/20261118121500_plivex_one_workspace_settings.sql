@@ -182,6 +182,10 @@ exception when others then
   raise;
 end $function$;
 
+-- SECURITY DEFINER RPC is callable only by authenticated workspace members.
+revoke all on function public.india_part4_create_purchase_order(text, jsonb, text, date, text) from public, anon;
+grant execute on function public.india_part4_create_purchase_order(text, jsonb, text, date, text) to authenticated, service_role;
+
 comment on table public.workspace_settings is
   'PLIVEX ONE canonical country, currency, primary work profile and optional-feature settings for a public workspace. Country is explicitly selected; no IP or locale inference.';
 comment on column public.workspace_settings.optional_features is
