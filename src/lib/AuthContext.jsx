@@ -15,7 +15,7 @@ const AuthContext = createContext();
 // Existing India accounts with no country stamp remain India; non-India accounts
 // must resolve to an explicitly supported country before Global handlers are used.
 async function resolveSignedInEdition(currentUser) {
-  if (!isUnifiedBuild) return currentUser;
+  if (!isUnifiedBuild && APP_EDITION !== "global") return currentUser;
 
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError) throw authError;
@@ -34,13 +34,14 @@ async function resolveSignedInEdition(currentUser) {
   }
 
   // Existing India workspaces predate country stamping and remain on India.
-  if (currentUser?.workspace_id && !countryCode) countryCode = 'IN';
+  if (currentUser?.workspace_id && !countryCode && APP_EDITION !== "global") countryCode = 'IN';
 
   let globalUser = null;
   // Non-India identities are checked against the Global context. New users
   // without a workspace may continue to the explicit onboarding screen.
   const hasWorkspaceMembership = Boolean(currentUser?.workspace_id && currentUser?.role);
-  if (countryCode !== 'IN') {
+  const shouldResolveGlobal = APP_EDITION === "global" || countryCode !== 'IN';
+  if (shouldResolveGlobal) {
     // Query Global membership for every non-India identity. The India profile
     // adapter cannot see a Global-only workspace, so currentUser may have no
     // workspace_id even after Global provisioning has completed.
@@ -48,7 +49,7 @@ async function resolveSignedInEdition(currentUser) {
     if (!globalError && globalContext?.user?.id === currentUser?.id) {
       globalUser = globalContext.user;
       countryCode = globalUser.country_code || countryCode;
-    } else if (hasWorkspaceMembership || (profileCountry && profileCountry.toUpperCase() !== 'IN')) {
+    } else if (APP_EDITION === "global" || hasWorkspaceMembership || (profileCountry && profileCountry.toUpperCase() !== 'IN')) {
       throw new Error('Your Global workspace could not be verified. Your existing data has not been changed.');
     }
     // A new account with no workspace is allowed through to the explicit
@@ -149,7 +150,7 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingAuth(true);
       if (isUnifiedBuild) setRuntimeEdition('india');
       let currentUser = await db.auth.me();
-      if (isUnifiedBuild) currentUser = await resolveSignedInEdition(currentUser);
+      if (isUnifiedBuild || APP_EDITION === "global") currentUser = await resolveSignedInEdition(currentUser);
 
       // Unified signup is authenticated first; provisioning waits for completed onboarding.
       if (isUnifiedBuild && !currentUser?.workspace_id && !getPendingInviteCode()) {
