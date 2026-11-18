@@ -8,20 +8,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { APP_EDITION } from "@/api/backendClient";
 import { getCountryByCode, getCountryFlag } from "@/global/countries/country-registry.js";
 import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
-import { LayoutDashboard, Users, Package, Receipt, FileText, Handshake, Warehouse, Calculator, ShoppingCart, Boxes, Sparkles, Zap, LogOut } from "lucide-react";
-
-const GLOBAL_NAV = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/invoice-history", label: "Sales", icon: FileText },
-  { to: "/quotations", label: "Quotations", icon: FileText },
-  { to: "/expenses", label: "Purchase", icon: Receipt },
-  { to: "/accounting", label: "Reports", icon: Calculator },
-  { to: "/crm", label: "Client CRM", icon: Handshake },
-  { to: "/products", label: "Stock", icon: Package },
-  { to: "/enterprise", label: "Team", icon: Users },
-  { to: "/inventory-procurement", label: "Warehouse", icon: Warehouse },
-
-];
+import { LayoutDashboard, Users, Package, Receipt, FileText, Handshake, Calculator, ShoppingCart, Boxes, Sparkles, Zap, LogOut } from "lucide-react";
 
 const GLOBAL_PRIMARY_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
