@@ -35,10 +35,27 @@ export default function TaxSummary() {
       return true;
     });
   }, [items, period]);
-  const cgst = filtered.reduce((s, it) => s + Number(it.cgst || 0), 0);
-  const sgst = filtered.reduce((s, it) => s + Number(it.sgst || 0), 0);
-  const igst = filtered.reduce((s, it) => s + Number(it.igst || 0), 0);
-  const totalTax = cgst + sgst + igst;
+  const taxByCurrency = useMemo(() => {
+    const totals = new Map();
+    filtered.forEach((it) => {
+      const currency = String(it.currency || user?.currency_code || "").trim().toUpperCase();
+      if (!/^[A-Z]{3}$/.test(currency)) return;
+      const current = totals.get(currency) || { cgst: 0, sgst: 0, igst: 0 };
+      current.cgst += Number(it.cgst || 0);
+      current.sgst += Number(it.sgst || 0);
+      current.igst += Number(it.igst || 0);
+      totals.set(currency, current);
+    });
+    return [...totals.entries()].sort(([a], [b]) => a === user?.currency_code ? -1 : b === user?.currency_code ? 1 : a.localeCompare(b));
+  }, [filtered, user?.currency_code]);
+  const formatTaxTotal = (field) => taxByCurrency
+    .map(([currency, totals]) => money(totals[field], currency, user?.locale_code))
+    .join(" · ") || money(0, user?.currency_code || "INR", user?.locale_code);
+  const totalTaxByCurrency = taxByCurrency.map(([currency, totals]) => ({
+    currency,
+    amount: totals.cgst + totals.sgst + totals.igst,
+  }));
+  const hasForeignCurrencyInvoices = filtered.some((it) => String(it.currency || "").trim().toUpperCase() !== "INR");
   const exportReport = async () => {
     setExportError(""); setExporting(true);
     try {
@@ -89,10 +106,12 @@ export default function TaxSummary() {
       <div className="flex gap-1.5 rounded-lg border bg-card p-1">
         {PERIODS.map((p) => <button key={p.id} onClick={() => setPeriod(p.id)} className={`flex-1 rounded-md py-2 text-[11px] font-bold transition-colors ${period === p.id ? "bg-secondary text-primary" : "text-muted-foreground"}`}>{p.label}</button>)}
       </div>
-      <div className="grid gap-3 sm:grid-cols-3"><Card label="CGST collected" value={money(cgst, user?.currency_code, user?.locale_code)} /><Card label="SGST collected" value={money(sgst, user?.currency_code, user?.locale_code)} /><Card label="IGST collected" value={money(igst, user?.currency_code, user?.locale_code)} accent /></div>
+      <div className="grid gap-3 sm:grid-cols-3"><Card label="CGST collected" value={formatTaxTotal("cgst")} /><Card label="SGST collected" value={formatTaxTotal("sgst")} /><Card label="IGST collected" value={formatTaxTotal("igst")} accent /></div>
       <div className="rounded-xl border bg-card p-5">
-        <div className="flex items-center justify-between"><p className="text-[13px] font-bold">Total tax</p><p className="text-[22px] font-bold tracking-[-0.03em] text-primary">{money(totalTax, user?.currency_code, user?.locale_code)}</p></div>
+        <div className="flex items-center justify-between"><p className="text-[13px] font-bold">Total tax</p><p className="text-[22px] font-bold tracking-[-0.03em] text-primary">{totalTaxByCurrency.map((entry) => money(entry.amount, entry.currency, user?.locale_code)).join(" · ") || money(0, user?.currency_code || "INR", user?.locale_code)}</p></div>
         <p className="mt-1 text-[11px] text-muted-foreground">{filtered.length} invoice(s) in this period.</p>
+        {taxByCurrency.length > 1 && <p className="mt-2 text-[11px] text-muted-foreground">Amounts are grouped by recorded invoice currency. No foreign-exchange conversion is performed.</p>}
+        {hasForeignCurrencyInvoices && <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-[11px] text-amber-900">GSTR-1 export is paused for periods containing foreign-currency invoices. Verify the required INR amounts before filing; Plivex will not guess an exchange rate.</p>}
       </div>
       <div className="rounded-xl border bg-card p-5">
         <div className="mb-4 flex items-center gap-2"><Download className="h-4 w-4 text-primary" /><h3 className="text-[13px] font-bold">Export GSTR-1 Return (JSON)</h3></div>
