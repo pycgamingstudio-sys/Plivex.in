@@ -26,7 +26,7 @@ const ROLE_CARD_ACCESS = {
 export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUnlocked }) {
   const isAdmin = role === "admin";
   const { user } = useAuth();
-  const { features, updateFeatures, saving: savingFeatures, error: featureError } = useWorkspaceFeatures(user?.id);
+  const { features, updateFeatures, saving: savingFeatures, error: featureError } = useWorkspaceFeatures(user?.workspace_id);
   const [featureOpen, setFeatureOpen] = useState(false);
   const { limits, usage } = usePaywall();
   const [profile] = useLocalState(KEYS.businessProfile, { name: "", address: "", gstin: "", email: "", phone: "", logo: "" });
