@@ -43,3 +43,12 @@ test("invoice PDF export waits for the preview and downloads a non-empty PDF blo
   assert.doesNotMatch(home, /pdf\.save\(/);
   assert.doesNotMatch(home, /Preview is still loading\. Try again in a moment\./);
 });
+
+test("a verified non-India membership can switch runtime edition without trusting the legacy workspace ID", async () => {
+  const auth = await read("../../lib/AuthContext.jsx");
+  const backend = await read("../../api/backendClient.js");
+  assert.match(auth, /existingCountry === "IN"/);
+  assert.match(auth, /currentUser\?\.country_code && String\(currentUser\.country_code\)\.trim\(\)\.toUpperCase\(\) !== "IN"/);
+  assert.match(auth, /verifiedGlobal: edition === "global" && Boolean\(globalUser\)/);
+  assert.match(backend, /!isUnifiedBuild && edition === "global" && !verifiedGlobal/);
+});
