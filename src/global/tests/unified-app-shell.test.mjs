@@ -52,7 +52,8 @@ test("single-domain edition follows the active workspace country and base curren
   const auth = read("../../lib/AuthContext.jsx");
   const paywall = read("../../lib/paywall.jsx");
   const onboarding = read("../../components/global/UnifiedWorkspaceOnboarding.jsx");
-  assert.match(backend, /workspaceRegion\?\.country_code/);
+  assert.match(backend, /workspaceSettings\?\.country_code/);
+  assert.doesNotMatch(backend, /workspaceRegion\?\.country_code|profile\?\.country_code/);
   assert.match(auth, /resolveWorkspaceEdition\(countryCode, supportedCodes\)/);
   assert.match(paywall, /base_currency: true/);
   assert.match(paywall, /feature === "base_currency"/);
