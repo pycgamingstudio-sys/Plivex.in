@@ -70,37 +70,7 @@ grant select on public.workspace_settings to authenticated;
 grant update (optional_features, updated_at) on public.workspace_settings to authenticated;
 grant all on public.workspace_settings to service_role;
 
--- Backfill only explicitly country-stamped workspaces. Never infer India from missing data.
-insert into public.workspace_settings (
-  workspace_id, country_code, locale_code, currency_code, workspace_type, created_at, updated_at
-)
-select
-  bp.workspace_id,
-  bp.country_code,
-  bp.locale_code,
-  case bp.country_code
-    when 'IN' then 'INR'
-    when 'US' then 'USD'
-    when 'GB' then 'GBP'
-    when 'AE' then 'AED'
-    when 'CA' then 'CAD'
-    when 'AU' then 'AUD'
-    when 'SG' then 'SGD'
-  end,
-  'business',
-  now(),
-  now()
-from public.business_profile bp
-where
-  (bp.country_code = 'IN' and bp.locale_code in ('en-IN','hi-IN'))
-  or (bp.country_code = 'US' and bp.locale_code in ('en-US','es-US'))
-  or (bp.country_code = 'GB' and bp.locale_code = 'en-GB')
-  or (bp.country_code = 'AE' and bp.locale_code in ('en-AE','ar-AE'))
-  or (bp.country_code = 'CA' and bp.locale_code in ('en-CA','fr-CA'))
-  or (bp.country_code = 'AU' and bp.locale_code = 'en-AU')
-  or (bp.country_code = 'SG' and bp.locale_code in ('en-SG','zh-SG','ms-SG','ta-SG'))
-on conflict (workspace_id) do nothing;
-
+-- Existing accounts must complete the same manual country and work-profile onboarding.
 -- Preserve the workspace's base currency on every monetary record type.
 alter table public.expenses add column if not exists currency_code text;
 alter table public.stock add column if not exists currency_code text;
