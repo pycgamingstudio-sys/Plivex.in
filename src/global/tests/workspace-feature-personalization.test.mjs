@@ -37,11 +37,20 @@ test("freelancer and business can be selected independently or together", async 
   assert.doesNotMatch(globalApp, /tab: "quotations", icon: FileText, tone:.*feature catalog/);
 });
 
-test("Invoices, Stock and Team are permanent dashboard cards", async () => {
+test("Invoices, Quotations, Stock and Team are permanent dashboard cards", async () => {
   const helper = await read("../../lib/workspaceFeatures.js");
   const dashboard = await read("../../components/dashboard/DashboardTab.jsx");
-  assert.match(helper, /PERMANENT_DASHBOARD_FEATURES.*invoices.*stock.*team/);
-  assert.match(dashboard, /PERMANENT_DASHBOARD_FEATURES.includes\(card.id\)/);
+  assert.match(helper, /PERMANENT_DASHBOARD_FEATURES.*invoices.*quotations.*stock.*team/);
+  assert.ok(dashboard.includes("PERMANENT_DASHBOARD_FEATURES.includes(card.id)"));
+  assert.ok(dashboard.indexOf('id: "invoices"') < dashboard.indexOf('id: "quotations"'));
+});
+
+test("unified auth checks authoritative Global membership even when legacy India profile says IN", async () => {
+  const auth = await read("../../lib/AuthContext.jsx");
+  assert.ok(auth.includes("APP_EDITION === \"global\" || isUnifiedBuild || countryCode !== 'IN'"));
+  assert.ok(auth.includes("globalUser = globalContext.user"));
+  assert.ok(auth.includes("countryCode = globalUser.country_code || countryCode"));
+  assert.ok(auth.includes("APP_EDITION === \"global\" || (countryCode && countryCode !== 'IN')"));
 });
 
 test("More Features only offers optional tools not already in navigation", async () => {

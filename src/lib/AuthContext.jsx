@@ -37,23 +37,21 @@ async function resolveSignedInEdition(currentUser) {
   if (currentUser?.workspace_id && !countryCode && APP_EDITION !== "global") countryCode = 'IN';
 
   let globalUser = null;
-  // Non-India identities are checked against the Global context. New users
-  // without a workspace may continue to the explicit onboarding screen.
-  const hasWorkspaceMembership = Boolean(currentUser?.workspace_id && currentUser?.role);
-  const shouldResolveGlobal = APP_EDITION === "global" || countryCode !== 'IN';
+  // Always ask the server whether this identity has a Global workspace.
+  // Legacy India profiles can still carry country_code=IN for a user whose
+  // actual Global workspace is US/GB/etc.; a successful Global context wins.
+  // If no Global membership exists, an explicit India profile remains India.
+  const shouldResolveGlobal = APP_EDITION === "global" || isUnifiedBuild || countryCode !== 'IN';
   if (shouldResolveGlobal) {
-    // Query Global membership for every non-India identity. The India profile
-    // adapter cannot see a Global-only workspace, so currentUser may have no
-    // workspace_id even after Global provisioning has completed.
     const { data: globalContext, error: globalError } = await supabase.functions.invoke('global-auth-context', { body: {} });
     if (!globalError && globalContext?.user?.id === currentUser?.id) {
       globalUser = globalContext.user;
       countryCode = globalUser.country_code || countryCode;
-    } else if (APP_EDITION === "global" || hasWorkspaceMembership || (profileCountry && profileCountry.toUpperCase() !== 'IN')) {
+    } else if (APP_EDITION === "global" || (countryCode && countryCode !== 'IN')) {
       throw new Error('Your Global workspace could not be verified. Your existing data has not been changed.');
     }
-    // A new account with no workspace is allowed through to the explicit
-    // country onboarding screen; that screen provisions the Global workspace.
+    // Existing India accounts with no Global membership fall back to India;
+    // new accounts continue to the explicit country onboarding screen.
   }
 
   // New identities without a workspace must complete shared onboarding first.
