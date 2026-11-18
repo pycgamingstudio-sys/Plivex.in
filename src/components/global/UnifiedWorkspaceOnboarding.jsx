@@ -15,12 +15,12 @@ export default function UnifiedWorkspaceOnboarding() {
   const initial = useMemo(() => readDraft(draftKey), [draftKey]);
   const [step, setStep] = useState(() => Math.min(4, Math.max(0, Number(initial.step) || 0)));
   const [businessName, setBusinessName] = useState(() => initial.businessName || "");
-  const [countryCode, setCountryCode] = useState(() => initial.countryCode || user?.country_code || "");
-  const [localeCode, setLocaleCode] = useState(() => initial.localeCode || user?.locale_code || "");
+  const [countryCode, setCountryCode] = useState(() => initial.countryCode || "");
+  const [localeCode, setLocaleCode] = useState(() => initial.localeCode || "");
   const [phone, setPhone] = useState(() => initial.phone || "");
   const [taxType, setTaxType] = useState(() => initial.taxType || "");
   const [taxNumber, setTaxNumber] = useState(() => initial.taxNumber || "");
-  const [workTypes, setWorkTypes] = useState(() => Array.isArray(initial.workTypes) ? initial.workTypes : (user?.workspace_type ? [user.workspace_type] : []));
+  const [workTypes, setWorkTypes] = useState(() => Array.isArray(initial.workTypes) ? initial.workTypes : []);
   const [features, setFeatures] = useState(() => Array.isArray(initial.features) ? initial.features : (Array.isArray(user?.optional_features) ? user.optional_features : []));
   const [countrySearch, setCountrySearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -130,7 +130,7 @@ export default function UnifiedWorkspaceOnboarding() {
             <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><Globe2 className="h-6 w-6" /></div>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Choose your country.</h1>
             <p className="mt-2 text-sm leading-6 text-slate-500">Choose where your business or independent work is based. Plivex will configure your one Workspace for that country.</p>
-            {user?.workspace_id && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900"><strong>Existing Workspace review:</strong> Your account and saved records are being preserved. Historical invoice and expense currencies will not be converted. If older country settings conflict with your selection, Plivex will pause setup for a reviewed migration rather than relabel your records.</div>}
+            {user?.workspace_id && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900"><strong>Existing Workspace review:</strong> Previous country setting: {getCountryByCode(user?.country_code)?.name || user?.country_code || "not recorded"}. Please select your country again and choose Freelancer or Business. Your account and saved records are being preserved; historical invoice and expense currencies will not be converted. If records have conflicting or unknown currency, Plivex will not relabel them.</div>}
             <div className="mt-5 rounded-2xl border border-violet-100 bg-violet-50/70 p-4 text-sm leading-6 text-violet-950">
               <div className="flex items-start gap-2"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-violet-700" /><div><p className="font-semibold">A quick note before you choose</p><p className="mt-1 text-violet-900/80">Your country sets your workspace's base currency, regional formats and country-specific settings. Changing it after workspace creation requires a controlled reset or migration and may affect existing records. Please review your selection before continuing.</p></div></div>
             </div>
