@@ -64,12 +64,23 @@ test("India tax reporting never mixes foreign-currency amounts or guesses FX for
 
 test("profit analytics never adds foreign-currency sales to base-currency expenses", () => {
   const purchase = read("../../components/dashboard/PurchaseTab.jsx");
+  const sales = read("../../components/dashboard/SalesTab.jsx");
+  const crm = read("../../components/dashboard/CrmTab.jsx");
   assert.match(purchase, /salesByCurrency/);
   assert.match(purchase, /baseCurrencySales = salesByCurrency\.get\(currencyCode\)/);
   assert.match(purchase, /baseCurrencyExpenses = expensesByCurrency\.get\(currencyCode\)/);
   assert.match(purchase, /Net profit uses only base-currency sales and expenses; records without a recorded currency are excluded/);
   assert.match(purchase, /recordedExpenseAmount\(e\)/);
   assert.match(purchase, /Currency not recorded/);
+  assert.match(purchase, /hasUnknownCurrencySales/);
+  assert.doesNotMatch(purchase, /it\.currency \|\| currencyCode/);
+  assert.match(sales, /const recordedCurrency =/);
+  assert.match(sales, /This invoice has no recorded currency/);
+  assert.match(sales, /Currency not recorded/);
+  assert.doesNotMatch(sales, /record\.currency \|\| record\.currencyCode \|\| currencyCode/);
+  assert.doesNotMatch(sales, /money2\(it\.total, it\.currency \|\| currencyCode\)/);
+  assert.match(crm, /recordedLeadAmount\(l\)/);
+  assert.doesNotMatch(crm, /money2\(l\.value, l\.currencyCode \|\| currencyCode\)/);
   assert.doesNotMatch(purchase, /money2\(e\.amount, e\.currencyCode \|\| currencyCode\)/);
   assert.match(purchase, /label="Monthly Sales" value=\{monthSales\}/);
   assert.doesNotMatch(purchase, /money2\(monthSales, currencyCode\)/);
