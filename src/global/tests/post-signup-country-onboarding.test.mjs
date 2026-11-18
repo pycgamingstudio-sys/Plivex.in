@@ -15,8 +15,10 @@ test("unified signup authenticates first and collects country after sign-in", as
   assert.match(google, /APP_EDITION !== "global" && countryCode/);
   assert.match(backend, /signupMetadata/);
   assert.match(onboarding, /Create my workspace/);
-  assert.match(onboarding, /globalEnsureOwner/);
+  assert.doesNotMatch(onboarding, /globalEnsureOwner/);
   assert.match(onboarding, /ensureOwnerRole/);
+  assert.match(onboarding, /businessType: workTypes\[0\]/);
+  assert.match(onboarding, /optionalFeatures: features/);
   assert.match(onboarding, /plivex_work_types: workTypes/);
   assert.match(onboarding, /plivex_workspace_features: features/);
 });
@@ -28,26 +30,21 @@ test("new unified identities are held at onboarding before workspace provisionin
   assert.match(auth, /Unified signup is authenticated first/);
   assert.match(auth, /setIsAuthenticated\(true\)/);
   assert.match(app, /UnifiedWorkspaceOnboarding/);
-  assert.match(onboarding, /Where is your business based/);
+  assert.match(onboarding, /Choose your country/);
   assert.match(onboarding, /controlled reset or migration/);
   assert.match(onboarding, /Create my workspace/);
 });
 
-test("new Global identities are held at onboarding before workspace provisioning", async () => {
+test("unified runtime does not resolve a second Global workspace identity", async () => {
   const auth = await read("../../lib/AuthContext.jsx");
   const app = await read("../../App.jsx");
-  const onboarding = await read("../../components/global/GlobalCountryOnboarding.jsx");
-  assert.match(auth, /Require an explicit business-country choice before provisioning/);
-  assert.match(auth, /setIsAuthenticated\(true\)/);
-  assert.match(app, /GlobalCountryOnboarding/);
-  assert.match(app, /UnifiedWorkspaceOnboarding/);
-  assert.match(onboarding, /Please choose your business country/);
-  assert.match(onboarding, /globalEnsureOwner/);
+  assert.match(auth, /if \(isUnifiedBuild\) \{[\s\S]*setRuntimeEdition\("india"\);[\s\S]*return currentUser;/);
+  assert.match(app, /\(!user\.workspace_id \|\| !user\.country_code\)/);
 });
 
 test("Global owner provisioning rejects a missing country instead of defaulting to India", async () => {
-  const edgeFunction = await read("../../../supabase/functions/global-ensure-owner/index.ts");
-  assert.match(edgeFunction, /: "";/);
-  assert.match(edgeFunction, /Choose your business country before creating your workspace/);
-  assert.doesNotMatch(edgeFunction, /: "IN";/);
+  const edgeFunction = await read("../../../supabase/functions/ensure-owner-role/index.ts");
+  assert.match(edgeFunction, /Choose a supported business country before creating your workspace/);
+  assert.match(edgeFunction, /Choose a valid regional format for your selected country/);
+  assert.doesNotMatch(edgeFunction, /requestedCountry.*: "IN"/);
 });
