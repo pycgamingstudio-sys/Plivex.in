@@ -33,7 +33,8 @@ test("freelancer and business can be selected independently or together", async 
   const globalApp = await read("../../global/GlobalApp.jsx");
   assert.match(layout, /if \(item\.to === "\/quotations"\) return true/);
   assert.match(globalApp, /tab === "quotations"/);
-  assert.doesNotMatch(globalApp, /tab: "quotations", icon: FileText/);
+  assert.match(globalApp, /title: "Quotations"[\s\S]*tab: "quotations"[\s\S]*icon: FileText/);
+  assert.doesNotMatch(globalApp, /tab: "quotations", icon: FileText, tone:.*feature catalog/);
 });
 
 test("Invoices, Stock and Team are permanent dashboard cards", async () => {
