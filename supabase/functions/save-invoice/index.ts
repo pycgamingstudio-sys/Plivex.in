@@ -22,18 +22,27 @@ Deno.serve(async (req: Request) => {
     const { data: userProfile, error: userProfileError } = await db.from("profiles")
       .select("workspace_id").eq("id", user.id).maybeSingle();
     if (userProfileError || !userProfile?.workspace_id) return json({ error: "Workspace could not be verified." }, 403, origin);
-    const { data: businessProfile, error: businessProfileError } = await db.from("business_profile")
-      .select("country_code,tax_registration_number,tax_registration_type,tax_registration_status,tax_registration_effective_from,tax_jurisdiction_code")
-      .eq("workspace_id", userProfile.workspace_id).maybeSingle();
-    if (businessProfileError) return json({ error: "Workspace tax profile could not be loaded." }, 500, origin);
-    const countryCode = String(businessProfile?.country_code || "IN").toUpperCase();
-    const requestedCountry = String(body?.invoice_snapshot?.globalTax?.countryCode || "");
-    if (requestedCountry && requestedCountry !== countryCode) return json({ error: "Invoice tax country does not match the saved workspace country." }, 422, origin);
+    const [{ data: workspaceSettings, error: workspaceSettingsError }, { data: businessProfile, error: businessProfileError }] = await Promise.all([
+      db.from("workspace_settings").select("country_code,currency_code,locale_code")
+        .eq("workspace_id", userProfile.workspace_id).maybeSingle(),
+      db.from("business_profile").select("tax_registration_number,tax_registration_type,tax_registration_status,tax_registration_effective_from,tax_jurisdiction_code")
+        .eq("workspace_id", userProfile.workspace_id).maybeSingle(),
+    ]);
+    if (workspaceSettingsError || businessProfileError) return json({ error: "Workspace regional settings could not be verified." }, 500, origin);
+    const countryCode = String(workspaceSettings?.country_code || "").trim().toUpperCase();
+    const baseCurrencyCode = String(workspaceSettings?.currency_code || "").trim().toUpperCase();
+    if (!countryCode || !/^[A-Z]{3}$/.test(baseCurrencyCode)) {
+      return json({ error: "Choose and save your Workspace country before creating invoices. No country or currency default is assumed." }, 409, origin);
+    }
+    const requestedCountry = String(body?.invoice_snapshot?.workspaceCountryCode || body?.invoice_snapshot?.globalTax?.countryCode || "");
+    if (requestedCountry && requestedCountry !== countryCode) return json({ error: "Invoice country does not match the manually selected Workspace country." }, 422, origin);
+    const requestedCurrency = String(body?.currency || body?.invoice_snapshot?.currency || "").trim().toUpperCase();
+    if (requestedCurrency !== baseCurrencyCode) return json({ error: "Invoice currency must match the Workspace base currency. Additional currencies require an enabled feature." }, 422, origin);
     let verifiedGlobalTaxResult: Record<string, unknown> | null = null;
     if (countryCode !== "IN") {
       if (body?.is_draft !== true) return json({ error: "Non-India invoices remain drafts until a verified server-side issuance capability is enabled." }, 409, origin);
-      if (!businessProfile || !body?.invoice_snapshot || typeof body.invoice_snapshot !== "object") {
-        return json({ error: "A saved workspace tax profile and invoice tax details are required." }, 422, origin);
+      if (!body?.invoice_snapshot || typeof body.invoice_snapshot !== "object") {
+        return json({ error: "Invoice draft details are required." }, 422, origin);
       }
       const taxInput = {
         ...body.invoice_snapshot,
@@ -43,10 +52,9 @@ Deno.serve(async (req: Request) => {
         discount: body.discount ?? body.invoice_snapshot.discount,
         discountType: body.discount_type || body.invoice_snapshot.discountType,
       };
-      const currencyByCountry: Record<string, string> = { US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD" };
       const taxResult = calculateInvoiceGlobalTax(taxInput, {
         countryCode,
-        currencyCode: currencyByCountry[countryCode] || "",
+        currencyCode: baseCurrencyCode,
         registrationNumber: businessProfile.tax_registration_number || "",
         registrationType: businessProfile.tax_registration_type || "",
         registrationStatus: businessProfile.tax_registration_status || "unregistered",
@@ -81,12 +89,12 @@ Deno.serve(async (req: Request) => {
       if (existingInvoice.is_draft !== true) return json({ error: "Only draft invoices can be edited from this workflow." }, 409, origin);
     }
     const { items, id, invoiceId: _ignored, ...data } = body;
-    const isGlobalInvoice = countryCode !== "IN";
+    const isNonIndiaInvoice = countryCode !== "IN";
     const safeItems = items.map((it: Record<string, unknown>) => ({
       description: typeof it?.description === "string" ? it.description.slice(0, 500) : "",
       quantity: Number.isFinite(Number(it?.quantity)) ? Math.max(0, Number(it.quantity)) : 0,
       rate: Number.isFinite(Number(it?.rate)) ? Math.max(0, Number(it.rate)) : 0,
-      ...(!isGlobalInvoice && it?.gst_rate !== undefined && it?.gst_rate !== null && it?.gst_rate !== ""
+      ...(!isNonIndiaInvoice && it?.gst_rate !== undefined && it?.gst_rate !== null && it?.gst_rate !== ""
         ? { gst_rate: Number.isFinite(Number(it.gst_rate)) ? Math.max(0, Number(it.gst_rate)) : 0 }
         : {}),
     }));
