@@ -183,6 +183,8 @@ test("legacy Global workspaces are mapped into one canonical Workspace without c
   assert.match(migration, /legacy Global team membership requires an explicit member migration/);
   assert.match(migration, /Global transactional records need a dedicated row-preserving migration/);
   assert.match(migration, /references public\.workspace_settings\(workspace_id\) on delete restrict/);
+  assert.match(migration, /greatest\(public\.workspace_settings\.onboarding_version, excluded\.onboarding_version\)/);
+  assert.match(migration, /public\.workspace_settings\.migration_status = 'ready'/);
 });
 
 test("invited non-owner members wait for owner setup instead of entering owner onboarding", async () => {
