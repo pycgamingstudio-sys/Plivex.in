@@ -1,3 +1,4 @@
+import { useAuth } from "@/lib/AuthContext";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Trash2, Pencil, X, ArrowRight, UserPlus, Search, ChevronDown, ChevronRight, Users, Target, Wallet } from "lucide-react";
@@ -14,6 +15,8 @@ const blankClient = { name: "", company: "", email: "", phone: "", gstin: "", ad
 const blankLead = { name: "", phone: "", email: "", company: "", source: "", requirement: "", value: "", nextFollowUpAt: "" };
 
 export default function CrmTab({ intent, onConsumeIntent }) {
+  const { user } = useAuth();
+  const currencyCode = user?.currency_code || "INR";
   const { requestAction } = usePaywall();
   const [sub, setSub] = useState("clients");
   const [clients, setClients] = useState(() => loadList(KEYS.clients));
@@ -62,7 +65,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <SummaryCard label="Total Clients" value={String(clients.length)} gradient="bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" icon={Users} badge="directory" />
         <SummaryCard label="Active Leads" value={String(activeLeads.length)} gradient="bg-gradient-to-br from-[#2563EB] to-[#3B82F6]" icon={Target} badge="open" />
-        <SummaryCard label="Pipeline Value" value={money2(pipelineValue)} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={Wallet} badge="forecast" />
+        <SummaryCard label="Pipeline Value" value={money2(pipelineValue, currencyCode)} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={Wallet} badge="forecast" />
       </div>
 
       <div className="flex gap-1.5 rounded-xl border border-[#E5E7EB] bg-white p-1.5">
@@ -134,7 +137,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
                                   {history.map((it) => (
                                     <div key={it.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 text-[11px]">
                                       <span className="text-slate-700">{it.number} · {it.issueDate || "—"}</span>
-                                      <span className="font-semibold text-slate-900">{money2(it.total, it.currency)}</span>
+                                      <span className="font-semibold text-slate-900">{money2(it.total, it.currency || currencyCode)}</span>
                                     </div>
                                   ))}
                                 </div>
@@ -171,7 +174,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
               return (
                 <div key={stage} className="rounded-2xl border border-[#E5E7EB] bg-white p-3 shadow-sm">
                   <div className="mb-3 flex items-center justify-between"><h4 className="text-[12px] font-bold text-slate-700">{stage}</h4><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">{items.length}</span></div>
-                  {stageValue > 0 && <p className="mb-2 text-[11px] font-bold text-[#6D28D9]">{money2(stageValue)}</p>}
+                  {stageValue > 0 && <p className="mb-2 text-[11px] font-bold text-[#6D28D9]">{money2(stageValue, currencyCode)}</p>}
                   <div className="space-y-2">
                     {items.map((l) => (
                       <div key={l.id} className="rounded-xl border border-[#E5E7EB] p-3">
@@ -180,7 +183,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
                         <p className="mt-1 text-[9px] font-semibold text-slate-500">Lead score: {Number(l.score || 0)}/100</p>
                         {l.nextFollowUpAt && <p className="text-[9px] text-slate-500">Follow-up: {new Date(l.nextFollowUpAt).toLocaleString()}</p>}
                         <p className="mt-1 text-[11px] text-slate-500">{l.requirement || "—"}</p>
-                        <p className="mt-1 text-[12px] font-bold text-[#6D28D9]">{money2(l.value)}</p>
+                        <p className="mt-1 text-[12px] font-bold text-[#6D28D9]">{money2(l.value, currencyCode)}</p>
                         <div className="mt-2 flex flex-wrap gap-1">
                           {STAGES.filter((s) => s !== stage).map((s) => <button key={s} onClick={() => moveLead(l.id, s)} className="rounded-md bg-slate-100 px-2 py-1 text-[9px] font-semibold text-slate-600 hover:bg-slate-200">→ {s}</button>)}
                           <button onClick={() => persistLeads(removeItem(KEYS.leads, l.id))} className="rounded-md bg-red-50 px-2 py-1 text-[9px] font-semibold text-red-500 hover:bg-red-100">del</button>
@@ -237,7 +240,7 @@ function LeadModal({ onClose, onSave }) {
           <label className="block text-[12px] font-semibold text-slate-500">Email<input type="email" className={inputCls} value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="lead@example.com" /></label>
           <label className="block text-[12px] font-semibold text-slate-500">Lead source<input className={inputCls} value={form.source} onChange={(e) => set("source", e.target.value)} placeholder="Referral, website, walk-in…" /></label>
           <label className="block text-[12px] font-semibold text-slate-500">Requirement<input className={inputCls} value={form.requirement} onChange={(e) => set("requirement", e.target.value)} placeholder="What do they need?" /></label>
-          <label className="block text-[12px] font-semibold text-slate-500">Estimated value (₹)<input type="number" min="0" className={inputCls} value={form.value} onChange={(e) => set("value", e.target.value)} placeholder="0" /></label>
+          <label className="block text-[12px] font-semibold text-slate-500">Estimated value ({currencyCode})<input type="number" min="0" className={inputCls} value={form.value} onChange={(e) => set("value", e.target.value)} placeholder="0" /></label>
           <label className="block text-[12px] font-semibold text-slate-500 sm:col-span-2">Next follow-up<input type="datetime-local" className={inputCls} value={form.nextFollowUpAt} onChange={(e) => set("nextFollowUpAt", e.target.value)} /></label>
         </div>
         <div className="mt-4 flex justify-end gap-2"><button onClick={onClose} className={btnGhost}>Cancel</button><button onClick={() => onSave(form)} className={btnAccent}>Save lead</button></div>
