@@ -15,6 +15,12 @@ const AuthContext = createContext();
 // Existing India accounts with no country stamp remain India; non-India accounts
 // must resolve to an explicitly supported country before Global handlers are used.
 async function resolveSignedInEdition(currentUser) {
+  // PLIVEX ONE has one runtime and one public workspace identity. The workspace
+  // country controls regional settings; it never switches the user into a second app.
+  if (isUnifiedBuild) {
+    setRuntimeEdition("india");
+    return currentUser;
+  }
   const existingCountry = String(currentUser?.country_code || "").trim().toUpperCase();
   if (!isUnifiedBuild && APP_EDITION !== "global" && (!existingCountry || existingCountry === "IN")) return currentUser;
 
