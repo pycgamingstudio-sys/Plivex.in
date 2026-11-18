@@ -9,7 +9,7 @@ import { defineConfig, loadEnv } from 'vite'
 // values in the edition-specific Wrangler config so clean CI builds match the Worker configuration.
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
-  const edition = env.VITE_APP_EDITION || process.env.VITE_APP_EDITION || 'india'
+  // CI/deploy command-line edition is authoritative; .env files must never silently turn a unified production build back into India-only.\n  const edition = process.env.VITE_APP_EDITION || env.VITE_APP_EDITION || 'india'
   const wranglerFile = edition === 'global' ? './wrangler.global.jsonc' : './wrangler.jsonc'
   const wranglerPath = fileURLToPath(new URL(wranglerFile, import.meta.url))
   let workerConfig
