@@ -16,6 +16,7 @@ const assets = readdirSync(assetsDir)
   .filter((name) => /\.(?:js|css)$/.test(name))
   .map((name) => readFileSync(join(assetsDir, name), "utf8"));
 const bundle = assets.join("\n");
+const indexHtml = readFileSync("dist/index.html", "utf8");
 
 for (const key of required) {
   const value = vars[key];
@@ -33,6 +34,8 @@ assert.ok(!bundle.includes("http://invalid.local"), "Build contains the invalid 
 assert.ok(!bundle.includes("missing-key"), "Build contains the missing Supabase key fallback");
 
 if (buildEdition === "unified") {
+  assert.equal(vars.VITE_APP_EDITION, "unified", "Production Worker config must select the unified edition");
+  assert.match(indexHtml, /<meta name="plivex-build-edition" content="unified"\s*\/>/, "Production HTML must be compiled as the unified edition");
   assert.ok(bundle.includes("global-auth-context"), "Unified build must include runtime Global workspace resolution");
   assert.ok(bundle.includes("india"), "Unified build must retain the India workspace path");
 }

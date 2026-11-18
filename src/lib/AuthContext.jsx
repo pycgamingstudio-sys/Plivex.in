@@ -15,7 +15,8 @@ const AuthContext = createContext();
 // Existing India accounts with no country stamp remain India; non-India accounts
 // must resolve to an explicitly supported country before Global handlers are used.
 async function resolveSignedInEdition(currentUser) {
-  if (!isUnifiedBuild && APP_EDITION !== "global") return currentUser;
+  const existingCountry = String(currentUser?.country_code || "").trim().toUpperCase();
+  if (!isUnifiedBuild && APP_EDITION !== "global" && (!existingCountry || existingCountry === "IN")) return currentUser;
 
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError) throw authError;
@@ -64,7 +65,7 @@ async function resolveSignedInEdition(currentUser) {
   const supportedCodes = listSelectableCountries().map((country) => country.code);
   const edition = resolveWorkspaceEdition(countryCode, supportedCodes);
   if (!edition) throw new Error('This business country is not supported yet. Your account data has not been changed.');
-  setRuntimeEdition(edition);
+  setRuntimeEdition(edition, { verifiedGlobal: edition === "global" && Boolean(globalUser) });
   return edition === 'global' && globalUser ? { ...currentUser, ...globalUser } : currentUser;
 }
 
@@ -148,7 +149,9 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingAuth(true);
       if (isUnifiedBuild) setRuntimeEdition('india');
       let currentUser = await db.auth.me();
-      if (isUnifiedBuild || APP_EDITION === "global") currentUser = await resolveSignedInEdition(currentUser);
+      if (isUnifiedBuild || APP_EDITION === "global" || (currentUser?.country_code && String(currentUser.country_code).trim().toUpperCase() !== "IN")) {
+        currentUser = await resolveSignedInEdition(currentUser);
+      }
 
       // Unified signup is authenticated first; provisioning waits for completed onboarding.
       if (isUnifiedBuild && !currentUser?.workspace_id && !getPendingInviteCode()) {

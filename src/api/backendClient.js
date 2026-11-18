@@ -9,15 +9,18 @@
 import { createClient } from '@supabase/supabase-js';
 import { resolveEditionId, isSupportedEditionId, UNIFIED_EDITION_ID } from '@/global/core/edition-contract.js';
 
-const BUILD_EDITION = import.meta.env.VITE_APP_EDITION === UNIFIED_EDITION_ID
+export const BUILD_EDITION = import.meta.env.VITE_APP_EDITION === UNIFIED_EDITION_ID
   ? UNIFIED_EDITION_ID
   : resolveEditionId(import.meta.env.VITE_APP_EDITION);
 export const isUnifiedBuild = BUILD_EDITION === UNIFIED_EDITION_ID;
 // Runtime starts fail-closed as India; AuthContext switches it only after the
 // signed-in user's workspace country has been verified by Supabase.
 export let APP_EDITION = isUnifiedBuild ? "india" : BUILD_EDITION;
-export function setRuntimeEdition(edition) {
-  if (!isUnifiedBuild || !isSupportedEditionId(edition)) return false;
+export function setRuntimeEdition(edition, { verifiedGlobal = false } = {}) {
+  if (!isSupportedEditionId(edition)) return false;
+  // A non-unified build may switch to Global only after AuthContext has
+  // verified the membership and workspace ID with the server auth RPC.
+  if (!isUnifiedBuild && edition === "global" && !verifiedGlobal) return false;
   APP_EDITION = edition;
   return true;
 }
