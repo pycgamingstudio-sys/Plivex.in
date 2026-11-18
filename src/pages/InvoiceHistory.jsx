@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/currency";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -10,8 +11,7 @@ import { KEYS, loadList, removeItem, saveList, saveState } from "@/lib/stores";
 import { APP_EDITION, backend, supabase } from "@/api/backendClient";
 import GlobalInvoicesPanel from "@/components/global/GlobalInvoicesPanel";
 
-const sym = (c) => ({ INR: "₹", USD: "$", EUR: "€" }[c] || c);
-const money = (v, c = "INR") => `${sym(c)} ${(Number(v) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (v, c = "INR") => formatMoney(Number(v) || 0, c);
 const dateLabel = (v) => (v ? new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
 const reminderStage = { before_due_2: "2 days before due", due_date: "Due date", overdue_3: "3 days overdue", overdue_7: "7 days overdue", overdue_15: "15 days overdue" };
 const reminderStatus = { scheduled: "Scheduled", on_hold: "Queued for automatic sending", sending: "Sending", sent: "Sent", failed: "Retry scheduled", cancelled: "Cancelled" };
