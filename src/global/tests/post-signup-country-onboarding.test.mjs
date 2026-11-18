@@ -164,6 +164,20 @@ test("existing signed-in workspaces must complete versioned onboarding before da
   assert.match(migration, /set onboarding_version = 0/);
 });
 
+test("legacy Global workspaces are mapped into one canonical Workspace without converting historical currency", async () => {
+  const migration = await read("../../../supabase/migrations/20261118160000_plivex_one_mandatory_legacy_onboarding.sql");
+  assert.match(migration, /legacy_global_workspace_id uuid/);
+  assert.match(migration, /join global\.user_profiles g on g\.default_workspace_id = w\.id/);
+  assert.match(migration, /join public\.profiles p on p\.id = g\.user_id/);
+  assert.match(migration, /migration_status = 'legacy_pending'/);
+  assert.match(migration, /insert into public\.business_profile/);
+  assert.match(migration, /insert into public\.warehouses/);
+  assert.match(migration, /insert into public\.accounting_accounts/);
+  assert.match(migration, /on conflict \(id\) do nothing/);
+  assert.match(migration, /no verified canonical owner mapping/);
+  assert.match(migration, /workspace_type drop not null/);
+});
+
 test("invited non-owner members wait for owner setup instead of entering owner onboarding", async () => {
   const app = await read("../../App.jsx");
   assert.match(app, /const canProvisionWorkspace = !user\.workspace_id \|\| !user\.role \|\| user\.role === "admin" \|\| user\.role === "user"/);
