@@ -18,9 +18,9 @@ test("unified signup authenticates first and collects country after sign-in", as
   assert.doesNotMatch(onboarding, /globalEnsureOwner/);
   assert.match(onboarding, /ensureOwnerRole/);
   assert.match(onboarding, /businessType: workTypes\[0\]/);
+  assert.match(onboarding, /optionalFeatures: features/);\n  assert.match(onboarding, /phone: phone\.trim\(\) \|\| null/);\n  assert.doesNotMatch(onboarding, /supabase\.auth\.updateUser/);
+  assert.match(onboarding, /businessType: workTypes\[0\]/);
   assert.match(onboarding, /optionalFeatures: features/);
-  assert.match(onboarding, /plivex_work_types: workTypes/);
-  assert.match(onboarding, /plivex_workspace_features: features/);
 });
 
 test("new unified identities are held at onboarding before workspace provisioning", async () => {
@@ -45,7 +45,7 @@ test("unified runtime does not resolve a second Global workspace identity", asyn
 test("Global owner provisioning rejects a missing country instead of defaulting to India", async () => {
   const edgeFunction = await read("../../../supabase/functions/ensure-owner-role/index.ts");
   assert.match(edgeFunction, /Choose a supported business country before creating your workspace/);
-  assert.match(edgeFunction, /Choose a valid regional format for your selected country/);
+  assert.match(edgeFunction, /Choose a valid regional format for your selected country/);\n  assert.match(edgeFunction, /requestedCountryValue = typeof body\?\.countryCode === "string" \? body\.countryCode : ""/);\n  assert.doesNotMatch(edgeFunction, /metadata\.signup_country_code/);\n  assert.match(edgeFunction, /already has a country selection/);
   assert.doesNotMatch(edgeFunction, /requestedCountry.*: "IN"/);
 });
 
