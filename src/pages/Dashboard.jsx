@@ -45,7 +45,7 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
   const navigate = useNavigate();
   const { isPremium, openPaywall, planName, plan, planLoading, canAccess } = usePaywall();
   const { user } = useAuth();
-  const { features: workspaceFeatures } = useWorkspaceFeatures(user?.workspace_id);
+  const { features: workspaceFeatures, ready: workspaceFeaturesReady } = useWorkspaceFeatures(user?.workspace_id);
   const { role, isAccountant } = useRole();
   useEffect(() => {
     seedDashboard();
@@ -67,7 +67,10 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
     return true;
   });
   const active = visibleTabs.find((t) => t.id === tab) || visibleTabs[0] || TABS[0];
-  useEffect(() => { if (!visibleTabs.some((item) => item.id === tab)) setTab("dashboard"); }, [visibleTabs, tab]);
+  useEffect(() => {
+    if (!workspaceFeaturesReady) return;
+    if (!visibleTabs.some((item) => item.id === tab)) setTab("dashboard");
+  }, [visibleTabs, tab, workspaceFeaturesReady]);
   const hasGstrAccess = APP_EDITION === "global" || ["basic", "pro"].includes(String(plan || "").toLowerCase());
   const featureRouteEnabled = (path) => {
     if (path === "/crm" || path === "/client-database") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
