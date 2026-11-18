@@ -40,9 +40,9 @@ test("Global overview has personalized interactive metrics and workspace action 
   const warehousePanel = read("../../components/global/GlobalPart4Panel.jsx");
   assert.match(global, /const metricCards = \[/);
   assert.match(global, /const actionCards = \[/);
-  assert.match(global, /actionCards\.map\(\(item\) => <button/);
+  assert.match(global, /actionCards\.map\(\(item\) => \(/);
   assert.match(global, /visibleMetricCards\.map\(\(item\) => <button/);
-  for (const title of ["CRM & Leads", "Inventory & Warehouse", "Accounting & Reports", "Team Members"]) {
+  for (const title of ["Client CRM", "Inventory & Warehouse", "Reports", "Team Members", "Lead Tracker"]) {
     assert.ok(global.includes(`title: "${title}"`), `Missing dashboard card: ${title}`);
   }
   for (const section of ["warehouses", "transfers", "purchasing", "movements"]) {
