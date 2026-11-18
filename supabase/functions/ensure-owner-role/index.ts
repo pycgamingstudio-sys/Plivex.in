@@ -9,7 +9,6 @@ Deno.serve(async (req: Request) => {
     const auth = await authenticate(req);
     if ("error" in auth) return jsonResponse({ error: auth.error }, auth.status, origin);
     const body = await req.json().catch(() => ({}));
-    const reset = body?.reset === true;
     let { data: profile, error: profileError } = await auth.admin.from("profiles")
       .select("id,email,role,workspace_id").eq("id", auth.user.id).maybeSingle();
     if (profileError) return jsonResponse({ error: "Could not load profile" }, 500, origin);
