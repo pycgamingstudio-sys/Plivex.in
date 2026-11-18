@@ -50,16 +50,17 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
   const monthInvoices = loadList(KEYS.history).filter((it) => { const d = new Date(it.createdDate || it.issueDate); return d >= cur; });
   const salesByCurrency = new Map();
   monthInvoices.forEach((it) => {
-    const currency = String(it.currency || currencyCode).trim().toUpperCase();
+    const currency = String(it.currency || "").trim().toUpperCase();
     if (!/^[A-Z]{3}$/.test(currency)) return;
     salesByCurrency.set(currency, (salesByCurrency.get(currency) || 0) + Number(it.total || 0));
   });
   const monthSales = [...salesByCurrency.entries()]
     .sort(([a], [b]) => a === currencyCode ? -1 : b === currencyCode ? 1 : a.localeCompare(b))
     .map(([currency, amount]) => money2(amount, currency))
-    .join(" · ") || money2(0, currencyCode);
+    .join(" · ") || (monthInvoices.length ? "Currency not recorded" : money2(0, currencyCode));
   const baseCurrencySales = salesByCurrency.get(currencyCode) || 0;
   const hasOtherCurrencySales = [...salesByCurrency.keys()].some((currency) => currency !== currencyCode);
+  const hasUnknownCurrencySales = monthInvoices.some((it) => !/^[A-Z]{3}$/.test(String(it.currency || "").trim().toUpperCase()));
   const net = baseCurrencySales - baseCurrencyExpenses;
 
   const expenseStatus = (e) => {
@@ -107,7 +108,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
         <SummaryCard label="Monthly Sales" value={monthSales} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={TrendingUp} badge="this month" />
         <SummaryCard label={`Net Profit · ${currencyCode}`} value={money2(net, currencyCode)} gradient={net >= 0 ? "bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" : "bg-gradient-to-br from-[#D97706] to-[#F59E0B]"} icon={PiggyBank} badge={net >= 0 ? "surplus" : "deficit"} />
       </div>
-      {(hasOtherCurrencySales || hasOtherCurrencyExpenses || hasUnknownCurrencyExpenses) && <p className="text-[11px] text-muted-foreground">Sales and expenses are grouped by their recorded currency. Net profit uses only base-currency sales and expenses; records without a recorded currency are excluded. No FX conversion is performed.</p>}
+      {(hasOtherCurrencySales || hasOtherCurrencyExpenses || hasUnknownCurrencyExpenses || hasUnknownCurrencySales) && <p className="text-[11px] text-muted-foreground">Sales and expenses are grouped by their recorded currency. Net profit uses only base-currency sales and expenses; records without a recorded currency are excluded. No FX conversion is performed.</p>}
 
       <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-[#E5E7EB] p-4 lg:flex-row lg:items-center lg:justify-between">
