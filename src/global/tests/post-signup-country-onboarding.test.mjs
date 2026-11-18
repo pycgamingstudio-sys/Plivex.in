@@ -149,3 +149,11 @@ test("PLIVEX ONE cannot reset or delete a workspace to change country", async ()
   assert.doesNotMatch(reset, /SUPABASE_SERVICE_ROLE_KEY|reset_workspace_country_atomic/);
   assert.match(migration, /revoke all on function public\.reset_workspace_country_atomic\(uuid, text, text, text, text\) from public, anon, authenticated, service_role/);
 });
+
+test("invited non-owner members wait for owner setup instead of entering owner onboarding", async () => {
+  const app = await read("../../App.jsx");
+  assert.match(app, /const canProvisionWorkspace = !user\.workspace_id \|\| !user\.role \|\| user\.role === "admin" \|\| user\.role === "user"/);
+  assert.match(app, /Workspace setup is pending/);
+  assert.match(app, /Your workspace owner needs to finish the country and business setup/);
+  assert.match(app, /onClick=\{\(\) => logout\(\)\}/);
+});
