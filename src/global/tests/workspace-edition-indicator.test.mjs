@@ -67,4 +67,6 @@ test("profit analytics never adds foreign-currency sales to base-currency expens
   assert.match(purchase, /salesByCurrency/);
   assert.match(purchase, /baseCurrencySales = salesByCurrency\.get\(currencyCode\)/);
   assert.match(purchase, /Net profit uses base-currency sales only; no FX conversion is performed/);
+  assert.match(purchase, /label="Monthly Sales" value=\{monthSales\}/);
+  assert.doesNotMatch(purchase, /money2\(monthSales, currencyCode\)/);
 });
