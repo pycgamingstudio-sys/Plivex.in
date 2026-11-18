@@ -55,8 +55,7 @@ declare
 begin
   select count(*) into v_unmapped
   from global.workspaces w
-  left join global.user_profiles g on g.default_workspace_id = w.id
-  left join public.profiles p on p.id = g.user_id
+  left join public.profiles p on p.id = w.created_by
   where p.id is null or p.workspace_id is null;
 
   if v_unmapped > 0 then
@@ -75,10 +74,9 @@ insert into public.workspace_settings (
 )
 select
   p.workspace_id, w.country_code, w.locale_code, w.currency_code, null,
-  '{}'::text[], g.user_id, 0, 'legacy_pending', true, w.id, now()
+  '{}'::text[], w.created_by, 0, 'legacy_pending', true, w.id, now()
 from global.workspaces w
-join global.user_profiles g on g.default_workspace_id = w.id
-join public.profiles p on p.id = g.user_id
+join public.profiles p on p.id = w.created_by
 where w.country_code in ('IN','US','GB','AE','CA','AU','SG')
   and (
     (w.country_code='IN' and w.currency_code='INR' and w.locale_code in ('en-IN','hi-IN'))
@@ -120,8 +118,7 @@ select
   bp.tax_jurisdiction_code, bp.tax_registration_effective_from, bp.created_at, now()
 from global.business_profiles bp
 join global.workspaces w on w.id = bp.workspace_id
-join global.user_profiles g on g.default_workspace_id = w.id
-join public.profiles p on p.id = g.user_id
+join public.profiles p on p.id = w.created_by
 on conflict (workspace_id) do update
 set name = coalesce(nullif(public.business_profile.name,''), excluded.name),
     email = coalesce(public.business_profile.email, excluded.email),
@@ -147,8 +144,7 @@ select
   gw.is_default, gw.is_active, gw.created_at, now()
 from global.warehouses gw
 join global.workspaces w on w.id = gw.workspace_id
-join global.user_profiles g on g.default_workspace_id = w.id
-join public.profiles p on p.id = g.user_id
+join public.profiles p on p.id = w.created_by
 where not exists (
   select 1 from public.warehouses pw
   where pw.workspace_id = p.workspace_id and pw.code = gw.code
@@ -194,8 +190,7 @@ select
   a.normal_balance, a.is_system, a.is_active, a.created_at, a.updated_at
 from global.accounting_accounts a
 join global.workspaces w on w.id = a.workspace_id
-join global.user_profiles g on g.default_workspace_id = w.id
-join public.profiles p on p.id = g.user_id
+join public.profiles p on p.id = w.created_by
 on conflict (id) do nothing;
 
 
