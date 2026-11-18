@@ -28,3 +28,12 @@ test("legacy Global layout is isolated from the single Workspace label", () => {
   assert.match(global, /TAB_PATHS/);
   assert.doesNotMatch(global, /<header className="border-b border-slate-200 bg-white">/);
 });
+
+test("unified invoice creation does not assume INR before canonical workspace currency loads", () => {
+  const home = read("../../pages/Home.jsx");
+  const stores = read("../../lib/stores.js");
+  assert.match(home, /dueDate: "", currency: ""/);
+  assert.match(home, /Choose and verify your Workspace country to see regional pricing/);
+  assert.match(stores, /currency: r\.currency \|\| str\(r\.invoice_snapshot\?\.currency\)\.toUpperCase\(\) \|\| ""/);
+  assert.doesNotMatch(stores, /currency: r\.currency \|\| "INR"/);
+});
