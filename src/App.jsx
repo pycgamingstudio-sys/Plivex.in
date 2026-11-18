@@ -55,7 +55,7 @@ const PaymentResult = lazy(() => import("./pages/PaymentResult"));
 const PublicInvoicePage = lazy(() => import("./pages/PublicInvoicePage"));
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, isAuthenticated, user } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, isAuthenticated, user, logout } = useAuth();
 
   // Payment callbacks must remain visible even if the customer session expires during checkout.
   // Keep hooks unconditional so navigating to/from this public callback never changes hook order.
@@ -84,7 +84,19 @@ const AuthenticatedApp = () => {
   }
 
   // One shared post-auth onboarding provisions either regional workspace.
-  if (isUnifiedBuild && isAuthenticated && user && (!user.workspace_id || !user.country_code || !user.workspace_type) && !getPendingInviteCode()) return <UnifiedWorkspaceOnboarding />;
+  if (isUnifiedBuild && isAuthenticated && user && (!user.workspace_id || !user.country_code || !user.workspace_type) && !getPendingInviteCode()) {
+    const canProvisionWorkspace = !user.workspace_id || !user.role || user.role === "admin" || user.role === "user";
+    if (canProvisionWorkspace) return <UnifiedWorkspaceOnboarding />;
+    return (
+      <main className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center gap-4 p-6 text-center">
+        <div className="rounded-2xl border bg-card p-6 shadow-sm">
+          <h1 className="text-lg font-bold">Workspace setup is pending</h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">Your workspace owner needs to finish the country and business setup before team members can open the workspace. Your account and existing records have not been changed.</p>
+          <button type="button" onClick={() => logout()} className="mt-5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Sign out</button>
+        </div>
+      </main>
+    );
+  }
   if (APP_EDITION === "global" && isAuthenticated && user && !user.workspace_id && !getPendingInviteCode()) return <GlobalCountryOnboarding />;
 
   // Both editions resolve core business destinations through this shared React Router tree.
