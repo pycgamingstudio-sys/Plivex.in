@@ -113,12 +113,12 @@ const AuthenticatedApp = () => {
           <Route element={<RoleGuard />}>
             <Route path="/invoice-builder" element={isGlobalWorkspace ? <AppLayout><GlobalApp section="invoices" /></AppLayout> : <Home />} />
         <Route element={<AppLayout />}>
-          <Route path="/products" element={isGlobalWorkspace ? <GlobalApp section="products" /> : <PageNotFound />} />
-          <Route path="/expenses" element={isGlobalWorkspace ? <GlobalApp section="expenses" /> : <PageNotFound />} />
-          <Route path="/accounting" element={isGlobalWorkspace ? <GlobalApp section="accounting" /> : <PageNotFound />} />
-          <Route path="/enterprise" element={isGlobalWorkspace ? <GlobalApp section="enterprise" /> : <PageNotFound />} />
+          <Route path="/products" element={isGlobalWorkspace ? <GlobalApp section="products" /> : <Navigate to="/dashboard" replace state={{ initialTab: "stock" }} />} />
+          <Route path="/expenses" element={isGlobalWorkspace ? <GlobalApp section="expenses" /> : <Navigate to="/dashboard" replace state={{ initialTab: "purchase" }} />} />
+          <Route path="/accounting" element={isGlobalWorkspace ? <GlobalApp section="accounting" /> : <Navigate to="/dashboard" replace state={{ initialTab: "reconciliation" }} />} />
+          <Route path="/enterprise" element={isGlobalWorkspace ? <GlobalApp section="enterprise" /> : <Navigate to="/dashboard" replace state={{ initialTab: "team" }} />} />
           <Route path="/invoice-history" element={isGlobalWorkspace ? <GlobalApp section="invoices" /> : <InvoiceHistory />} />
-          <Route path="/quotations" element={isGlobalWorkspace ? <GlobalApp section="quotations" /> : <PageNotFound />} />
+          <Route path="/quotations" element={isGlobalWorkspace ? <GlobalApp section="quotations" /> : <Navigate to="/dashboard" replace state={{ initialTab: "sales", initialSub: "quotations" }} />} />
           <Route path="/invoice-shares" element={<GlobalFeatureGate feature="Shared invoice links"><InvoiceShareManagement /></GlobalFeatureGate>} />
           <Route path="/business-profile" element={<GlobalFeatureGate feature="Business profile"><BusinessProfile /></GlobalFeatureGate>} />
           <Route path="/client-database" element={isGlobalWorkspace ? <GlobalApp section="clients" /> : <ClientDatabase />} />
