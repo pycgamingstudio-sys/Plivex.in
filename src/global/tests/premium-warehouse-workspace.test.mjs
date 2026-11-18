@@ -82,12 +82,12 @@ test("India movement history supports search, type and date filters", () => {
 });
 
 test("dashboard keeps its other premium cards but consolidates warehouse shortcuts", () => {
-  assert.match(globalApp, /title: "CRM & Leads"/);
+  assert.match(globalApp, /title: "Client CRM"/);
   assert.match(globalApp, /title: "Inventory & Warehouse"/);
-  assert.match(globalApp, /title: "Accounting & Reports"/);
+  assert.match(globalApp, /title: "Reports"/);
   assert.match(globalApp, /title: "Team Members"/);
   assert.doesNotMatch(globalApp, /title: "Enterprise & Audit"/);
   assert.doesNotMatch(globalApp, /title: "Stock Transfers"/);
   assert.doesNotMatch(globalApp, /title: "Purchase Orders & Goods Receipts"/);
-  assert.match(globalApp, /\{actionCards\.length\} work areas/);
+  assert.match(globalApp, /Quick actions/);
 });

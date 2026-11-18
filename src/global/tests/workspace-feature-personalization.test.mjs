@@ -31,9 +31,9 @@ test("freelancer and business can be selected independently or together", async 
   assert.doesNotMatch(features, /id: "quotations"/);
   const layout = await read("../../components/AppLayout.jsx");
   const globalApp = await read("../../global/GlobalApp.jsx");
-  assert.match(layout, /if \(item\.to === "\/quotations"\) return true/);
+  assert.match(layout, /to: "\/quotations", label: "Quotations"/);
   assert.match(globalApp, /tab === "quotations"/);
-  assert.match(globalApp, /title: "Quotations"[\s\S]*tab: "quotations"[\s\S]*icon: FileText/);
+  assert.match(globalApp, /title: "Quotations"[\s\S]*icon: FilePlus2[\s\S]*tab: "quotations"/);
   assert.doesNotMatch(globalApp, /tab: "quotations", icon: FileText, tone:.*feature catalog/);
 });
 

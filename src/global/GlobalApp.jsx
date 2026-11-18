@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { Users, Package, Receipt, FileText, Boxes, Handshake, Warehouse, Calculator } from "lucide-react";
+import { Users, Package, Receipt, FileText, Boxes, Warehouse, ShoppingCart, UserPlus, BarChart3, FilePlus2, ArrowRight } from "lucide-react";
 import { supabase } from "@/api/backendClient";
 import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
 import FeatureLibraryModal from "@/components/dashboard/FeatureLibraryModal";
@@ -146,16 +146,20 @@ export default function GlobalApp({ section = "overview" }) {
     { label: "Stock items", value: counts.stock, tab: "products", icon: Boxes, tone: "bg-rose-50 text-rose-700" },
   ];
   const actionCards = [
-    { title: "Quotations", description: "Create professional quotes, track customer decisions and turn accepted quotations into invoice drafts.", tab: "quotations", icon: FileText, tone: "from-violet-50 to-indigo-50" },
-    { title: "CRM & Leads", description: "Manage prospects, follow-ups and customer relationships.", tab: "crm", icon: Handshake, tone: "from-fuchsia-50 to-pink-50" },
-    { title: "Inventory & Warehouse", description: "Manage stock, locations, transfers, purchase orders and movement history in one connected workspace.", tab: "inventory", icon: Warehouse, tone: "from-indigo-50 to-blue-50" },
-    { title: "Accounting & Reports", description: "Open ledgers and financial statements for this workspace.", tab: "accounting", icon: Calculator, tone: "from-violet-50 to-purple-50" },
-    { title: "Team Members", description: "Manage workspace access, roles and team activity.", tab: "enterprise", icon: Users, tone: "from-amber-50 to-yellow-50" },
-
+    { id: "invoices", title: "Invoices", desc: "Create and manage professional invoices for your customers.", icon: FileText, gradient: "bg-gradient-to-br from-[#EDE9FE] to-[#DDD6FE]", cta: "+ Create New Invoice", tab: "invoices", stat: counts.invoices },
+    { id: "quotations", title: "Quotations", desc: "Send estimates clients can approve, then convert accepted quotes into invoice drafts.", icon: FilePlus2, gradient: "bg-gradient-to-br from-[#DBEAFE] to-[#BFDBFE]", cta: "+ Create New Quotation", tab: "quotations" },
+    { id: "expenses", title: "Expenses", desc: "Track vendor bills and purchases in your workspace currency.", icon: ShoppingCart, gradient: "bg-gradient-to-br from-[#DCFCE7] to-[#BBF7D0]", cta: "+ Record New Purchase", tab: "expenses", stat: counts.expenses },
+    { id: "crm", title: "Client CRM", desc: "Keep customer details and conversations organised in one place.", icon: Users, gradient: "bg-gradient-to-br from-[#FAE8FF] to-[#F5D0FE]", cta: "Open Client CRM", tab: "crm", stat: counts.clients },
+    { id: "leads", title: "Lead Tracker", desc: "Manage prospects, follow-ups and customer relationships.", icon: UserPlus, gradient: "bg-gradient-to-br from-[#FEF3C7] to-[#FDE68A]", cta: "+ Add New Lead", tab: "crm" },
+    { id: "reports", title: "Reports", desc: "Understand business performance with country-aware financial reports.", icon: BarChart3, gradient: "bg-gradient-to-br from-[#E0F2FE] to-[#BAE6FD]", cta: "View business reports", tab: "accounting" },
+    { id: "stock", title: "Stock Inventory", desc: "Manage products, prices and stock visibility for your business.", icon: Package, gradient: "bg-gradient-to-br from-[#FEE2E2] to-[#FECACA]", cta: "+ Manage Stock", tab: "products", stat: counts.stock },
+    { id: "team", title: "Team Members", desc: "Manage workspace access, roles and team activity.", icon: Users, gradient: "bg-gradient-to-br from-[#FEF3C7] to-[#FDE68A]", cta: "Manage Team", tab: "enterprise" },
+    { id: "inventoryWorkspace", title: "Inventory & Warehouse", desc: "Manage stock locations, transfers, purchase orders, goods receipts and movement history.", icon: Warehouse, gradient: "bg-gradient-to-br from-[#E0E7FF] to-[#C7D2FE]", cta: "Open inventory workspace", tab: "inventory" },
   ].filter((item) => {
-    if (item.tab === "crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
-    if (item.tab === "inventory") return workspaceFeatures.includes("inventoryWorkspace");
-    if (item.tab === "accounting") return workspaceFeatures.includes("reports");
+    if (item.id === "expenses") return workspaceFeatures.includes("expenses");
+    if (item.id === "crm" || item.id === "leads") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
+    if (item.id === "reports") return workspaceFeatures.includes("reports");
+    if (item.id === "inventoryWorkspace") return workspaceFeatures.includes("inventoryWorkspace");
     return true;
   });
 
@@ -170,17 +174,40 @@ export default function GlobalApp({ section = "overview" }) {
         {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         {notice && <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
         {tab === "overview" ? (
-          <>
-            <div className="mt-6"><h1 className="text-2xl font-bold">Business overview</h1><p className="mt-1 text-sm text-slate-500">Your Global workspace data, kept separate from India edition records.</p></div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              {visibleMetricCards.map((item) => <button key={item.label} onClick={() => setTab(item.tab)} className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${item.tone}`}><item.icon className="h-5 w-5" /></span><span className="mt-3 block text-sm font-semibold text-slate-500">{item.label}</span><span className="mt-1 block text-3xl font-bold tracking-tight text-slate-900">{item.value}</span><span className="mt-2 block text-xs font-semibold text-violet-700">Open section →</span></button>)}
+          <div className="plivex-dashboard-tab space-y-5 sm:space-y-6">
+            <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5" aria-label="Workspace totals">
+              {visibleMetricCards.map((item) => (
+                <button key={item.label} type="button" onClick={() => setTab(item.tab)} className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-left transition-colors hover:border-violet-200 hover:bg-violet-50/30">
+                  <span className="flex items-center gap-2"><span className={`flex h-8 w-8 items-center justify-center rounded-lg ${item.tone}`}><item.icon className="h-4 w-4" /></span><span className="text-[11px] font-semibold text-slate-500">{item.label}</span></span>
+                  <span className="mt-2 block text-2xl font-bold tracking-tight text-slate-900">{item.value}</span>
+                </button>
+              ))}
+            </section>
+            <div className="plivex-quick-actions-heading flex flex-wrap items-center justify-between gap-2">
+              <div><h2 className="text-[15px] font-bold text-slate-900">Quick actions</h2><p className="mt-1 text-[11px] text-slate-500">Your business tools, in one workspace.</p></div>
             </div>
-            <div className="mt-8 flex items-end justify-between gap-3"><div><h2 className="text-xl font-bold">Business workspace</h2><p className="mt-1 text-sm text-slate-500">Quick access to the tools that run your operations.</p></div><span className="hidden rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700 sm:inline">{actionCards.length} work areas</span></div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {actionCards.map((item) => <button key={item.title} onClick={() => setTab(item.tab)} className="group flex min-h-44 flex-col rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md"><span className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${item.tone} text-violet-700`}><item.icon className="h-7 w-7" strokeWidth={1.6} /></span><span className="mt-4 text-sm font-bold text-slate-900">{item.title}</span><span className="mt-1 flex-1 text-xs leading-relaxed text-slate-500">{item.description}</span><span className="mt-3 text-xs font-semibold text-violet-700">Open workspace →</span></button>)}
-              <button type="button" onClick={() => setFeatureOpen(true)} className="group flex min-h-44 flex-col items-start rounded-2xl border border-dashed border-violet-300 bg-gradient-to-br from-white to-violet-50 p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"><span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 text-violet-700"><Boxes className="h-7 w-7" /></span><span className="mt-4 text-sm font-bold text-slate-900">More Features</span><span className="mt-1 flex-1 text-xs leading-relaxed text-slate-500">Add the tools that fit your business as it grows.</span><span className="mt-3 text-xs font-semibold text-violet-700">Explore feature library →</span></button>
+            <div className="plivex-action-cards grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+              {actionCards.map((item) => (
+                <div key={item.id} className="flex flex-col overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm transition-transform hover:-translate-y-0.5">
+                  <div className={`relative flex h-28 items-center justify-center ${item.gradient}`}>
+                    <item.icon className="h-12 w-12 text-[#6D28D9]" strokeWidth={1.5} aria-hidden="true" />
+                    {item.stat !== undefined && <span className="absolute right-3 top-3 rounded-full bg-white/85 px-2.5 py-1 text-[11px] font-bold text-slate-700 shadow-sm">{item.stat} saved</span>}
+                  </div>
+                  <div className="flex flex-1 flex-col p-5">
+                    <h3 className="text-[15px] font-bold text-slate-900">{item.title}</h3>
+                    <p className="mt-2 flex-1 text-[12px] leading-relaxed text-slate-500">{item.desc}</p>
+                    <button type="button" onClick={() => setTab(item.tab)} className="mt-4 inline-flex items-center gap-1.5 self-start rounded-xl bg-[#6D28D9] px-3.5 py-2 text-[12px] font-bold text-white transition-colors hover:bg-[#7C3AED]">{item.cta}<ArrowRight className="h-3.5 w-3.5" /></button>
+                  </div>
+                </div>
+              ))}
+              <button type="button" onClick={() => setFeatureOpen(true)} className="group flex min-h-[270px] flex-col items-center justify-center rounded-2xl border border-dashed border-violet-300 bg-gradient-to-br from-white to-violet-50/80 p-6 text-center shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-500 hover:shadow-lg">
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 shadow-sm"><Boxes className="h-7 w-7" /></span>
+                <span className="mt-4 text-base font-bold text-slate-900">More Features</span>
+                <span className="mt-1 max-w-[230px] text-xs leading-5 text-slate-500">Explore Plivex tools and add the ones that fit the way you work.</span>
+                <span className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#6D28D9] px-4 py-2 text-xs font-bold text-white">Customize workspace <ArrowRight className="h-3.5 w-3.5" /></span>
+              </button>
             </div>
-          </>
+          </div>
         ) : tab === "invoices" ? (
           <GlobalInvoicesPanel account={account} invoke={invoke} onRefresh={loadRecords} />
         ) : tab === "quotations" ? (
