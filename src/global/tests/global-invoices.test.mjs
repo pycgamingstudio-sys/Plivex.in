@@ -13,6 +13,10 @@ const [edge, app, migration, workflow, replay] = await Promise.all([
 
 test("Global draft invoice endpoint validates identity, currency, dates and line items", () => {
   assert.match(edge, /authenticateGlobal/);
+  assert.match(edge, /global_get_auth_context/);
+  assert.match(edge, /authContext\?\.membership\?\.workspace_id/);
+  assert.match(edge, /body\.workspace_id !== workspaceId/);
+  assert.doesNotMatch(edge, /const workspaceId = body\.workspace_id/);
   assert.match(edge, /action === "create_draft"/);
   assert.match(edge, /global_create_invoice_draft/);
   assert.match(edge, /MAX_BODY_BYTES/);
