@@ -49,7 +49,7 @@ create unique index if not exists workspace_settings_legacy_global_workspace_uid
   on public.workspace_settings(legacy_global_workspace_id)
   where legacy_global_workspace_id is not null;
 
-do $
+do $plivex$
 declare
   v_unmapped integer;
 begin
@@ -63,7 +63,7 @@ begin
     raise exception 'PLIVEX ONE migration stopped: % legacy Global workspace(s) have no verified canonical owner mapping', v_unmapped;
   end if;
 end
-$;
+$plivex$;
 
 -- Seed canonical settings from the explicitly stored legacy Global workspace
 -- country/currency. The workspace owner must still confirm country, locale,
