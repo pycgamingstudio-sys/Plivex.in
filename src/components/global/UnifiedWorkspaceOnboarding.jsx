@@ -48,7 +48,7 @@ export default function UnifiedWorkspaceOnboarding() {
     setError("");
     if (step === 0 && !country) return setError("Choose the country where your business is based.");
     if (step === 1 && !businessName.trim()) return setError("Please enter your business or professional workspace name.");
-    if (step === 3 && workTypes.length === 0) return setError("Choose Freelancer, Business, or both to personalize your workspace.");
+    if (step === 3 && workTypes.length === 0) return setError("Choose Freelancer or Business to personalize your workspace.");
     setStep((value) => Math.min(4, value + 1));
   };
 
@@ -183,12 +183,12 @@ export default function UnifiedWorkspaceOnboarding() {
           {step === 3 && <>
             <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><Sparkles className="h-6 w-6" /></div>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">What's your work based on?</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Choose the options that best describe your work. You can select one or both.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Choose one primary profile. You can add optional tools later through More Features.</p>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <button type="button" onClick={() => chooseWorkType("freelancer")} aria-pressed={workTypes.includes("freelancer")} className={`rounded-2xl border p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${workTypes.includes("freelancer") ? "border-violet-500 bg-violet-50 ring-2 ring-violet-100" : "border-slate-200 hover:border-violet-200"}`}><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-100 text-violet-700"><UserRound className="h-5 w-5" /></span><span className="mt-4 block text-base font-bold">Freelancer</span><span className="mt-1 block text-xs leading-5 text-slate-500">For independent professionals and service providers managing clients, quotations, expenses and follow-ups.</span>{workTypes.includes("freelancer") && <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-violet-700"><Check className="h-4 w-4" />Selected</span>}</button>
               <button type="button" onClick={() => chooseWorkType("business")} aria-pressed={workTypes.includes("business")} className={`rounded-2xl border p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${workTypes.includes("business") ? "border-violet-500 bg-violet-50 ring-2 ring-violet-100" : "border-slate-200 hover:border-violet-200"}`}><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><Building2 className="h-5 w-5" /></span><span className="mt-4 block text-base font-bold">Business</span><span className="mt-1 block text-xs leading-5 text-slate-500">For shops and growing teams that manage sales, purchases, stock, warehouses and operations.</span>{workTypes.includes("business") && <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-violet-700"><Check className="h-4 w-4" />Selected</span>}</button>
             </div>
-            <p className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">Your dashboard will be arranged around these choices. You can add or remove optional features at any time. Invoices, Stock and Team Members remain available as core workspace tools.</p>
+            <p className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">Your dashboard recommendations will follow this choice. You can add or remove optional features at any time. Invoices, Quotations, Stock Inventory and Team Members remain permanent workspace cards.</p>
             <p className="mt-3 text-xs font-medium text-violet-700">Suggested tools: {features.length ? selectedFeatureLabels.join(" · ") : "Choose a work type to see recommendations."}</p>
           </>}
 
