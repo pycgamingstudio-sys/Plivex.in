@@ -58,7 +58,8 @@ test("PLIVEX ONE persists country, currency, work type and optional modules unde
   assert.match(migration, /create table if not exists public\.workspace_settings/);
   assert.match(migration, /enable row level security/);
   assert.match(migration, /workspace_settings_country_currency_check/);
-  assert.match(migration, /Never infer India from missing data/);
+  assert.match(migration, /Existing accounts must complete the same manual country and work-profile onboarding/);
+  assert.doesNotMatch(migration, /from public\.business_profile bp/);
   assert.match(provisioner, /currency_code: currencyByCountry\[countryCode\]/);
   assert.match(provisioner, /workspace_type: workspaceType/);
   assert.match(provisioner, /optional_features: optionalFeatures/);
