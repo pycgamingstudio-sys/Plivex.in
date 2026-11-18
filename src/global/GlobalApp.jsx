@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/api/backendClient";
 import GlobalCountryOnboarding from "@/components/global/GlobalCountryOnboarding";
+import { getBillingForCountry, formatPlanPrice } from "@/global/billing/pricing.js";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
 const NAV = [
@@ -49,6 +50,7 @@ export default function GlobalApp() {
   const [paymentRequest, setPaymentRequest] = useState(null);
   const [draftRequest, setDraftRequest] = useState(null);
   const [error, setError] = useState("");
+  const [pricingOpen, setPricingOpen] = useState(false);
 
 
   const invoke = useCallback(async (table, action = "list", values = undefined) => {
@@ -370,6 +372,8 @@ export default function GlobalApp() {
   }
 
   const currency = account.currency_code || "USD";
+  const workspaceBilling = getBillingForCountry(account.country_code);
+  const workspaceLocale = account.locale_code || "en";
   const currentTable = TABLES[tab];
   const currentRecords = records[currentTable] || [];
   const counts = { clients: records.clients?.length || 0, products: records.products?.length || 0, expenses: records.expenses?.length || 0, invoices: records.invoices?.length || 0, stock: records.stock_levels?.length || 0 };
@@ -379,9 +383,35 @@ export default function GlobalApp() {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
           <div><div className="text-xl font-black text-violet-700">Plivex <span className="text-slate-500">Global</span></div><div className="text-xs text-slate-500">{account.workspace_name} · {account.country_code} · {currency}</div></div>
-          <div className="flex items-center gap-3"><span className="hidden text-sm text-slate-500 sm:block">{account.email}</span><button onClick={signOut} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">Sign out</button></div>
+          <div className="flex items-center gap-3"><span className="hidden text-sm text-slate-500 sm:block">{account.email}</span><button onClick={() => setPricingOpen(true)} className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-800">Pricing</button><button onClick={signOut} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">Sign out</button></div>
         </div>
       </header>
+      {pricingOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPricingOpen(false); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="global-pricing-title" className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-7">
+            <div className="flex items-start justify-between gap-4">
+              <div><p className="text-xs font-bold uppercase tracking-widest text-violet-700">Workspace pricing</p><h2 id="global-pricing-title" className="mt-1 text-2xl font-bold">Plans for {account.country_code} workspace</h2><p className="mt-1 text-sm text-slate-500">Prices and currency are determined by your saved workspace country, not your phone or browser settings.</p></div>
+              <button type="button" onClick={() => setPricingOpen(false)} aria-label="Close pricing" className="rounded-lg border border-slate-200 px-3 py-2 text-sm">Close</button>
+            </div>
+            {workspaceBilling ? (
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                {[
+                  { id: "basic", label: "Basic", features: ["Workspace-based billing currency", "Core business management"] },
+                  { id: "pro", label: "Pro", features: ["Advanced business tools", "Expanded workspace capabilities"] },
+                ].map((plan) => (
+                  <article key={plan.id} className="rounded-xl border border-slate-200 p-5">
+                    <h3 className="text-lg font-bold">{plan.label}</h3>
+                    <p className="mt-2 text-3xl font-bold">{formatPlanPrice(workspaceBilling.monthly[plan.id], currency, workspaceLocale)}</p>
+                    <p className="text-xs text-slate-500">per month · {currency}</p>
+                    <ul className="mt-4 space-y-2 text-sm text-slate-600">{plan.features.map((feature) => <li key={feature}>✓ {feature}</li>)}</ul>
+                    <p className="mt-4 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">{workspaceBilling.paymentEnabled ? "Payment availability is subject to the enabled merchant currency." : "Checkout is not enabled for this workspace currency yet."}</p>
+                  </article>
+                ))}
+              </div>
+            ) : <p role="alert" className="mt-5 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">Pricing is not configured for this workspace country ({account.country_code || "unknown"}). No other country's price will be substituted.</p>}
+          </section>
+        </div>
+      )}
       <div className="mx-auto max-w-6xl px-4 py-6">
         <nav className="flex flex-wrap gap-2">
           {NAV.map((item) => <button key={item.id} onClick={() => { setTab(item.id); setError(""); setNotice(""); setForm({}); }} className={`rounded-lg px-4 py-2 text-sm font-semibold ${tab === item.id ? "bg-violet-700 text-white" : "border border-slate-200 bg-white text-slate-600"}`}>{item.label}</button>)}
