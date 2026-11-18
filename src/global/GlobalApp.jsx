@@ -131,6 +131,7 @@ export default function GlobalApp({ section = "overview" }) {
   };
 
   if (!account?.workspace_id) return <div className="py-10 text-center text-sm text-slate-500">Your workspace is still being prepared. Please refresh in a moment.</div>;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(account.workspace_id)) return <div role="alert" className="mx-auto mt-8 max-w-xl rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">Your Global workspace could not be verified. Please sign out and sign in again to reload its country, currency and workspace ID. Your saved data has not been changed.</div>;
 
   const currency = account.currency_code || "USD";
   const currentTable = TABLES[tab];
@@ -145,6 +146,7 @@ export default function GlobalApp({ section = "overview" }) {
     { label: "Stock items", value: counts.stock, tab: "products", icon: Boxes, tone: "bg-rose-50 text-rose-700" },
   ];
   const actionCards = [
+    { title: "Quotations", description: "Create professional quotes, track customer decisions and turn accepted quotations into invoice drafts.", tab: "quotations", icon: FileText, tone: "from-violet-50 to-indigo-50" },
     { title: "CRM & Leads", description: "Manage prospects, follow-ups and customer relationships.", tab: "crm", icon: Handshake, tone: "from-fuchsia-50 to-pink-50" },
     { title: "Inventory & Warehouse", description: "Manage stock, locations, transfers, purchase orders and movement history in one connected workspace.", tab: "inventory", icon: Warehouse, tone: "from-indigo-50 to-blue-50" },
     { title: "Accounting & Reports", description: "Open ledgers and financial statements for this workspace.", tab: "accounting", icon: Calculator, tone: "from-violet-50 to-purple-50" },
