@@ -236,7 +236,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       const registrationLabel = experience?.business.registrationLabel || "Tax registration";
       const seller = snap.seller && typeof snap.seller === "object" ? snap.seller : {};
       const buyer = snap.buyer && typeof snap.buyer === "object" ? snap.buyer : {};
-      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const doc = new jsPDF({ orientation:"portrait", unit:"mm", format:"a4" });
       const title = getGlobalInvoiceDocumentTitle(snap, invoice.status);
       doc.setFontSize(19); doc.text("PLIVEX · " + title, 16, 20);
       doc.setFontSize(9);
