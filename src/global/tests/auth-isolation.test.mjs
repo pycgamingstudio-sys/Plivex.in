@@ -21,22 +21,13 @@ test("Global backend defaults fail closed and blocks India endpoint fallback", (
   assert.match(backend, /global-update-profile/);
 });
 
-test("Global auth hydrates workspace data only through the isolated Global adapter", () => {
-  assert.match(authContext, /APP_EDITION === "global"/);
-  assert.ok(authContext.includes('if (!isUnifiedBuild && APP_EDITION !== "global" && (!existingCountry || existingCountry === "IN")) return currentUser;'));
-  assert.ok(authContext.includes("const shouldResolveGlobal = APP_EDITION === \"global\" || isUnifiedBuild || countryCode !== 'IN'"));
-  assert.ok(authContext.includes('currentUser?.country_code && String(currentUser.country_code).trim().toUpperCase() !== "IN"'));
-  assert.ok(authContext.includes('setRuntimeEdition(edition, { verifiedGlobal: edition === "global" && Boolean(globalUser) });'));
-  assert.ok(backend.includes('if (!isUnifiedBuild && edition === "global" && !verifiedGlobal) return false;'));
-  assert.doesNotMatch(authContext, /globalEnsureOwner/);
-  assert.match(app, /GlobalCountryOnboarding/);
-  assert.match(onboarding, /globalEnsureOwner/);
-  assert.match(authContext, /global:\$\{currentUser\.id\}/);
-  assert.match(authContext, /Global workspace invitations are not available yet/);
-  const globalStart = authContext.indexOf('if (APP_EDITION === "global")');
-  const indiaStart = authContext.indexOf("setTenantId(currentUser?.id)", globalStart);
-  const globalBranch = authContext.slice(globalStart, indiaStart);
-  assert.match(globalBranch, /if \(currentUser\?\.workspace_id\) await hydrateWorkspaceData\(\)/);
+test("unified build keeps one public workspace identity for every selected country", () => {
+  assert.match(authContext, /if \(isUnifiedBuild\) \{[\s\S]*setRuntimeEdition\("india"\);[\s\S]*return currentUser;/);
+  assert.doesNotMatch(authContext, /const shouldResolveGlobal = APP_EDITION === \"global\" \|\| isUnifiedBuild/);
+  assert.match(app, /\(!user\.workspace_id \|\| !user\.country_code\)/);
+  assert.match(onboarding, /ensureOwnerRole/);
+  assert.doesNotMatch(onboarding, /globalEnsureOwner/);
+  assert.match(backend, /workspace_settings/);
 });
 
 test("Global tenant storage never imports legacy India localStorage keys", () => {
