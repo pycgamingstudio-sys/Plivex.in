@@ -65,7 +65,9 @@ create policy "workspace settings update admins"
   using (has_ws_role(workspace_id, array['admin'::app_role]))
   with check (has_ws_role(workspace_id, array['admin'::app_role]));
 
-grant select, insert, update on public.workspace_settings to authenticated;
+revoke insert, update on public.workspace_settings from authenticated;
+grant select on public.workspace_settings to authenticated;
+grant update (optional_features, updated_at) on public.workspace_settings to authenticated;
 grant all on public.workspace_settings to service_role;
 
 -- Backfill only explicitly country-stamped workspaces. Never infer India from missing data.
