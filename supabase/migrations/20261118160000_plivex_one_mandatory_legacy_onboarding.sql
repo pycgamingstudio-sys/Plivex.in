@@ -52,6 +52,10 @@ create unique index if not exists workspace_settings_legacy_global_workspace_uid
 do $plivex$
 declare
   v_unmapped integer;
+  v_duplicate integer;
+  v_unsupported integer;
+  v_orphaned integer;
+  v_unmigrated_members integer;
 begin
   select count(*) into v_unmapped
   from global.workspaces w
@@ -60,6 +64,123 @@ begin
 
   if v_unmapped > 0 then
     raise exception 'PLIVEX ONE migration stopped: % legacy Global workspace(s) have no verified canonical owner mapping', v_unmapped;
+  end if;
+
+  select count(*) into v_duplicate
+  from (
+    select p.workspace_id
+    from global.workspaces w
+    join public.profiles p on p.id = w.created_by
+    group by p.workspace_id
+    having count(*) > 1
+  ) duplicate_mappings;
+
+  if v_duplicate > 0 then
+    raise exception 'PLIVEX ONE migration stopped: multiple legacy Global workspaces map to one canonical Workspace; manual review is required';
+  end if;
+
+  select count(*) into v_unsupported
+  from global.workspaces w
+  where not (
+    (w.country_code='IN' and w.currency_code='INR' and w.locale_code in ('en-IN','hi-IN'))
+    or (w.country_code='US' and w.currency_code='USD' and w.locale_code in ('en-US','es-US'))
+    or (w.country_code='GB' and w.currency_code='GBP' and w.locale_code='en-GB')
+    or (w.country_code='AE' and w.currency_code='AED' and w.locale_code in ('en-AE','ar-AE'))
+    or (w.country_code='CA' and w.currency_code='CAD' and w.locale_code in ('en-CA','fr-CA'))
+    or (w.country_code='AU' and w.currency_code='AUD' and w.locale_code='en-AU')
+    or (w.country_code='SG' and w.currency_code='SGD' and w.locale_code in ('en-SG','zh-SG','ms-SG','ta-SG'))
+  );
+
+  if v_unsupported > 0 then
+    raise exception 'PLIVEX ONE migration stopped: % legacy Global workspace(s) have unsupported or inconsistent country, locale or currency settings', v_unsupported;
+  end if;
+
+  select count(*) into v_orphaned
+  from (
+    select bp.workspace_id from global.business_profiles bp
+      left join global.workspaces w on w.id=bp.workspace_id where w.id is null
+    union all
+    select wh.workspace_id from global.warehouses wh
+      left join global.workspaces w on w.id=wh.workspace_id where w.id is null
+    union all
+    select aa.workspace_id from global.accounting_accounts aa
+      left join global.workspaces w on w.id=aa.workspace_id where w.id is null
+  ) orphaned_records;
+
+  if v_orphaned > 0 then
+    raise exception 'PLIVEX ONE migration stopped: % legacy Global foundation record(s) are not attached to a known workspace', v_orphaned;
+  end if;
+
+  select count(*) into v_unmigrated_members
+  from global.workspace_members gm
+  join global.workspaces w on w.id=gm.workspace_id
+  join public.profiles p on p.id=w.created_by
+  where gm.role <> 'owner' or gm.status <> 'active'
+    or gm.user_id <> w.created_by
+    or not exists (
+      select 1 from public.workspace_members pm
+      where pm.workspace_id=p.workspace_id
+        and pm.user_id=w.created_by
+        and pm.owner_id=w.created_by
+        and pm.role='admin'
+        and pm.status='active'
+    );
+
+  if v_unmigrated_members > 0 then
+    raise exception 'PLIVEX ONE migration stopped: legacy Global team membership requires an explicit member migration';
+  end if;
+
+  -- Do not retire the legacy schema while any transactional records remain
+  -- unmapped. Current production inventory is zero for these Global tables.
+  if exists (
+    select 1 from global.approval_policies
+    union all select 1 from global.approval_requests
+    union all select 1 from global.audit_events
+    union all select 1 from global.clients
+    union all select 1 from global.crm_activities
+    union all select 1 from global.crm_leads
+    union all select 1 from global.currency_conversion_history
+    union all select 1 from global.enterprise_rate_limits
+    union all select 1 from global.exchange_rate_snapshots
+    union all select 1 from global.expenses
+    union all select 1 from global.export_jobs
+    union all select 1 from global.inventory_batches
+    union all select 1 from global.invoice_items
+    union all select 1 from global.invoice_number_sequences
+    union all select 1 from global.invoice_payments
+    union all select 1 from global.invoice_refunds
+    union all select 1 from global.invoice_share_links
+    union all select 1 from global.invoice_share_rate_limits
+    union all select 1 from global.invoice_stock_allocations
+    union all select 1 from global.invoices
+    union all select 1 from global.journal_entries
+    union all select 1 from global.journal_entry_lines
+    union all select 1 from global.products
+    union all select 1 from global.purchase_bill_lines
+    union all select 1 from global.purchase_bill_payments
+    union all select 1 from global.purchase_bills
+    union all select 1 from global.purchase_fx_revaluations
+    union all select 1 from global.purchase_order_items
+    union all select 1 from global.purchase_orders
+    union all select 1 from global.purchase_receipt_items
+    union all select 1 from global.purchase_receipts
+    union all select 1 from global.quotation_items
+    union all select 1 from global.quotations
+    union all select 1 from global.stock_levels
+    union all select 1 from global.stock_movements
+    union all select 1 from global.stock_transfer_items
+    union all select 1 from global.stock_transfers
+    union all select 1 from global.suppliers
+    union all select 1 from global.tax_calculation_audit
+    union all select 1 from global.tax_rule_versions
+    union all select 1 from global.warehouse_stock_levels
+    union all select 1 from global.warehouse_stock_movements
+    union all select 1 from global.workspace_branches
+    union all select 1 from global.workspace_country_change_events
+    union all select 1 from global.workspace_permission_overrides
+    union all select 1 from global.workspace_retention_policies
+  ) then
+    raise exception 'PLIVEX ONE migration stopped: Global transactional records need a dedicated row-preserving migration before cutover';
   end if;
 end
 $plivex$;
