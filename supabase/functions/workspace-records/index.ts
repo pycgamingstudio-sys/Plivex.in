@@ -13,6 +13,7 @@ const FIELDS: Record<string, string[]> = {
   quotations: ["number","client_name","date","total","status","tax_rate","items"],
   business_profile: ["name","email","phone","gstin","address","logo_url","upi_id","country_code","locale_code","tax_registration_number","tax_registration_type","tax_registration_status","tax_registration_effective_from","tax_jurisdiction_code"],
 };
+const CURRENCY_TABLES = new Set(["expenses", "stock", "services", "leads", "quotations"]);
 const COUNTRY_LOCALES: Record<string, string[]> = {
   IN: ["en-IN", "hi-IN"], US: ["en-US", "es-US"], GB: ["en-GB"],
   AE: ["en-AE", "ar-AE"], CA: ["en-CA", "fr-CA"], AU: ["en-AU"],
@@ -44,6 +45,16 @@ Deno.serve(async (req: Request) => {
     const action = typeof body?.action === "string" ? body.action : "";
     if (!Object.hasOwn(FIELDS, table)) return json({ error: "Unsupported table." }, 400, origin);
     const fields = FIELDS[table];
+    let workspaceCurrencyCode = "";
+    if (CURRENCY_TABLES.has(table)) {
+      const { data: settings, error: settingsError } = await db.from("workspace_settings")
+        .select("currency_code").eq("workspace_id", profile.workspace_id).maybeSingle();
+      if (settingsError) return json({ error: "Workspace currency could not be verified." }, 500, origin);
+      workspaceCurrencyCode = String(settings?.currency_code || "").trim().toUpperCase();
+      if (!/^[A-Z]{3}$/.test(workspaceCurrencyCode)) {
+        return json({ error: "Choose and save your Workspace country before recording monetary values. No currency default is assumed." }, 409, origin);
+      }
+    }
     if (table === "business_profile") {
       if (action === "get") {
         const { data, error } = await db.from(table).select("*").eq("workspace_id", profile.workspace_id).maybeSingle();
@@ -104,6 +115,7 @@ Deno.serve(async (req: Request) => {
     }
     if (action === "create") {
       const values = { ...pick(body.values, fields), workspace_id: profile.workspace_id };
+      if (CURRENCY_TABLES.has(table)) values.currency_code = workspaceCurrencyCode;
       const { data, error } = await db.from(table).insert(values).select("*").single();
       if (error) {
         const message = typeof error.message === "string" && (error.message.startsWith("PLAN_LIMIT_REACHED|") || error.message.startsWith("PLAN_FEATURE_LOCKED|"))
@@ -116,6 +128,7 @@ Deno.serve(async (req: Request) => {
     if (!isId(body.id)) return json({ error: "Invalid record id." }, 400, origin);
     if (action === "update") {
       const values = pick(body.values, fields);
+      if (CURRENCY_TABLES.has(table)) values.currency_code = workspaceCurrencyCode;
       const { data, error } = await db.from(table).update(values).eq("id", body.id).eq("workspace_id", profile.workspace_id).select("*").maybeSingle();
       if (error) {
         const message = typeof error.message === "string" && (error.message.startsWith("PLAN_LIMIT_REACHED|") || error.message.startsWith("PLAN_FEATURE_LOCKED|"))
