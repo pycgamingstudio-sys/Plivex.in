@@ -9,7 +9,7 @@ import PlanStatusCard from "@/components/PlanStatusCard";
 import { usePaywall } from "@/lib/paywall";
 import { supabase } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
-import { PERMANENT_DASHBOARD_FEATURES, useWorkspaceFeatures } from "@/lib/workspaceFeatures";
+import { getPermanentDashboardFeatures, useWorkspaceFeatures } from "@/lib/workspaceFeatures";
 import FeatureLibraryModal from "@/components/dashboard/FeatureLibraryModal";
 
 const CARD_KEY = "invoicepulse:cardVisibility";
@@ -116,7 +116,8 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
   ];
 
   const roleCards = ROLE_CARD_ACCESS[role] || ROLE_CARD_ACCESS.employee;
-  const visibleCards = cards.filter((card) => roleCards.includes(card.id) && (PERMANENT_DASHBOARD_FEATURES.includes(card.id) || (features.includes(card.id) && (isAdmin || vis[card.id] !== false))));
+  const permanentCards = getPermanentDashboardFeatures(user?.workspace_type);
+  const visibleCards = cards.filter((card) => roleCards.includes(card.id) && (permanentCards.includes(card.id) || (features.includes(card.id) && (isAdmin || vis[card.id] !== false))));
 
   return (
     <div className="plivex-dashboard-tab space-y-5 sm:space-y-6">
