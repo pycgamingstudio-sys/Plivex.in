@@ -77,7 +77,7 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
       alert("Reminder failed: " + msg);
     }
   };
-  const share = (it) => { if (!requireFeature("whatsapp_share", "WhatsApp sharing requires the Pro plan.")) return; const msg = `Hello ${it.clientName || "there"}, your invoice ${it.number || ""} for ${money2(it.total, it.currency || currencyCode)} from Plivex is ready.`; window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank"); };
+  const share = (it) => { if (!requireFeature("whatsapp_share", "WhatsApp sharing requires the Pro plan.")) return; const msg = `Hello ${it.clientName || "there"}, your invoice ${it.number || ""} for ${money2(it.total, it.currency || it.currencyCode || currencyCode)} from Plivex is ready.`; window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank"); };
   const convert = (qt) => { if (!requestAction()) return; const draft = loadState(KEYS.draft, {}); saveState(KEYS.draft, { ...draft, client: { ...draft.client, name: qt.clientName }, number: qt.number, items: qt.items || draft.items, taxRate: qt.taxRate ?? draft.taxRate }); navigate("/invoice-builder"); };
   const saveQuotation = (qt) => {
     if (!requestAction()) return;
@@ -103,7 +103,7 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
   const currencyTotals = (records) => {
     const totals = new Map();
     records.forEach((record) => {
-      const currency = String(record.currency || currencyCode).trim().toUpperCase();
+      const currency = String(record.currency || record.currencyCode || currencyCode).trim().toUpperCase();
       if (!/^[A-Z]{3}$/.test(currency)) return;
       totals.set(currency, (totals.get(currency) || 0) + Number(record.total || 0));
     });
@@ -224,7 +224,7 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
                                   {(it.items || []).map((li, i) => (
                                     <div key={i} className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 text-[11px]">
                                       <span className="text-slate-700">{li.description || "Item"}</span>
-                                      <span className="font-semibold text-slate-900">{li.quantity || 1} × {money2(li.rate, view.currency || currencyCode)}</span>
+                                      <span className="font-semibold text-slate-900">{li.quantity || 1} × {money2(li.rate, view.currency || view.currencyCode || currencyCode)}</span>
                                     </div>
                                   ))}
                                   {(!it.items || it.items.length === 0) && <p className="text-[11px] text-slate-400">No item breakdown stored.</p>}
