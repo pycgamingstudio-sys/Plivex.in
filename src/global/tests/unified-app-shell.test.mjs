@@ -19,9 +19,11 @@ test("India and Global experiences share the same Plivex application shell and n
   assert.match(app, /<AuthProvider>/);
   assert.ok(app.includes('<Route path="/dashboard" element={isGlobalWorkspace && isAuthenticated ? <AppLayout><GlobalApp section="overview" /></AppLayout> : <HomeGate />} />'));
   assert.ok(app.includes('<Route path="/invoice-history" element={isGlobalWorkspace ? <GlobalApp section="invoices" /> : <InvoiceHistory />} />'));
-  assert.match(layout, /GLOBAL_NAV/);
-  assert.match(layout, /Global Workspace/);
+  assert.match(layout, /GLOBAL_PRIMARY_NAV/);
+  assert.match(layout, /getCountryFlag\(user\?\.country_code\)/);
   assert.ok(layout.includes('<NavLink key={item.to} to={item.to}'));
+  assert.match(layout, /plivex-dashboard min-h-screen bg-slate-50/);
+  assert.match(layout, /active-workspace-edition/);
   assert.doesNotMatch(layout, /useSearchParams|setSearchParams/);
   assert.doesNotMatch(global, /useSearchParams|setSearchParams/);
   assert.match(backend, /UNIFIED_EDITION_ID/);
