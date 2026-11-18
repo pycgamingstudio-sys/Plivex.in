@@ -280,7 +280,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   const workspaceCurrencyCode = String(user?.currency_code || "").trim().toUpperCase();
   // A verified non-India workspace is Global even while a unified app is
   // transitioning its runtime edition. Never let that transient state select INR.
-  const isGlobalWorkspace = isGlobalWorkspace || Boolean(workspaceCountryCode && workspaceCountryCode !== "IN");
+  const isGlobalWorkspace = APP_EDITION === "global" || Boolean(workspaceCountryCode && workspaceCountryCode !== "IN");
   const [billingCountryCode, setBillingCountryCode] = useState(() => (
     workspaceCountryCode && workspaceCountryCode !== "IN"
       ? workspaceCountryCode
