@@ -304,7 +304,7 @@ const auth = {
     let workspaceSettings = null;
     if (profile?.workspace_id) {
       const { data: settingsData, error: settingsError } = await supabase.from('workspace_settings')
-        .select('country_code,locale_code,currency_code,workspace_type,optional_features,phone_country_code,phone_number')
+        .select('country_code,locale_code,currency_code,workspace_type,optional_features,phone_country_code,phone_number,onboarding_version,migration_status,legacy_review_required')
         .eq('workspace_id', profile.workspace_id).maybeSingle();
       if (settingsError) throw settingsError;
       workspaceSettings = settingsData;
@@ -324,6 +324,9 @@ const auth = {
       currency_code: workspaceSettings?.currency_code || undefined,
       workspace_type: workspaceSettings?.workspace_type || undefined,
       optional_features: workspaceSettings?.optional_features || undefined,
+      onboarding_version: Number(workspaceSettings?.onboarding_version || 0),
+      migration_status: workspaceSettings?.migration_status || "legacy_pending",
+      legacy_review_required: Boolean(workspaceSettings?.legacy_review_required),
       user_ref: profile?.user_ref,
       trial_start_at: profile?.trial_start_at,
       trial_expires_at: profile?.trial_expires_at,
