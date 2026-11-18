@@ -169,7 +169,7 @@ test("legacy Global workspaces are mapped into one canonical Workspace without c
   assert.match(migration, /legacy_global_workspace_id uuid/);
   assert.match(migration, /join global\.user_profiles g on g\.default_workspace_id = w\.id/);
   assert.match(migration, /join public\.profiles p on p\.id = g\.user_id/);
-  assert.match(migration, /migration_status = 'legacy_pending'/);
+  assert.match(migration, /default 'legacy_pending'/);
   assert.match(migration, /insert into public\.business_profile/);
   assert.match(migration, /insert into public\.warehouses/);
   assert.match(migration, /insert into public\.accounting_accounts/);
