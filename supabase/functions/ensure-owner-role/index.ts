@@ -38,13 +38,15 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
     }
     if (profile.workspace_id && !reset) {
-      const { data: existingBusinessProfile, error: existingBusinessProfileError } = await auth.admin.from("business_profile")
-        .select("country_code").eq("workspace_id", profile.workspace_id).maybeSingle();
-      if (existingBusinessProfileError) return jsonResponse({ error: "Could not verify the existing workspace country." }, 500, origin);
-      if (existingBusinessProfile?.country_code) {
+      const [{ data: existingBusinessProfile, error: existingBusinessProfileError }, { data: existingSettings, error: existingSettingsError }] = await Promise.all([
+        auth.admin.from("business_profile").select("country_code").eq("workspace_id", profile.workspace_id).maybeSingle(),
+        auth.admin.from("workspace_settings").select("country_code").eq("workspace_id", profile.workspace_id).maybeSingle(),
+      ]);
+      if (existingBusinessProfileError || existingSettingsError) return jsonResponse({ error: "Could not verify the existing workspace settings." }, 500, origin);
+      if (existingBusinessProfile?.country_code && existingSettings?.country_code) {
         return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
       }
-      // Country-less legacy workspaces are completed in place; no second workspace is created.
+      // Legacy or partially provisioned workspaces are completed in place; no second workspace is created.
     }
 
     const email = String(profile?.email || auth.user.email || "").trim().toLowerCase();
