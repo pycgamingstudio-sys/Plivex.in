@@ -89,4 +89,6 @@ test("optional Workspace modules stay gated when users open direct URLs", async 
   assert.match(app, /WorkspaceFeatureGate feature="reports"/);
   assert.match(app, /WorkspaceFeatureGate feature="expenses"/);
   assert.match(app, /WorkspaceFeatureGate businessOnly/);
+  const dashboard = await read("../../pages/Dashboard.jsx");
+  assert.match(dashboard, /path === "\/team-management"\) return user\?\.workspace_type === "business"/);
 });
