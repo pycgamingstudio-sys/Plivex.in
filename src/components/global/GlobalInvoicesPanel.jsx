@@ -206,6 +206,10 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   };
 
   const downloadPdf = async (invoice) => {
+    if (!invoice?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(invoice.id)) {
+      setError("Select a saved Global invoice before downloading its PDF. If this invoice was just created, refresh the invoice list and select it again.");
+      return;
+    }
     try {
       const lineItems = items.filter((item) => item.invoice_id === invoice.id).sort((a,b) => a.sort_order-b.sort_order);
       const snap = invoice.invoice_snapshot || {};
@@ -429,7 +433,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <div className="border-b border-slate-100 px-4 py-3 font-semibold">Invoices</div>
-          {invoices.length===0 ? <p className="p-8 text-center text-sm text-slate-500">No Global invoices yet.</p> : <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-3">Invoice</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Total</th></tr></thead><tbody className="divide-y divide-slate-100">{invoices.map((invoice)=><tr key={invoice.id} className={selectedId===invoice.id?"bg-violet-50":""}><td className="px-3 py-3"><button className="font-semibold text-violet-700" onClick={()=>setSelectedId(invoice.id)}>{invoice.invoice_number}</button><div className="text-xs text-slate-500">{invoice.issue_date}</div></td><td className="px-3 py-3">{invoice.status}</td><td className="px-3 py-3">{money(invoice.total_minor,invoice.currency_code)}</td></tr>)}</tbody></table></div>}
+          {invoices.length===0 ? <p className="p-8 text-center text-sm text-slate-500">No Global invoices yet. Create a draft first; then select it here to download its PDF.</p> : <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-3">Invoice</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Total</th></tr></thead><tbody className="divide-y divide-slate-100">{invoices.map((invoice)=><tr key={invoice.id} className={selectedId===invoice.id?"bg-violet-50":""}><td className="px-3 py-3"><button className="font-semibold text-violet-700" onClick={()=>setSelectedId(invoice.id)}>{invoice.invoice_number}</button><div className="text-xs text-slate-500">{invoice.issue_date}</div></td><td className="px-3 py-3">{invoice.status}</td><td className="px-3 py-3">{money(invoice.total_minor,invoice.currency_code)}</td></tr>)}</tbody></table></div>}
         </div>
         <div className="space-y-4">
           {selected ? <>
