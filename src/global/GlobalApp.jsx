@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { Users, Package, Receipt, FileText, Boxes, Handshake, Warehouse, Calculator, ShoppingCart, UserPlus, BarChart3, FilePlus2, ArrowRight } from "lucide-react";
+import { Users, Package, Receipt, FileText, Boxes, Warehouse, ShoppingCart, UserPlus, BarChart3, FilePlus2, ArrowRight } from "lucide-react";
 import { supabase } from "@/api/backendClient";
 import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
 import FeatureLibraryModal from "@/components/dashboard/FeatureLibraryModal";
