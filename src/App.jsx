@@ -84,14 +84,14 @@ const AuthenticatedApp = () => {
   }
 
   // One shared post-auth onboarding provisions either regional workspace.
-  if (isUnifiedBuild && isAuthenticated && user && (!user.workspace_id || !user.country_code || !user.workspace_type) && !getPendingInviteCode()) {
+  if (isUnifiedBuild && isAuthenticated && user && (!user.workspace_id || !user.country_code || !user.workspace_type || Number(user.onboarding_version || 0) < 1 || user.migration_status !== "ready" || user.legacy_review_required) && !getPendingInviteCode()) {
     const canProvisionWorkspace = !user.workspace_id || !user.role || user.role === "admin" || user.role === "user";
     if (canProvisionWorkspace) return <UnifiedWorkspaceOnboarding />;
     return (
       <main className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center gap-4 p-6 text-center">
         <div className="rounded-2xl border bg-card p-6 shadow-sm">
           <h1 className="text-lg font-bold">Workspace setup is pending</h1>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">Your workspace owner needs to finish the country and business setup before team members can open the workspace. Your account and existing records have not been changed.</p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">Your workspace owner needs to complete the mandatory Workspace review before team members can open the workspace. Your account and existing records remain preserved.</p>
           <button type="button" onClick={() => logout()} className="mt-5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Sign out</button>
         </div>
       </main>
