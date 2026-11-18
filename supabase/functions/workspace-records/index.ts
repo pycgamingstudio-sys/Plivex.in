@@ -92,7 +92,7 @@ Deno.serve(async (req: Request) => {
           && (typeof incoming.tax_jurisdiction_code !== "string" || incoming.tax_jurisdiction_code.length > 32)) {
           return json({ error: "Tax jurisdiction code must be 32 characters or fewer." }, 400, origin);
         }
-        const values = { ...pick(body.values, fields), workspace_id: profile.workspace_id };
+        const values: Record<string, unknown> = { ...pick(body.values, fields), workspace_id: profile.workspace_id };
         const { data: existing, error: readError } = await db.from(table).select("id,country_code,locale_code").eq("workspace_id", profile.workspace_id).maybeSingle();
         if (readError) return json({ error: "Could not load business profile." }, readError.code === "42501" ? 403 : 400, origin);
         if (existing?.country_code
@@ -127,7 +127,7 @@ Deno.serve(async (req: Request) => {
     }
     if (!isId(body.id)) return json({ error: "Invalid record id." }, 400, origin);
     if (action === "update") {
-      const values = pick(body.values, fields);
+      const values: Record<string, unknown> = pick(body.values, fields);
       if (CURRENCY_TABLES.has(table)) values.currency_code = workspaceCurrencyCode;
       const { data, error } = await db.from(table).update(values).eq("id", body.id).eq("workspace_id", profile.workspace_id).select("*").maybeSingle();
       if (error) {
