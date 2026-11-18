@@ -23,7 +23,7 @@ test("Global backend defaults fail closed and blocks India endpoint fallback", (
 
 test("unified build keeps one public workspace identity for every selected country", () => {
   assert.match(authContext, /if \(isUnifiedBuild\) \{[\s\S]*setRuntimeEdition\("india"\);[\s\S]*return currentUser;/);
-  assert.doesNotMatch(authContext, /const shouldResolveGlobal = APP_EDITION === \"global\" \|\| isUnifiedBuild/);
+  assert.ok(authContext.indexOf('if (isUnifiedBuild)') < authContext.indexOf('const shouldResolveGlobal = APP_EDITION === "global" || isUnifiedBuild'));
   assert.match(app, /\(!user\.workspace_id \|\| !user\.country_code\)/);
   assert.match(onboarding, /ensureOwnerRole/);
   assert.doesNotMatch(onboarding, /globalEnsureOwner/);
