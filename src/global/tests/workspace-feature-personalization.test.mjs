@@ -47,10 +47,10 @@ test("Invoices, Quotations, Stock and Team are permanent dashboard cards", async
 
 test("unified auth checks authoritative Global membership even when legacy India profile says IN", async () => {
   const auth = await read("../../lib/AuthContext.jsx");
-  assert.ok(auth.includes('APP_EDITION === "global" || isUnifiedBuild || countryCode !== 'IN''));
-  assert.match(auth, /globalUser = globalContext.user/);
+  assert.ok(auth.includes("APP_EDITION === \"global\" || isUnifiedBuild || countryCode !== 'IN'"));
+  assert.ok(auth.includes("globalUser = globalContext.user"));
   assert.ok(auth.includes("countryCode = globalUser.country_code || countryCode"));
-  assert.ok(auth.includes('APP_EDITION === "global" || (countryCode && countryCode !== 'IN')'));
+  assert.ok(auth.includes("APP_EDITION === \"global\" || (countryCode && countryCode !== 'IN')"));
 });
 
 test("More Features only offers optional tools not already in navigation", async () => {
