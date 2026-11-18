@@ -62,3 +62,13 @@ test("PLIVEX ONE persists country, currency, work type and optional modules unde
   assert.match(provisioner, /optional_features: optionalFeatures/);
   assert.match(backend, /currency_code: workspaceSettings\?\.currency_code/);
 });
+
+test("invoice persistence reads country and currency only from canonical workspace settings", async () => {
+  const saveInvoice = await read("../../../supabase/functions/save-invoice/index.ts");
+  assert.match(saveInvoice, /db\.from\("workspace_settings"\)\.select\("country_code,currency_code,locale_code"\)/);
+  assert.match(saveInvoice, /const countryCode = String\(workspaceSettings\?\.country_code \|\| ""\)/);
+  assert.match(saveInvoice, /const baseCurrencyCode = String\(workspaceSettings\?\.currency_code \|\| ""\)/);
+  assert.match(saveInvoice, /No country or currency default is assumed/);
+  assert.match(saveInvoice, /requestedCurrency !== baseCurrencyCode/);
+  assert.doesNotMatch(saveInvoice, /businessProfile\?\.country_code \|\| "IN"/);
+});
