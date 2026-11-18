@@ -112,11 +112,13 @@ begin
   end if;
 
   select count(*) into v_unmigrated_members
-  from global.workspace_members gm
-  join global.workspaces w on w.id=gm.workspace_id
+  from global.workspaces w
   join public.profiles p on p.id=w.created_by
-  where gm.role <> 'owner' or gm.status <> 'active'
-    or gm.user_id <> w.created_by
+  where not exists (
+      select 1 from global.workspace_members gm
+      where gm.workspace_id=w.id and gm.user_id=w.created_by
+        and gm.role='owner' and gm.status='active'
+    )
     or not exists (
       select 1 from public.workspace_members pm
       where pm.workspace_id=p.workspace_id
@@ -124,6 +126,11 @@ begin
         and pm.owner_id=w.created_by
         and pm.role='admin'
         and pm.status='active'
+    )
+    or exists (
+      select 1 from global.workspace_members gm
+      where gm.workspace_id=w.id
+        and (gm.role <> 'owner' or gm.status <> 'active' or gm.user_id <> w.created_by)
     );
 
   if v_unmigrated_members > 0 then
