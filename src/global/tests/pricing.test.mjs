@@ -30,3 +30,12 @@ test("price formatter uses exact minor-unit amount and currency", () => {
   assert.equal(formatPlanPrice(599, "USD", "en-US"), "$5.99");
   assert.throws(() => formatPlanPrice(-1, "USD"), TypeError);
 });
+
+test("Global workspace pricing is resolved only from the authenticated workspace country", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const app = await readFile(new URL("../GlobalApp.jsx", import.meta.url), "utf8");
+  assert.match(app, /getBillingForCountry\(account\.country_code\)/);
+  assert.match(app, /formatPlanPrice\(plan\.amount, currency, workspaceLocale\)/);
+  assert.doesNotMatch(app, /navigator\.language|navigator\.languages|Intl\.Locale/);
+  assert.match(app, /Prices and currency are determined by your saved workspace country/);
+});
