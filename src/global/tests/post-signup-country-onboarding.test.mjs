@@ -39,7 +39,7 @@ test("unified runtime does not resolve a second Global workspace identity", asyn
   const auth = await read("../../lib/AuthContext.jsx");
   const app = await read("../../App.jsx");
   assert.match(auth, /if \(isUnifiedBuild\) \{[\s\S]*setRuntimeEdition\("india"\);[\s\S]*return currentUser;/);
-  assert.match(app, /\(!user\.workspace_id \|\| !user\.country_code\)/);
+  assert.match(app, /\(!user\.workspace_id \|\| !user\.country_code \|\| !user\.workspace_type\)/);
 });
 
 test("Global owner provisioning rejects a missing country instead of defaulting to India", async () => {
