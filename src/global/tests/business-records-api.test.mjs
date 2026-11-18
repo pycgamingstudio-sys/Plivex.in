@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [backend, handler, shared, rpc, settings, businessProfile, resetRpc, resetHandler, authContext, regionMigration, localeHandler] = await Promise.all([
+const [backend, handler, shared, rpc, settings, businessProfile, resetRpc, resetHandler, authContext, regionMigration, localeHandler, plivexOneMigration] = await Promise.all([
   read("../../api/backendClient.js"),
   read("../../../supabase/functions/global-business-records/index.ts"),
   read("../../../supabase/functions/_shared/global.ts"),
@@ -15,6 +15,7 @@ const [backend, handler, shared, rpc, settings, businessProfile, resetRpc, reset
   read("../../lib/AuthContext.jsx"),
   read("../../../supabase/migrations/20261115191500_country_reset_region_alignment.sql"),
   read("../../../supabase/functions/update-workspace-locale/index.ts"),
+  read("../../../supabase/migrations/20261118121500_plivex_one_workspace_settings.sql"),
 ]);
 
 test("Global app can invoke only the dedicated Global business records function", () => {
@@ -76,21 +77,21 @@ test("Global business tax profile stores the effective registration date in the 
 });
 
 
-test("Country changes require explicit confirmation while locale-only edits preserve the workspace", () => {
+test("PLIVEX ONE locks country after onboarding while preserving locale-only support for legacy builds", () => {
   assert.match(settings, /showResetConfirm/);
-  assert.match(settings, /Type DELETE to confirm/);
-  assert.match(settings, /Confirm & permanently delete/);
   assert.match(settings, /resetWorkspaceCountry/);
   assert.match(settings, /globalUpdateWorkspaceCountry/);
   assert.match(settings, /updateWorkspaceLocale/);
   assert.doesNotMatch(settings, /request_workspace_country_change/);
-  assert.match(businessProfile, /WorkspaceCountrySettings lockCountry=\{APP_EDITION === "global"\}/);
+  assert.match(businessProfile, /WorkspaceCountrySettings lockCountry=\{isUnifiedBuild \|\| APP_EDITION === "global"\}/);
+  assert.match(settings, /disabled=\{lockCountry\}/);
 });
 
-test("Country reset is authenticated, owner-scoped, cooldown-limited and atomic", () => {
-  assert.match(resetHandler, /authenticate\(req\)/);
-  assert.match(resetHandler, /confirmationPhrase !== "DELETE_MY_BUSINESS_DATA"/);
-  assert.match(resetHandler, /reset_workspace_country_atomic/);
+test("PLIVEX ONE disables destructive country reset and revokes the reset RPC", () => {
+  assert.match(resetHandler, /authClient\.auth\.getUser\(\)/);
+  assert.match(resetHandler, /Workspace country is fixed after onboarding/);
+  assert.doesNotMatch(resetHandler, /SUPABASE_SERVICE_ROLE_KEY|reset_workspace_country_atomic/);
+  assert.match(plivexOneMigration, /revoke all on function public\.reset_workspace_country_atomic\(uuid, text, text, text, text\) from public, anon, authenticated, service_role/);
   assert.match(resetRpc, /pg_advisory_xact_lock/);
   assert.match(resetRpc, /interval '30 days'/);
   assert.match(resetRpc, /workspace_owner_required/);
@@ -104,8 +105,6 @@ test("Country reset is authenticated, owner-scoped, cooldown-limited and atomic"
   assert.match(regionMigration, /guard_invoice_payment_append_only/);
   assert.match(regionMigration, /guard_issued_invoice_immutability/);
   assert.match(regionMigration, /current_user in \('postgres','supabase_admin','service_role'\)/);
-  assert.match(resetRpc, /revoke all on function public\.reset_workspace_country_atomic.*from public, anon, authenticated/s);
-  assert.match(resetRpc, /grant execute on function public\.reset_workspace_country_atomic.*to service_role/s);
   assert.match(authContext, /const profileCountry = currentUser\?\.country_code/);
   assert.match(authContext, /profileCountry.*metadataCountry/s);
   assert.doesNotMatch(resetRpc, /public\.business_profile[^;]*country_code/s);
