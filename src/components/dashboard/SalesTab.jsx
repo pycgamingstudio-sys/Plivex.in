@@ -20,6 +20,11 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
   const { requestAction, requireFeature, limits, usage, remaining, openPaywall } = usePaywall();
   const { user } = useAuth();
   const currencyCode = user?.currency_code || "INR";
+  const recordedCurrency = (record) => String(record?.currency || record?.currencyCode || "").trim().toUpperCase();
+  const amountInRecordedCurrency = (amount, currency) => /^[A-Z]{3}$/.test(String(currency || "").trim().toUpperCase())
+    ? money2(amount, String(currency).trim().toUpperCase())
+    : "Currency not recorded";
+  const invoiceAmount = (record) => amountInRecordedCurrency(record?.total, recordedCurrency(record));
   const { isAccountant } = useRole();
   const [sub, setSub] = useState(initialSub === "quotations" ? "quotations" : "invoices");
   const [invoices, setInvoices] = useState(() => loadList(KEYS.history, { includeCancelled: true }));
@@ -68,16 +73,22 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
     const match = clients.find((c) => (c.name || "").toLowerCase() === (it.clientName || "").toLowerCase());
     const email = (match && match.email) || window.prompt(`Enter client email to send a payment reminder for ${it.clientName || it.number}:`);
     if (!email) return;
+    if (!/^[A-Z]{3}$/.test(recordedCurrency(it))) { alert("This invoice has no recorded currency. Review it before sending a payment reminder."); return; }
     const es = loadState("invoicepulse:emailSettings", {});
     try {
-      await db.functions.invoke("sendPaymentReminder", { to: email, clientName: it.clientName, invoiceNumber: it.number, amount: money2(it.total, it.currency || currencyCode), dueDate: it.dueDate, senderEmail: es.senderEmail, appPassword: es.appPassword });
+      await db.functions.invoke("sendPaymentReminder", { to: email, clientName: it.clientName, invoiceNumber: it.number, amount: invoiceAmount(it), dueDate: it.dueDate, senderEmail: es.senderEmail, appPassword: es.appPassword });
       alert("Payment reminder sent to " + email);
     } catch (e) {
       const msg = e?.response?.data?.error || e?.message || "Failed to send reminder";
       alert("Reminder failed: " + msg);
     }
   };
-  const share = (it) => { if (!requireFeature("whatsapp_share", "WhatsApp sharing requires the Pro plan.")) return; const msg = `Hello ${it.clientName || "there"}, your invoice ${it.number || ""} for ${money2(it.total, it.currency || it.currencyCode || currencyCode)} from Plivex is ready.`; window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank"); };
+  const share = (it) => {
+    if (!requireFeature("whatsapp_share", "WhatsApp sharing requires the Pro plan.")) return;
+    if (!/^[A-Z]{3}$/.test(recordedCurrency(it))) { alert("This invoice has no recorded currency. Review it before sharing."); return; }
+    const msg = `Hello ${it.clientName || "there"}, your invoice ${it.number || ""} for ${invoiceAmount(it)} from Plivex is ready.`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+  };
   const convert = (qt) => { if (!requestAction()) return; const draft = loadState(KEYS.draft, {}); saveState(KEYS.draft, { ...draft, client: { ...draft.client, name: qt.clientName }, number: qt.number, items: qt.items || draft.items, taxRate: qt.taxRate ?? draft.taxRate }); navigate("/invoice-builder"); };
   const saveQuotation = (qt) => {
     if (!requestAction()) return;
@@ -103,14 +114,16 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
   const currencyTotals = (records) => {
     const totals = new Map();
     records.forEach((record) => {
-      const currency = String(record.currency || record.currencyCode || currencyCode).trim().toUpperCase();
+      const currency = recordedCurrency(record);
       if (!/^[A-Z]{3}$/.test(currency)) return;
       totals.set(currency, (totals.get(currency) || 0) + Number(record.total || 0));
     });
-    return [...totals.entries()]
+    const known = [...totals.entries()]
       .sort(([a], [b]) => a === currencyCode ? -1 : b === currencyCode ? 1 : a.localeCompare(b))
       .map(([currency, amount]) => money2(amount, currency))
-      .join(" · ") || money2(0, currencyCode);
+      .join(" · ");
+    const hasUnknown = records.some((record) => !/^[A-Z]{3}$/.test(recordedCurrency(record)));
+    return [known, hasUnknown ? "Currency not recorded" : ""].filter(Boolean).join(" · ") || (records.length ? "Currency not recorded" : money2(0, currencyCode));
   };
   const totalInvoiced = currencyTotals(invoices);
   const totalPaid = currencyTotals(invoices.filter((it) => statusOf(it) === "Paid"));
@@ -196,7 +209,7 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
                         <td className="px-3 py-3 font-bold text-slate-900">{it.clientName || "Client"}</td>
                         <td className="px-3 py-3 font-mono-ui text-slate-500">{it.number || "—"}</td>
                         <td className="px-3 py-3 text-slate-500">{dateLabel(sub === "invoices" ? it.issueDate : it.date)}</td>
-                        <td className="px-3 py-3 text-right font-bold text-slate-900">{money2(it.total, it.currency || currencyCode)}</td>
+                        <td className="px-3 py-3 text-right font-bold text-slate-900">{invoiceAmount(it)}</td>
                         <td className="px-3 py-3"><button onClick={() => toggleStatus(it)} title="Toggle status" className={statusBadge(sub === "invoices" ? statusOf(it) : (it.status === "sent" ? "Sent" : "Draft")) + " cursor-pointer transition-opacity hover:opacity-80"}>{sub === "invoices" ? statusOf(it) : (it.status === "sent" ? "Sent" : "Draft")}</button></td>
                         <td className="px-3 py-3">
                           <div className="flex items-center justify-end gap-1.5">
@@ -224,7 +237,7 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
                                   {(it.items || []).map((li, i) => (
                                     <div key={i} className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 text-[11px]">
                                       <span className="text-slate-700">{li.description || "Item"}</span>
-                                      <span className="font-semibold text-slate-900">{li.quantity || 1} × {money2(li.rate, view.currency || view.currencyCode || currencyCode)}</span>
+                                      <span className="font-semibold text-slate-900">{li.quantity || 1} × {amountInRecordedCurrency(li.rate, recordedCurrency(view))}</span>
                                     </div>
                                   ))}
                                   {(!it.items || it.items.length === 0) && <p className="text-[11px] text-slate-400">No item breakdown stored.</p>}
@@ -276,10 +289,10 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
               <div><p className="text-slate-400">Issue date</p><p className="font-semibold text-slate-700">{dateLabel(view.issueDate)}</p></div>
               <div><p className="text-slate-400">Items</p><p className="font-semibold text-slate-700">{view.itemCount || 0}</p></div>
               <div><p className="text-slate-400">Status</p><span className={statusBadge(statusOf(view))}>{statusOf(view)}</span></div>
-              <div><p className="text-slate-400">CGST</p><p className="font-semibold text-slate-700">{money2(view.cgst, view.currency)}</p></div>
-              <div><p className="text-slate-400">SGST</p><p className="font-semibold text-slate-700">{money2(view.sgst, view.currency)}</p></div>
-              <div><p className="text-slate-400">IGST</p><p className="font-semibold text-slate-700">{money2(view.igst, view.currency)}</p></div>
-              <div><p className="text-slate-400">Total</p><p className="font-bold text-[#6D28D9]">{money2(view.total, view.currency)}</p></div>
+              <div><p className="text-slate-400">CGST</p><p className="font-semibold text-slate-700">{amountInRecordedCurrency(view.cgst, recordedCurrency(view))}</p></div>
+              <div><p className="text-slate-400">SGST</p><p className="font-semibold text-slate-700">{amountInRecordedCurrency(view.sgst, recordedCurrency(view))}</p></div>
+              <div><p className="text-slate-400">IGST</p><p className="font-semibold text-slate-700">{amountInRecordedCurrency(view.igst, recordedCurrency(view))}</p></div>
+              <div><p className="text-slate-400">Total</p><p className="font-bold text-[#6D28D9]">{invoiceAmount(view)}</p></div>
             </div>
             <button onClick={() => { setView(null); navigate("/invoice-builder"); }} className="mt-4 w-full rounded-xl bg-[#6D28D9] py-2.5 text-[12px] font-bold text-white hover:bg-[#7C3AED]">Open invoice builder</button>
           </div>
