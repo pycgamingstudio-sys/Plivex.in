@@ -108,23 +108,23 @@ const MAPPERS = {
     toDb: (i) => ({ name: str(i.name), company: str(i.company), email: str(i.email), phone: str(i.phone), gstin: str(i.gstin), address: str(i.address) }),
   },
   expenses: {
-    toUi: (r) => ({ id: r.id, vendor: str(r.vendor), category: str(r.category), amount: num(r.amount), date: str(r.date).slice(0, 10), status: str(r.status), method: str(r.method), notes: str(r.notes) }),
+    toUi: (r) => ({ id: r.id, vendor: str(r.vendor), category: str(r.category), amount: num(r.amount), currencyCode: str(r.currency_code).toUpperCase(), date: str(r.date).slice(0, 10), status: str(r.status), method: str(r.method), notes: str(r.notes) }),
     toDb: (i) => ({ vendor: str(i.vendor), category: i.category || "Other", amount: num(i.amount), date: dateOrNull(i.date), status: str(i.status), method: str(i.method), notes: str(i.notes) }),
   },
   stock: {
-    toUi: (r) => ({ id: r.id, name: str(r.name), sku: str(r.sku), barcode: str(r.barcode), variantOf: str(r.variant_of), variantLabel: str(r.variant_label), quantity: num(r.quantity), unit: str(r.unit), price: num(r.price), lowStock: r.low_stock === null || r.low_stock === undefined ? 5 : num(r.low_stock) }),
+    toUi: (r) => ({ id: r.id, name: str(r.name), sku: str(r.sku), barcode: str(r.barcode), variantOf: str(r.variant_of), variantLabel: str(r.variant_label), quantity: num(r.quantity), unit: str(r.unit), price: num(r.price), currencyCode: str(r.currency_code).toUpperCase(), lowStock: r.low_stock === null || r.low_stock === undefined ? 5 : num(r.low_stock) }),
     toDb: (i) => ({ name: str(i.name), sku: str(i.sku), barcode: str(i.barcode), variant_of: i.variantOf || null, variant_label: str(i.variantLabel), quantity: num(i.quantity), unit: str(i.unit), price: num(i.price), low_stock: i.lowStock === "" || i.lowStock === undefined ? 5 : num(i.lowStock) }),
   },
   services: {
-    toUi: (r) => ({ id: r.id, name: str(r.name), rate: num(r.rate), gstRate: num(r.gst_rate), description: str(r.description) }),
+    toUi: (r) => ({ id: r.id, name: str(r.name), rate: num(r.rate), currencyCode: str(r.currency_code).toUpperCase(), gstRate: num(r.gst_rate), description: str(r.description) }),
     toDb: (i) => ({ name: str(i.name), rate: num(i.rate), gst_rate: num(i.gstRate), description: str(i.description) }),
   },
   leads: {
-    toUi: (r) => ({ id: r.id, name: str(r.name), phone: str(r.phone), email: str(r.email), company: str(r.company), source: str(r.source), requirement: str(r.requirement), value: num(r.value), stage: str(r.stage), score: num(r.score), nextFollowUpAt: str(r.next_follow_up_at), ownerId: str(r.owner_id) }),
+    toUi: (r) => ({ id: r.id, name: str(r.name), phone: str(r.phone), email: str(r.email), company: str(r.company), source: str(r.source), requirement: str(r.requirement), value: num(r.value), currencyCode: str(r.currency_code).toUpperCase(), stage: str(r.stage), score: num(r.score), nextFollowUpAt: str(r.next_follow_up_at), ownerId: str(r.owner_id) }),
     toDb: (i) => ({ name: str(i.name), phone: str(i.phone), email: str(i.email), company: str(i.company), source: str(i.source), requirement: str(i.requirement), value: num(i.value), stage: str(i.stage), score: Math.max(0, Math.min(100, num(i.score))), next_follow_up_at: i.nextFollowUpAt || null, owner_id: i.ownerId || null }),
   },
   quotations: {
-    toUi: (r) => ({ id: r.id, number: str(r.number), clientName: str(r.client_name), date: str(r.date).slice(0, 10), total: num(r.total), status: str(r.status) || "draft", taxRate: num(r.tax_rate), items: Array.isArray(r.items) ? r.items : [] }),
+    toUi: (r) => ({ id: r.id, number: str(r.number), clientName: str(r.client_name), date: str(r.date).slice(0, 10), total: num(r.total), currencyCode: str(r.currency_code).toUpperCase(), status: str(r.status) || "draft", taxRate: num(r.tax_rate), items: Array.isArray(r.items) ? r.items : [] }),
     toDb: (i) => ({ number: str(i.number), client_name: str(i.clientName), date: dateOrNull(i.date), total: num(i.total), status: i.status === "sent" ? "sent" : "draft", tax_rate: num(i.taxRate), items: Array.isArray(i.items) ? i.items : [] }),
   },
 };
