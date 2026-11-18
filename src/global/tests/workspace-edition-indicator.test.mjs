@@ -51,3 +51,13 @@ test("additional invoice currency selector is restricted to India Pro workspaces
   assert.match(home, /activeWorkspaceCountry === "IN" && canAccess\("multi_currency"\)/);
   assert.match(home, /Additional invoice currencies are not available for this Workspace country yet/);
 });
+
+test("India tax reporting never mixes foreign-currency amounts or guesses FX for GSTR-1", () => {
+  const tax = read("../../pages/TaxSummary.jsx");
+  const gstr = read("../../lib/gstrExport.js");
+  assert.match(tax, /taxByCurrency/);
+  assert.match(tax, /Amounts are grouped by recorded invoice currency/);
+  assert.match(tax, /Plivex will not guess an exchange rate/);
+  assert.match(gstr, /invoiceCurrency !== "INR"/);
+  assert.match(gstr, /foreign or missing currency cannot be converted automatically/);
+});
