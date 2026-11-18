@@ -93,7 +93,7 @@ export default function UnifiedWorkspaceOnboarding() {
             values: {
               tax_registration_type: taxType.trim() || null,
               tax_registration_number: taxNumber.trim() || null,
-              tax_registration_status: taxNumber.trim() ? "registered" : "unregistered",
+              tax_registration_status: taxNumber.trim() ? "pending" : "unregistered",
             },
           });
           if (taxResult?.error || !taxResult?.data?.record) throw taxResult?.error || new Error("Tax profile save was not confirmed.");
