@@ -48,10 +48,16 @@ Deno.serve(async (req: Request) => {
     };
     const requestedCountryValue = typeof body?.countryCode === "string" ? body.countryCode : metadata.signup_country_code;
     const requestedLocaleValue = typeof body?.localeCode === "string" ? body.localeCode : metadata.signup_locale_code;
-    const requestedCountry = typeof requestedCountryValue === "string" ? requestedCountryValue.toUpperCase() : "IN";
-    const requestedLocale = typeof requestedLocaleValue === "string" ? requestedLocaleValue : "en-IN";
-    const countryCode = countryLocales[requestedCountry]?.includes(requestedLocale) ? requestedCountry : "IN";
-    const localeCode = countryLocales[countryCode]?.includes(requestedLocale) ? requestedLocale : "en-IN";
+    const requestedCountry = typeof requestedCountryValue === "string" ? requestedCountryValue.trim().toUpperCase() : "";
+    const requestedLocale = typeof requestedLocaleValue === "string" ? requestedLocaleValue.trim() : "";
+    if (!countryLocales[requestedCountry]) {
+      return jsonResponse({ error: "Choose a supported business country before creating your workspace." }, 400, origin);
+    }
+    if (!countryLocales[requestedCountry].includes(requestedLocale)) {
+      return jsonResponse({ error: "Choose a valid regional format for your selected country." }, 400, origin);
+    }
+    const countryCode = requestedCountry;
+    const localeCode = requestedLocale;
     const { error: countryError } = await auth.admin.from("business_profile").upsert({
       workspace_id: workspaceId, country_code: countryCode, locale_code: localeCode, name: String(body?.businessName || metadata.full_name || metadata.name || "").trim().slice(0, 160) || null,
     }, { onConflict: "workspace_id", ignoreDuplicates: true });
