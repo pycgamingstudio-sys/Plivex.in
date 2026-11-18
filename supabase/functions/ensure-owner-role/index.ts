@@ -56,16 +56,16 @@ Deno.serve(async (req: Request) => {
       AE: ["en-AE", "ar-AE"], CA: ["en-CA", "fr-CA"], AU: ["en-AU"],
       SG: ["en-SG", "zh-SG", "ms-SG", "ta-SG"],
     };
-    const requestedCountryValue = typeof body?.countryCode === "string" ? body.countryCode : metadata.signup_country_code;
-    const requestedLocaleValue = typeof body?.localeCode === "string" ? body.localeCode : metadata.signup_locale_code;
+    const requestedCountryValue = typeof body?.countryCode === "string" ? body.countryCode : "";
+    const requestedLocaleValue = typeof body?.localeCode === "string" ? body.localeCode : "";
     const countryCode = typeof requestedCountryValue === "string" ? requestedCountryValue.trim().toUpperCase() : "";
     const localeCode = typeof requestedLocaleValue === "string" ? requestedLocaleValue.trim() : "";
     if (!countryLocales[countryCode]) return jsonResponse({ error: "Choose a supported business country before creating your workspace." }, 400, origin);
     if (!countryLocales[countryCode].includes(localeCode)) return jsonResponse({ error: "Choose a valid regional format for your selected country." }, 400, origin);
-    const workspaceType = String(body?.businessType || metadata.plivex_work_type || "").trim().toLowerCase();
+    const workspaceType = String(body?.businessType || "").trim().toLowerCase();
     if (!["freelancer", "business"].includes(workspaceType)) return jsonResponse({ error: "Choose Freelancer or Business for your workspace." }, 400, origin);
     const allowedFeatures = new Set(["expenses", "crm", "leads", "inventoryWorkspace", "reports"]);
-    const requestedFeatures = Array.isArray(body?.optionalFeatures) ? body.optionalFeatures : metadata.plivex_workspace_features;
+    const requestedFeatures = body?.optionalFeatures;
     const optionalFeatures = Array.isArray(requestedFeatures)
       ? [...new Set(requestedFeatures.filter((value: unknown): value is string => typeof value === "string" && allowedFeatures.has(value)))]
       : [];
@@ -76,7 +76,7 @@ Deno.serve(async (req: Request) => {
     const { error: upsertProfileError } = await auth.admin.from("profiles").upsert({
       id: auth.user.id, email, role: "admin", workspace_id: workspaceId,
       country_code: countryCode, locale_code: localeCode,
-      full_name: String(body?.businessName || metadata.full_name || metadata.name || "").trim().slice(0, 160) || null,
+      full_name: String(body?.businessName || "").trim().slice(0, 160) || null,
       updated_at: now,
     }, { onConflict: "id" });
     if (upsertProfileError) return jsonResponse({ error: "Could not update owner profile" }, 500, origin);
@@ -92,8 +92,8 @@ Deno.serve(async (req: Request) => {
       workspace_id: workspaceId,
       country_code: countryCode,
       locale_code: localeCode,
-      phone: String(metadata.phone || "").trim() ? `${phoneCodeByCountry[countryCode]} ${String(metadata.phone).trim().slice(0, 32)}` : null,
-      name: String(body?.businessName || metadata.full_name || metadata.name || "").trim().slice(0, 160) || null,
+      phone: String(body?.phone || "").trim() ? `${phoneCodeByCountry[countryCode]} ${String(body.phone).trim().slice(0, 32)}` : null,
+      name: String(body?.businessName || "").trim().slice(0, 160) || null,
     }, { onConflict: "workspace_id" });
     if (countryError) {
       console.error("Owner workspace country setup failed", { code: countryError.code });
@@ -108,7 +108,7 @@ Deno.serve(async (req: Request) => {
       workspace_type: workspaceType,
       optional_features: optionalFeatures,
       phone_country_code: phoneCodeByCountry[countryCode],
-      phone_number: String(metadata.phone || "").trim().slice(0, 32) || null,
+      phone_number: String(body?.phone || "").trim().slice(0, 32) || null,
       created_by: auth.user.id,
       updated_at: now,
     }, { onConflict: "workspace_id" });
