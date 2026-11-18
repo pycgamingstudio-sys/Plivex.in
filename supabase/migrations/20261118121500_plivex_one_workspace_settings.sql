@@ -6,7 +6,7 @@ create table if not exists public.workspace_settings (
   country_code text not null,
   locale_code text not null,
   currency_code text not null,
-  workspace_type text not null default 'business'
+  workspace_type text not null
     check (workspace_type in ('freelancer','business')),
   optional_features text[] not null default '{}'::text[],
   phone_country_code text,
@@ -80,8 +80,14 @@ select
   now(),
   now()
 from public.business_profile bp
-where bp.country_code is not null
-  and bp.locale_code is not null
+where
+  (bp.country_code = 'IN' and bp.locale_code in ('en-IN','hi-IN'))
+  or (bp.country_code = 'US' and bp.locale_code in ('en-US','es-US'))
+  or (bp.country_code = 'GB' and bp.locale_code = 'en-GB')
+  or (bp.country_code = 'AE' and bp.locale_code in ('en-AE','ar-AE'))
+  or (bp.country_code = 'CA' and bp.locale_code in ('en-CA','fr-CA'))
+  or (bp.country_code = 'AU' and bp.locale_code = 'en-AU')
+  or (bp.country_code = 'SG' and bp.locale_code in ('en-SG','zh-SG','ms-SG','ta-SG'))
 on conflict (workspace_id) do nothing;
 
 -- Preserve the workspace's base currency on every monetary record type.
