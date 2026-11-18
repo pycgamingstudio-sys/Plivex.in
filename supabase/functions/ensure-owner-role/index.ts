@@ -41,7 +41,7 @@ Deno.serve(async (req: Request) => {
     if (profile.workspace_id) {
       const [{ data: existingBusinessProfile, error: existingBusinessProfileError }, { data: existingSettings, error: existingSettingsError }] = await Promise.all([
         auth.admin.from("business_profile").select("country_code").eq("workspace_id", profile.workspace_id).maybeSingle(),
-        auth.admin.from("workspace_settings").select("country_code").eq("workspace_id", profile.workspace_id).maybeSingle(),
+        auth.admin.from("workspace_settings").select("country_code,onboarding_version,migration_status,legacy_review_required").eq("workspace_id", profile.workspace_id).maybeSingle(),
       ]);
       if (existingBusinessProfileError || existingSettingsError) return jsonResponse({ error: "Could not verify the existing workspace settings." }, 500, origin);
       existingWorkspaceCountry = String(existingSettings?.country_code || "").trim().toUpperCase();
@@ -50,9 +50,15 @@ Deno.serve(async (req: Request) => {
       if (existingWorkspaceCountry && businessProfileCountry && businessProfileCountry !== existingWorkspaceCountry) {
         return jsonResponse({ error: "Workspace regional records are inconsistent and require a reviewed repair." }, 409, origin);
       }
-      if (existingWorkspaceCountry && businessProfileCountry && existingWorkspaceType) {
+      if (existingWorkspaceCountry && businessProfileCountry && existingWorkspaceType
+        && Number(existingSettings?.onboarding_version || 0) >= 1
+        && existingSettings?.migration_status === "ready"
+        && existingSettings?.legacy_review_required !== true) {
         return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
       }
+      // A legacy business profile may be the only surviving country record. Do not
+      // silently overwrite it when the owner selects a different country; that
+      // requires an explicit historical-data migration review first.
       // Legacy or partially provisioned workspaces are completed in place; no second workspace is created.
     }
 
@@ -68,7 +74,15 @@ Deno.serve(async (req: Request) => {
     const localeCode = typeof requestedLocaleValue === "string" ? requestedLocaleValue.trim() : "";
     if (!countryLocales[countryCode]) return jsonResponse({ error: "Choose a supported business country before creating your workspace." }, 400, origin);
     if (existingWorkspaceCountry && existingWorkspaceCountry !== countryCode) {
-      return jsonResponse({ error: "This Workspace already has a country selection. Changing it requires a separately reviewed migration." }, 409, origin);
+      return jsonResponse({ error: "This Workspace already has a country selection. Changing it requires a separately reviewed migration; existing records have not been changed." }, 409, origin);
+    }
+    const { data: legacyBusinessProfile, error: legacyBusinessProfileError } = profile.workspace_id
+      ? await auth.admin.from("business_profile").select("country_code").eq("workspace_id", profile.workspace_id).maybeSingle()
+      : { data: null, error: null };
+    if (legacyBusinessProfileError) return jsonResponse({ error: "Could not verify legacy business country." }, 500, origin);
+    const legacyBusinessCountry = String(legacyBusinessProfile?.country_code || "").trim().toUpperCase();
+    if (!existingWorkspaceCountry && legacyBusinessCountry && legacyBusinessCountry !== countryCode) {
+      return jsonResponse({ error: "Your legacy business profile has a different country. A reviewed data migration is required before changing it; no records were changed." }, 409, origin);
     }
     if (!countryLocales[countryCode].includes(localeCode)) return jsonResponse({ error: "Choose a valid regional format for your selected country." }, 400, origin);
     const workspaceType = String(body?.businessType || "").trim().toLowerCase();
@@ -121,6 +135,10 @@ Deno.serve(async (req: Request) => {
       optional_features: optionalFeatures,
       phone_country_code: phoneCodeByCountry[countryCode],
       phone_number: String(body?.phone || "").trim().slice(0, 32) || null,
+      onboarding_version: 1,
+      migration_status: "ready",
+      onboarding_completed_at: now,
+      legacy_review_required: false,
       created_by: auth.user.id,
       updated_at: now,
     }, { onConflict: "workspace_id" });
