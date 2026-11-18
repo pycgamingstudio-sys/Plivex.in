@@ -59,7 +59,7 @@ export default function TaxSummary() {
     } finally { setExporting(false); }
   };
 
-  if (user?.country_code && user.country_code !== "IN") {
+  if (user?.country_code !== "IN") {
     const experience = getCountryExperience(user?.country_code);
     const capability = getGlobalTaxCapability(user?.country_code);
     const calculationLabel = capability.calculation === "standard_rate_baseline"
