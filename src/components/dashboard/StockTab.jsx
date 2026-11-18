@@ -114,6 +114,7 @@ export default function StockTab() {
           isEdit={Boolean(editTarget)}
           onClose={() => { setOpen(false); setEditTarget(null); }}
           items={items}
+          currencyCode={currencyCode}
           onSave={save}
         />
       )}
@@ -121,7 +122,7 @@ export default function StockTab() {
   );
 }
 
-function ProductModal({ value, isEdit, items = [], onClose, onSave }) {
+function ProductModal({ value, isEdit, items = [], currencyCode = "INR", onClose, onSave }) {
   const [form, setForm] = useState(value);
   const [customUnit, setCustomUnit] = useState(() => Boolean(value.unit) && !UNITS.includes(value.unit));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
