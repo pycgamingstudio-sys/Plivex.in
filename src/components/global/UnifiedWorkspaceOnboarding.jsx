@@ -7,7 +7,7 @@ import { Check, ChevronLeft, ChevronRight, Globe2, MapPin, Search, Sparkles, Sto
 
 const DRAFT_KEY = "plivex:workspace-onboarding:draft";
 function readDraft(key) { try { return JSON.parse(sessionStorage.getItem(key) || "{}"); } catch { return {}; } }
-const STEPS = ["Your business", "Country & region", "A local welcome", "Your work", "Review"];
+const STEPS = ["Country & region", "Your business", "A local welcome", "Your work", "Review"];
 
 export default function UnifiedWorkspaceOnboarding() {
   const { user } = useAuth();
@@ -37,16 +37,17 @@ export default function UnifiedWorkspaceOnboarding() {
     catch { /* Setup remains usable when browser storage is unavailable. */ }
   }, [draftKey, step, businessName, countryCode, localeCode, phone, taxType, taxNumber, workTypes, features]);
 
+  // One primary workspace profile: Freelancer OR Business. Optional modules remain configurable later.
   const chooseWorkType = (type) => {
-    const next = workTypes.includes(type) ? workTypes.filter((item) => item !== type) : [...workTypes, type];
+    const next = [type];
     setWorkTypes(next);
     setFeatures(getSuggestedWorkspaceFeatures(next, countryCode));
   };
 
   const next = () => {
     setError("");
-    if (step === 0 && !businessName.trim()) return setError("Please enter your business or professional workspace name.");
-    if (step === 1 && !country) return setError("Choose the country where your business is based.");
+    if (step === 0 && !country) return setError("Choose the country where your business is based.");
+    if (step === 1 && !businessName.trim()) return setError("Please enter your business or professional workspace name.");
     if (step === 3 && workTypes.length === 0) return setError("Choose Freelancer, Business, or both to personalize your workspace.");
     setStep((value) => Math.min(4, value + 1));
   };
@@ -133,15 +134,6 @@ export default function UnifiedWorkspaceOnboarding() {
 
         <div key={step} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-8 sm:py-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
           {step === 0 && <>
-            <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><Store className="h-6 w-6" /></div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Let's start with your business.</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Give your workspace a name. You can add your legal and billing details later.</p>
-            <label className="mt-7 block text-sm font-semibold">Business or workspace name <span className="text-rose-600">*</span>
-              <input autoFocus required maxLength={160} value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="e.g. Sharma Traders" className="mt-2 h-13 w-full rounded-xl border border-slate-200 px-4 text-base outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" />
-            </label>
-          </>}
-
-          {step === 1 && <>
             <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><Globe2 className="h-6 w-6" /></div>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Where is your business based?</h1>
             <p className="mt-2 text-sm leading-6 text-slate-500">Choose the country where your business operates. We'll configure your workspace for that region.</p>
@@ -161,6 +153,15 @@ export default function UnifiedWorkspaceOnboarding() {
             </div>
             {filteredCountries.length === 0 && <p className="mt-4 text-sm text-slate-500">No matching country found. Try another search.</p>}
             <p className="mt-4 text-xs leading-5 text-slate-400">Your country selection does not verify tax residency or guarantee local tax compliance.</p>
+          </>}
+
+          {step === 1 && <>
+            <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><Store className="h-6 w-6" /></div>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Let's start with your business.</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Give your workspace a name. You can add your legal and billing details later.</p>
+            <label className="mt-7 block text-sm font-semibold">Business or workspace name <span className="text-rose-600">*</span>
+              <input autoFocus required maxLength={160} value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="e.g. Sharma Traders" className="mt-2 h-13 w-full rounded-xl border border-slate-200 px-4 text-base outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" />
+            </label>
           </>}
 
           {step === 2 && country && <>
