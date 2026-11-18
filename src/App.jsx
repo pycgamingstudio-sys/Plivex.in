@@ -83,7 +83,7 @@ const AuthenticatedApp = () => {
   }
 
   // One shared post-auth onboarding provisions either regional workspace.
-  if (isUnifiedBuild && isAuthenticated && user && (!user.workspace_id || !user.country_code) && !getPendingInviteCode()) return <UnifiedWorkspaceOnboarding />;
+  if (isUnifiedBuild && isAuthenticated && user && (!user.workspace_id || !user.country_code || !user.workspace_type) && !getPendingInviteCode()) return <UnifiedWorkspaceOnboarding />;
   if (APP_EDITION === "global" && isAuthenticated && user && !user.workspace_id && !getPendingInviteCode()) return <GlobalCountryOnboarding />;
 
   // Both editions resolve core business destinations through this shared React Router tree.
