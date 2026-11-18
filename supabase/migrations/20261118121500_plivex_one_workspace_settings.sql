@@ -118,8 +118,9 @@ update public.expenses t
 set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
 from public.profiles p
 left join lateral (
-  select w.currency_code from global.workspaces w
-  where w.created_by = p.id
+  select w.currency_code from global.user_profiles g
+  join global.workspaces w on w.id = g.default_workspace_id
+  where g.user_id = p.id
   order by w.updated_at desc nulls last, w.created_at desc
   limit 1
 ) gw on true
@@ -130,8 +131,9 @@ update public.stock t
 set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
 from public.profiles p
 left join lateral (
-  select w.currency_code from global.workspaces w
-  where w.created_by = p.id
+  select w.currency_code from global.user_profiles g
+  join global.workspaces w on w.id = g.default_workspace_id
+  where g.user_id = p.id
   order by w.updated_at desc nulls last, w.created_at desc
   limit 1
 ) gw on true
@@ -142,8 +144,9 @@ update public.services t
 set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
 from public.profiles p
 left join lateral (
-  select w.currency_code from global.workspaces w
-  where w.created_by = p.id
+  select w.currency_code from global.user_profiles g
+  join global.workspaces w on w.id = g.default_workspace_id
+  where g.user_id = p.id
   order by w.updated_at desc nulls last, w.created_at desc
   limit 1
 ) gw on true
@@ -154,8 +157,9 @@ update public.leads t
 set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
 from public.profiles p
 left join lateral (
-  select w.currency_code from global.workspaces w
-  where w.created_by = p.id
+  select w.currency_code from global.user_profiles g
+  join global.workspaces w on w.id = g.default_workspace_id
+  where g.user_id = p.id
   order by w.updated_at desc nulls last, w.created_at desc
   limit 1
 ) gw on true
@@ -166,8 +170,9 @@ update public.quotations t
 set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
 from public.profiles p
 left join lateral (
-  select w.currency_code from global.workspaces w
-  where w.created_by = p.id
+  select w.currency_code from global.user_profiles g
+  join global.workspaces w on w.id = g.default_workspace_id
+  where g.user_id = p.id
   order by w.updated_at desc nulls last, w.created_at desc
   limit 1
 ) gw on true
@@ -178,8 +183,9 @@ update public.purchase_orders t
 set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
 from public.profiles p
 left join lateral (
-  select w.currency_code from global.workspaces w
-  where w.created_by = p.id
+  select w.currency_code from global.user_profiles g
+  join global.workspaces w on w.id = g.default_workspace_id
+  where g.user_id = p.id
   order by w.updated_at desc nulls last, w.created_at desc
   limit 1
 ) gw on true
