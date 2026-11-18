@@ -37,3 +37,11 @@ test("unified invoice creation does not assume INR before canonical workspace cu
   assert.match(stores, /currency: r\.currency \|\| str\(r\.invoice_snapshot\?\.currency\)\.toUpperCase\(\) \|\| ""/);
   assert.doesNotMatch(stores, /currency: r\.currency \|\| "INR"/);
 });
+
+test("multi-currency invoice summaries group amounts by recorded currency without conversion", () => {
+  const sales = read("../../components/dashboard/SalesTab.jsx");
+  assert.match(sales, /const currencyTotals = \(records\) =>/);
+  assert.match(sales, /money2\(amount, currency\)/);
+  assert.match(sales, /const totalPaid = currencyTotals/);
+  assert.match(sales, /const totalPending = currencyTotals/);
+});
