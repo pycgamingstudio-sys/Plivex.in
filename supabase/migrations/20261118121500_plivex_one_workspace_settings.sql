@@ -128,6 +128,8 @@ declare
   v_order public.purchase_orders%rowtype;
   v_item jsonb;
   v_currency text;
+  v_access jsonb;
+  v_multi_currency boolean := false;
 begin
   if v_user is null then return jsonb_build_object('ok',false,'reason','unauthenticated'); end if;
   select workspace_id into v_workspace from public.profiles where id=v_user;
@@ -187,7 +189,14 @@ begin
     raise exception 'workspace_country_currency_unconfigured';
   end if;
   if upper(trim(new.currency)) <> v_currency then
-    raise exception 'invoice_currency_must_match_workspace_base_currency';
+    if v_country <> 'IN' then
+      raise exception 'invoice_currency_must_match_workspace_base_currency';
+    end if;
+    v_access := public.get_access_status(new.workspace_id);
+    v_multi_currency := coalesce((v_access->'features'->>'multi_currency')::boolean, false);
+    if not v_multi_currency then
+      raise exception 'invoice_currency_must_match_workspace_base_currency';
+    end if;
   end if;
 
   if v_country <> 'IN' then
