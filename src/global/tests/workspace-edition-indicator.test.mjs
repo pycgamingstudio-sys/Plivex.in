@@ -70,3 +70,13 @@ test("profit analytics never adds foreign-currency sales to base-currency expens
   assert.match(purchase, /label="Monthly Sales" value=\{monthSales\}/);
   assert.doesNotMatch(purchase, /money2\(monthSales, currencyCode\)/);
 });
+
+test("business and client tax fields follow selected country rather than the India UI shell", () => {
+  const business = read("../../pages/BusinessProfile.jsx");
+  const clients = read("../../pages/ClientDatabase.jsx");
+  assert.match(business, /isIndiaWorkspace = user\?\.country_code === "IN"/);
+  assert.match(business, /lockCountry=\{isUnifiedBuild \|\| APP_EDITION === "global"\}/);
+  assert.match(clients, /isIndiaWorkspace = user\?\.country_code === "IN"/);
+  assert.match(clients, /countryExperience\?\.business\.registrationLabel/);
+  assert.doesNotMatch(clients, /APP_EDITION === "global"/);
+});
