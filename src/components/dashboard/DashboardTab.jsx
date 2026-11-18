@@ -194,12 +194,12 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
             </div>
           </div>
         ))}
-        <button type="button" onClick={() => setFeatureOpen(true)} className="group flex min-h-[270px] flex-col items-center justify-center rounded-2xl border border-dashed border-violet-300 bg-gradient-to-br from-white to-violet-50/80 p-6 text-center shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-500 hover:shadow-lg">
+        {isAdmin && <button type="button" onClick={() => setFeatureOpen(true)} className="group flex min-h-[270px] flex-col items-center justify-center rounded-2xl border border-dashed border-violet-300 bg-gradient-to-br from-white to-violet-50/80 p-6 text-center shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-500 hover:shadow-lg">
           <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 shadow-sm transition-transform group-hover:scale-105"><Settings2 className="h-7 w-7" /></span>
           <span className="mt-4 text-base font-bold text-slate-900">More Features</span>
-          <span className="mt-1 max-w-[230px] text-xs leading-5 text-slate-500">Explore Plivex tools and add the ones that fit the way you work.</span>
+          <span className="mt-1 max-w-[230px] text-xs leading-5 text-slate-500">Explore Plivex tools and add or remove the ones that fit the way you work.</span>
           <span className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#6D28D9] px-4 py-2 text-xs font-bold text-white">Customize workspace <ArrowRight className="h-3.5 w-3.5" /></span>
-        </button>
+        </button>}
       </div>
 
       <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
