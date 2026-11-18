@@ -69,11 +69,11 @@ test("Android stock product form keeps Save and Cancel visible while fields scro
   assert.match(stock, /safe-area-inset-bottom/);
 });
 
-test("shared CRM, warehouse, transfers and procurement remain accessible in India", () => {
+test("shared CRM, warehouse, transfers and procurement are gated by Workspace preferences", () => {
   const app = read("../../App.jsx");
   const nav = read("../../lib/nav.js");
-  assert.ok(app.includes('<Route path="/crm" element={isGlobalWorkspace ? <GlobalApp section="crm" /> : <CrmTab />} />'));
-  assert.ok(app.includes('<Route path="/inventory-procurement" element={isGlobalWorkspace ? <GlobalApp section="inventory" /> : <IndiaPart4Tab user={user} />} />'));
+  assert.match(app, /WorkspaceFeatureGate anyOf=\{\["crm", "leads"\]\}/);
+  assert.match(app, /WorkspaceFeatureGate feature="inventoryWorkspace"/);
   assert.match(nav, /label: "CRM & leads"/);
   assert.match(nav, /label: "Inventory & procurement"/);
 });
