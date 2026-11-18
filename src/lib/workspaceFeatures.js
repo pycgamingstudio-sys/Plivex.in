@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase, APP_EDITION } from "@/api/backendClient";
 
-export const PERMANENT_DASHBOARD_FEATURES = Object.freeze(["invoices", "stock", "team"]);
+export const PERMANENT_DASHBOARD_FEATURES = Object.freeze(["invoices", "quotations", "stock", "team"]);
 export const WORKSPACE_FEATURE_CATALOG = Object.freeze([
   { id: "expenses", label: "Expenses", description: "Record business expenses and purchase costs." },
   { id: "crm", label: "Client CRM", description: "Keep client details and communication organized." },
