@@ -1,3 +1,4 @@
+import { useAuth } from "@/lib/AuthContext";
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Pencil, Trash2, X, Search, RotateCcw, Package, AlertTriangle, Boxes } from "lucide-react";
 import { KEYS, loadList, saveList, genId } from "@/lib/stores";
@@ -12,6 +13,8 @@ const blank = { name: "", sku: "", barcode: "", variantOf: "", variantLabel: "",
 
 export default function StockTab() {
   const { limits, usage, remaining, openPaywall } = usePaywall();
+  const { user } = useAuth();
+  const currencyCode = user?.currency_code || "INR";
   const [items, setItems] = useState(() => loadList(KEYS.stock));
   const [open, setOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
@@ -142,7 +145,7 @@ function ProductModal({ value, isEdit, items = [], onClose, onSave }) {
           </label>
           <label className="block text-[12px] font-semibold text-slate-500">Quantity<input type="number" className={inputCls} value={form.quantity} onChange={(e) => set("quantity", e.target.value)} placeholder="0" /></label>
           <label className="block text-[12px] font-semibold text-slate-500">Low-stock at<input type="number" className={inputCls} value={form.lowStock} onChange={(e) => set("lowStock", e.target.value)} placeholder={String(DEFAULT_LOW)} /></label>
-          <label className="block text-[12px] font-semibold text-slate-500 sm:col-span-2">Price (₹)<input type="number" className={inputCls} value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="0" /></label>
+          <label className="block text-[12px] font-semibold text-slate-500 sm:col-span-2">Price ({currencyCode})<input type="number" className={inputCls} value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="0" /></label>
         </div></div>
         <div className="sticky bottom-0 z-10 flex shrink-0 justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"><button type="button" onClick={onClose} className={btnGhost}>Cancel</button><button type="button" onClick={() => onSave(form)} className={btnAccent}>Save product</button></div>
       </div>
