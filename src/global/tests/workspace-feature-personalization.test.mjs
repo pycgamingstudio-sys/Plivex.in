@@ -6,9 +6,9 @@ const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
 test("new workspace onboarding follows country, business name, regional details, work type and review", async () => {
   const source = await read("../../components/global/UnifiedWorkspaceOnboarding.jsx");
-  const steps = ["Your business", "Country & region", "A local welcome", "Your work", "Review"];
+  const steps = ["Country & region", "Your business", "A local welcome", "Your work", "Review"];
   for (const step of steps) assert.ok(source.includes(step), "Missing onboarding step: " + step);
-  assert.match(source, /Business or workspace name/);
+  assert.match(source, /Business or professional name/);
   assert.match(source, /controlled reset or migration/);
   assert.match(source, /Skip mobile number/);
   assert.match(source, /getCountryFlag\(country.code\)/);
