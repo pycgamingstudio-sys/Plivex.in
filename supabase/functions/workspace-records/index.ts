@@ -114,7 +114,7 @@ Deno.serve(async (req: Request) => {
       return json({ records: data || [] }, 200, origin);
     }
     if (action === "create") {
-      const values = { ...pick(body.values, fields), workspace_id: profile.workspace_id };
+      const values: Record<string, unknown> = { ...pick(body.values, fields), workspace_id: profile.workspace_id };
       if (CURRENCY_TABLES.has(table)) values.currency_code = workspaceCurrencyCode;
       const { data, error } = await db.from(table).insert(values).select("*").single();
       if (error) {
