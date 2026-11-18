@@ -23,6 +23,9 @@ test("Global backend defaults fail closed and blocks India endpoint fallback", (
 
 test("Global auth hydrates workspace data only through the isolated Global adapter", () => {
   assert.match(authContext, /APP_EDITION === "global"/);
+  assert.match(authContext, /if \(!isUnifiedBuild && APP_EDITION !== "global"\) return currentUser/);
+  assert.match(authContext, /const shouldResolveGlobal = APP_EDITION === "global" \|\| countryCode !== 'IN'/);
+  assert.match(authContext, /if \(isUnifiedBuild \|\| APP_EDITION === "global"\) currentUser = await resolveSignedInEdition\(currentUser\)/);
   assert.doesNotMatch(authContext, /globalEnsureOwner/);
   assert.match(app, /GlobalCountryOnboarding/);
   assert.match(onboarding, /globalEnsureOwner/);
