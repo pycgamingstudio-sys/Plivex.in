@@ -46,7 +46,11 @@ Deno.serve(async (req: Request) => {
       if (existingBusinessProfileError || existingSettingsError) return jsonResponse({ error: "Could not verify the existing workspace settings." }, 500, origin);
       existingWorkspaceCountry = String(existingSettings?.country_code || "").trim().toUpperCase();
       existingWorkspaceType = String(existingSettings?.workspace_type || "").trim().toLowerCase();
-      if (existingBusinessCountry && existingWorkspaceCountry) {
+      const businessProfileCountry = String(existingBusinessProfile?.country_code || "").trim().toUpperCase();
+      if (existingWorkspaceCountry && businessProfileCountry && businessProfileCountry !== existingWorkspaceCountry) {
+        return jsonResponse({ error: "Workspace regional records are inconsistent and require a reviewed repair." }, 409, origin);
+      }
+      if (existingWorkspaceCountry && businessProfileCountry && existingWorkspaceType) {
         return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
       }
       // Legacy or partially provisioned workspaces are completed in place; no second workspace is created.
