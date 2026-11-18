@@ -26,7 +26,7 @@ const GLOBAL_NAV = [
 export default function AppLayout({ children }) {
   const { role } = useRole();
   const { user, logout } = useAuth();
-  const { features: workspaceFeatures } = useWorkspaceFeatures(user?.id);
+  const { features: workspaceFeatures } = useWorkspaceFeatures(user?.workspace_id);
   const { canAccess, openPaywall } = usePaywall();
   const isGlobal = APP_EDITION === "global";
   const items = navItems.filter((i) => {
