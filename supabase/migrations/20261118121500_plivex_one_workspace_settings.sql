@@ -163,6 +163,63 @@ exception when others then
   raise;
 end $function$;
 
+-- Enforce the canonical country/currency contract even if a client calls save_invoice RPC directly.
+create or replace function public.enforce_workspace_invoice_currency()
+returns trigger
+language plpgsql
+set search_path to 'pg_catalog', 'public'
+as $function$
+declare
+  v_country text;
+  v_currency text;
+begin
+  -- save_invoice first creates an empty counter-backed invoice row, then fills it.
+  if new.currency is null then
+    return new;
+  end if;
+
+  select country_code, currency_code
+    into v_country, v_currency
+    from public.workspace_settings
+    where workspace_id = new.workspace_id;
+
+  if v_country is null or v_currency is null then
+    raise exception 'workspace_country_currency_unconfigured';
+  end if;
+  if upper(trim(new.currency)) <> v_currency then
+    raise exception 'invoice_currency_must_match_workspace_base_currency';
+  end if;
+
+  if v_country <> 'IN' then
+    if new.is_draft is distinct from true then
+      raise exception 'non_india_invoices_must_remain_drafts_until_issuance_is_verified';
+    end if;
+    if coalesce(new.tax_rate, 0) <> 0
+      or coalesce(new.cgst, 0) <> 0
+      or coalesce(new.sgst, 0) <> 0
+      or coalesce(new.igst, 0) <> 0 then
+      raise exception 'unverified_non_india_tax_components_not_allowed';
+    end if;
+    if exists (
+      select 1 from public.invoice_items
+      where invoice_id = new.id and coalesce(gst_rate, 0) <> 0
+    ) then
+      raise exception 'india_gst_item_rates_not_allowed_for_non_india_workspace';
+    end if;
+  end if;
+  return new;
+end
+$function$;
+
+drop trigger if exists enforce_workspace_invoice_currency on public.invoices;
+create trigger enforce_workspace_invoice_currency
+before insert or update of workspace_id, currency, is_draft, tax_rate, cgst, sgst, igst
+on public.invoices
+for each row execute function public.enforce_workspace_invoice_currency();
+
+revoke all on function public.save_invoice(jsonb, jsonb, uuid) from public, anon;
+grant execute on function public.save_invoice(jsonb, jsonb, uuid) to authenticated, service_role;
+
 -- SECURITY DEFINER RPC is callable only by authenticated workspace members.
 revoke all on function public.india_part4_create_purchase_order(text, jsonb, text, date, text) from public, anon;
 grant execute on function public.india_part4_create_purchase_order(text, jsonb, text, date, text) to authenticated, service_role;
