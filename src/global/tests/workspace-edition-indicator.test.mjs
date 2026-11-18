@@ -87,3 +87,18 @@ test("invoice history uses workspace locale and disables India-only reminders ou
   assert.match(history, /dateLabel\(it\.issueDate, user\?\.locale_code\)/);
   assert.match(history, /money\(it\.total, it\.currency \|\| user\?\.currency_code\)/);
 });
+
+test("Workspace locale changes validate the selected country and update canonical settings", () => {
+  const migration = read("../../../supabase/migrations/20261118121500_plivex_one_workspace_settings.sql");
+  const handler = read("../../../supabase/functions/update-workspace-locale/index.ts");
+  assert.match(migration, /update_workspace_locale_atomic/);
+  assert.match(migration, /when 'US' then array\['en-US','es-US'\]/);
+  assert.match(migration, /when 'GB' then array\['en-GB'\]/);
+  assert.match(migration, /when 'AE' then array\['en-AE','ar-AE'\]/);
+  assert.match(migration, /when 'CA' then array\['en-CA','fr-CA'\]/);
+  assert.match(migration, /when 'AU' then array\['en-AU'\]/);
+  assert.match(migration, /when 'SG' then array\['en-SG','zh-SG','ms-SG','ta-SG'\]/);
+  assert.match(migration, /update public\.workspace_settings[\s\S]*set locale_code = p_locale_code/);
+  assert.match(handler, /update_workspace_locale_atomic/);
+  assert.doesNotMatch(handler, /en-IN.*hi-IN/);
+});
