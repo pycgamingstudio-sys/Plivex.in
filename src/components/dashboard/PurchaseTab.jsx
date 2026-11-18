@@ -30,7 +30,20 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
 
   const now = new Date();
   const cur = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthExp = expenses.filter((e) => new Date(e.date) >= cur).reduce((s, e) => s + Number(e.amount || 0), 0);
+  const monthExpenses = expenses.filter((e) => new Date(e.date) >= cur);
+  const expensesByCurrency = new Map();
+  monthExpenses.forEach((e) => {
+    const currency = String(e.currencyCode || "").trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(currency)) return;
+    expensesByCurrency.set(currency, (expensesByCurrency.get(currency) || 0) + Number(e.amount || 0));
+  });
+  const monthExp = [...expensesByCurrency.entries()]
+    .sort(([a], [b]) => a === currencyCode ? -1 : b === currencyCode ? 1 : a.localeCompare(b))
+    .map(([currency, amount]) => money2(amount, currency))
+    .join(" · ") || "Currency not recorded";
+  const baseCurrencyExpenses = expensesByCurrency.get(currencyCode) || 0;
+  const hasOtherCurrencyExpenses = [...expensesByCurrency.keys()].some((currency) => currency !== currencyCode);
+  const hasUnknownCurrencyExpenses = monthExpenses.some((e) => !/^[A-Z]{3}$/.test(String(e.currencyCode || "").trim().toUpperCase()));
   const monthInvoices = loadList(KEYS.history).filter((it) => { const d = new Date(it.createdDate || it.issueDate); return d >= cur; });
   const salesByCurrency = new Map();
   monthInvoices.forEach((it) => {
@@ -44,7 +57,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
     .join(" · ") || money2(0, currencyCode);
   const baseCurrencySales = salesByCurrency.get(currencyCode) || 0;
   const hasOtherCurrencySales = [...salesByCurrency.keys()].some((currency) => currency !== currencyCode);
-  const net = baseCurrencySales - monthExp;
+  const net = baseCurrencySales - baseCurrencyExpenses;
 
   const expenseStatus = (e) => {
     if (e.status === "Paid" || e.status === "Received" || e.status === "Cancelled") return e.status;
@@ -87,11 +100,11 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
     <div className="space-y-5">
       {(() => { const used = Number(usage.expenses_monthly ?? usage.expenses ?? expenses.length); const limit = Number(limits.expenses_monthly ?? limits.expenses ?? 30); const pct = limit > 0 ? Math.min(100, used / limit * 100) : 100; return <div className="rounded-xl border border-[#E5E7EB] bg-white p-3"><div className="flex items-center justify-between gap-2 text-xs"><span className="font-semibold text-slate-700">Expenses this cycle</span><span className="font-bold text-slate-600">{used}/{limit}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-[#6D28D9]"}`} style={{ width: `${pct}%` }} /></div>{pct >= 80 && <p className={`mt-1.5 text-[11px] ${pct >= 100 ? "text-rose-600" : "text-amber-600"}`}>{pct >= 100 ? "Plan limit reached" : "Usage limit warning"}</p>}{pct >= 100 && <button onClick={() => openPaywall("Expense limit reached for your current plan.")} className="mt-2 rounded-lg bg-[#6D28D9] px-3 py-1.5 text-xs font-bold text-white">Upgrade</button>}</div>; })()}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <SummaryCard label="Monthly Expense" value={money2(monthExp, currencyCode)} gradient="bg-gradient-to-br from-[#E11D48] to-[#F43F5E]" icon={Wallet} badge="this month" />
+        <SummaryCard label="Monthly Expense" value={monthExp} gradient="bg-gradient-to-br from-[#E11D48] to-[#F43F5E]" icon={Wallet} badge="this month" />
         <SummaryCard label="Monthly Sales" value={monthSales} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={TrendingUp} badge="this month" />
         <SummaryCard label={`Net Profit · ${currencyCode}`} value={money2(net, currencyCode)} gradient={net >= 0 ? "bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" : "bg-gradient-to-br from-[#D97706] to-[#F59E0B]"} icon={PiggyBank} badge={net >= 0 ? "surplus" : "deficit"} />
       </div>
-      {hasOtherCurrencySales && <p className="text-[11px] text-muted-foreground">Sales are grouped by recorded currency. Net profit uses base-currency sales only; no FX conversion is performed.</p>}
+      {(hasOtherCurrencySales || hasOtherCurrencyExpenses || hasUnknownCurrencyExpenses) && <p className="text-[11px] text-muted-foreground">Sales and expenses are grouped by their recorded currency. Net profit uses only base-currency sales and expenses; records without a recorded currency are excluded. No FX conversion is performed.</p>}
 
       <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-[#E5E7EB] p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -153,7 +166,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
                         <td className="px-3 py-3 font-bold text-slate-900">{e.vendor}</td>
                         <td className="px-3 py-3 text-slate-500">{e.category}</td>
                         <td className="px-3 py-3 text-slate-500">{dateLabel(e.date)}</td>
-                        <td className="px-3 py-3 text-right font-bold text-slate-900">{money2(e.amount, currencyCode)}</td>
+                        <td className="px-3 py-3 text-right font-bold text-slate-900">{money2(e.amount, e.currencyCode || currencyCode)}</td>
                         <td className="px-3 py-3">
                           <select value={e.status || "Unpaid"} onChange={(ev) => setStatus(e.id, ev.target.value)} aria-label="Order status" className={`cursor-pointer rounded-full border-0 px-2.5 py-1 text-[10px] font-bold uppercase outline-none ${statusCls(expenseStatus(e))}`}>
                             <option value="Pending">Pending</option>
@@ -191,7 +204,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
                                     {vendorLogs.slice(0, 4).map((v) => (
                                       <div key={v.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 text-[11px]">
                                         <span className="text-slate-700">{dateLabel(v.date)} · {v.category}</span>
-                                        <span className="font-semibold text-slate-900">{money2(v.amount, currencyCode)}</span>
+                                        <span className="font-semibold text-slate-900">{money2(v.amount, v.currencyCode || currencyCode)}</span>
                                       </div>
                                     ))}
                                   </div>
