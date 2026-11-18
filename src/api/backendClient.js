@@ -9,7 +9,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { resolveEditionId, isSupportedEditionId, UNIFIED_EDITION_ID } from '@/global/core/edition-contract.js';
 
-const BUILD_EDITION = import.meta.env.VITE_APP_EDITION === UNIFIED_EDITION_ID
+export const BUILD_EDITION = import.meta.env.VITE_APP_EDITION === UNIFIED_EDITION_ID
   ? UNIFIED_EDITION_ID
   : resolveEditionId(import.meta.env.VITE_APP_EDITION);
 export const isUnifiedBuild = BUILD_EDITION === UNIFIED_EDITION_ID;
