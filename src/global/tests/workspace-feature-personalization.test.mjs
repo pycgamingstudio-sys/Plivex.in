@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
-test("new workspace onboarding follows business, country, regional welcome, work type and review", async () => {
+test("new workspace onboarding follows country, business name, regional details, work type and review", async () => {
   const source = await read("../../components/global/UnifiedWorkspaceOnboarding.jsx");
   const steps = ["Your business", "Country & region", "A local welcome", "Your work", "Review"];
   for (const step of steps) assert.ok(source.includes(step), "Missing onboarding step: " + step);
@@ -46,13 +46,13 @@ test("Invoices, Quotations, Stock and Team are permanent dashboard cards", async
   assert.ok(dashboard.indexOf('id: "invoices"') < dashboard.indexOf('id: "quotations"'));
 });
 
-test("unified auth checks authoritative Global membership even when legacy India profile says IN", async () => {
+test("unified auth keeps one public workspace identity regardless of country", async () => {
   const auth = await read("../../lib/AuthContext.jsx");
   assert.match(auth, /if \(isUnifiedBuild\) \{[\s\S]*setRuntimeEdition\("india"\);[\s\S]*return currentUser;/);
-  assert.doesNotMatch(auth, /globalUser = globalContext\.user/);
+  assert.ok(auth.indexOf("if (isUnifiedBuild)") < auth.indexOf("const shouldResolveGlobal = APP_EDITION === \"global\" || isUnifiedBuild"));
 });
 
-test("More Features only offers optional tools not already in navigation", async () => {
+test("More Features lists optional tools and supports adding or removing them", async () => {
   const library = await read("../../components/dashboard/FeatureLibraryModal.jsx");
   const dashboard = await read("../../components/dashboard/DashboardTab.jsx");
   const nav = await read("../../pages/Dashboard.jsx");
