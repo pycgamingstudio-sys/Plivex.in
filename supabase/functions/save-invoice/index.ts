@@ -115,13 +115,11 @@ Deno.serve(async (req: Request) => {
         if (!clientId) {
           const { data: createdClient, error: clientCreateError } = await db.from("clients").insert({
             workspace_id: userProfile.workspace_id,
-            created_by: user.id,
             name: clientName,
             email: clientEmail || null,
             phone: clientPhone || null,
-            tax_registration_number: String(client.gstin || "").trim().slice(0, 80) || null,
-            billing_address: { formatted: String(client.address || "").trim().slice(0, 1000) },
-            status: "active",
+            gstin: String(client.gstin || "").trim().slice(0, 80) || null,
+            address: String(client.address || "").trim().slice(0, 1000),
           }).select("id").single();
           if (clientCreateError || !createdClient?.id) return json({ error: "Customer record could not be saved. The invoice remains a draft." }, 500, origin);
           clientId = createdClient.id;
