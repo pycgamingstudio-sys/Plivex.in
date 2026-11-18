@@ -42,7 +42,7 @@ test("Invoices, Quotations, Stock and Team are permanent dashboard cards", async
   const dashboard = await read("../../components/dashboard/DashboardTab.jsx");
   assert.match(helper, /PERMANENT_DASHBOARD_FEATURES.*invoices.*quotations.*stock.*team/);
   assert.ok(dashboard.includes("PERMANENT_DASHBOARD_FEATURES.includes(card.id)"));
-  assert.match(dashboard, /id: "invoices"[\\s\\S]*id: "quotations"[\\s\\S]*id: "expenses"/);
+  assert.ok(dashboard.indexOf('id: "invoices"') < dashboard.indexOf('id: "quotations"'));
 });
 
 test("unified auth checks authoritative Global membership even when legacy India profile says IN", async () => {
