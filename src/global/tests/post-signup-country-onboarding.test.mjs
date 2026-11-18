@@ -72,3 +72,14 @@ test("invoice persistence reads country and currency only from canonical workspa
   assert.match(saveInvoice, /requestedCurrency !== baseCurrencyCode/);
   assert.doesNotMatch(saveInvoice, /businessProfile\?\.country_code \|\| "IN"/);
 });
+
+test("onboarding lets users choose optional modules instead of only accepting automatic suggestions", async () => {
+  const onboarding = await read("../../components/global/UnifiedWorkspaceOnboarding.jsx");
+  const featureCatalog = await read("../../lib/workspaceFeatures.js");
+  assert.match(onboarding, /WORKSPACE_FEATURE_CATALOG\.map\(\(feature\)/);
+  assert.match(onboarding, /type="checkbox" checked=\{features\.includes\(feature\.id\)\}/);
+  assert.match(onboarding, /const toggleFeature = \(featureId\)/);
+  assert.match(onboarding, /setFeatures\(\(current\) => current\.includes\(featureId\)/);
+  assert.match(onboarding, /You can change these later in More Features/);
+  assert.match(featureCatalog, /export const WORKSPACE_FEATURE_CATALOG/);
+});
