@@ -32,6 +32,11 @@ export function generateGSTR1(gstinInput, monthYear, invoices, clients = []) {
     if (String(inv.status || "").toLowerCase() === "cancelled" || inv.is_draft || inv.isDraft) continue;
     const date = dateInfo(inv.issue_date || inv.issueDate);
     if (!date || date.d.getFullYear() !== year || date.d.getMonth() + 1 !== month) continue;
+    const invoiceCurrency = String(inv.currency || "").trim().toUpperCase();
+    if (invoiceCurrency !== "INR") {
+      errors.push(`Invoice ${String(inv.number || inv.id || "unknown")}: GSTR-1 export requires a verified INR amount; foreign or missing currency cannot be converted automatically.`);
+      continue;
+    }
     const identity = String(inv.id || inv.number || "").trim();
     if (!identity || seen.has(identity)) continue;
     seen.add(identity);
