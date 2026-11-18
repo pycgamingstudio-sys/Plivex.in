@@ -13,8 +13,8 @@ export const BUILD_EDITION = import.meta.env.VITE_APP_EDITION === UNIFIED_EDITIO
   ? UNIFIED_EDITION_ID
   : resolveEditionId(import.meta.env.VITE_APP_EDITION);
 export const isUnifiedBuild = BUILD_EDITION === UNIFIED_EDITION_ID;
-// Runtime starts fail-closed as India; AuthContext switches it only after the
-// signed-in user's workspace country has been verified by Supabase.
+// Unified builds reuse the India Workspace UI as the shared shell only; this is not country selection.
+// Regional identity remains unset until canonical workspace_settings are verified by Supabase.
 export let APP_EDITION = isUnifiedBuild ? "india" : BUILD_EDITION;
 export function setRuntimeEdition(edition, { verifiedGlobal = false } = {}) {
   if (!isSupportedEditionId(edition)) return false;
@@ -301,26 +301,38 @@ const auth = {
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
     // For India workspaces the business profile is the authoritative regional
     // setting; user profile country fields may be stale after an approved reset.
-    let workspaceRegion = null;
+    let workspaceSettings = null;
     if (profile?.workspace_id) {
-      const { data } = await supabase.from('business_profile')
-        .select('country_code,locale_code').eq('workspace_id', profile.workspace_id).maybeSingle();
-      workspaceRegion = data;
+      const { data: settingsData, error: settingsError } = await supabase.from('workspace_settings')
+        .select('country_code,locale_code,currency_code,workspace_type,optional_features,phone_country_code,phone_number,onboarding_version,migration_status,legacy_review_required')
+        .eq('workspace_id', profile.workspace_id).maybeSingle();
+      if (settingsError) throw settingsError;
+      workspaceSettings = settingsData;
     }
+    // The canonical workspace settings row is the only authority for regional identity.
+    // Do not fall back to user-editable metadata or legacy business/profile country fields.
+    const countryCode = workspaceSettings?.country_code || undefined;
+    const localeCode = workspaceSettings?.locale_code || undefined;
     return {
       id: uid,
       email: session.user.email,
       full_name: profile?.full_name || session.user.user_metadata?.full_name || '',
       role: profile?.role,
       workspace_id: profile?.workspace_id || undefined,
-      country_code: workspaceRegion?.country_code || profile?.country_code || undefined,
-      locale_code: workspaceRegion?.locale_code || profile?.locale_code || undefined,
+      country_code: countryCode,
+      locale_code: localeCode,
+      currency_code: workspaceSettings?.currency_code || undefined,
+      workspace_type: workspaceSettings?.workspace_type || undefined,
+      optional_features: workspaceSettings?.optional_features || undefined,
+      onboarding_version: Number(workspaceSettings?.onboarding_version || 0),
+      migration_status: workspaceSettings?.migration_status || "legacy_pending",
+      legacy_review_required: Boolean(workspaceSettings?.legacy_review_required),
       user_ref: profile?.user_ref,
       trial_start_at: profile?.trial_start_at,
       trial_expires_at: profile?.trial_expires_at,
       created_date: profile?.created_at || session.user.created_at,
       profilePicture: profile?.profile_picture || '',
-      phone: session.user.user_metadata?.phone || '',
+      phone: workspaceSettings?.phone_number || '',
     };
   },
   async loginViaEmailPassword(email, password) {

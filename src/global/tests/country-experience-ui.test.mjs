@@ -4,13 +4,13 @@ import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
-test("Global tax summary does not render India GST or GSTR-1 workflows", async () => {
+test("non-India tax summary does not render India GST or GSTR-1 workflows", async () => {
   const source = await read("../../pages/TaxSummary.jsx");
-  const globalBranch = source.slice(source.indexOf('if (APP_EDITION === "global")'), source.indexOf("  return (", source.indexOf('if (APP_EDITION === "global")')));
-  assert.match(source, /APP_EDITION/);
-  assert.match(globalBranch, /getCountryExperience/);
-  assert.match(globalBranch, /getGlobalTaxCapability/);
-  assert.doesNotMatch(globalBranch, /GSTR-1|GSTIN|CGST|SGST|IGST|₹/);
+  const nonIndiaBranch = source.slice(source.indexOf('if (user?.country_code !== "IN")'), source.indexOf("  return (", source.indexOf('if (user?.country_code !== "IN")')));
+  assert.match(source, /user\?\.country_code !== "IN"/);
+  assert.match(nonIndiaBranch, /getCountryExperience/);
+  assert.match(nonIndiaBranch, /getGlobalTaxCapability/);
+  assert.doesNotMatch(nonIndiaBranch, /GSTR-1|GSTIN|CGST|SGST|IGST|₹/);
   assert.match(source, /Export GSTR-1 Return/);
 });
 

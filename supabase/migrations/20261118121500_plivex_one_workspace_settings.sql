@@ -1,0 +1,421 @@
+-- PLIVEX ONE: canonical country-aware settings for the single public workspace identity.
+begin;
+
+create table if not exists public.workspace_settings (
+  workspace_id text primary key,
+  country_code text not null,
+  locale_code text not null,
+  currency_code text not null,
+  workspace_type text not null
+    check (workspace_type in ('freelancer','business')),
+  optional_features text[] not null default '{}'::text[],
+  phone_country_code text,
+  phone_number text,
+  settings_version integer not null default 1 check (settings_version > 0),
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint workspace_settings_country_currency_check check (
+    (country_code = 'IN' and currency_code = 'INR' and locale_code in ('en-IN','hi-IN'))
+    or (country_code = 'US' and currency_code = 'USD' and locale_code in ('en-US','es-US'))
+    or (country_code = 'GB' and currency_code = 'GBP' and locale_code = 'en-GB')
+    or (country_code = 'AE' and currency_code = 'AED' and locale_code in ('en-AE','ar-AE'))
+    or (country_code = 'CA' and currency_code = 'CAD' and locale_code in ('en-CA','fr-CA'))
+    or (country_code = 'AU' and currency_code = 'AUD' and locale_code = 'en-AU')
+    or (country_code = 'SG' and currency_code = 'SGD' and locale_code in ('en-SG','zh-SG','ms-SG','ta-SG'))
+  ),
+  constraint workspace_settings_phone_country_code_check check (
+    phone_country_code is null or phone_country_code ~ '^\+[1-9][0-9]{0,3}$'
+  ),
+  constraint workspace_settings_phone_number_check check (
+    phone_number is null or length(phone_number) between 3 and 32
+  ),
+  constraint workspace_settings_optional_features_check check (
+    optional_features <@ array['expenses','crm','leads','inventoryWorkspace','reports']::text[]
+  )
+);
+
+create index if not exists workspace_settings_country_idx
+  on public.workspace_settings(country_code, currency_code);
+
+alter table public.workspace_settings enable row level security;
+
+-- Profile identity and authorization fields are server-managed.
+-- A user's own-row policy must never let them promote themselves or reassign workspaces.
+revoke update on table public.profiles from authenticated;
+revoke update (
+  id, email, full_name, role, workspace_id, user_ref, profile_picture,
+  trial_start_at, trial_expires_at, created_at, updated_at, country_code, locale_code
+) on public.profiles from authenticated;
+grant update (full_name, profile_picture) on public.profiles to authenticated;
+
+drop policy if exists "workspace settings read members" on public.workspace_settings;
+create policy "workspace settings read members"
+  on public.workspace_settings for select to authenticated
+  using (has_ws_role(workspace_id, array['admin'::app_role,'manager'::app_role,'employee'::app_role,'accountant'::app_role,'storekeeper'::app_role]));
+
+drop policy if exists "workspace settings insert admins" on public.workspace_settings;
+create policy "workspace settings insert admins"
+  on public.workspace_settings for insert to authenticated
+  with check (has_ws_role(workspace_id, array['admin'::app_role]));
+
+drop policy if exists "workspace settings update admins" on public.workspace_settings;
+create policy "workspace settings update admins"
+  on public.workspace_settings for update to authenticated
+  using (has_ws_role(workspace_id, array['admin'::app_role]))
+  with check (has_ws_role(workspace_id, array['admin'::app_role]));
+
+revoke insert, update on public.workspace_settings from authenticated;
+grant select on public.workspace_settings to authenticated;
+grant update (optional_features, updated_at) on public.workspace_settings to authenticated;
+grant all on public.workspace_settings to service_role;
+
+-- Existing accounts must complete the same manual country and work-profile onboarding.
+-- Preserve the workspace's base currency on every monetary record type.
+alter table public.expenses add column if not exists currency_code text;
+alter table public.stock add column if not exists currency_code text;
+alter table public.services add column if not exists currency_code text;
+alter table public.leads add column if not exists currency_code text;
+alter table public.quotations add column if not exists currency_code text;
+alter table public.purchase_orders add column if not exists currency_code text;
+alter table public.purchase_order_items add column if not exists currency_code text;
+
+alter table public.expenses drop constraint if exists expenses_currency_code_check;
+alter table public.expenses add constraint expenses_currency_code_check check (currency_code is null or currency_code ~ '^[A-Z]{3}$');
+alter table public.stock drop constraint if exists stock_currency_code_check;
+alter table public.stock add constraint stock_currency_code_check check (currency_code is null or currency_code ~ '^[A-Z]{3}$');
+alter table public.services drop constraint if exists services_currency_code_check;
+alter table public.services add constraint services_currency_code_check check (currency_code is null or currency_code ~ '^[A-Z]{3}$');
+alter table public.leads drop constraint if exists leads_currency_code_check;
+alter table public.leads add constraint leads_currency_code_check check (currency_code is null or currency_code ~ '^[A-Z]{3}$');
+alter table public.quotations drop constraint if exists quotations_currency_code_check;
+alter table public.quotations add constraint quotations_currency_code_check check (currency_code is null or currency_code ~ '^[A-Z]{3}$');
+alter table public.purchase_orders drop constraint if exists purchase_orders_currency_code_check;
+alter table public.purchase_orders add constraint purchase_orders_currency_code_check check (currency_code is null or currency_code ~ '^[A-Z]{3}$');
+alter table public.purchase_order_items drop constraint if exists purchase_order_items_currency_code_check;
+alter table public.purchase_order_items add constraint purchase_order_items_currency_code_check check (currency_code is null or currency_code ~ '^[A-Z]{3}$');
+
+update public.expenses t set currency_code = s.currency_code from public.workspace_settings s
+  where t.workspace_id = s.workspace_id and t.currency_code is null;
+update public.stock t set currency_code = s.currency_code from public.workspace_settings s
+  where t.workspace_id = s.workspace_id and t.currency_code is null;
+update public.services t set currency_code = s.currency_code from public.workspace_settings s
+  where t.workspace_id = s.workspace_id and t.currency_code is null;
+update public.leads t set currency_code = s.currency_code from public.workspace_settings s
+  where t.workspace_id = s.workspace_id and t.currency_code is null;
+update public.quotations t set currency_code = s.currency_code from public.workspace_settings s
+  where t.workspace_id = s.workspace_id and t.currency_code is null;
+update public.purchase_orders t set currency_code = s.currency_code from public.workspace_settings s
+  where t.workspace_id = s.workspace_id and t.currency_code is null;
+update public.purchase_order_items t set currency_code = o.currency_code
+  from public.purchase_orders o where t.purchase_order_id = o.id and t.workspace_id = o.workspace_id
+    and t.currency_code is null;
+
+-- Backfill historical records using the country/currency that was already stored
+-- for each legacy workspace. Global owners have an explicit Global workspace currency;
+-- legacy India-only workspaces used INR. Unknown countries stay NULL rather than guessed.
+update public.expenses t
+set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
+from public.profiles p
+left join lateral (
+  select w.currency_code from global.user_profiles g
+  join global.workspaces w on w.id = g.default_workspace_id
+  where g.user_id = p.id
+  order by w.updated_at desc nulls last, w.created_at desc
+  limit 1
+) gw on true
+where t.workspace_id = p.workspace_id and t.currency_code is null
+  and coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end) is not null;
+
+update public.stock t
+set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
+from public.profiles p
+left join lateral (
+  select w.currency_code from global.user_profiles g
+  join global.workspaces w on w.id = g.default_workspace_id
+  where g.user_id = p.id
+  order by w.updated_at desc nulls last, w.created_at desc
+  limit 1
+) gw on true
+where t.workspace_id = p.workspace_id and t.currency_code is null
+  and coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end) is not null;
+
+update public.services t
+set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
+from public.profiles p
+left join lateral (
+  select w.currency_code from global.user_profiles g
+  join global.workspaces w on w.id = g.default_workspace_id
+  where g.user_id = p.id
+  order by w.updated_at desc nulls last, w.created_at desc
+  limit 1
+) gw on true
+where t.workspace_id = p.workspace_id and t.currency_code is null
+  and coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end) is not null;
+
+update public.leads t
+set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
+from public.profiles p
+left join lateral (
+  select w.currency_code from global.user_profiles g
+  join global.workspaces w on w.id = g.default_workspace_id
+  where g.user_id = p.id
+  order by w.updated_at desc nulls last, w.created_at desc
+  limit 1
+) gw on true
+where t.workspace_id = p.workspace_id and t.currency_code is null
+  and coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end) is not null;
+
+update public.quotations t
+set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
+from public.profiles p
+left join lateral (
+  select w.currency_code from global.user_profiles g
+  join global.workspaces w on w.id = g.default_workspace_id
+  where g.user_id = p.id
+  order by w.updated_at desc nulls last, w.created_at desc
+  limit 1
+) gw on true
+where t.workspace_id = p.workspace_id and t.currency_code is null
+  and coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end) is not null;
+
+update public.purchase_orders t
+set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
+from public.profiles p
+left join lateral (
+  select w.currency_code from global.user_profiles g
+  join global.workspaces w on w.id = g.default_workspace_id
+  where g.user_id = p.id
+  order by w.updated_at desc nulls last, w.created_at desc
+  limit 1
+) gw on true
+where t.workspace_id = p.workspace_id and t.currency_code is null
+  and coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end) is not null;
+
+update public.purchase_order_items t
+set currency_code = o.currency_code
+from public.purchase_orders o
+where t.purchase_order_id = o.id and t.workspace_id = o.workspace_id and t.currency_code is null;
+
+create or replace function public.india_part4_create_purchase_order(
+  p_supplier_name text,
+  p_items jsonb,
+  p_supplier_reference text default null,
+  p_expected_date date default null,
+  p_notes text default null
+) returns jsonb
+language plpgsql
+security definer
+set search_path to 'pg_catalog', 'public'
+as $function$
+declare
+  v_workspace text;
+  v_user uuid := auth.uid();
+  v_order public.purchase_orders%rowtype;
+  v_item jsonb;
+  v_currency text;
+begin
+  if v_user is null then return jsonb_build_object('ok',false,'reason','unauthenticated'); end if;
+  select workspace_id into v_workspace from public.profiles where id=v_user;
+  if v_workspace is null or not has_ws_role(v_workspace,array['admin'::app_role,'manager'::app_role]) then
+    return jsonb_build_object('ok',false,'reason','forbidden');
+  end if;
+  select currency_code into v_currency from public.workspace_settings where workspace_id=v_workspace;
+  if v_currency is null then return jsonb_build_object('ok',false,'reason','workspace_currency_unconfigured'); end if;
+  if nullif(trim(p_supplier_name),'') is null or length(p_supplier_name)>200
+    or jsonb_typeof(p_items)<>'array' or jsonb_array_length(p_items)<1 or jsonb_array_length(p_items)>200 then
+    return jsonb_build_object('ok',false,'reason','invalid_purchase_order');
+  end if;
+  insert into public.purchase_orders(workspace_id,supplier_name,supplier_reference,status,expected_date,notes,created_by,currency_code)
+    values(v_workspace,trim(p_supplier_name),nullif(trim(p_supplier_reference),''),'ordered',p_expected_date,nullif(trim(p_notes),''),v_user,v_currency)
+    returning * into v_order;
+  for v_item in select value from jsonb_array_elements(p_items) loop
+    if nullif(v_item->>'stock_id','') is null or coalesce((v_item->>'quantity_ordered')::numeric,0)<=0
+      or coalesce((v_item->>'unit_cost')::numeric,-1)<0
+      or round((v_item->>'quantity_ordered')::numeric,4)<>(v_item->>'quantity_ordered')::numeric then
+      raise exception 'invalid_purchase_order_item';
+    end if;
+    if not exists(select 1 from public.stock where workspace_id=v_workspace and id=(v_item->>'stock_id')::uuid) then
+      raise exception 'stock_item_not_found';
+    end if;
+    insert into public.purchase_order_items(workspace_id,purchase_order_id,stock_id,quantity_ordered,unit_cost,currency_code)
+      values(v_workspace,v_order.id,(v_item->>'stock_id')::uuid,(v_item->>'quantity_ordered')::numeric,(v_item->>'unit_cost')::numeric,v_currency);
+  end loop;
+  return jsonb_build_object('ok',true,'purchase_order_id',v_order.id,'currency_code',v_currency);
+exception when others then
+  if sqlerrm in ('invalid_purchase_order_item','stock_item_not_found') then
+    return jsonb_build_object('ok',false,'reason',sqlerrm);
+  end if;
+  raise;
+end $function$;
+
+-- Enforce the canonical country/currency contract even if a client calls save_invoice RPC directly.
+create or replace function public.enforce_workspace_invoice_currency()
+returns trigger
+language plpgsql
+set search_path to 'pg_catalog', 'public'
+as $function$
+declare
+  v_country text;
+  v_currency text;
+  v_access jsonb;
+  v_multi_currency boolean := false;
+begin
+  -- save_invoice first creates an empty counter-backed invoice row, then fills it.
+  if new.currency is null then
+    return new;
+  end if;
+
+  select country_code, currency_code
+    into v_country, v_currency
+    from public.workspace_settings
+    where workspace_id = new.workspace_id;
+
+  if v_country is null or v_currency is null then
+    raise exception 'workspace_country_currency_unconfigured';
+  end if;
+  if upper(trim(new.currency)) not in ('INR','USD','EUR','GBP','AED','CAD','AUD','SGD') then
+    raise exception 'unsupported_invoice_currency';
+  end if;
+  if upper(trim(new.currency)) <> v_currency then
+    if v_country <> 'IN' then
+      raise exception 'invoice_currency_must_match_workspace_base_currency';
+    end if;
+    v_access := public.get_access_status(new.workspace_id);
+    v_multi_currency := coalesce((v_access->'features'->>'multi_currency')::boolean, false);
+    if not v_multi_currency then
+      raise exception 'invoice_currency_must_match_workspace_base_currency';
+    end if;
+  end if;
+
+  if v_country <> 'IN' then
+    if new.is_draft is distinct from true then
+      raise exception 'non_india_invoices_must_remain_drafts_until_issuance_is_verified';
+    end if;
+    if coalesce(new.tax_rate, 0) <> 0
+      or coalesce(new.cgst, 0) <> 0
+      or coalesce(new.sgst, 0) <> 0
+      or coalesce(new.igst, 0) <> 0 then
+      raise exception 'unverified_non_india_tax_components_not_allowed';
+    end if;
+    if exists (
+      select 1 from public.invoice_items
+      where invoice_id = new.id and coalesce(gst_rate, 0) <> 0
+    ) then
+      raise exception 'india_gst_item_rates_not_allowed_for_non_india_workspace';
+    end if;
+  end if;
+  return new;
+end
+$function$;
+
+drop trigger if exists enforce_workspace_invoice_currency on public.invoices;
+create trigger enforce_workspace_invoice_currency
+before insert or update of workspace_id, currency, is_draft, tax_rate, cgst, sgst, igst
+on public.invoices
+for each row execute function public.enforce_workspace_invoice_currency();
+
+revoke all on function public.save_invoice(jsonb, jsonb, uuid) from public, anon;
+grant execute on function public.save_invoice(jsonb, jsonb, uuid) to authenticated, service_role;
+
+-- Country reset used to delete and recreate tenant data. PLIVEX ONE makes country immutable.
+revoke all on function public.reset_workspace_country_atomic(uuid, text, text, text, text) from public, anon, authenticated, service_role;
+
+-- SECURITY DEFINER RPC is callable only by authenticated workspace members.
+revoke all on function public.india_part4_create_purchase_order(text, jsonb, text, date, text) from public, anon;
+grant execute on function public.india_part4_create_purchase_order(text, jsonb, text, date, text) to authenticated, service_role;
+
+-- Locale updates must change the canonical Workspace setting, not only legacy profile metadata.
+create or replace function public.update_workspace_locale_atomic(
+  p_user_id uuid,
+  p_locale_code text
+) returns jsonb
+language plpgsql
+security definer
+set search_path to 'pg_catalog', 'public'
+as $function$
+declare
+  v_profile public.profiles%rowtype;
+  v_country text;
+  v_locales text[];
+  v_updated integer;
+begin
+  if p_user_id is null then
+    return jsonb_build_object('ok',false,'reason','user_required');
+  end if;
+
+  select * into v_profile
+  from public.profiles p
+  where p.id = p_user_id
+  for update;
+
+  if v_profile.id is null or v_profile.workspace_id is null or v_profile.role <> 'admin' then
+    return jsonb_build_object('ok',false,'reason','workspace_owner_required');
+  end if;
+
+  if not exists (
+    select 1 from public.workspace_members m
+    where m.workspace_id = v_profile.workspace_id
+      and m.user_id = p_user_id
+      and m.owner_id = p_user_id
+      and m.role = 'admin'
+      and m.status = 'active'
+  ) then
+    return jsonb_build_object('ok',false,'reason','workspace_owner_required');
+  end if;
+
+  select country_code into v_country
+  from public.workspace_settings
+  where workspace_id = v_profile.workspace_id
+  for update;
+
+  if v_country is null then
+    return jsonb_build_object('ok',false,'reason','workspace_settings_required');
+  end if;
+
+  v_locales := case v_country
+    when 'IN' then array['en-IN','hi-IN']
+    when 'US' then array['en-US','es-US']
+    when 'GB' then array['en-GB']
+    when 'AE' then array['en-AE','ar-AE']
+    when 'CA' then array['en-CA','fr-CA']
+    when 'AU' then array['en-AU']
+    when 'SG' then array['en-SG','zh-SG','ms-SG','ta-SG']
+    else array[]::text[]
+  end;
+
+  if p_locale_code is null or not (p_locale_code = any(v_locales)) then
+    return jsonb_build_object('ok',false,'reason','unsupported_locale','country_code',v_country);
+  end if;
+
+  update public.workspace_settings
+  set locale_code = p_locale_code, updated_at = now()
+  where workspace_id = v_profile.workspace_id;
+  get diagnostics v_updated = row_count;
+  if v_updated <> 1 then
+    raise exception 'workspace_locale_update_failed';
+  end if;
+
+  update public.business_profile
+  set locale_code = p_locale_code, updated_at = now()
+  where workspace_id = v_profile.workspace_id;
+
+  update public.profiles
+  set locale_code = p_locale_code, updated_at = now()
+  where id = p_user_id;
+
+  return jsonb_build_object('ok',true,'country_code',v_country,'locale_code',p_locale_code);
+end
+$function$;
+
+revoke all on function public.update_workspace_locale_atomic(uuid, text) from public, anon, authenticated;
+grant execute on function public.update_workspace_locale_atomic(uuid, text) to service_role;
+
+comment on table public.workspace_settings is
+  'PLIVEX ONE canonical country, currency, primary work profile and optional-feature settings for a public workspace. Country is explicitly selected; no IP or locale inference.';
+comment on column public.workspace_settings.optional_features is
+  'Optional dashboard/navigation modules. Removing an item never deletes its business records.';
+comment on column public.workspace_settings.workspace_type is
+  'Primary workspace profile selected during first-time onboarding: freelancer or business.';
+
+commit;

@@ -35,6 +35,7 @@ jobs:
           deno check supabase/functions/_shared/team.ts supabase/functions/_shared/email.ts
           deno check supabase/functions/_shared/cashfree.ts supabase/functions/create-cashfree-order/index.ts supabase/functions/cashfree-webhook/index.ts supabase/functions/cashfree-webhook/refund.ts supabase/functions/cashfree-return/index.ts
           deno check supabase/functions/ensure-owner-role/index.ts supabase/functions/send-team-invite/index.ts supabase/functions/send-payment-reminder/index.ts supabase/functions/verify-invite-code/index.ts
+          deno check supabase/functions/update-workspace-locale/index.ts
           deno check supabase/functions/manage-workspace-member/index.ts supabase/functions/get-workspace-team/index.ts
           deno check supabase/functions/ping-presence/index.ts supabase/functions/track-staff-action/index.ts supabase/functions/get-team-presence/index.ts
           deno check supabase/functions/get-access-status/index.ts

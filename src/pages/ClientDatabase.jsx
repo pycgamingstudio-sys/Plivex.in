@@ -4,7 +4,6 @@ import PageShell from "@/components/PageShell";
 import { KEYS, loadList, saveList, genId } from "@/lib/stores";
 import { inputCls, btnPrimary, btnGhost } from "@/lib/ui";
 import { usePaywall } from "@/lib/paywall";
-import { APP_EDITION } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
 import { getCountryExperience } from "@/global/countries/country-experience.js";
 
@@ -13,8 +12,9 @@ const blank = { name: "", company: "", email: "", phone: "", gstin: "", address:
 export default function ClientDatabase() {
   const { user } = useAuth();
   const countryExperience = getCountryExperience(user?.country_code);
-  const registrationLabel = APP_EDITION === "global" ? (countryExperience?.business.registrationLabel || "Tax registration number") : "GSTIN";
-  const phonePrefix = countryExperience?.phoneCode || "+91";
+  const isIndiaWorkspace = user?.country_code === "IN";
+  const registrationLabel = isIndiaWorkspace ? "GSTIN" : (countryExperience?.business.registrationLabel || "Tax registration number");
+  const phonePrefix = countryExperience?.phoneCode || "";
   const { limits, usage, remaining, openPaywall } = usePaywall();
   const [clients, setClients] = useState(() => loadList(KEYS.clients));
   const [editing, setEditing] = useState(null);
@@ -64,7 +64,7 @@ function ClientModal({ value, onClose, onSave, registrationLabel, phonePrefix })
           <label className="block text-[12px] font-semibold text-muted-foreground">Company<input className={inputCls} value={form.company} onChange={(e) => set("company", e.target.value)} placeholder="Company (optional)" /></label>
           <label className="block text-[12px] font-semibold text-muted-foreground">Email<input className={inputCls} value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="accounts@client.com" /></label>
           <label className="block text-[12px] font-semibold text-muted-foreground">Phone<input className={inputCls} value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder={phonePrefix} /></label>
-          <label className="block text-[12px] font-semibold text-muted-foreground">{registrationLabel}<input className={inputCls} value={form.gstin} onChange={(e) => set("gstin", e.target.value)} placeholder={APP_EDITION === "global" ? `Enter ${registrationLabel}` : "22AAAAA0000A1Z5"} /></label>
+          <label className="block text-[12px] font-semibold text-muted-foreground">{registrationLabel}<input className={inputCls} value={form.gstin} onChange={(e) => set("gstin", e.target.value)} placeholder={isIndiaWorkspace ? "22AAAAA0000A1Z5" : `Enter ${registrationLabel}`} /></label>
         </div>
         <label className="mt-3 block text-[12px] font-semibold text-muted-foreground">Address<textarea className={`${inputCls} min-h-[64px]`} value={form.address} onChange={(e) => set("address", e.target.value)} /></label>
         <div className="mt-4 flex justify-end gap-2"><button onClick={onClose} className={btnGhost}>Cancel</button><button onClick={() => onSave(form)} className={btnPrimary}>Save client</button></div>

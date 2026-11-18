@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { calculateInvoiceGlobalTax } from "../../../src/global/tax/invoice-tax-integration.js";
+import { calculateInvoiceGlobalTax } from "./_shared/tax/invoice-tax-integration.js";
 const ORIGINS = new Set(["https://plivex.in", "https://www.plivex.in", "https://plivex.netlify.app"]);
 const allowed = (o: string | null) => !o || ORIGINS.has(o) || /^https:\/\/(?:[a-z0-9-]+\.)?[a-z0-9-]+\.(?:pages|workers)\.dev$/.test(o);
 const cors = (o: string | null) => ({ "Access-Control-Allow-Origin": o && allowed(o) ? o : "https://plivex.in", "Vary": "Origin", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" });
@@ -22,16 +22,37 @@ Deno.serve(async (req: Request) => {
     const { data: userProfile, error: userProfileError } = await db.from("profiles")
       .select("workspace_id").eq("id", user.id).maybeSingle();
     if (userProfileError || !userProfile?.workspace_id) return json({ error: "Workspace could not be verified." }, 403, origin);
-    const { data: businessProfile, error: businessProfileError } = await db.from("business_profile")
-      .select("country_code,tax_registration_number,tax_registration_type,tax_registration_status,tax_registration_effective_from,tax_jurisdiction_code")
-      .eq("workspace_id", userProfile.workspace_id).maybeSingle();
-    if (businessProfileError) return json({ error: "Workspace tax profile could not be loaded." }, 500, origin);
-    const countryCode = String(businessProfile?.country_code || "IN").toUpperCase();
-    const requestedCountry = String(body?.invoice_snapshot?.globalTax?.countryCode || "");
-    if (requestedCountry && requestedCountry !== countryCode) return json({ error: "Invoice tax country does not match the saved workspace country." }, 422, origin);
+    const [{ data: workspaceSettings, error: workspaceSettingsError }, { data: businessProfile, error: businessProfileError }] = await Promise.all([
+      db.from("workspace_settings").select("country_code,currency_code,locale_code")
+        .eq("workspace_id", userProfile.workspace_id).maybeSingle(),
+      db.from("business_profile").select("tax_registration_number,tax_registration_type,tax_registration_status,tax_registration_effective_from,tax_jurisdiction_code")
+        .eq("workspace_id", userProfile.workspace_id).maybeSingle(),
+    ]);
+    if (workspaceSettingsError || businessProfileError) return json({ error: "Workspace regional settings could not be verified." }, 500, origin);
+    const countryCode = String(workspaceSettings?.country_code || "").trim().toUpperCase();
+    const baseCurrencyCode = String(workspaceSettings?.currency_code || "").trim().toUpperCase();
+    if (!countryCode || !/^[A-Z]{3}$/.test(baseCurrencyCode)) {
+      return json({ error: "Choose and save your Workspace country before creating invoices. No country or currency default is assumed." }, 409, origin);
+    }
+    const requestedCountry = String(body?.invoice_snapshot?.workspaceCountryCode || body?.invoice_snapshot?.globalTax?.countryCode || "");
+    if (requestedCountry && requestedCountry !== countryCode) return json({ error: "Invoice country does not match the manually selected Workspace country." }, 422, origin);
+    const requestedCurrency = String(body?.currency || body?.invoice_snapshot?.currency || "").trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(requestedCurrency) || !["INR", "USD", "EUR", "GBP", "AED", "CAD", "AUD", "SGD"].includes(requestedCurrency)) {
+      return json({ error: "Choose a supported invoice currency." }, 422, origin);
+    }
+    if (requestedCurrency !== baseCurrencyCode) {
+      if (countryCode !== "IN") return json({ error: "Additional invoice currencies are not enabled for this Workspace country yet." }, 403, origin);
+      const { data: accessStatus, error: accessError } = await db.rpc("get_access_status", { p_workspace_id: userProfile.workspace_id });
+      if (accessError) return json({ error: "Additional currency access could not be verified." }, 503, origin);
+      if (accessStatus?.features?.multi_currency !== true) {
+        return json({ error: "Additional invoice currencies require the Pro multi-currency feature." }, 403, origin);
+      }
+    }
+    let verifiedGlobalTaxResult: Record<string, unknown> | null = null;
     if (countryCode !== "IN") {
-      if (!businessProfile || !body?.invoice_snapshot || typeof body.invoice_snapshot !== "object") {
-        return json({ error: "A saved workspace tax profile and invoice tax details are required." }, 422, origin);
+      if (body?.is_draft !== true) return json({ error: "Non-India invoices remain drafts until a verified server-side issuance capability is enabled." }, 409, origin);
+      if (!body?.invoice_snapshot || typeof body.invoice_snapshot !== "object") {
+        return json({ error: "Invoice draft details are required." }, 422, origin);
       }
       const taxInput = {
         ...body.invoice_snapshot,
@@ -41,29 +62,30 @@ Deno.serve(async (req: Request) => {
         discount: body.discount ?? body.invoice_snapshot.discount,
         discountType: body.discount_type || body.invoice_snapshot.discountType,
       };
-      const currencyByCountry: Record<string, string> = { US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD" };
       const taxResult = calculateInvoiceGlobalTax(taxInput, {
         countryCode,
-        currencyCode: currencyByCountry[countryCode] || "",
-        registrationNumber: businessProfile.tax_registration_number || "",
-        registrationType: businessProfile.tax_registration_type || "",
-        registrationStatus: businessProfile.tax_registration_status || "unregistered",
-        registrationEffectiveFrom: businessProfile.tax_registration_effective_from || "",
-        registeredJurisdiction: businessProfile.tax_jurisdiction_code || "",
+        currencyCode: baseCurrencyCode,
+        registrationNumber: businessProfile?.tax_registration_number || "",
+        registrationType: businessProfile?.tax_registration_type || "",
+        registrationStatus: businessProfile?.tax_registration_status || "unregistered",
+        registrationEffectiveFrom: businessProfile?.tax_registration_effective_from || "",
+        registeredJurisdiction: businessProfile?.tax_jurisdiction_code || "",
       });
-      if (taxResult.ok !== true) return json({ error: "message" in taxResult ? taxResult.message : "Global tax calculation could not be completed.", code: "code" in taxResult ? taxResult.code : "TAX_CALCULATION_FAILED", taxStatus: taxResult.status }, 422, origin);
+      if (taxResult.ok === true) verifiedGlobalTaxResult = taxResult as unknown as Record<string, unknown>;
       body.invoice_snapshot = {
         ...taxInput,
-        globalTaxCalculation: taxResult,
+        globalTaxCalculation: { ...taxResult, countryCode },
         globalTaxProfileSnapshot: {
           countryCode,
-          registrationNumber: businessProfile.tax_registration_number || "",
-          registrationType: businessProfile.tax_registration_type || "",
-          registrationStatus: businessProfile.tax_registration_status || "unregistered",
-          registrationEffectiveFrom: businessProfile.tax_registration_effective_from || "",
-          registeredJurisdiction: businessProfile.tax_jurisdiction_code || "",
+          registrationNumber: businessProfile?.tax_registration_number || "",
+          registrationType: businessProfile?.tax_registration_type || "",
+          registrationStatus: businessProfile?.tax_registration_status || "unregistered",
+          registrationEffectiveFrom: businessProfile?.tax_registration_effective_from || "",
+          registeredJurisdiction: businessProfile?.tax_jurisdiction_code || "",
         },
       };
+      // Drafts can be saved for review even when a tax rule is not yet verified.
+      // No unverified tax amount is added to the server-side ledger.
       body.tax_rate = 0;
       body.tax_mode = "split";
     }
@@ -77,13 +99,12 @@ Deno.serve(async (req: Request) => {
       if (existingInvoice.is_draft !== true) return json({ error: "Only draft invoices can be edited from this workflow." }, 409, origin);
     }
     const { items, id, invoiceId: _ignored, ...data } = body;
-    const isGlobalInvoice = String(body?.invoice_snapshot?.globalTaxCalculation?.countryCode || "").toUpperCase() !== "" &&
-      String(body?.invoice_snapshot?.globalTaxCalculation?.countryCode || "").toUpperCase() !== "IN";
+    const isNonIndiaInvoice = countryCode !== "IN";
     const safeItems = items.map((it: Record<string, unknown>) => ({
       description: typeof it?.description === "string" ? it.description.slice(0, 500) : "",
       quantity: Number.isFinite(Number(it?.quantity)) ? Math.max(0, Number(it.quantity)) : 0,
       rate: Number.isFinite(Number(it?.rate)) ? Math.max(0, Number(it.rate)) : 0,
-      ...(!isGlobalInvoice && it?.gst_rate !== undefined && it?.gst_rate !== null && it?.gst_rate !== ""
+      ...(!isNonIndiaInvoice && it?.gst_rate !== undefined && it?.gst_rate !== null && it?.gst_rate !== ""
         ? { gst_rate: Number.isFinite(Number(it.gst_rate)) ? Math.max(0, Number(it.gst_rate)) : 0 }
         : {}),
     }));
@@ -91,6 +112,57 @@ Deno.serve(async (req: Request) => {
     if (error || !saved?.id) {
       const status = error?.code === "42501" ? 403 : error?.code === "P0002" ? 404 : 400;
       return json({ error: error?.message || "Could not save invoice." }, status, origin);
+    }
+
+    // Keep non-India invoice drafts connected to the canonical CRM customer record.
+    if (countryCode !== "IN") {
+      const client = body?.invoice_snapshot?.client && typeof body.invoice_snapshot.client === "object"
+        ? body.invoice_snapshot.client : {};
+      const clientName = String(body.client_name || client.name || client.company || "").trim().slice(0, 160);
+      const clientEmail = String(body.client_email || client.email || "").trim().toLowerCase().slice(0, 254);
+      const clientPhone = String(client.phone || "").trim().slice(0, 40);
+      if (clientName) {
+        let clientId: string | null = null;
+        let clientQuery = db.from("clients").select("id").eq("workspace_id", userProfile.workspace_id);
+        if (clientEmail) clientQuery = clientQuery.eq("email", clientEmail);
+        else if (clientPhone) clientQuery = clientQuery.eq("phone", clientPhone).eq("name", clientName);
+        else clientQuery = clientQuery.eq("name", clientName);
+        const { data: existingClient, error: clientLookupError } = await clientQuery.limit(1).maybeSingle();
+        if (clientLookupError) return json({ error: "Customer record could not be checked. The invoice remains a draft." }, 500, origin);
+        clientId = existingClient?.id || null;
+        if (!clientId) {
+          const { data: createdClient, error: clientCreateError } = await db.from("clients").insert({
+            workspace_id: userProfile.workspace_id,
+            name: clientName,
+            email: clientEmail || null,
+            phone: clientPhone || null,
+            gstin: String(client.gstin || "").trim().slice(0, 80) || null,
+            address: String(client.address || "").trim().slice(0, 1000),
+          }).select("id").single();
+          if (clientCreateError || !createdClient?.id) return json({ error: "Customer record could not be saved. The invoice remains a draft." }, 500, origin);
+          clientId = createdClient.id;
+        }
+        const { error: linkClientError } = await db.from("invoices").update({ client_id: clientId })
+          .eq("id", saved.id).eq("workspace_id", userProfile.workspace_id).eq("is_draft", true);
+        if (linkClientError) return json({ error: "Invoice draft saved, but its customer link could not be synchronized." }, 500, origin);
+      }
+    }
+
+    if (verifiedGlobalTaxResult) {
+      const taxMinor = Number(verifiedGlobalTaxResult.taxMinor);
+      const totalMinor = Number(verifiedGlobalTaxResult.totalMinor);
+      if (!Number.isSafeInteger(taxMinor) || !Number.isSafeInteger(totalMinor) || taxMinor < 0 || totalMinor < 0) {
+        return json({ error: "The verified tax result could not be safely stored. The invoice remains a draft." }, 422, origin);
+      }
+      const { error: totalsError } = await db.from("invoices").update({
+        tax_value: taxMinor / 100,
+        total: totalMinor / 100,
+        cgst: 0,
+        sgst: 0,
+        igst: 0,
+        invoice_snapshot: body.invoice_snapshot,
+      }).eq("id", saved.id).eq("workspace_id", userProfile.workspace_id).eq("is_draft", true);
+      if (totalsError) return json({ error: "Draft saved, but verified tax totals could not be synchronized. Please retry." }, 500, origin);
     }
     const { data: invoice, error: readError } = await db.from("invoices").select("*,invoice_items(*)")
       .eq("id", saved.id).maybeSingle();

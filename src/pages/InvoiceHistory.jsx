@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/currency";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -10,9 +11,8 @@ import { KEYS, loadList, removeItem, saveList, saveState } from "@/lib/stores";
 import { APP_EDITION, backend, supabase } from "@/api/backendClient";
 import GlobalInvoicesPanel from "@/components/global/GlobalInvoicesPanel";
 
-const sym = (c) => ({ INR: "₹", USD: "$", EUR: "€" }[c] || c);
-const money = (v, c = "INR") => `${sym(c)} ${(Number(v) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const dateLabel = (v) => (v ? new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
+const money = (v, c = "INR") => formatMoney(Number(v) || 0, c);
+const dateLabel = (v, locale = "en-US") => (v ? new Date(v).toLocaleDateString(locale, { day: "2-digit", month: "short", year: "numeric" }) : "—");
 const reminderStage = { before_due_2: "2 days before due", due_date: "Due date", overdue_3: "3 days overdue", overdue_7: "7 days overdue", overdue_15: "15 days overdue" };
 const reminderStatus = { scheduled: "Scheduled", on_hold: "Queued for automatic sending", sending: "Sending", sent: "Sent", failed: "Retry scheduled", cancelled: "Cancelled" };
 
@@ -47,7 +47,7 @@ export default function InvoiceHistory() {
   }, []);
   useEffect(() => {
     let active = true;
-    if (APP_EDITION === "global" || !view?.id) { setReminderEvents([]); return undefined; }
+    if (APP_EDITION === "global" || user?.country_code !== "IN" || !view?.id) { setReminderEvents([]); return undefined; }
     setEventsLoading(true);
     supabase.from("invoice_reminder_events").select("id,stage,scheduled_for,status,sent_at,recipient_email,failure_reason")
       .eq("invoice_id", view.id).order("scheduled_for", { ascending: true })
@@ -57,7 +57,7 @@ export default function InvoiceHistory() {
         setEventsLoading(false);
       });
     return () => { active = false; };
-  }, [view?.id]);
+  }, [view?.id, user?.country_code]);
   const visibleItems = items.filter((item) => filter === "all" || (filter === "drafts" ? item.isDraft : !item.isDraft));
   const remove = (id) => { setItems(removeItem(KEYS.history, id)); if (view && view.id === id) setView(null); };
   const sendConfirmedReminder = async (event) => {
@@ -81,7 +81,7 @@ export default function InvoiceHistory() {
       number: item.number || item.invoiceSnapshot.number || "",
       issueDate: item.issueDate || item.invoiceSnapshot.issueDate || "",
       dueDate: item.dueDate || item.invoiceSnapshot.dueDate || "",
-      currency: item.currency || item.invoiceSnapshot.currency || "INR",
+      currency: item.currency || item.invoiceSnapshot.currency || user?.currency_code || "",
     };
     saveState("invoicepulse-draft", snapshot);
     setView(null);
@@ -130,7 +130,7 @@ export default function InvoiceHistory() {
         number: it.number || saved.number || "INV-000",
         issueDate: it.issueDate || saved.issueDate || "",
         dueDate: it.dueDate || saved.dueDate || "",
-        currency: it.currency || saved.currency || "INR",
+        currency: it.currency || saved.currency || user?.currency_code || "",
         items: saved.items,
         design: saved.design || "classic",
       } : {
@@ -139,7 +139,7 @@ export default function InvoiceHistory() {
         number: it.number || "INV-000",
         issueDate: it.issueDate || "",
         dueDate: it.dueDate || "",
-        currency: it.currency || "INR",
+        currency: it.currency || user?.currency_code || "",
         items: (it.items || []).map((item, index) => ({ ...item, id: item.id || `history-item-${index}` })),
         taxRate: Number(it.taxRate) || 0,
         taxMode: it.taxMode || "split",
@@ -241,7 +241,7 @@ export default function InvoiceHistory() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2"><p className="font-mono-ui text-[10px] uppercase tracking-wider text-primary">{it.number || "INV-000"}</p><span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium">{it.itemCount || 0} items</span>{it.isDraft && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Draft · Not issued</span>}</div>
                 <p className="mt-1 text-[14px] font-bold">{it.clientName || "Client"}</p>
-                <p className="text-[11px] text-muted-foreground">{it.businessName || "—"} · {dateLabel(it.issueDate)}</p>
+                <p className="text-[11px] text-muted-foreground">{it.businessName || "—"} · {dateLabel(it.issueDate, user?.locale_code)}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2.5">
                   <label className="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground">
                     <Switch checked={!!it.reminder?.enabled} disabled={!it.dueDate || !reminderEmail(it) || it.status === "Paid" || it.status === "Cancelled" || emailSavingId === it.id} onCheckedChange={async (v) => { setEmailSavingId(it.id); setReminderMessage(""); try { const result = await backend.functions.invoke("setInvoiceReminder", { id: it.id, enabled: v, language: it.reminder?.language || "en" }); if (result?.data?.ok !== true) throw new Error(result?.data?.error || "Reminder settings were not saved."); updateItem(it.id, { reminder: { ...it.reminder, enabled: v, language: it.reminder?.language || "en" } }, false); setReminderMessage(v ? "Auto Reminder enabled and schedule saved." : "Auto Reminder disabled."); } catch (error) { setReminderMessage(error?.message || "Could not save reminder settings."); } finally { setEmailSavingId(""); } }} />
@@ -266,7 +266,7 @@ export default function InvoiceHistory() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <p className="text-[16px] font-bold tracking-[-0.03em]">{money(it.total, it.currency)}</p>
+                <p className="text-[16px] font-bold tracking-[-0.03em]">{money(it.total, it.currency || user?.currency_code)}</p>
                 <button onClick={() => setView(it)} className="rounded-lg border p-2 hover:bg-secondary" aria-label="View invoice"><Eye className="h-4 w-4" /></button>\n                <button onClick={() => downloadOldInvoice(it)} disabled={!!downloadingId} className="rounded-lg border p-2 text-primary hover:bg-secondary disabled:opacity-50" aria-label="Download old invoice PDF" title="Download PDF"><Download className="h-4 w-4" /></button>
                 <button onClick={() => remove(it.id)} className="rounded-lg border p-2 text-destructive hover:bg-destructive/10" aria-label="Delete invoice"><Trash2 className="h-4 w-4" /></button>
               </div>
@@ -281,18 +281,18 @@ export default function InvoiceHistory() {
             {view.isDraft && view.invoiceSnapshot && <button onClick={() => editDraft(view)} className="mt-4 w-full rounded-lg bg-primary px-3 py-2.5 text-xs font-semibold text-primary-foreground">Edit draft</button>}
             <div className="mt-4 grid grid-cols-2 gap-3 text-[12px]">
               <div><p className="text-muted-foreground">Business</p><p className="font-semibold">{view.businessName || "—"}</p></div>
-              <div><p className="text-muted-foreground">Issue date</p><p className="font-semibold">{dateLabel(view.issueDate)}</p></div>
+              <div><p className="text-muted-foreground">Issue date</p><p className="font-semibold">{dateLabel(view.issueDate, user?.locale_code)}</p></div>
               <div><p className="text-muted-foreground">Items</p><p className="font-semibold">{view.itemCount || 0}</p></div>
               {view.invoiceSnapshot?.globalTax?.countryCode && view.invoiceSnapshot.globalTax.countryCode !== "IN" ? <>
                 <div><p className="text-muted-foreground">Tax format</p><p className="font-semibold">{view.invoiceSnapshot.globalTax.countryCode} · {view.invoiceSnapshot.globalTaxCalculation?.status === "manual_unverified" ? "Manual / unverified" : view.invoiceSnapshot.globalTaxCalculation?.status || "Needs review"}</p></div>
-                <div><p className="text-muted-foreground">Tax amount</p><p className="font-semibold">{money(view.taxValue, view.currency)}</p></div>
+                <div><p className="text-muted-foreground">Tax amount</p><p className="font-semibold">{money(view.taxValue, view.currency || user?.currency_code)}</p></div>
               </> : <>
                 <div><p className="text-muted-foreground">Tax mode</p><p className="font-semibold">{view.taxMode === "split" ? "CGST + SGST" : "IGST"} ({view.taxRate || 0}%)</p></div>
-                <div><p className="text-muted-foreground">CGST</p><p className="font-semibold">{money(view.cgst, view.currency)}</p></div>
-                <div><p className="text-muted-foreground">SGST</p><p className="font-semibold">{money(view.sgst, view.currency)}</p></div>
-                <div><p className="text-muted-foreground">IGST</p><p className="font-semibold">{money(view.igst, view.currency)}</p></div>
+                <div><p className="text-muted-foreground">CGST</p><p className="font-semibold">{money(view.cgst, view.currency || user?.currency_code)}</p></div>
+                <div><p className="text-muted-foreground">SGST</p><p className="font-semibold">{money(view.sgst, view.currency || user?.currency_code)}</p></div>
+                <div><p className="text-muted-foreground">IGST</p><p className="font-semibold">{money(view.igst, view.currency || user?.currency_code)}</p></div>
               </>}
-              <div><p className="text-muted-foreground">Total</p><p className="font-bold text-primary">{money(view.total, view.currency)}</p></div>
+              <div><p className="text-muted-foreground">Total</p><p className="font-bold text-primary">{money(view.total, view.currency || user?.currency_code)}</p></div>
             </div>
             <section className="mt-5 border-t pt-4">
               <div className="flex items-center justify-between gap-2">
@@ -308,7 +308,7 @@ export default function InvoiceHistory() {
                     <div key={event.id} className="flex items-start justify-between gap-3 rounded-lg border p-3">
                       <div className="min-w-0">
                         <p className="text-xs font-semibold">{reminderStage[event.stage] || event.stage}</p>
-                        <p className="mt-0.5 text-[11px] text-muted-foreground">{dateLabel(event.scheduled_for)}</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">{dateLabel(event.scheduled_for, user?.locale_code)}</p>
                         {event.failure_reason && <p className="mt-1 text-[11px] text-destructive">{event.failure_reason}</p>}
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">

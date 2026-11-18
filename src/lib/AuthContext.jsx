@@ -15,6 +15,12 @@ const AuthContext = createContext();
 // Existing India accounts with no country stamp remain India; non-India accounts
 // must resolve to an explicitly supported country before Global handlers are used.
 async function resolveSignedInEdition(currentUser) {
+  // PLIVEX ONE has one runtime and one public workspace identity. The workspace
+  // country controls regional settings; it never switches the user into a second app.
+  if (isUnifiedBuild) {
+    setRuntimeEdition("india");
+    return currentUser;
+  }
   const existingCountry = String(currentUser?.country_code || "").trim().toUpperCase();
   if (!isUnifiedBuild && APP_EDITION !== "global" && (!existingCountry || existingCountry === "IN")) return currentUser;
 
@@ -155,6 +161,17 @@ export const AuthProvider = ({ children }) => {
 
       // Unified signup is authenticated first; provisioning waits for completed onboarding.
       if (isUnifiedBuild && !currentUser?.workspace_id && !getPendingInviteCode()) {
+        setUser(currentUser); signedInRef.current = true; setIsAuthenticated(true);
+        setAuthError(null); setIsLoadingAuth(false); setAuthChecked(true); return;
+      }
+      // Existing authenticated sessions must stop before hydrating business data
+      // until the owner has completed the current one-Workspace migration review.
+      // The auth session and workspace ID stay intact; this is not a new signup.
+      if (isUnifiedBuild && currentUser?.workspace_id && (
+        Number(currentUser?.onboarding_version || 0) < 1
+        || currentUser?.migration_status !== "ready"
+        || currentUser?.legacy_review_required === true
+      )) {
         setUser(currentUser); signedInRef.current = true; setIsAuthenticated(true);
         setAuthError(null); setIsLoadingAuth(false); setAuthChecked(true); return;
       }

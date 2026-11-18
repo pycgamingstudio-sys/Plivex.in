@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase, APP_EDITION } from "@/api/backendClient";
 
-export const PERMANENT_DASHBOARD_FEATURES = Object.freeze(["invoices", "quotations", "stock", "team"]);
+export const PERMANENT_DASHBOARD_FEATURES = Object.freeze(["invoices", "quotations"]);
+export function getPermanentDashboardFeatures(workspaceType = "business") {
+  return workspaceType === "freelancer"
+    ? [...PERMANENT_DASHBOARD_FEATURES]
+    : [...PERMANENT_DASHBOARD_FEATURES, "stock", "team"];
+}
 export const WORKSPACE_FEATURE_CATALOG = Object.freeze([
   { id: "expenses", label: "Expenses", description: "Record business expenses and purchase costs." },
   { id: "crm", label: "Client CRM", description: "Keep client details and communication organized." },
@@ -31,8 +36,10 @@ export function getSuggestedWorkspaceFeatures(workTypes = []) {
   return [...selected];
 }
 
-/** Per-user preferences are stored in Supabase Auth metadata, not shared browser state. */
-export function useWorkspaceFeatures(userId) {
+/** Workspace feature preferences are stored on the canonical workspace.
+ * The retired Global build keeps its compatibility metadata path until that worker is decommissioned.
+ */
+export function useWorkspaceFeatures(workspaceId) {
   const [features, setFeatures] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -40,18 +47,31 @@ export function useWorkspaceFeatures(userId) {
   useEffect(() => {
     let active = true;
     setFeatures(null);
-    if (!userId) { setFeatures(null); return () => { active = false; }; }
-    supabase.auth.getUser().then(({ data, error: readError }) => {
-      if (!active) return;
-      if (readError) { setError("Your feature preferences could not be loaded."); setFeatures(WORKSPACE_FEATURE_CATALOG.map((item) => item.id)); return; }
-      const stored = normalizeWorkspaceFeatures(data?.user?.user_metadata?.plivex_workspace_features);
-      // Existing workspaces keep their current tools until they choose to personalize.
-      setFeatures(stored ?? WORKSPACE_FEATURE_CATALOG.map((item) => item.id));
+    setError("");
+    if (!workspaceId) { setFeatures(null); return () => { active = false; }; }
+
+    const load = async () => {
+      if (APP_EDITION === "global") {
+        const { data, error: readError } = await supabase.auth.getUser();
+        if (readError) throw readError;
+        return normalizeWorkspaceFeatures(data?.user?.user_metadata?.plivex_workspace_features)
+          ?? WORKSPACE_FEATURE_CATALOG.map((item) => item.id);
+      }
+      const { data, error: readError } = await supabase.from("workspace_settings")
+        .select("optional_features").eq("workspace_id", workspaceId).maybeSingle();
+      if (readError) throw readError;
+      return normalizeWorkspaceFeatures(data?.optional_features) ?? [];
+    };
+
+    load().then((next) => {
+      if (active) setFeatures(next);
     }).catch(() => {
-      if (active) setFeatures(WORKSPACE_FEATURE_CATALOG.map((item) => item.id));
+      if (!active) return;
+      setError("Your workspace feature preferences could not be loaded.");
+      setFeatures([]);
     });
     return () => { active = false; };
-  }, [userId]);
+  }, [workspaceId]);
 
   // Keep independently mounted dashboard and navigation consumers in sync.
   useEffect(() => {
@@ -65,16 +85,23 @@ export function useWorkspaceFeatures(userId) {
 
   const updateFeatures = useCallback(async (nextValue) => {
     const next = normalizeWorkspaceFeatures(nextValue);
-    if (!next) return false;
+    if (!next || !workspaceId) return false;
     setSaving(true); setError("");
     try {
-      const { data, error: readError } = await supabase.auth.getUser();
-      if (readError || !data?.user) throw readError || new Error("Sign in again to update your workspace preferences.");
-      const metadata = data.user.user_metadata || {};
-      const { error: updateError } = await supabase.auth.updateUser({
-        data: { ...metadata, plivex_workspace_features: next },
-      });
-      if (updateError) throw updateError;
+      if (APP_EDITION === "global") {
+        const { data, error: readError } = await supabase.auth.getUser();
+        if (readError || !data?.user) throw readError || new Error("Sign in again to update workspace preferences.");
+        const metadata = data.user.user_metadata || {};
+        const { error: updateError } = await supabase.auth.updateUser({
+          data: { ...metadata, plivex_workspace_features: next },
+        });
+        if (updateError) throw updateError;
+      } else {
+        const { error: updateError } = await supabase.from("workspace_settings")
+          .update({ optional_features: next, updated_at: new Date().toISOString() })
+          .eq("workspace_id", workspaceId);
+        if (updateError) throw updateError;
+      }
       setFeatures(next);
       window.dispatchEvent(new CustomEvent("plivex:workspace-features-updated", { detail: { features: next } }));
       return true;
@@ -84,13 +111,7 @@ export function useWorkspaceFeatures(userId) {
     } finally {
       setSaving(false);
     }
-  }, []);
+  }, [workspaceId]);
 
-  return {
-    features: features ?? [],
-    ready: features !== null,
-    saving,
-    error,
-    updateFeatures,
-  };
+  return { features: features ?? [], ready: features !== null, saving, error, updateFeatures };
 }

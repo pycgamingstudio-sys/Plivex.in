@@ -1,3 +1,4 @@
+import { useAuth } from "@/lib/AuthContext";
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2, X, Search, ChevronDown, ChevronRight, RotateCcw, Wallet, TrendingUp, PiggyBank } from "lucide-react";
 import { KEYS, loadList, saveList, removeItem, genId } from "@/lib/stores";
@@ -13,6 +14,11 @@ const blank = { vendor: "", category: "Raw Materials", amount: "", date: new Dat
 
 export default function PurchaseTab({ intent, onConsumeIntent }) {
   const { requestAction, limits, usage, openPaywall } = usePaywall();
+  const { user } = useAuth();
+  const currencyCode = user?.currency_code || "INR";
+  const recordedExpenseAmount = (expense) => /^[A-Z]{3}$/.test(String(expense?.currencyCode || "").trim().toUpperCase())
+    ? money2(expense.amount, String(expense.currencyCode).trim().toUpperCase())
+    : "Currency not recorded";
   const { isAccountant } = useRole();
   const [expenses, setExpenses] = useState(() => loadList(KEYS.expenses));
   const [open, setOpen] = useState(false);
@@ -27,9 +33,35 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
 
   const now = new Date();
   const cur = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthExp = expenses.filter((e) => new Date(e.date) >= cur).reduce((s, e) => s + Number(e.amount || 0), 0);
-  const monthSales = loadList(KEYS.history).filter((it) => { const d = new Date(it.createdDate || it.issueDate); return d >= cur; }).reduce((s, it) => s + Number(it.total || 0), 0);
-  const net = monthSales - monthExp;
+  const monthExpenses = expenses.filter((e) => new Date(e.date) >= cur);
+  const expensesByCurrency = new Map();
+  monthExpenses.forEach((e) => {
+    const currency = String(e.currencyCode || "").trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(currency)) return;
+    expensesByCurrency.set(currency, (expensesByCurrency.get(currency) || 0) + Number(e.amount || 0));
+  });
+  const monthExp = [...expensesByCurrency.entries()]
+    .sort(([a], [b]) => a === currencyCode ? -1 : b === currencyCode ? 1 : a.localeCompare(b))
+    .map(([currency, amount]) => money2(amount, currency))
+    .join(" · ") || (monthExpenses.length ? "Currency not recorded" : money2(0, currencyCode));
+  const baseCurrencyExpenses = expensesByCurrency.get(currencyCode) || 0;
+  const hasOtherCurrencyExpenses = [...expensesByCurrency.keys()].some((currency) => currency !== currencyCode);
+  const hasUnknownCurrencyExpenses = monthExpenses.some((e) => !/^[A-Z]{3}$/.test(String(e.currencyCode || "").trim().toUpperCase()));
+  const monthInvoices = loadList(KEYS.history).filter((it) => { const d = new Date(it.createdDate || it.issueDate); return d >= cur; });
+  const salesByCurrency = new Map();
+  monthInvoices.forEach((it) => {
+    const currency = String(it.currency || "").trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(currency)) return;
+    salesByCurrency.set(currency, (salesByCurrency.get(currency) || 0) + Number(it.total || 0));
+  });
+  const monthSales = [...salesByCurrency.entries()]
+    .sort(([a], [b]) => a === currencyCode ? -1 : b === currencyCode ? 1 : a.localeCompare(b))
+    .map(([currency, amount]) => money2(amount, currency))
+    .join(" · ") || (monthInvoices.length ? "Currency not recorded" : money2(0, currencyCode));
+  const baseCurrencySales = salesByCurrency.get(currencyCode) || 0;
+  const hasOtherCurrencySales = [...salesByCurrency.keys()].some((currency) => currency !== currencyCode);
+  const hasUnknownCurrencySales = monthInvoices.some((it) => !/^[A-Z]{3}$/.test(String(it.currency || "").trim().toUpperCase()));
+  const net = baseCurrencySales - baseCurrencyExpenses;
 
   const expenseStatus = (e) => {
     if (e.status === "Paid" || e.status === "Received" || e.status === "Cancelled") return e.status;
@@ -61,7 +93,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
   const save = (entry) => {
     if (!entry.vendor.trim() || !entry.amount) return;
     if (!requestAction()) return;
-    const next = [{ ...entry, id: genId("exp"), amount: Number(entry.amount) || 0 }, ...expenses];
+    const next = [{ ...entry, currencyCode, id: genId("exp"), amount: Number(entry.amount) || 0 }, ...expenses];
     setExpenses(next); saveList(KEYS.expenses, next); setOpen(false);
   };
   const resetFilters = () => { setQ(""); setFrom(""); setTo(""); setCat("all"); setStatusFilter("all"); setPage(1); };
@@ -72,10 +104,11 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
     <div className="space-y-5">
       {(() => { const used = Number(usage.expenses_monthly ?? usage.expenses ?? expenses.length); const limit = Number(limits.expenses_monthly ?? limits.expenses ?? 30); const pct = limit > 0 ? Math.min(100, used / limit * 100) : 100; return <div className="rounded-xl border border-[#E5E7EB] bg-white p-3"><div className="flex items-center justify-between gap-2 text-xs"><span className="font-semibold text-slate-700">Expenses this cycle</span><span className="font-bold text-slate-600">{used}/{limit}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-[#6D28D9]"}`} style={{ width: `${pct}%` }} /></div>{pct >= 80 && <p className={`mt-1.5 text-[11px] ${pct >= 100 ? "text-rose-600" : "text-amber-600"}`}>{pct >= 100 ? "Plan limit reached" : "Usage limit warning"}</p>}{pct >= 100 && <button onClick={() => openPaywall("Expense limit reached for your current plan.")} className="mt-2 rounded-lg bg-[#6D28D9] px-3 py-1.5 text-xs font-bold text-white">Upgrade</button>}</div>; })()}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <SummaryCard label="Monthly Expense" value={money2(monthExp)} gradient="bg-gradient-to-br from-[#E11D48] to-[#F43F5E]" icon={Wallet} badge="this month" />
-        <SummaryCard label="Monthly Sales" value={money2(monthSales)} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={TrendingUp} badge="this month" />
-        <SummaryCard label="Net Profit" value={money2(net)} gradient={net >= 0 ? "bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" : "bg-gradient-to-br from-[#D97706] to-[#F59E0B]"} icon={PiggyBank} badge={net >= 0 ? "surplus" : "deficit"} />
+        <SummaryCard label="Monthly Expense" value={monthExp} gradient="bg-gradient-to-br from-[#E11D48] to-[#F43F5E]" icon={Wallet} badge="this month" />
+        <SummaryCard label="Monthly Sales" value={monthSales} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={TrendingUp} badge="this month" />
+        <SummaryCard label={`Net Profit · ${currencyCode}`} value={money2(net, currencyCode)} gradient={net >= 0 ? "bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" : "bg-gradient-to-br from-[#D97706] to-[#F59E0B]"} icon={PiggyBank} badge={net >= 0 ? "surplus" : "deficit"} />
       </div>
+      {(hasOtherCurrencySales || hasOtherCurrencyExpenses || hasUnknownCurrencyExpenses || hasUnknownCurrencySales) && <p className="text-[11px] text-muted-foreground">Sales and expenses are grouped by their recorded currency. Net profit uses only base-currency sales and expenses; records without a recorded currency are excluded. No FX conversion is performed.</p>}
 
       <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-[#E5E7EB] p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -137,7 +170,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
                         <td className="px-3 py-3 font-bold text-slate-900">{e.vendor}</td>
                         <td className="px-3 py-3 text-slate-500">{e.category}</td>
                         <td className="px-3 py-3 text-slate-500">{dateLabel(e.date)}</td>
-                        <td className="px-3 py-3 text-right font-bold text-slate-900">{money2(e.amount)}</td>
+                        <td className="px-3 py-3 text-right font-bold text-slate-900">{recordedExpenseAmount(e)}</td>
                         <td className="px-3 py-3">
                           <select value={e.status || "Unpaid"} onChange={(ev) => setStatus(e.id, ev.target.value)} aria-label="Order status" className={`cursor-pointer rounded-full border-0 px-2.5 py-1 text-[10px] font-bold uppercase outline-none ${statusCls(expenseStatus(e))}`}>
                             <option value="Pending">Pending</option>
@@ -175,7 +208,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
                                     {vendorLogs.slice(0, 4).map((v) => (
                                       <div key={v.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 text-[11px]">
                                         <span className="text-slate-700">{dateLabel(v.date)} · {v.category}</span>
-                                        <span className="font-semibold text-slate-900">{money2(v.amount)}</span>
+                                        <span className="font-semibold text-slate-900">{recordedExpenseAmount(v)}</span>
                                       </div>
                                     ))}
                                   </div>
@@ -219,7 +252,7 @@ function ExpenseModal({ onClose, onSave }) {
           <label className="block text-[12px] font-semibold text-slate-500">Vendor name<input className={inputCls} value={form.vendor} onChange={(e) => set("vendor", e.target.value)} placeholder="Vendor / supplier" /></label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block text-[12px] font-semibold text-slate-500">Category<select className={inputCls} value={form.category} onChange={(e) => set("category", e.target.value)}>{CATS.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
-            <label className="block text-[12px] font-semibold text-slate-500">Amount (₹)<input type="number" className={inputCls} value={form.amount} onChange={(e) => set("amount", e.target.value)} placeholder="0.00" /></label>
+            <label className="block text-[12px] font-semibold text-slate-500">Amount ({currencyCode})<input type="number" className={inputCls} value={form.amount} onChange={(e) => set("amount", e.target.value)} placeholder="0.00" /></label>
             <label className="block text-[12px] font-semibold text-slate-500">Date<input type="date" className={inputCls} value={form.date} onChange={(e) => set("date", e.target.value)} /></label>
             <label className="block text-[12px] font-semibold text-slate-500">Status<select className={inputCls} value={form.status} onChange={(e) => set("status", e.target.value)}><option value="Paid">Paid</option><option value="Unpaid">Unpaid</option></select></label>
             <label className="block text-[12px] font-semibold text-slate-500">Method<select className={inputCls} value={form.method} onChange={(e) => set("method", e.target.value)}><option>Bank Transfer</option><option>Cash</option><option>UPI</option><option>Cheque</option><option>Card</option></select></label>

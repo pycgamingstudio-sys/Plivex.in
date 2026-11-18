@@ -66,23 +66,22 @@ test("Global invoice workspace exposes PDF, WhatsApp/email share, payment, refun
   assert.match(panel, /GlobalTaxEditor/);
 });
 
-test("Unified app issues only when backend capabilities are ready and keeps other countries draft-only", () => {
-  assert.match(edge, /body\.action === "capabilities"/);
-  assert.match(edge, /issuance_ready/);
-  assert.match(edge, /data\?\.country_code === "GB"/);
-  assert.match(migration, /\x27country_code\x27,v_country_code/);
-  assert.match(home, /action:"capabilities"/);
-  assert.match(home, /capabilities\?\.data\?\.issuance_ready === true/);
-  assert.match(home, /action:"issue"/);
-  assert.match(home, /documentStatus:"issued"/);
-  assert.match(history, /APP_EDITION === "global"/);
-  assert.match(history, /GlobalInvoicesPanel/);
+test("PLIVEX ONE keeps non-India invoice drafts unissued until server capability is ready", async () => {
+  const canonicalSave = readFileSync(new URL("../../../supabase/functions/save-invoice/index.ts", import.meta.url), "utf8");
+  assert.match(canonicalSave, /body\?\.is_draft !== true/);
+  assert.match(canonicalSave, /verifiedGlobalTaxResult/);
+  assert.match(home, /const issuedInvoice = null/);
+  assert.doesNotMatch(home, /action:"capabilities"/);
+  assert.doesNotMatch(home, /action:"issue"/);
+  assert.match(stores, /is_draft: isGlobalWorkspaceInvoice/);
+  assert.match(history, /isDraft/);
 });
 
-test("Global invoice drafts preserve the customer relationship for final buyer snapshots", () => {
-  assert.match(stores, /workspaceRecords.*table:"clients"/s);
-  assert.match(stores, /client_id: clientId/);
-  assert.match(stores, /billing_address:\{ formatted:clientAddress \}/);
+test("canonical invoice drafts remain linked to CRM customer records", async () => {
+  const canonicalSave = readFileSync(new URL("../../../supabase/functions/save-invoice/index.ts", import.meta.url), "utf8");
+  assert.match(canonicalSave, /db\.from\("clients"\)\.insert/);
+  assert.match(canonicalSave, /client_id: clientId/);
+  assert.match(canonicalSave, /workspace_id: userProfile\.workspace_id/);
 });
 
 test("Global invoice manager fails closed until backend migration and Edge Function are ready", () => {

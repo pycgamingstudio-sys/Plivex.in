@@ -26,11 +26,12 @@ test("the actual View Plans modal uses the authenticated workspace country and n
   assert.doesNotMatch(modal, /countryCode = "IN", currencyCode = "INR"/);
 });
 
-test("Global workspace country wins over stale legacy India business-profile metadata", async () => {
+test("manually selected workspace country is authoritative over stale business-profile metadata", async () => {
   const home = await read("../../pages/Home.jsx");
-  assert.match(home, /profileCountry && profileCountry !== "IN"\s*\? profileCountry/);
+  assert.match(home, /const countryCode = profileCountry \|\| recordCountry \|\| ""/);
+  assert.match(home, /const activeWorkspaceCountry = String\(effectiveWorkspaceTaxProfile\?\.countryCode \|\| ""\)/);
   assert.match(home, /GLOBAL_COUNTRY_CURRENCIES\[countryCode\] \|\| user\?\.currency_code/);
-  assert.match(home, /user\?\.country_code \|\| \(APP_EDITION === "global" \? "" : "UNKNOWN"\)/);
+  assert.match(home, /const baseCurrency = resolveInvoiceCurrencyForWorkspace\(user\.country_code, user\.currency_code\)/);
 });
 
 test("invoice PDF export waits for the preview and downloads a non-empty PDF blob", async () => {

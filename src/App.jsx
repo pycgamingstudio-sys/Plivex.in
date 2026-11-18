@@ -8,6 +8,7 @@ import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes, Navigate, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { APP_EDITION, isUnifiedBuild } from '@/api/backendClient';
+import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
 import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import RoleGuard from '@/components/RoleGuard';
@@ -54,7 +55,7 @@ const PaymentResult = lazy(() => import("./pages/PaymentResult"));
 const PublicInvoicePage = lazy(() => import("./pages/PublicInvoicePage"));
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, isAuthenticated, user } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, isAuthenticated, user, logout } = useAuth();
 
   // Payment callbacks must remain visible even if the customer session expires during checkout.
   // Keep hooks unconditional so navigating to/from this public callback never changes hook order.
@@ -83,7 +84,19 @@ const AuthenticatedApp = () => {
   }
 
   // One shared post-auth onboarding provisions either regional workspace.
-  if (isUnifiedBuild && isAuthenticated && user && !user.workspace_id && !getPendingInviteCode()) return <UnifiedWorkspaceOnboarding />;
+  if (isUnifiedBuild && isAuthenticated && user && (!user.workspace_id || !user.country_code || !user.workspace_type || Number(user.onboarding_version || 0) < 1 || user.migration_status !== "ready" || user.legacy_review_required) && !getPendingInviteCode()) {
+    const canProvisionWorkspace = !user.workspace_id || !user.role || user.role === "admin" || user.role === "user";
+    if (canProvisionWorkspace) return <UnifiedWorkspaceOnboarding />;
+    return (
+      <main className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center gap-4 p-6 text-center">
+        <div className="rounded-2xl border bg-card p-6 shadow-sm">
+          <h1 className="text-lg font-bold">Workspace setup is pending</h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">Your workspace owner needs to complete the mandatory Workspace review before team members can open the workspace. Your account and existing records remain preserved.</p>
+          <button type="button" onClick={() => logout()} className="mt-5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Sign out</button>
+        </div>
+      </main>
+    );
+  }
   if (APP_EDITION === "global" && isAuthenticated && user && !user.workspace_id && !getPendingInviteCode()) return <GlobalCountryOnboarding />;
 
   // Both editions resolve core business destinations through this shared React Router tree.
@@ -113,26 +126,26 @@ const AuthenticatedApp = () => {
           <Route element={<RoleGuard />}>
             <Route path="/invoice-builder" element={isGlobalWorkspace ? <AppLayout><GlobalApp section="invoices" /></AppLayout> : <Home />} />
         <Route element={<AppLayout />}>
-          <Route path="/products" element={isGlobalWorkspace ? <GlobalApp section="products" /> : <PageNotFound />} />
-          <Route path="/expenses" element={isGlobalWorkspace ? <GlobalApp section="expenses" /> : <PageNotFound />} />
-          <Route path="/accounting" element={isGlobalWorkspace ? <GlobalApp section="accounting" /> : <PageNotFound />} />
-          <Route path="/enterprise" element={isGlobalWorkspace ? <GlobalApp section="enterprise" /> : <PageNotFound />} />
+          <Route path="/products" element={isGlobalWorkspace ? <GlobalApp section="products" /> : <Navigate to="/dashboard" replace state={{ initialTab: "stock" }} />} />
+          <Route path="/expenses" element={isGlobalWorkspace ? <GlobalApp section="expenses" /> : <Navigate to="/dashboard" replace state={{ initialTab: "purchase" }} />} />
+          <Route path="/accounting" element={isGlobalWorkspace ? <GlobalApp section="accounting" /> : <Navigate to="/dashboard" replace state={{ initialTab: "reconciliation" }} />} />
+          <Route path="/enterprise" element={isGlobalWorkspace ? <GlobalApp section="enterprise" /> : <Navigate to="/dashboard" replace state={{ initialTab: "team" }} />} />
           <Route path="/invoice-history" element={isGlobalWorkspace ? <GlobalApp section="invoices" /> : <InvoiceHistory />} />
-          <Route path="/quotations" element={isGlobalWorkspace ? <GlobalApp section="quotations" /> : <PageNotFound />} />
+          <Route path="/quotations" element={isGlobalWorkspace ? <GlobalApp section="quotations" /> : <Navigate to="/dashboard" replace state={{ initialTab: "sales", initialSub: "quotations" }} />} />
           <Route path="/invoice-shares" element={<GlobalFeatureGate feature="Shared invoice links"><InvoiceShareManagement /></GlobalFeatureGate>} />
           <Route path="/business-profile" element={<GlobalFeatureGate feature="Business profile"><BusinessProfile /></GlobalFeatureGate>} />
-          <Route path="/client-database" element={isGlobalWorkspace ? <GlobalApp section="clients" /> : <ClientDatabase />} />
-          <Route path="/crm" element={isGlobalWorkspace ? <GlobalApp section="crm" /> : <CrmTab />} />
-          <Route path="/inventory-procurement" element={isGlobalWorkspace ? <GlobalApp section="inventory" /> : <IndiaPart4Tab user={user} />} />
-          <Route path="/usage-reports" element={<GlobalFeatureGate feature="Usage reports"><UsageReports /></GlobalFeatureGate>} />
+          <Route path="/client-database" element={isGlobalWorkspace ? <GlobalApp section="clients" /> : <WorkspaceFeatureGate anyOf={["crm", "leads"]}><ClientDatabase /></WorkspaceFeatureGate>} />
+          <Route path="/crm" element={isGlobalWorkspace ? <GlobalApp section="crm" /> : <WorkspaceFeatureGate anyOf={["crm", "leads"]}><CrmTab /></WorkspaceFeatureGate>} />
+          <Route path="/inventory-procurement" element={isGlobalWorkspace ? <GlobalApp section="inventory" /> : <WorkspaceFeatureGate feature="inventoryWorkspace"><IndiaPart4Tab user={user} /></WorkspaceFeatureGate>} />
+          <Route path="/usage-reports" element={<GlobalFeatureGate feature="Usage reports"><WorkspaceFeatureGate feature="reports"><UsageReports /></WorkspaceFeatureGate></GlobalFeatureGate>} />
           <Route path="/settings" element={<GlobalFeatureGate feature="Workspace settings"><Settings /></GlobalFeatureGate>} />
           <Route path="/templates" element={<GlobalFeatureGate feature="Quick templates"><QuickTemplates /></GlobalFeatureGate>} />
-          <Route path="/payment-logs" element={<GlobalFeatureGate feature="Payment logs"><PaymentLogs /></GlobalFeatureGate>} />
-          <Route path="/tax-summary" element={<GlobalFeatureGate feature="Tax summary"><TaxSummary /></GlobalFeatureGate>} />
+          <Route path="/payment-logs" element={<GlobalFeatureGate feature="Payment logs"><WorkspaceFeatureGate feature="expenses"><PaymentLogs /></WorkspaceFeatureGate></GlobalFeatureGate>} />
+          <Route path="/tax-summary" element={<GlobalFeatureGate feature="Tax summary"><WorkspaceFeatureGate feature="reports"><TaxSummary /></WorkspaceFeatureGate></GlobalFeatureGate>} />
           <Route path="/help-center" element={<HelpCenter />} />
-          <Route path="/account-activity" element={<GlobalFeatureGate feature="Account activity"><AccountActivity /></GlobalFeatureGate>} />
+          <Route path="/account-activity" element={<GlobalFeatureGate feature="Account activity"><WorkspaceFeatureGate feature="reports"><AccountActivity /></WorkspaceFeatureGate></GlobalFeatureGate>} />
           <Route path="/service-catalog" element={<GlobalFeatureGate feature="Service catalog"><ServiceCatalog /></GlobalFeatureGate>} />
-          <Route path="/team-management" element={<GlobalFeatureGate feature="Team management"><ProTeamRoute /></GlobalFeatureGate>} />
+          <Route path="/team-management" element={<GlobalFeatureGate feature="Team management"><WorkspaceFeatureGate businessOnly><ProTeamRoute /></WorkspaceFeatureGate></GlobalFeatureGate>} />
             </Route>
           </Route>
         </Route>
@@ -143,6 +156,17 @@ const AuthenticatedApp = () => {
 };
 
 // Shows a message when a change could not be saved on the server (e.g. a role without permission).
+
+function WorkspaceFeatureGate({ children, feature, anyOf = [], businessOnly = false }) {
+  const { user } = useAuth();
+  const { features, ready } = useWorkspaceFeatures(user?.workspace_id);
+  if (!isUnifiedBuild) return children;
+  if (!ready) return <main className="mx-auto max-w-xl p-6 text-sm text-muted-foreground" role="status">Loading Workspace features…</main>;
+  if (businessOnly && user?.workspace_type !== "business") return <Navigate to="/dashboard" replace />;
+  if (feature && !features.includes(feature)) return <Navigate to="/dashboard" replace />;
+  if (anyOf.length && !anyOf.some((item) => features.includes(item))) return <Navigate to="/dashboard" replace />;
+  return children;
+}
 
 function GlobalFeatureGate({ children, feature }) {
   const { user } = useAuth();

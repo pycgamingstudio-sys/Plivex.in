@@ -9,26 +9,111 @@ Deno.serve(async (req: Request) => {
     const auth = await authenticate(req);
     if ("error" in auth) return jsonResponse({ error: auth.error }, auth.status, origin);
     const body = await req.json().catch(() => ({}));
-    const reset = body?.reset === true;
-    const { data: profile, error: profileError } = await auth.admin.from("profiles")
+    let { data: profile, error: profileError } = await auth.admin.from("profiles")
       .select("id,email,role,workspace_id").eq("id", auth.user.id).maybeSingle();
     if (profileError) return jsonResponse({ error: "Could not load profile" }, 500, origin);
 
-    // This endpoint must never bootstrap an arbitrary signed-in user into admin.
-    // Only an already-provisioned admin profile may initialize/repair its own workspace.
-    if (!profile) return jsonResponse({ error: "Owner account is not provisioned. Contact Plivex support." }, 403, origin);
-    if (profile.role !== "admin") return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
-    if (profile.workspace_id && !reset) return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
-
+    // An authenticated standalone signup may provision its own first workspace.
+    // Existing invited members are protected from accidental owner-workspace creation.
     const { data: invite, error: inviteError } = await auth.admin.from("invite_codes").select("id").eq("used_by", auth.user.id).limit(1);
     if (inviteError) return jsonResponse({ error: "Could not check invite history" }, 500, origin);
     if (invite?.length) return jsonResponse({ ok: true, skipped: true, role: profile?.role || "employee", workspaceId: profile?.workspace_id || null }, 200, origin);
 
+    if (!profile) {
+      const email = String(auth.user.email || "").trim().toLowerCase();
+      const { error: createProfileError } = await auth.admin.from("profiles").insert({
+        id: auth.user.id, email, role: "admin", workspace_id: null,
+        full_name: String(auth.user.user_metadata?.full_name || "").trim().slice(0, 160) || null,
+      });
+      if (createProfileError && createProfileError.code !== "23505") {
+        return jsonResponse({ error: "Could not initialize your workspace profile" }, 500, origin);
+      }
+      const refreshed = await auth.admin.from("profiles").select("id,email,role,workspace_id")
+        .eq("id", auth.user.id).maybeSingle();
+      if (refreshed.error || !refreshed.data) return jsonResponse({ error: "Could not verify your workspace profile" }, 500, origin);
+      profile = refreshed.data;
+    }
+    if (profile.role !== "admin" && profile.workspace_id) {
+      return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
+    }
+    let existingWorkspaceCountry = "";
+    let existingWorkspaceType = "";
+    let existingSettings: {
+      country_code?: string | null;
+      workspace_type?: string | null;
+      onboarding_version?: number | null;
+      migration_status?: string | null;
+      legacy_review_required?: boolean | null;
+    } | null = null;
+    if (profile.workspace_id) {
+      const [{ data: existingBusinessProfile, error: existingBusinessProfileError }, { data: settingsData, error: existingSettingsError }] = await Promise.all([
+        auth.admin.from("business_profile").select("country_code").eq("workspace_id", profile.workspace_id).maybeSingle(),
+        auth.admin.from("workspace_settings").select("country_code,workspace_type,onboarding_version,migration_status,legacy_review_required").eq("workspace_id", profile.workspace_id).maybeSingle(),
+      ]);
+      if (existingBusinessProfileError || existingSettingsError) return jsonResponse({ error: "Could not verify the existing workspace settings." }, 500, origin);
+      existingSettings = settingsData;
+      existingWorkspaceCountry = String(existingSettings?.country_code || "").trim().toUpperCase();
+      existingWorkspaceType = String(existingSettings?.workspace_type || "").trim().toLowerCase();
+      const businessProfileCountry = String(existingBusinessProfile?.country_code || "").trim().toUpperCase();
+      if (existingWorkspaceCountry && businessProfileCountry && businessProfileCountry !== existingWorkspaceCountry) {
+        return jsonResponse({ error: "Workspace regional records are inconsistent and require a reviewed repair." }, 409, origin);
+      }
+      if (existingWorkspaceCountry && businessProfileCountry && existingWorkspaceType
+        && Number(existingSettings?.onboarding_version || 0) >= 1
+        && existingSettings?.migration_status === "ready"
+        && existingSettings?.legacy_review_required !== true) {
+        return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
+      }
+      // A legacy business profile may be the only surviving country record. Do not
+      // silently overwrite it when the owner selects a different country; that
+      // requires an explicit historical-data migration review first.
+      // Legacy or partially provisioned workspaces are completed in place; no second workspace is created.
+    }
+
     const email = String(profile?.email || auth.user.email || "").trim().toLowerCase();
+    const countryLocales: Record<string, string[]> = {
+      IN: ["en-IN", "hi-IN"], US: ["en-US", "es-US"], GB: ["en-GB"],
+      AE: ["en-AE", "ar-AE"], CA: ["en-CA", "fr-CA"], AU: ["en-AU"],
+      SG: ["en-SG", "zh-SG", "ms-SG", "ta-SG"],
+    };
+    const requestedCountryValue = typeof body?.countryCode === "string" ? body.countryCode : "";
+    const requestedLocaleValue = typeof body?.localeCode === "string" ? body.localeCode : "";
+    const countryCode = typeof requestedCountryValue === "string" ? requestedCountryValue.trim().toUpperCase() : "";
+    const localeCode = typeof requestedLocaleValue === "string" ? requestedLocaleValue.trim() : "";
+    if (!countryLocales[countryCode]) return jsonResponse({ error: "Choose a supported business country before creating your workspace." }, 400, origin);
+    if (existingWorkspaceCountry && existingWorkspaceCountry !== countryCode) {
+      return jsonResponse({ error: "This Workspace already has a country selection. Changing it requires a separately reviewed migration; existing records have not been changed." }, 409, origin);
+    }
+    const { data: legacyBusinessProfile, error: legacyBusinessProfileError } = profile.workspace_id
+      ? await auth.admin.from("business_profile").select("country_code").eq("workspace_id", profile.workspace_id).maybeSingle()
+      : { data: null, error: null };
+    if (legacyBusinessProfileError) return jsonResponse({ error: "Could not verify legacy business country." }, 500, origin);
+    const legacyBusinessCountry = String(legacyBusinessProfile?.country_code || "").trim().toUpperCase();
+    if (!existingWorkspaceCountry && legacyBusinessCountry && legacyBusinessCountry !== countryCode) {
+      return jsonResponse({ error: "Your legacy business profile has a different country. A reviewed data migration is required before changing it; no records were changed." }, 409, origin);
+    }
+    if (!countryLocales[countryCode].includes(localeCode)) return jsonResponse({ error: "Choose a valid regional format for your selected country." }, 400, origin);
+    const workspaceType = String(body?.businessType || "").trim().toLowerCase();
+    if (!["freelancer", "business"].includes(workspaceType)) return jsonResponse({ error: "Choose Freelancer or Business for your workspace." }, 400, origin);
+    if (existingWorkspaceType && existingWorkspaceType !== workspaceType
+      && Number(existingSettings?.onboarding_version || 0) >= 1
+      && existingSettings?.migration_status === "ready") {
+      return jsonResponse({ error: "This Workspace already has a primary work profile. Changing it requires a separately reviewed migration." }, 409, origin);
+    }
+    const allowedFeatures = new Set(["expenses", "crm", "leads", "inventoryWorkspace", "reports"]);
+    const requestedFeatures = body?.optionalFeatures;
+    const optionalFeatures = Array.isArray(requestedFeatures)
+      ? [...new Set(requestedFeatures.filter((value: unknown): value is string => typeof value === "string" && allowedFeatures.has(value)))]
+      : [];
+    const currencyByCountry: Record<string, string> = { IN: "INR", US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD" };
+    const phoneCodeByCountry: Record<string, string> = { IN: "+91", US: "+1", GB: "+44", AE: "+971", CA: "+1", AU: "+61", SG: "+65" };
     const workspaceId = profile?.workspace_id || `WS-${auth.user.id.toUpperCase()}`;
     const now = new Date().toISOString();
     const { error: upsertProfileError } = await auth.admin.from("profiles").upsert({
-      id: auth.user.id, email, role: "admin", workspace_id: workspaceId, updated_at: now,
+      id: auth.user.id, email, role: "admin", workspace_id: workspaceId,
+      country_code: countryCode, locale_code: localeCode,
+      full_name: String(body?.businessName || "").trim().slice(0, 160) || null,
+      updated_at: now,
     }, { onConflict: "id" });
     if (upsertProfileError) return jsonResponse({ error: "Could not update owner profile" }, 500, origin);
 
@@ -38,26 +123,38 @@ Deno.serve(async (req: Request) => {
     }, { onConflict: "membership_key" });
     if (memberError) return jsonResponse({ error: "Could not create owner membership" }, 500, origin);
 
-    // Persist the explicit signup country/locale on the new workspace.
-    // Invited members never reach this owner-bootstrap path.
-    const metadata = auth.user.user_metadata || {};
-    const countryLocales: Record<string, string[]> = {
-      IN: ["en-IN", "hi-IN"], US: ["en-US", "es-US"], GB: ["en-GB"],
-      AE: ["en-AE", "ar-AE"], CA: ["en-CA", "fr-CA"], AU: ["en-AU"],
-      SG: ["en-SG", "zh-SG", "ms-SG", "ta-SG"],
-    };
-    const requestedCountryValue = typeof body?.countryCode === "string" ? body.countryCode : metadata.signup_country_code;
-    const requestedLocaleValue = typeof body?.localeCode === "string" ? body.localeCode : metadata.signup_locale_code;
-    const requestedCountry = typeof requestedCountryValue === "string" ? requestedCountryValue.toUpperCase() : "IN";
-    const requestedLocale = typeof requestedLocaleValue === "string" ? requestedLocaleValue : "en-IN";
-    const countryCode = countryLocales[requestedCountry]?.includes(requestedLocale) ? requestedCountry : "IN";
-    const localeCode = countryLocales[countryCode]?.includes(requestedLocale) ? requestedLocale : "en-IN";
+    // Persist the manually selected country and regional identity on the workspace.
     const { error: countryError } = await auth.admin.from("business_profile").upsert({
-      workspace_id: workspaceId, country_code: countryCode, locale_code: localeCode, name: String(body?.businessName || metadata.full_name || metadata.name || "").trim().slice(0, 160) || null,
-    }, { onConflict: "workspace_id", ignoreDuplicates: true });
+      workspace_id: workspaceId,
+      country_code: countryCode,
+      locale_code: localeCode,
+      phone: String(body?.phone || "").trim() ? `${phoneCodeByCountry[countryCode]} ${String(body.phone).trim().slice(0, 32)}` : null,
+      name: String(body?.businessName || "").trim().slice(0, 160) || null,
+    }, { onConflict: "workspace_id" });
     if (countryError) {
       console.error("Owner workspace country setup failed", { code: countryError.code });
       return jsonResponse({ error: "Workspace created, but regional settings could not be initialized. Please save them in Workspace Settings." }, 500, origin);
+    }
+
+    const { error: settingsError } = await auth.admin.from("workspace_settings").upsert({
+      workspace_id: workspaceId,
+      country_code: countryCode,
+      locale_code: localeCode,
+      currency_code: currencyByCountry[countryCode],
+      workspace_type: workspaceType,
+      optional_features: optionalFeatures,
+      phone_country_code: phoneCodeByCountry[countryCode],
+      phone_number: String(body?.phone || "").trim().slice(0, 32) || null,
+      onboarding_version: 1,
+      migration_status: "ready",
+      onboarding_completed_at: now,
+      legacy_review_required: false,
+      created_by: auth.user.id,
+      updated_at: now,
+    }, { onConflict: "workspace_id" });
+    if (settingsError) {
+      console.error("Workspace settings setup failed", { code: settingsError.code });
+      return jsonResponse({ error: "Workspace settings could not be saved. Please retry setup." }, 500, origin);
     }
 
     // Current Plivex uses a Free plan; intentionally do not create the archived 14-day trial fields.

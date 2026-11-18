@@ -52,7 +52,8 @@ test("single-domain edition follows the active workspace country and base curren
   const auth = read("../../lib/AuthContext.jsx");
   const paywall = read("../../lib/paywall.jsx");
   const onboarding = read("../../components/global/UnifiedWorkspaceOnboarding.jsx");
-  assert.match(backend, /workspaceRegion\?\.country_code/);
+  assert.match(backend, /workspaceSettings\?\.country_code/);
+  assert.doesNotMatch(backend, /workspaceRegion\?\.country_code|profile\?\.country_code/);
   assert.match(auth, /resolveWorkspaceEdition\(countryCode, supportedCodes\)/);
   assert.match(paywall, /base_currency: true/);
   assert.match(paywall, /feature === "base_currency"/);
@@ -68,11 +69,11 @@ test("Android stock product form keeps Save and Cancel visible while fields scro
   assert.match(stock, /safe-area-inset-bottom/);
 });
 
-test("shared CRM, warehouse, transfers and procurement remain accessible in India", () => {
+test("shared CRM, warehouse, transfers and procurement are gated by Workspace preferences", () => {
   const app = read("../../App.jsx");
   const nav = read("../../lib/nav.js");
-  assert.ok(app.includes('<Route path="/crm" element={isGlobalWorkspace ? <GlobalApp section="crm" /> : <CrmTab />} />'));
-  assert.ok(app.includes('<Route path="/inventory-procurement" element={isGlobalWorkspace ? <GlobalApp section="inventory" /> : <IndiaPart4Tab user={user} />} />'));
+  assert.match(app, /WorkspaceFeatureGate anyOf=\{\["crm", "leads"\]\}/);
+  assert.match(app, /WorkspaceFeatureGate feature="inventoryWorkspace"/);
   assert.match(nav, /label: "CRM & leads"/);
   assert.match(nav, /label: "Inventory & procurement"/);
 });

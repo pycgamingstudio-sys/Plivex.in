@@ -1,8 +1,6 @@
+import { formatMoney } from "@/lib/currency";
 
-export const money2 = (v, c = "INR") => {
-  const sym = { INR: "₹", USD: "$", EUR: "€" }[c] || c;
-  return `${sym} ${(Number(v) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
+export const money2 = (v, c = "INR", locale) => formatMoney(Number(v) || 0, c, locale);
 export const dateLabel = (v) => (v ? new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
 
 export const btnAccent = "inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-3.5 py-2 text-[12px] font-bold text-white transition-colors hover:bg-[#7C3AED]";

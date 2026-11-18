@@ -1,3 +1,4 @@
+import { useAuth } from "@/lib/AuthContext";
 import { Download, TrendingUp, Clock, Wallet, PiggyBank, LockKeyhole } from "lucide-react";
 import { KEYS, loadList } from "@/lib/stores";
 import { money2, exportCsv } from "@/lib/dashboardData";
@@ -6,6 +7,8 @@ import { usePaywall } from "@/lib/paywall";
 const tone = { emerald: "bg-emerald-100 text-emerald-600", amber: "bg-amber-100 text-amber-600", rose: "bg-rose-100 text-rose-600", violet: "bg-violet-100 text-violet-600" };
 
 export default function ReportsTab() {
+  const { user } = useAuth();
+  const currencyCode = user?.currency_code || "INR";
   const { canAccess, openPaywall } = usePaywall();
   const invoices = loadList(KEYS.history);
   const expenses = loadList(KEYS.expenses);
@@ -25,10 +28,10 @@ export default function ReportsTab() {
   };
 
   const cards = [
-    { label: "Total Revenue Generated", value: money2(revenue), icon: TrendingUp, tone: "emerald" },
-    { label: "Pending Payments", value: money2(pending), icon: Clock, tone: "amber" },
-    { label: "Total Expenses", value: money2(totalExp), icon: Wallet, tone: "rose" },
-    { label: "Net Profit", value: money2(net), icon: PiggyBank, tone: "violet" },
+    { label: "Total Revenue Generated", value: money2(revenue, currencyCode), icon: TrendingUp, tone: "emerald" },
+    { label: "Pending Payments", value: money2(pending, currencyCode), icon: Clock, tone: "amber" },
+    { label: "Total Expenses", value: money2(totalExp, currencyCode), icon: Wallet, tone: "rose" },
+    { label: "Net Profit", value: money2(net, currencyCode), icon: PiggyBank, tone: "violet" },
   ];
 
   return (

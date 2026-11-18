@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [backend, authContext, stores, paywall, login, register, app, onboarding] = await Promise.all([
+const [backend, authContext, stores, paywall, login, register, app, onboarding, migration] = await Promise.all([
   read("../../api/backendClient.js"),
   read("../../lib/AuthContext.jsx"),
   read("../../lib/stores.js"),
@@ -11,44 +11,45 @@ const [backend, authContext, stores, paywall, login, register, app, onboarding] 
   read("../../pages/Login.jsx"),
   read("../../pages/Register.jsx"),
   read("../../App.jsx"),
-  read("../../components/global/GlobalCountryOnboarding.jsx"),
+  read("../../components/global/UnifiedWorkspaceOnboarding.jsx"),
+  read("../../../supabase/migrations/20261118121500_plivex_one_workspace_settings.sql"),
 ]);
 
-test("Global backend defaults fail closed and blocks India endpoint fallback", () => {
+test("retired Global backend adapters remain blocked from unified runtime", () => {
   assert.match(backend, /resolveEditionId\(import\.meta\.env\.VITE_APP_EDITION\)/);
   assert.match(backend, /APP_EDITION === "global" && !\["global-ensure-owner", "global-business-records", "global-invoices", "global-stock-movements", "global-update-workspace-country", "reset-workspace-country"\]\.includes\(functionName\)/);
   assert.match(backend, /global-auth-context/);
   assert.match(backend, /global-update-profile/);
 });
 
-test("Global auth hydrates workspace data only through the isolated Global adapter", () => {
-  assert.match(authContext, /APP_EDITION === "global"/);
-  assert.ok(authContext.includes('if (!isUnifiedBuild && APP_EDITION !== "global" && (!existingCountry || existingCountry === "IN")) return currentUser;'));
-  assert.ok(authContext.includes("const shouldResolveGlobal = APP_EDITION === \"global\" || isUnifiedBuild || countryCode !== 'IN'"));
-  assert.ok(authContext.includes('currentUser?.country_code && String(currentUser.country_code).trim().toUpperCase() !== "IN"'));
-  assert.ok(authContext.includes('setRuntimeEdition(edition, { verifiedGlobal: edition === "global" && Boolean(globalUser) });'));
-  assert.ok(backend.includes('if (!isUnifiedBuild && edition === "global" && !verifiedGlobal) return false;'));
-  assert.doesNotMatch(authContext, /globalEnsureOwner/);
-  assert.match(app, /GlobalCountryOnboarding/);
-  assert.match(onboarding, /globalEnsureOwner/);
-  assert.match(authContext, /global:\$\{currentUser\.id\}/);
-  assert.match(authContext, /Global workspace invitations are not available yet/);
-  const globalStart = authContext.indexOf('if (APP_EDITION === "global")');
-  const indiaStart = authContext.indexOf("setTenantId(currentUser?.id)", globalStart);
-  const globalBranch = authContext.slice(globalStart, indiaStart);
-  assert.match(globalBranch, /if \(currentUser\?\.workspace_id\) await hydrateWorkspaceData\(\)/);
+test("unified build keeps one public workspace identity and provisions through canonical endpoint", () => {
+  assert.match(authContext, /if \(isUnifiedBuild\) \{[\s\S]*setRuntimeEdition\("india"\);[\s\S]*return currentUser;/);
+  assert.ok(authContext.indexOf('if (isUnifiedBuild)') < authContext.indexOf('const shouldResolveGlobal = APP_EDITION === "global" || isUnifiedBuild'));
+  assert.match(app, /\(!user\.workspace_id \|\| !user\.country_code \|\| !user\.workspace_type \|\| Number\(user\.onboarding_version \|\| 0\) < 1 \|\| user\.migration_status !== "ready" \|\| user\.legacy_review_required\)/);
+  assert.match(onboarding, /ensureOwnerRole/);
+  assert.doesNotMatch(onboarding, /globalEnsureOwner/);
+  assert.match(backend, /workspace_settings/);
 });
 
-test("Global tenant storage never imports legacy India localStorage keys", () => {
+
+test("authenticated users cannot self-promote or reassign their workspace through profiles", () => {
+  assert.match(migration, /revoke update on table public\.profiles from authenticated/);
+  assert.match(migration, /revoke update \([\s\S]*role, workspace_id[\s\S]*\) on public\.profiles from authenticated/);
+  assert.match(migration, /grant update \(full_name, profile_picture\) on public\.profiles to authenticated/);
+  assert.match(migration, /revoke insert, update on public\.workspace_settings from authenticated/);
+  assert.match(migration, /grant update \(optional_features, updated_at\) on public\.workspace_settings to authenticated/);
+});
+
+test("legacy isolated storage never imports India localStorage keys", () => {
   assert.match(stores, /if \(options\?\.migrateLegacy !== false\) migrateLegacyData/);
 });
 
-test("Global login and registration do not call India invite verification", () => {
+test("legacy login and registration keep invite verification edition-gated", () => {
   assert.match(login, /APP_EDITION === "global" && code/);
   assert.match(register, /APP_EDITION === "global" && code/);
 });
 
-test("Global paywall uses provider-neutral checkout warm-up without changing subscriptions", () => {
+test("legacy provider-neutral checkout warm-up does not change subscriptions", () => {
   assert.match(paywall, /if \(APP_EDITION === "global"\)/);
   assert.match(paywall, /International subscription checkout is not active yet/);
   assert.match(paywall, /Your plan and workspace have not been changed/);

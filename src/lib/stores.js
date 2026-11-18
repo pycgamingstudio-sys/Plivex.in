@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { backend as api, APP_EDITION } from "@/api/backendClient";
+import { backend as api } from "@/api/backendClient";
 import { invoiceSaveSignature } from "@/global/tax/invoice-save-signature.js";
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -108,23 +108,23 @@ const MAPPERS = {
     toDb: (i) => ({ name: str(i.name), company: str(i.company), email: str(i.email), phone: str(i.phone), gstin: str(i.gstin), address: str(i.address) }),
   },
   expenses: {
-    toUi: (r) => ({ id: r.id, vendor: str(r.vendor), category: str(r.category), amount: num(r.amount), date: str(r.date).slice(0, 10), status: str(r.status), method: str(r.method), notes: str(r.notes) }),
+    toUi: (r) => ({ id: r.id, vendor: str(r.vendor), category: str(r.category), amount: num(r.amount), currencyCode: str(r.currency_code).toUpperCase(), date: str(r.date).slice(0, 10), status: str(r.status), method: str(r.method), notes: str(r.notes) }),
     toDb: (i) => ({ vendor: str(i.vendor), category: i.category || "Other", amount: num(i.amount), date: dateOrNull(i.date), status: str(i.status), method: str(i.method), notes: str(i.notes) }),
   },
   stock: {
-    toUi: (r) => ({ id: r.id, name: str(r.name), sku: str(r.sku), barcode: str(r.barcode), variantOf: str(r.variant_of), variantLabel: str(r.variant_label), quantity: num(r.quantity), unit: str(r.unit), price: num(r.price), lowStock: r.low_stock === null || r.low_stock === undefined ? 5 : num(r.low_stock) }),
+    toUi: (r) => ({ id: r.id, name: str(r.name), sku: str(r.sku), barcode: str(r.barcode), variantOf: str(r.variant_of), variantLabel: str(r.variant_label), quantity: num(r.quantity), unit: str(r.unit), price: num(r.price), currencyCode: str(r.currency_code).toUpperCase(), lowStock: r.low_stock === null || r.low_stock === undefined ? 5 : num(r.low_stock) }),
     toDb: (i) => ({ name: str(i.name), sku: str(i.sku), barcode: str(i.barcode), variant_of: i.variantOf || null, variant_label: str(i.variantLabel), quantity: num(i.quantity), unit: str(i.unit), price: num(i.price), low_stock: i.lowStock === "" || i.lowStock === undefined ? 5 : num(i.lowStock) }),
   },
   services: {
-    toUi: (r) => ({ id: r.id, name: str(r.name), rate: num(r.rate), gstRate: num(r.gst_rate), description: str(r.description) }),
+    toUi: (r) => ({ id: r.id, name: str(r.name), rate: num(r.rate), currencyCode: str(r.currency_code).toUpperCase(), gstRate: num(r.gst_rate), description: str(r.description) }),
     toDb: (i) => ({ name: str(i.name), rate: num(i.rate), gst_rate: num(i.gstRate), description: str(i.description) }),
   },
   leads: {
-    toUi: (r) => ({ id: r.id, name: str(r.name), phone: str(r.phone), email: str(r.email), company: str(r.company), source: str(r.source), requirement: str(r.requirement), value: num(r.value), stage: str(r.stage), score: num(r.score), nextFollowUpAt: str(r.next_follow_up_at), ownerId: str(r.owner_id) }),
+    toUi: (r) => ({ id: r.id, name: str(r.name), phone: str(r.phone), email: str(r.email), company: str(r.company), source: str(r.source), requirement: str(r.requirement), value: num(r.value), currencyCode: str(r.currency_code).toUpperCase(), stage: str(r.stage), score: num(r.score), nextFollowUpAt: str(r.next_follow_up_at), ownerId: str(r.owner_id) }),
     toDb: (i) => ({ name: str(i.name), phone: str(i.phone), email: str(i.email), company: str(i.company), source: str(i.source), requirement: str(i.requirement), value: num(i.value), stage: str(i.stage), score: Math.max(0, Math.min(100, num(i.score))), next_follow_up_at: i.nextFollowUpAt || null, owner_id: i.ownerId || null }),
   },
   quotations: {
-    toUi: (r) => ({ id: r.id, number: str(r.number), clientName: str(r.client_name), date: str(r.date).slice(0, 10), total: num(r.total), status: str(r.status) || "draft", taxRate: num(r.tax_rate), items: Array.isArray(r.items) ? r.items : [] }),
+    toUi: (r) => ({ id: r.id, number: str(r.number), clientName: str(r.client_name), date: str(r.date).slice(0, 10), total: num(r.total), currencyCode: str(r.currency_code).toUpperCase(), status: str(r.status) || "draft", taxRate: num(r.tax_rate), items: Array.isArray(r.items) ? r.items : [] }),
     toDb: (i) => ({ number: str(i.number), client_name: str(i.clientName), date: dateOrNull(i.date), total: num(i.total), status: i.status === "sent" ? "sent" : "draft", tax_rate: num(i.taxRate), items: Array.isArray(i.items) ? i.items : [] }),
   },
 };
@@ -151,7 +151,7 @@ const invoiceToUi = (r) => {
     id: r.id, number: str(r.number), clientName: str(r.client_name), clientEmail: str(r.client_email), businessName: str(r.business_name),
     invoiceSnapshot: r.invoice_snapshot && typeof r.invoice_snapshot === "object" ? r.invoice_snapshot : null,
     total: num(r.total), cgst: num(r.cgst), sgst: num(r.sgst), igst: num(r.igst), taxValue: num(r.tax_value), subtotal: num(r.subtotal),
-    issueDate: str(r.issue_date).slice(0, 10), dueDate: str(r.due_date).slice(0, 10), createdDate: str(r.created_at), currency: r.currency || "INR",
+    issueDate: str(r.issue_date).slice(0, 10), dueDate: str(r.due_date).slice(0, 10), createdDate: str(r.created_at), currency: r.currency || str(r.invoice_snapshot?.currency).toUpperCase() || "",
     itemCount: items.length, taxMode: r.tax_mode || "split", taxRate: num(r.tax_rate), discountType: r.discount_type || "percent", discount: num(r.discount), notes: str(r.notes), terms: str(r.terms), status: r.status || "Pending", isDraft: !!r.is_draft,
     reminder: { enabled: !!r.reminder_enabled, language: r.reminder_language === "hi" ? "hi" : "en" },
     items: restoredItems,
@@ -392,106 +392,10 @@ export async function saveInvoiceToServer(inv) {
   const sig = invoiceSignature(inv);
   const workspaceCountry = String(inv.workspaceCountryCode || "").trim().toUpperCase();
   const isGlobalWorkspaceInvoice = Boolean(workspaceCountry && workspaceCountry !== "IN");
-  if (APP_EDITION === "global" || isGlobalWorkspaceInvoice) {
-    const already = _savedSignatures.get(sig);
-    if (already) return already;
-    const currency = String(inv.currency || inv.workspaceCurrencyCode || "").trim().toUpperCase();
-    if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Workspace base currency could not be verified. Invoice PDF export is paused rather than defaulting to USD or INR.");
-    if (inv.workspaceCurrencyCode && currency !== String(inv.workspaceCurrencyCode).trim().toUpperCase()) {
-      throw new Error("Invoice currency must match the workspace base currency. Multi-Currency applies only to additional currencies.");
-    }
-    const digits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits;
-    const scale = 10 ** digits;
-    const rawLines = (inv.items || []).map((item) => ({
-      description: str(item.description),
-      quantity: num(item.quantity),
-      unitPriceMinor: Math.round(num(item.rate) * scale),
-    }));
-    const subtotalMinor = rawLines.reduce((sum, item) => sum + Math.round(item.quantity * item.unitPriceMinor), 0);
-    const discountValue = Math.max(0, num(inv.discount));
-    const discountMinor = Math.round((inv.discountType === "percent"
-      ? subtotalMinor * Math.min(100, discountValue) / 100
-      : Math.min(subtotalMinor, discountValue * scale)));
-    let allocated = 0;
-    const items = rawLines.map((item, index) => {
-      const lineSubtotal = Math.round(item.quantity * item.unitPriceMinor);
-      const share = index === rawLines.length - 1
-        ? discountMinor - allocated
-        : (subtotalMinor > 0 ? Math.floor(discountMinor * lineSubtotal / subtotalMinor) : 0);
-      allocated += share;
-      return {
-        description: item.description,
-        quantity: item.quantity,
-        unit_price_minor: item.unitPriceMinor,
-        discount_minor: share,
-      };
-    });
-    if (!items.length || items.some((item) => !item.description || !Number.isFinite(item.quantity) || item.quantity <= 0)) {
-      throw new Error("Add valid invoice lines before saving this Global draft.");
-    }
-    const requestKeyName = tenantKey(`global-draft-request:${sig}`);
-    let idempotencyKey = "";
-    try { idempotencyKey = localStorage.getItem(requestKeyName) || ""; } catch { /* use a fresh in-memory key */ }
-    if (!/^[0-9a-f-]{36}$/i.test(idempotencyKey)) {
-      idempotencyKey = typeof inv.globalDraftRequestId === "string" && /^[0-9a-f-]{36}$/i.test(inv.globalDraftRequestId)
-        ? inv.globalDraftRequestId
-        : crypto.randomUUID();
-      try { localStorage.setItem(requestKeyName, idempotencyKey); } catch { /* key still applies to this request */ }
-    }
-    const clientKeyName = tenantKey(`global-client-id:${sig}`);
-    let clientId = "";
-    try { clientId = localStorage.getItem(clientKeyName) || ""; } catch { /* resolve from the client list */ }
-    if (!/^[0-9a-f-]{36}$/i.test(clientId)) {
-      const clientName = str(inv.client?.name || inv.client?.company).trim();
-      const clientEmail = str(inv.client?.email).trim().toLowerCase();
-      const clientPhone = str(inv.client?.phone).trim();
-      const clientTaxNumber = str(inv.client?.gstin).trim();
-      const clientAddress = str(inv.client?.address).trim();
-      const clientList = await api.functions.invoke("workspaceRecords", { table:"clients", action:"list", limit:100 });
-      const knownClients = clientList?.data?.records || [];
-      const existingClient = clientEmail
-        ? knownClients.find((client) => String(client.email || "").trim().toLowerCase() === clientEmail)
-        : clientPhone
-          ? knownClients.find((client) => String(client.phone || "").replace(/\D/g, "") === clientPhone.replace(/\D/g, "")
-            && String(client.name || "").trim().toLowerCase() === clientName.toLowerCase())
-          : knownClients.filter((client) => String(client.name || "").trim().toLowerCase() === clientName.toLowerCase()).length === 1
-            ? knownClients.find((client) => String(client.name || "").trim().toLowerCase() === clientName.toLowerCase())
-            : null;
-      if (existingClient?.id) {
-        clientId = existingClient.id;
-      } else {
-        const createdClient = await api.functions.invoke("workspaceRecords", {
-          table:"clients",
-          action:"create",
-          values:{
-            name:clientName,
-            email:clientEmail || null,
-            phone:clientPhone || null,
-            tax_registration_number:clientTaxNumber || null,
-            billing_address:{ formatted:clientAddress },
-          },
-        });
-        clientId = createdClient?.data?.record?.id || createdClient?.data?.records?.[0]?.id || "";
-      }
-      if (!/^[0-9a-f-]{36}$/i.test(clientId)) throw new Error("The Global customer record could not be saved.");
-      try { localStorage.setItem(clientKeyName, clientId); } catch { /* the server record remains available */ }
-    }
-    const response = await api.functions.invoke("globalInvoices", {
-      action: "create_draft",
-      client_id: clientId,
-      currency_code: currency,
-      issue_date: dateOrNull(inv.issueDate) || new Date().toISOString().slice(0, 10),
-      due_date: dateOrNull(inv.dueDate),
-      notes: [inv.notes, inv.terms].filter(Boolean).join("\\n\\n").slice(0, 4000),
-      items,
-      idempotency_key: idempotencyKey,
-    });
-    const saved = response?.data?.invoice;
-    if (!saved?.id) throw new Error("The Global draft invoice could not be saved.");
-    const result = { id: saved.id, number: saved.invoice_number, status: "draft", currency, idempotencyKey };
-    _savedSignatures.set(sig, result);
-    return result;
-  }
+  const workspaceCurrency = String(inv.workspaceCurrencyCode || "").trim().toUpperCase();
+  const currency = String(inv.currency || workspaceCurrency || (workspaceCountry === "IN" ? "INR" : "")).trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Workspace base currency could not be verified. Invoice PDF export is paused rather than defaulting to INR.");
+  if (workspaceCurrency && currency !== workspaceCurrency) throw new Error("Invoice currency must match the workspace base currency. Additional currencies require an enabled plan feature.");
   const already = _savedSignatures.get(sig);
   if (already) return already; // same invoice downloaded or shared again: do not create a duplicate
   const payload = {
@@ -504,12 +408,12 @@ export async function saveInvoiceToServer(inv) {
     tax_rate: num(inv.taxRate),
     discount_type: inv.discountType === "flat" ? "flat" : "percent",
     discount: num(inv.discount),
-    is_draft: false,
+    is_draft: isGlobalWorkspaceInvoice,
     status: "Pending",
     client_name: str(inv.client?.name), client_email: str(inv.client?.email), business_name: str(inv.business?.name),
     issue_date: dateOrNull(inv.issueDate) || new Date().toISOString().slice(0, 10),
     due_date: dateOrNull(inv.dueDate),
-    currency: inv.currency || "INR", notes: str(inv.notes), terms: str(inv.terms),
+    currency, notes: str(inv.notes), terms: str(inv.terms),
     invoice_snapshot: inv && typeof inv === "object" ? { ...inv, design: String(inv.design || "classic") } : null,
   };
   const res = await api.functions.invoke("saveInvoice", payload);

@@ -26,7 +26,7 @@ const GLOBAL_NAV = [
 export default function AppLayout({ children }) {
   const { role } = useRole();
   const { user, logout } = useAuth();
-  const { features: workspaceFeatures } = useWorkspaceFeatures(user?.id);
+  const { features: workspaceFeatures } = useWorkspaceFeatures(user?.workspace_id);
   const { canAccess, openPaywall } = usePaywall();
   const isGlobal = APP_EDITION === "global";
   const items = navItems.filter((i) => {
@@ -53,7 +53,7 @@ export default function AppLayout({ children }) {
                 <span className="truncate text-[11px] text-muted-foreground">{user?.workspace_name} · {getCountryByCode(user?.country_code)?.name || user?.country_code} · {user?.currency_code}</span>
               </div>
             ) : (
-              <span className="hidden rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-semibold text-violet-800 sm:inline-flex">India Workspace · {getCountryByCode(user?.country_code)?.name || "India"}</span>
+              <span className="hidden rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-semibold text-violet-800 sm:inline-flex">Workspace · {getCountryByCode(user?.country_code)?.name || "Choose country"}</span>
             )}
           </div>
           {isGlobal ? (

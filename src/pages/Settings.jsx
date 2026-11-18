@@ -1,6 +1,6 @@
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
-import { backend as db, APP_EDITION } from '@/api/backendClient';
+import { backend as db, APP_EDITION, isUnifiedBuild } from '@/api/backendClient';
 
 import { useEffect, useState } from "react";
 import { Settings as SettingsIcon, Check, Bell, Send, Loader2, ShieldCheck } from "lucide-react";
@@ -24,16 +24,17 @@ export default function Settings() {
   return (
     <PageShell icon={SettingsIcon} title="Settings" subtitle="Defaults applied across your workspace.">
       <div className="space-y-4 rounded-xl border bg-card p-5">
-        {APP_EDITION === "global" ? (
+        {isUnifiedBuild || APP_EDITION === "global" ? (
           <div className="rounded-lg border p-3">
             <p className="text-[12px] font-semibold text-muted-foreground">Workspace base currency</p>
             <p className="mt-1 text-lg font-bold">{user?.currency_code || "—"}</p>
-            <p className="text-[11px] text-muted-foreground">Controlled by the selected workspace country. Multi-currency is a separate feature.</p>
+            <p className="text-[11px] text-muted-foreground">Controlled by the country you selected during Workspace setup. Currency conversion is never applied automatically.</p>
           </div>
         ) : (
           <>
             <label className="block text-[12px] font-semibold text-muted-foreground">Default invoice currency<select className={inputCls} value={settings.currency} onChange={(e) => set("currency", e.target.value)}>{SUPPORTED_CURRENCIES.map((currency) => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select></label>
-            <label className="block text-[12px] font-semibold text-muted-foreground">Default GST rate<select className={inputCls} value={settings.taxRate} onChange={(e) => set("taxRate", Number(e.target.value))}><option value="0">0%</option><option value="5">5%</option><option value="12">12%</option><option value="18">18%</option><option value="28">28%</option></select></label>
+            {user?.country_code === "IN" && <label className="block text-[12px] font-semibold text-muted-foreground">Default GST rate<select className={inputCls} value={settings.taxRate} onChange={(e) => set("taxRate", Number(e.target.value))}><option value="0">0%</option><option value="5">5%</option><option value="12">12%</option><option value="18">18%</option><option value="28">28%</option></select></label>}
+            {user?.country_code && user.country_code !== "IN" && <p className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">Tax defaults are not enabled until verified tax rules are available for your workspace country.</p>}
           </>
         )}
         <div className="flex items-center justify-between rounded-lg border p-3"><div><p className="text-[13px] font-semibold">Dark theme</p><p className="text-[11px] text-muted-foreground">Toggle the workspace appearance.</p></div><button onClick={() => setDark(!dark)} className={`relative h-6 w-11 rounded-full transition-colors ${dark ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${dark ? "left-[22px]" : "left-0.5"}`} /></button></div>
@@ -45,8 +46,8 @@ export default function Settings() {
         <p className="mb-3 mt-1 text-xs text-muted-foreground">Choose the language of the app. You can change it any time in Settings.</p>
         <LanguageSwitcher showHindi={APP_EDITION !== "global"} />
       </div>
-      <div className="mt-4"><WorkspaceCountrySettings lockCountry={false} /></div>
-      {APP_EDITION === "global" ? <div className="mt-4 rounded-xl border bg-card p-4"><p className="text-sm font-semibold">Email integrations</p><p className="mt-1 text-xs text-muted-foreground">Automated payment reminders are not enabled for Global workspaces yet. India-only reminder settings are hidden here.</p></div> : <div className="mt-4"><EmailSettingsCard /></div>}
+      <div className="mt-4"><WorkspaceCountrySettings lockCountry={true} /></div>
+      {APP_EDITION === "global" || user?.country_code !== "IN" ? <div className="mt-4 rounded-xl border bg-card p-4"><p className="text-sm font-semibold">Email integrations</p><p className="mt-1 text-xs text-muted-foreground">Automated invoice payment reminders are not enabled for this Workspace country yet.</p></div> : <div className="mt-4"><EmailSettingsCard /></div>}
     </PageShell>
   );
 }

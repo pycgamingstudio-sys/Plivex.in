@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { backend as db, supabase, setRuntimeEdition } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
 import { COUNTRY_REGISTRY, getCountryByCode, getCountryFlag } from "@/global/countries/country-registry.js";
-import { getSuggestedWorkspaceFeatures } from "@/lib/workspaceFeatures";
+import { getSuggestedWorkspaceFeatures, WORKSPACE_FEATURE_CATALOG } from "@/lib/workspaceFeatures";
 import { Check, ChevronLeft, ChevronRight, Globe2, MapPin, Search, Sparkles, Store, UserRound, Building2, ShieldCheck } from "lucide-react";
 
 const DRAFT_KEY = "plivex:workspace-onboarding:draft";
 function readDraft(key) { try { return JSON.parse(sessionStorage.getItem(key) || "{}"); } catch { return {}; } }
-const STEPS = ["Your business", "Country & region", "A local welcome", "Your work", "Review"];
+const STEPS = ["Country & region", "Your business", "A local welcome", "Your work", "Review"];
 
 export default function UnifiedWorkspaceOnboarding() {
   const { user } = useAuth();
@@ -21,7 +21,7 @@ export default function UnifiedWorkspaceOnboarding() {
   const [taxType, setTaxType] = useState(() => initial.taxType || "");
   const [taxNumber, setTaxNumber] = useState(() => initial.taxNumber || "");
   const [workTypes, setWorkTypes] = useState(() => Array.isArray(initial.workTypes) ? initial.workTypes : []);
-  const [features, setFeatures] = useState(() => Array.isArray(initial.features) ? initial.features : []);
+  const [features, setFeatures] = useState(() => Array.isArray(initial.features) ? initial.features : (Array.isArray(user?.optional_features) ? user.optional_features : []));
   const [countrySearch, setCountrySearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -37,17 +37,24 @@ export default function UnifiedWorkspaceOnboarding() {
     catch { /* Setup remains usable when browser storage is unavailable. */ }
   }, [draftKey, step, businessName, countryCode, localeCode, phone, taxType, taxNumber, workTypes, features]);
 
+  // One primary workspace profile: Freelancer OR Business. Optional modules remain configurable later.
   const chooseWorkType = (type) => {
-    const next = workTypes.includes(type) ? workTypes.filter((item) => item !== type) : [...workTypes, type];
+    const next = [type];
     setWorkTypes(next);
     setFeatures(getSuggestedWorkspaceFeatures(next, countryCode));
   };
 
+  const toggleFeature = (featureId) => {
+    setFeatures((current) => current.includes(featureId)
+      ? current.filter((id) => id !== featureId)
+      : [...current, featureId]);
+  };
+
   const next = () => {
     setError("");
-    if (step === 0 && !businessName.trim()) return setError("Please enter your business or professional workspace name.");
-    if (step === 1 && !country) return setError("Choose the country where your business is based.");
-    if (step === 3 && workTypes.length === 0) return setError("Choose Freelancer, Business, or both to personalize your workspace.");
+    if (step === 0 && !country) return setError("Choose the country where your business is based.");
+    if (step === 1 && !businessName.trim()) return setError("Please enter your business or professional workspace name.");
+    if (step === 3 && workTypes.length === 0) return setError("Choose Freelancer or Business to personalize your workspace.");
     setStep((value) => Math.min(4, value + 1));
   };
 
@@ -60,31 +67,18 @@ export default function UnifiedWorkspaceOnboarding() {
       const selectedLocale = localeCode || locales[0];
       const { data: current } = await supabase.auth.getUser();
       if (!current?.user) throw new Error("Your sign-in session expired. Please sign in again.");
-      const previousMetadata = current.user.user_metadata || {};
-      const metadata = {
-        ...previousMetadata,
-        full_name: businessName.trim().slice(0, 160),
-        signup_country_code: country.code,
-        signup_locale_code: selectedLocale,
-        plivex_work_types: workTypes,
-        plivex_workspace_features: features,
-        ...(phone.trim() ? { phone: phone.trim() } : {}),
-      };
-      const { error: metadataError } = await supabase.auth.updateUser({ data: metadata });
-      if (metadataError) throw metadataError;
-
-      if (country.code === "IN") {
-        const result = await db.functions.invoke("ensureOwnerRole", {
-          countryCode: country.code, localeCode: selectedLocale, businessName: businessName.trim(),
-        });
-        if (!result?.data?.ok) throw new Error(result?.data?.error || "Your India workspace could not be created.");
-      } else {
-        const result = await db.functions.invoke("globalEnsureOwner", {
-          countryCode: country.code, localeCode: selectedLocale, businessName: businessName.trim(),
-        });
-        if (!result?.data?.ok) throw new Error(result?.data?.error || "Your workspace could not be created.");
-      }
-      setRuntimeEdition(country.code === "IN" ? "india" : "global");
+      // One canonical workspace provisioning endpoint receives the explicit choices.
+      // No country, work type, feature selection or phone value is inferred from auth metadata.
+      const result = await db.functions.invoke("ensureOwnerRole", {
+        countryCode: country.code,
+        localeCode: selectedLocale,
+        businessName: businessName.trim(),
+        businessType: workTypes[0],
+        optionalFeatures: features,
+        phone: phone.trim() || null,
+      });
+      if (!result?.data?.ok) throw new Error(result?.data?.error || "Your workspace could not be created.");
+      setRuntimeEdition("india");
 
       if (taxType.trim() || taxNumber.trim()) {
         try {
@@ -93,7 +87,7 @@ export default function UnifiedWorkspaceOnboarding() {
             values: {
               tax_registration_type: taxType.trim() || null,
               tax_registration_number: taxNumber.trim() || null,
-              tax_registration_status: taxNumber.trim() ? "registered" : "unregistered",
+              tax_registration_status: taxNumber.trim() ? "pending" : "unregistered",
             },
           });
           if (taxResult?.error || !taxResult?.data?.record) throw taxResult?.error || new Error("Tax profile save was not confirmed.");
@@ -133,18 +127,10 @@ export default function UnifiedWorkspaceOnboarding() {
 
         <div key={step} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-8 sm:py-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
           {step === 0 && <>
-            <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><Store className="h-6 w-6" /></div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Let's start with your business.</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Give your workspace a name. You can add your legal and billing details later.</p>
-            <label className="mt-7 block text-sm font-semibold">Business or workspace name <span className="text-rose-600">*</span>
-              <input autoFocus required maxLength={160} value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="e.g. Sharma Traders" className="mt-2 h-13 w-full rounded-xl border border-slate-200 px-4 text-base outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" />
-            </label>
-          </>}
-
-          {step === 1 && <>
             <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><Globe2 className="h-6 w-6" /></div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Where is your business based?</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Choose the country where your business operates. We'll configure your workspace for that region.</p>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Choose your country.</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Choose where your business or independent work is based. Plivex will configure your one Workspace for that country.</p>
+            {user?.workspace_id && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900"><strong>Existing Workspace review:</strong> Previous country setting: {getCountryByCode(user?.country_code)?.name || user?.country_code || "not recorded"}. Please select your country again and choose Freelancer or Business. Your account and saved records are being preserved; historical invoice and expense currencies will not be converted. If records have conflicting or unknown currency, Plivex will not relabel them.</div>}
             <div className="mt-5 rounded-2xl border border-violet-100 bg-violet-50/70 p-4 text-sm leading-6 text-violet-950">
               <div className="flex items-start gap-2"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-violet-700" /><div><p className="font-semibold">A quick note before you choose</p><p className="mt-1 text-violet-900/80">Your country sets your workspace's base currency, regional formats and country-specific settings. Changing it after workspace creation requires a controlled reset or migration and may affect existing records. Please review your selection before continuing.</p></div></div>
             </div>
@@ -161,6 +147,15 @@ export default function UnifiedWorkspaceOnboarding() {
             </div>
             {filteredCountries.length === 0 && <p className="mt-4 text-sm text-slate-500">No matching country found. Try another search.</p>}
             <p className="mt-4 text-xs leading-5 text-slate-400">Your country selection does not verify tax residency or guarantee local tax compliance.</p>
+          </>}
+
+          {step === 1 && <>
+            <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><Store className="h-6 w-6" /></div>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Let's set up your workspace.</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Give your workspace a name. You can add your legal and billing details later.</p>
+            <label className="mt-7 block text-sm font-semibold">Business or professional name <span className="text-rose-600">*</span>
+              <input autoFocus required maxLength={160} value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="e.g. Sharma Traders" className="mt-2 h-13 w-full rounded-xl border border-slate-200 px-4 text-base outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" />
+            </label>
           </>}
 
           {step === 2 && country && <>
@@ -182,13 +177,22 @@ export default function UnifiedWorkspaceOnboarding() {
           {step === 3 && <>
             <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><Sparkles className="h-6 w-6" /></div>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">What's your work based on?</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Choose the options that best describe your work. You can select one or both.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Choose one primary profile. You can add optional tools later through More Features.</p>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <button type="button" onClick={() => chooseWorkType("freelancer")} aria-pressed={workTypes.includes("freelancer")} className={`rounded-2xl border p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${workTypes.includes("freelancer") ? "border-violet-500 bg-violet-50 ring-2 ring-violet-100" : "border-slate-200 hover:border-violet-200"}`}><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-100 text-violet-700"><UserRound className="h-5 w-5" /></span><span className="mt-4 block text-base font-bold">Freelancer</span><span className="mt-1 block text-xs leading-5 text-slate-500">For independent professionals and service providers managing clients, quotations, expenses and follow-ups.</span>{workTypes.includes("freelancer") && <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-violet-700"><Check className="h-4 w-4" />Selected</span>}</button>
               <button type="button" onClick={() => chooseWorkType("business")} aria-pressed={workTypes.includes("business")} className={`rounded-2xl border p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${workTypes.includes("business") ? "border-violet-500 bg-violet-50 ring-2 ring-violet-100" : "border-slate-200 hover:border-violet-200"}`}><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><Building2 className="h-5 w-5" /></span><span className="mt-4 block text-base font-bold">Business</span><span className="mt-1 block text-xs leading-5 text-slate-500">For shops and growing teams that manage sales, purchases, stock, warehouses and operations.</span>{workTypes.includes("business") && <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-violet-700"><Check className="h-4 w-4" />Selected</span>}</button>
             </div>
-            <p className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">Your dashboard will be arranged around these choices. You can add or remove optional features at any time. Invoices, Stock and Team Members remain available as core workspace tools.</p>
+            <p className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">Your dashboard recommendations will follow this choice. You can add or remove optional features at any time. Invoices and Quotations are available in every workspace. Business profiles also include Stock Inventory and Team Members. You can add or remove optional tools later.</p>
             <p className="mt-3 text-xs font-medium text-violet-700">Suggested tools: {features.length ? selectedFeatureLabels.join(" · ") : "Choose a work type to see recommendations."}</p>
+            <div className="mt-5 rounded-2xl border border-slate-200 p-4">
+              <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-bold text-slate-900">Choose your optional features</h2><p className="mt-1 text-xs leading-5 text-slate-500">Select the tools you want in your Workspace. You can change these later in More Features.</p></div><span className="shrink-0 rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700">{features.length} selected</span></div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {WORKSPACE_FEATURE_CATALOG.map((feature) => <label key={feature.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${features.includes(feature.id) ? "border-violet-300 bg-violet-50/60" : "border-slate-200 hover:border-violet-200"}`}>
+                  <input type="checkbox" checked={features.includes(feature.id)} onChange={() => toggleFeature(feature.id)} className="mt-0.5 h-4 w-4 accent-violet-700" />
+                  <span className="min-w-0"><span className="block text-sm font-semibold text-slate-800">{feature.label}</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">{feature.description}</span></span>
+                </label>)}
+              </div>
+            </div>
           </>}
 
           {step === 4 && <>
@@ -209,7 +213,7 @@ export default function UnifiedWorkspaceOnboarding() {
 
         <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-100 bg-white px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-8">
           <button type="button" onClick={() => { setError(""); setStep((value) => Math.max(0, value - 1)); }} disabled={step === 0 || loading} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40"><ChevronLeft className="h-4 w-4" />Back</button>
-          {step === 2 && <button type="button" onClick={() => { setPhone(""); setError(""); setStep(3); }} disabled={loading} className="min-h-11 rounded-xl px-3 text-xs font-semibold text-slate-500 transition hover:bg-slate-50">Skip mobile number</button>}
+          {step === 2 && <button type="button" onClick={() => { setPhone(""); setError(""); }} disabled={loading} className="min-h-11 rounded-xl px-3 text-xs font-semibold text-slate-500 transition hover:bg-slate-50">Skip mobile number</button>}
           {step < 4 ? <button type="button" onClick={next} disabled={loading} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-700 px-6 text-sm font-bold text-white shadow-md shadow-violet-200 transition hover:-translate-y-0.5 hover:bg-violet-800 disabled:opacity-60">Continue<ChevronRight className="h-4 w-4" /></button> : <button type="button" onClick={createWorkspace} disabled={loading || !country || !workTypes.length} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-700 px-6 text-sm font-bold text-white shadow-md shadow-violet-200 transition hover:-translate-y-0.5 hover:bg-violet-800 disabled:opacity-60">{loading ? "Creating workspace…" : "Create my workspace"}<Sparkles className="h-4 w-4" /></button>}
         </footer>
       </section>

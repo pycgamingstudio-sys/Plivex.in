@@ -37,15 +37,15 @@ const TABS = [
   { id: "reconciliation", label: "Reconcile", icon: RefreshCw },
 ];
 
-export default function Dashboard({ initialTab }) {
+export default function Dashboard({ initialTab, initialSub, initialIntent }) {
   const [tab, setTab] = useState(initialTab || "dashboard");
-  const [intent, setIntent] = useState(null);
+  const [intent, setIntent] = useState(initialIntent || null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const navigate = useNavigate();
   const { isPremium, openPaywall, planName, plan, planLoading, canAccess } = usePaywall();
   const { user } = useAuth();
-  const { features: workspaceFeatures } = useWorkspaceFeatures(user?.id);
+  const { features: workspaceFeatures, ready: workspaceFeaturesReady } = useWorkspaceFeatures(user?.workspace_id);
   const { role, isAccountant } = useRole();
   useEffect(() => {
     seedDashboard();
@@ -59,6 +59,7 @@ export default function Dashboard({ initialTab }) {
   const consume = () => setIntent(null);
   const visibleTabs = TABS.filter((t) => {
     if (!canAccessTab(role, t.id)) return false;
+    if (user?.workspace_type === "freelancer" && ["stock", "team"].includes(t.id)) return false;
     if (t.id === "warehouses") return workspaceFeatures.includes("inventoryWorkspace");
     if (t.id === "purchase" || t.id === "reconciliation") return workspaceFeatures.includes("expenses");
     if (t.id === "reports") return workspaceFeatures.includes("reports");
@@ -66,13 +67,17 @@ export default function Dashboard({ initialTab }) {
     return true;
   });
   const active = visibleTabs.find((t) => t.id === tab) || visibleTabs[0] || TABS[0];
-  useEffect(() => { if (!visibleTabs.some((item) => item.id === tab)) setTab("dashboard"); }, [visibleTabs, tab]);
+  useEffect(() => {
+    if (!workspaceFeaturesReady) return;
+    if (!visibleTabs.some((item) => item.id === tab)) setTab("dashboard");
+  }, [visibleTabs, tab, workspaceFeaturesReady]);
   const hasGstrAccess = APP_EDITION === "global" || ["basic", "pro"].includes(String(plan || "").toLowerCase());
   const featureRouteEnabled = (path) => {
     if (path === "/crm" || path === "/client-database") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
     if (path === "/inventory-procurement") return workspaceFeatures.includes("inventoryWorkspace");
     if (["/usage-reports", "/tax-summary", "/account-activity"].includes(path)) return workspaceFeatures.includes("reports");
     if (path === "/payment-logs") return workspaceFeatures.includes("expenses");
+    if (path === "/team-management") return user?.workspace_type === "business";
     if (path === "/templates" || path === "/service-catalog") return workspaceFeatures.includes("quotations");
     return true;
   };
@@ -142,7 +147,7 @@ export default function Dashboard({ initialTab }) {
             <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2"><active.icon className="h-5 w-5 shrink-0 text-[#6D28D9]" /><h1 className="whitespace-nowrap text-[15px] font-bold tracking-[-0.03em] sm:text-[17px]">{active.label}</h1></div>
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 sm:inline">{`● ${planName || "Free"}`}</span>
-              {APP_EDITION === "india" && <span data-testid="active-workspace-edition" className="hidden rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-800 sm:inline-flex">India Workspace · {getCountryByCode(user?.country_code)?.name || "India"}</span>}
+              <span data-testid="active-workspace-edition" className="hidden rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-800 sm:inline-flex">Workspace · {getCountryByCode(user?.country_code)?.name || "Choose country"}</span>
               <span className="hidden items-center gap-1.5 rounded-full bg-[#6D28D9]/10 px-2.5 py-1 text-[11px] font-semibold text-[#6D28D9] sm:inline-flex"><Sparkles className="h-3 w-3" />Current Plan: {planName}</span>
               {!isAccountant && <button onClick={createInvoice} aria-label="Create new invoice" title="Create new invoice" className="flex h-9 items-center gap-1 rounded-lg bg-[#6D28D9] px-2 sm:px-2.5 text-[11px] font-bold text-white hover:bg-[#7C3AED] md:hidden">+ <span>Invoice</span></button>}
               <button onClick={() => setAccountOpen(true)} aria-label="Account" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E5E7EB] p-0.5 hover:bg-slate-50 sm:w-auto sm:gap-2 sm:py-1 sm:pl-1 sm:pr-2.5">
@@ -155,7 +160,7 @@ export default function Dashboard({ initialTab }) {
         </header>
         <main className="plivex-dashboard-main p-4 pb-24 sm:p-6 md:pb-6">
           {tab === "dashboard" && <DashboardTab onNavigate={go} onCreateInvoice={createInvoice} role={role} teamUnlocked={canAccess("team_management")} />}
-          {tab === "sales" && <SalesTab intent={intent} onConsumeIntent={consume} />}
+          {tab === "sales" && <SalesTab intent={intent} initialSub={initialSub} onConsumeIntent={consume} />}
           {tab === "purchase" && <PurchaseTab intent={intent} onConsumeIntent={consume} />}
           {tab === "reports" && <ReportsTab />}
           {tab === "crm" && <CrmTab intent={intent} onConsumeIntent={consume} />}

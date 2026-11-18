@@ -44,21 +44,23 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => null);
     const localeCode = typeof body?.localeCode === "string" ? body.localeCode.trim() : "";
-    if (!["en-IN", "hi-IN"].includes(localeCode)) {
-      return jsonResponse({ error: "Choose Hindi or English for the India workspace." }, 400, origin);
-    }
-
-    const { data, error } = await auth.admin.rpc("update_india_workspace_locale", {
+    const { data, error } = await auth.admin.rpc("update_workspace_locale_atomic", {
       p_user_id: auth.user.id,
       p_locale_code: localeCode,
     });
     if (error) {
-      console.error("India workspace locale update failed", { code: error.code });
+      console.error("Workspace locale update failed", { code: error.code });
       return jsonResponse({ error: "Workspace language could not be saved." }, 503, origin);
     }
     if (!data?.ok) {
-      const status = data?.reason === "workspace_owner_required" ? 403 : 409;
-      return jsonResponse({ error: "Only the India workspace owner can update this language setting.", reason: data?.reason }, status, origin);
+      const status = data?.reason === "workspace_owner_required" ? 403
+        : data?.reason === "unsupported_locale" ? 400 : 409;
+      return jsonResponse({
+        error: data?.reason === "unsupported_locale"
+          ? "Choose a locale supported by your selected Workspace country."
+          : "Only the Workspace owner can update this language setting.",
+        reason: data?.reason,
+      }, status, origin);
     }
     return jsonResponse({ ok: true, countryCode: data.country_code, localeCode: data.locale_code }, 200, origin);
   } catch (error) {

@@ -38,22 +38,20 @@ test("Global stock movements use the authenticated atomic stock ledger", async (
   assert.match(migration, /insufficient_stock/);
 });
 
-test("Global drafts remain drafts, can be securely shared, and only become issued through the server issuance gate", async () => {
+test("PLIVEX ONE saves non-India invoices as canonical public drafts", async () => {
   const stores = await read("../../lib/stores.js");
   const home = await read("../../pages/Home.jsx");
-  const backend = await read("../../api/backendClient.js");
-  assert.match(stores, /APP_EDITION === "global"/);
-  assert.match(stores, /action: "create_draft"/);
-  assert.match(stores, /status: "draft"/);
-  assert.match(backend, /global-invoices/);
-  assert.match(backend, /global-stock-movements/);
-  assert.match(home, /DRAFT · NOT A TAX INVOICE/);
-  assert.doesNotMatch(home, /Global invoices are draft-only/);
-  assert.match(home, /createInvoiceShareLink\(savedInvoice\.id, user\?\.workspace_id/);
-  assert.match(home, /action:"issue_commercial"/);
+  const saveInvoice = await read("../../../supabase/functions/save-invoice/index.ts");
   const shareHelper = await read("../../lib/invoiceShare.js");
-  assert.match(shareHelper, /global-invoice-share/);
+  assert.match(stores, /is_draft: isGlobalWorkspaceInvoice/);
+  assert.match(stores, /Workspace base currency could not be verified/);
+  assert.doesNotMatch(stores, /action: "create_draft"/);
+  assert.match(saveInvoice, /body\?\.is_draft !== true/);
+  assert.match(saveInvoice, /globalTaxCalculation/);
+  assert.match(home, /const issuedInvoice = null/);
+  assert.doesNotMatch(home, /action:"capabilities"/);
+  assert.doesNotMatch(home, /action:"issue_commercial"/);
+  assert.match(home, /createInvoiceShareLink\(savedInvoice\.id, user\?\.workspace_id, false\)/);
+  assert.match(shareHelper, /invoice-share/);
   assert.match(home, /This is not an issued tax invoice; payment-provider collection is not connected yet/);
-  assert.match(home, /action:"capabilities"/);
-  assert.match(home, /action:"issue"/);
 });
