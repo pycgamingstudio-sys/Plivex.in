@@ -130,3 +130,13 @@ test("invoice country, currency and non-India draft rules are enforced below the
   assert.match(migration, /revoke all on function public\.save_invoice\(jsonb, jsonb, uuid\) from public, anon/);
   assert.match(migration, /grant execute on function public\.save_invoice\(jsonb, jsonb, uuid\) to authenticated, service_role/);
 });
+
+test("additional invoice currencies require verified India Pro entitlement at API and database layers", async () => {
+  const saveInvoice = await read("../../../supabase/functions/save-invoice/index.ts");
+  const migration = await read("../../../supabase/migrations/20261118121500_plivex_one_workspace_settings.sql");
+  assert.match(saveInvoice, /get_access_status/);
+  assert.match(saveInvoice, /accessStatus\?\.features\?\.multi_currency !== true/);
+  assert.match(migration, /v_access := public\.get_access_status\(new\.workspace_id\)/);
+  assert.match(migration, /v_multi_currency := coalesce\(\(v_access->'features'->>'multi_currency'\)::boolean, false\)/);
+  assert.match(migration, /if v_country <> 'IN' then[\s\S]*invoice_currency_must_match_workspace_base_currency/);
+});
