@@ -80,3 +80,13 @@ test("feature preference changes do not mutate or delete business records", asyn
   assert.match(helper, /window.dispatchEvent/);
   assert.match(library, /never delete business records/);
 });
+
+test("optional Workspace modules stay gated when users open direct URLs", async () => {
+  const app = await read("../../App.jsx");
+  assert.match(app, /function WorkspaceFeatureGate/);
+  assert.match(app, /WorkspaceFeatureGate feature="inventoryWorkspace"/);
+  assert.match(app, /WorkspaceFeatureGate anyOf=\{\["crm", "leads"\]\}/);
+  assert.match(app, /WorkspaceFeatureGate feature="reports"/);
+  assert.match(app, /WorkspaceFeatureGate feature="expenses"/);
+  assert.match(app, /WorkspaceFeatureGate businessOnly/);
+});
