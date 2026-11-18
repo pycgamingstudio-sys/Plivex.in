@@ -6,6 +6,7 @@ import { calculateInvoiceGlobalTax } from "@/global/tax/invoice-tax-integration.
 import { getCountryExperience } from "@/global/countries/country-experience.js";
 import { formatWorkspaceDate } from "@/global/localization/date-format.js";
 import { resolveGlobalInvoiceContext, canIssueCommercialInvoice, getGlobalInvoiceDocumentTitle, getGlobalInvoiceTaxDisclosure } from "@/global/invoices/invoice-readiness.js";
+import { normalizeGlobalInvoiceSnapshot, getGlobalInvoicePdfFilename } from "@/global/invoices/pdf-download.js";
 
 const today = () => {
   const d = new Date();
@@ -210,14 +211,21 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       setError("Select a saved Global invoice before downloading its PDF. If this invoice was just created, refresh the invoice list and select it again.");
       return;
     }
+    setError("");
     try {
-      const lineItems = items.filter((item) => item.invoice_id === invoice.id).sort((a,b) => a.sort_order-b.sort_order);
-      const snap = invoice.invoice_snapshot || {};
-      const invoiceCurrency = invoice.currency_code || snap.currency_code || currency;
-      if (!invoiceCurrency) throw new Error("This invoice has no saved currency snapshot.");
-      const invoiceCountry = snap.country_code || countryCode;
+      const lineItems = (Array.isArray(items) ? items : [])
+        .filter((item) => item?.invoice_id === invoice.id)
+        .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
+      const snap = normalizeGlobalInvoiceSnapshot(invoice.invoice_snapshot);
+      const invoiceCurrency = String(invoice.currency_code || snap.currency_code || currency || "").trim().toUpperCase();
+      if (!/^[A-Z]{3}$/.test(invoiceCurrency)) throw new Error("This invoice has no valid saved currency snapshot.");
+      // Validate the ISO currency before any PDF text is formatted.
+      new Intl.NumberFormat("en", { style: "currency", currency: invoiceCurrency });
+      const invoiceCountry = String(snap.country_code || countryCode || "").trim().toUpperCase();
       const experience = getCountryExperience(invoiceCountry);
-      const locale = snap.locale_code || CURRENCY_LOCALES[invoiceCurrency] || account?.locale_code || "en";
+      const locale = typeof snap.locale_code === "string" && snap.locale_code
+        ? snap.locale_code
+        : CURRENCY_LOCALES[invoiceCurrency] || account?.locale_code || "en";
       const requiresWorkspaceZone = experience?.timeZonePolicy === "workspace-select";
       const timeZone = account?.time_zone || (requiresWorkspaceZone ? "UTC" : experience?.timeZonePolicy || "UTC");
       const dateLabel = (value) => {
@@ -226,57 +234,82 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
         catch { return String(value); }
       };
       const registrationLabel = experience?.business.registrationLabel || "Tax registration";
-      const seller = snap.seller || {};
-      const buyer = snap.buyer || {};
+      const seller = snap.seller && typeof snap.seller === "object" ? snap.seller : {};
+      const buyer = snap.buyer && typeof snap.buyer === "object" ? snap.buyer : {};
       const doc = new jsPDF({ orientation:"portrait", unit:"mm", format:"a4" });
       const title = getGlobalInvoiceDocumentTitle(snap, invoice.status);
       doc.setFontSize(19); doc.text("PLIVEX · " + title, 16, 20);
       doc.setFontSize(9);
       if (invoice.status === "draft") doc.text("DRAFT — NOT ISSUED", 16, 26);
-      doc.text("Invoice: " + (snap.invoice_number || invoice.invoice_number || "DRAFT"), 16, 34);
+      doc.text("Invoice: " + String(snap.invoice_number || invoice.invoice_number || "DRAFT"), 16, 34);
       doc.text("Issue date: " + dateLabel(snap.issue_date || invoice.issue_date), 16, 40);
       doc.text("Due date: " + dateLabel(snap.due_date || invoice.due_date), 16, 46);
-      doc.text("Seller: " + (seller.legal_name || profile?.legal_name || "—"), 16, 58);
+      doc.text("Seller: " + String(seller.legal_name || profile?.legal_name || "—"), 16, 58);
       doc.text(doc.splitTextToSize("Address: " + String(seller.address || profile?.address || "—"), 175), 16, 64);
-      doc.text(registrationLabel + ": " + (seller.tax_registration_number || "—"), 16, 78);
+      doc.text(registrationLabel + ": " + String(seller.tax_registration_number || "—"), 16, 78);
       const client = clients.find((c) => c.id === invoice.client_id);
-      doc.text("Bill to: " + (buyer.name || client?.name || "Customer"), 16, 90);
-      if (buyer.email || client?.email) doc.text("Customer email: " + (buyer.email || client?.email), 16, 96);
+      doc.text("Bill to: " + String(buyer.name || client?.name || "Customer"), 16, 90);
+      if (buyer.email || client?.email) doc.text("Customer email: " + String(buyer.email || client.email), 16, 96);
       const drawTableHeader = (y) => {
         doc.setFontSize(8); doc.setFont(undefined, "bold");
-        doc.text("Description",16,y); doc.text("Qty",112,y,{align:"right"});
-        doc.text("Rate",148,y,{align:"right"}); doc.text("Amount",190,y,{align:"right"});
+        doc.text("Description", 16, y); doc.text("Qty", 112, y, { align: "right" });
+        doc.text("Rate", 148, y, { align: "right" }); doc.text("Amount", 190, y, { align: "right" });
         doc.setFont(undefined, "normal");
       };
       drawTableHeader(108);
       let y = 116;
-      const printableItems = Array.isArray(snap.items) && snap.items.length ? snap.items : lineItems;
+      const snapshotItems = Array.isArray(snap.items) ? snap.items : [];
+      const printableItems = snapshotItems.length ? snapshotItems : lineItems;
       for (const line of printableItems) {
-        const description = doc.splitTextToSize(String(line.description || "Item"), 82);
+        const description = doc.splitTextToSize(String(line?.description || "Item"), 82);
         const rowHeight = Math.max(7, description.length * 4.5);
         if (y + rowHeight > 265) { doc.addPage(); y = 20; drawTableHeader(y); y += 8; }
-        doc.text(description,16,y);
-        doc.text(String(line.quantity ?? "—"),112,y,{align:"right"});
-        doc.text(money(line.unit_price_minor || 0,invoiceCurrency),148,y,{align:"right"});
-        doc.text(money(line.line_total_minor || 0,invoiceCurrency),190,y,{align:"right"});
+        const quantity = line?.quantity === null || line?.quantity === undefined ? "—" : String(line.quantity);
+        const unitPriceMinor = Number.isFinite(Number(line?.unit_price_minor)) ? Number(line.unit_price_minor) : 0;
+        const lineTotalMinor = Number.isFinite(Number(line?.line_total_minor)) ? Number(line.line_total_minor) : 0;
+        doc.text(description, 16, y);
+        doc.text(quantity, 112, y, { align: "right" });
+        doc.text(money(unitPriceMinor, invoiceCurrency), 148, y, { align: "right" });
+        doc.text(money(lineTotalMinor, invoiceCurrency), 190, y, { align: "right" });
         y += rowHeight;
       }
       y += 10;
       if (y > 260) { doc.addPage(); y = 20; }
       doc.setFontSize(9);
-      doc.text("Subtotal: " + money(invoice.subtotal_minor,invoiceCurrency), 16, y); y += 7;
-      doc.text("Discount: " + money(invoice.discount_minor,invoiceCurrency), 16, y); y += 7;
+      const totalValue = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+      doc.text("Subtotal: " + money(totalValue(invoice.subtotal_minor), invoiceCurrency), 16, y); y += 7;
+      doc.text("Discount: " + money(totalValue(invoice.discount_minor), invoiceCurrency), 16, y); y += 7;
       if (snap.tax_status === "not_assessed" || snap.tax_status === "not_calculated") {
         doc.text("Tax: Not assessed by Plivex", 16, y); y += 7;
       } else {
         const taxName = experience?.business.taxName || "Tax";
-        doc.text(taxName + ": " + money(invoice.tax_minor,invoiceCurrency), 16, y); y += 7;
+        doc.text(taxName + ": " + money(totalValue(invoice.tax_minor), invoiceCurrency), 16, y); y += 7;
       }
-      doc.setFontSize(13); doc.text("Total: " + money(invoice.total_minor,invoiceCurrency), 16, y);
+      doc.setFontSize(13); doc.text("Total: " + money(totalValue(invoice.total_minor), invoiceCurrency), 16, y);
       doc.setFontSize(7);
-      doc.text(doc.splitTextToSize(getGlobalInvoiceTaxDisclosure(snap), 178), 16, Math.min(282, y + 14));
-      doc.save((snap.invoice_number || invoice.invoice_number || "Plivex-invoice") + ".pdf");
-    } catch (e) { setError(e.message || "Could not create invoice PDF."); }
+      doc.text(doc.splitTextToSize(String(getGlobalInvoiceTaxDisclosure(snap) || ""), 178), 16, Math.min(282, y + 14));
+
+      // Generate the PDF blob explicitly. This is more reliable in Android/mobile
+      // browsers than jsPDF's saveAs wrapper and avoids handing an empty file to it.
+      const blob = doc.output("blob");
+      if (!blob || typeof blob.size !== "number" || blob.size === 0) {
+        throw new Error("The invoice PDF was empty and could not be downloaded. Please try again.");
+      }
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = getGlobalInvoicePdfFilename(invoice, snap);
+      link.rel = "noopener";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+      setNotice("Invoice PDF generated. Check your browser downloads.");
+    } catch (e) {
+      console.error("[Plivex] Global invoice PDF export failed", e);
+      setError(e?.message || "Could not create invoice PDF. Please try again.");
+    }
   };
 
   const shareInvoice = async (invoice, channel) => {

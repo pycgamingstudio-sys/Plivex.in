@@ -1,4 +1,4 @@
-import { backend as db, supabase, APP_EDITION } from '@/api/backendClient';
+import { backend as db, supabase, APP_EDITION, isUnifiedBuild } from '@/api/backendClient';
 import { useAuth } from '@/lib/AuthContext';
 import { startCashfreeCheckout } from "@/lib/cashfree";
 
@@ -8,7 +8,7 @@ import { X, Check, Sparkles, Lock, Crown, Star, XCircle } from "lucide-react";
 import CurrentPlanCard from "@/components/CurrentPlanCard";
 import { toast } from "@/components/ui/use-toast";
 import { PLANS as DISPLAY_PLANS } from "@/lib/plans";
-import { GLOBAL_BILLING, formatPlanPrice } from "@/global/billing/pricing.js";
+import { GLOBAL_BILLING, formatPlanPrice, resolveWorkspaceBillingContext } from "@/global/billing/pricing.js";
 import { getCountryByCode } from "@/global/countries/country-registry.js";
 
 // Read subscription limits directly from the authoritative Supabase RPC.
@@ -276,34 +276,66 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   const { user, checkUserAuth } = useAuth();
   const [notice, setNotice] = useState("");
   const [billing, setBilling] = useState("monthly");
-  const [billingCountryCode, setBillingCountryCode] = useState(() => APP_EDITION === "global" ? String(user?.country_code || "").toUpperCase() : "IN");
+  const [resolvedBillingContext, setResolvedBillingContext] = useState({ loading: true, countryCode: "", currencyCode: "", edition: "", error: false });
   useEffect(() => {
     let active = true;
-    const loadCountry = async () => {
-      if (!user?.workspace_id) return;
-      if (APP_EDITION === "global") {
-        const candidate = String(user.country_code || "").trim().toUpperCase();
-        const candidateConfig = GLOBAL_BILLING[candidate];
-        const currencyMatches = !user.currency_code || candidateConfig?.currency === String(user.currency_code).toUpperCase();
-        const nextCountry = candidateConfig && currencyMatches ? candidate : "";
-        setBillingCountryCode(nextCountry);
-        if (!GLOBAL_BILLING[nextCountry]?.yearly) setBilling("monthly");
+    const loadBillingContext = async () => {
+      setResolvedBillingContext({ loading: true, countryCode: "", currencyCode: "", edition: "", error: false });
+      if (!user?.id || !user?.workspace_id) {
+        if (active) setResolvedBillingContext({ loading: false, countryCode: "", currencyCode: "", edition: "", error: true });
         return;
       }
+
+      // In the unified build, the Global auth RPC is the source of truth even
+      // when the legacy profile still contains India metadata. A Global
+      // membership wins; India is selected only after the server says no
+      // Global workspace exists for an explicitly India account.
+      if (isUnifiedBuild || APP_EDITION === "global") {
+        const { data, error } = await supabase.functions.invoke("global-auth-context", { body: {} });
+        const globalUser = data?.user;
+        if (!error && globalUser?.id === user.id && globalUser?.workspace_id) {
+          const countryCode = String(globalUser.country_code || "").trim().toUpperCase();
+          const currencyCode = String(globalUser.currency_code || "").trim().toUpperCase();
+          if (active) setResolvedBillingContext({
+            loading: false, countryCode, currencyCode,
+            edition: countryCode && countryCode !== "IN" ? "global" : "india", error: false,
+          });
+          return;
+        }
+        const profileCountry = String(user.country_code || "").trim().toUpperCase();
+        if (profileCountry === "IN" && APP_EDITION !== "global") {
+          if (active) setResolvedBillingContext({ loading: false, countryCode: "IN", currencyCode: "INR", edition: "india", error: false });
+          return;
+        }
+        if (active) setResolvedBillingContext({ loading: false, countryCode: "", currencyCode: "", edition: "", error: true });
+        return;
+      }
+
+      // Legacy India-only build: retain its existing business-profile lookup.
       const { data, error } = await supabase.from("business_profile").select("country_code").eq("workspace_id", user.workspace_id).maybeSingle();
-      if (!error && active) {
-        const nextCountry = typeof data?.country_code === "string" && GLOBAL_BILLING[data.country_code] ? data.country_code : "IN";
-        setBillingCountryCode(nextCountry);
-        if (!GLOBAL_BILLING[nextCountry]?.yearly) setBilling("monthly");
+      if (active) {
+        if (error) {
+          setResolvedBillingContext({ loading: false, countryCode: "", currencyCode: "", edition: "", error: true });
+        } else {
+          const countryCode = typeof data?.country_code === "string" && GLOBAL_BILLING[data.country_code] ? data.country_code : "IN";
+          setResolvedBillingContext({ loading: false, countryCode, currencyCode: GLOBAL_BILLING[countryCode]?.currency || "INR", edition: "india", error: false });
+        }
       }
     };
-    void loadCountry();
+    void loadBillingContext().catch(() => {
+      if (active) setResolvedBillingContext({ loading: false, countryCode: "", currencyCode: "", edition: "", error: true });
+    });
     return () => { active = false; };
-  }, [user?.workspace_id, user?.country_code, user?.currency_code]);
-  const selectedBillingConfig = GLOBAL_BILLING[billingCountryCode] || null;
-  const billingConfig = APP_EDITION === "global" && user?.currency_code && selectedBillingConfig?.currency !== String(user.currency_code).toUpperCase()
-    ? null
-    : selectedBillingConfig || (APP_EDITION === "global" ? null : GLOBAL_BILLING.IN);
+  }, [user?.id, user?.workspace_id, user?.country_code, isUnifiedBuild, APP_EDITION]);
+
+  const billingCountryCode = resolvedBillingContext.countryCode;
+  const isGlobalWorkspace = APP_EDITION === "global" || resolvedBillingContext.edition === "global";
+  const billingContext = resolvedBillingContext.loading
+    ? { ok: false, config: null, currencyCode: "" }
+    : isGlobalWorkspace
+      ? resolveWorkspaceBillingContext(billingCountryCode, resolvedBillingContext.currencyCode)
+      : { ok: !resolvedBillingContext.error, config: resolvedBillingContext.error ? null : GLOBAL_BILLING.IN, currencyCode: "INR" };
+  const billingConfig = billingContext.ok ? billingContext.config : null;
   const billingLocale = getCountryByCode(billingCountryCode)?.locales?.[0] || "en";
   const [phone, setPhone] = useState(() => { const digits = String(user?.phone || "").replace(/\D/g, ""); return digits.length > 10 && digits.startsWith("91") ? digits.slice(-10) : digits; });
   const [phonePrompt, setPhonePrompt] = useState(false);
@@ -315,13 +347,13 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
   const billingPeriod = billing === "yearly" && billingConfig?.yearly ? "yearly" : "monthly";
   const visiblePlans = billingConfig ? [
     { id: "free", name: "Free", price: formatPlanPrice(0, billingConfig.currency, billingLocale), period: "month", included: DISPLAY_PLANS.free.bullets, locked: [], accent: false, badge: null, checkoutPlan: null },
-    { id: "basic", name: "Basic", price: formatPlanPrice(billingConfig[billingPeriod].basic, billingConfig.currency, billingLocale), period: billingPeriod === "monthly" ? "month" : "year", included: DISPLAY_PLANS.basic.bullets, locked: [], accent: false, badge: null, checkoutPlan: APP_EDITION === "global" ? null : billingConfig.paymentEnabled ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "basic_monthly" : "basic_yearly")) : null, paymentUnavailable: APP_EDITION === "global" || !billingConfig.paymentEnabled },
-    { id: "pro", name: "Pro", price: formatPlanPrice(billingConfig[billingPeriod].pro, billingConfig.currency, billingLocale), period: billingPeriod === "monthly" ? "month" : "year", included: DISPLAY_PLANS.pro.bullets, locked: [], accent: true, badge: "MOST POPULAR", checkoutPlan: APP_EDITION === "global" ? null : billingConfig.paymentEnabled ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "pro_monthly" : "enterprise_yearly")) : null, paymentUnavailable: APP_EDITION === "global" || !billingConfig.paymentEnabled },
+    { id: "basic", name: "Basic", price: formatPlanPrice(billingConfig[billingPeriod].basic, billingConfig.currency, billingLocale), period: billingPeriod === "monthly" ? "month" : "year", included: DISPLAY_PLANS.basic.bullets, locked: [], accent: false, badge: null, checkoutPlan: isGlobalWorkspace ? null : billingConfig.paymentEnabled ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "basic_monthly" : "basic_yearly")) : null, paymentUnavailable: isGlobalWorkspace || !billingConfig.paymentEnabled },
+    { id: "pro", name: "Pro", price: formatPlanPrice(billingConfig[billingPeriod].pro, billingConfig.currency, billingLocale), period: billingPeriod === "monthly" ? "month" : "year", included: DISPLAY_PLANS.pro.bullets, locked: [], accent: true, badge: "MOST POPULAR", checkoutPlan: isGlobalWorkspace ? null : billingConfig.paymentEnabled ? PLANS.find((p) => p.id === (billingPeriod === "monthly" ? "pro_monthly" : "enterprise_yearly")) : null, paymentUnavailable: isGlobalWorkspace || !billingConfig.paymentEnabled },
   ] : [];
 
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const startCheckout = async (plan) => {
-    if (APP_EDITION === "global") {
+    if (isGlobalWorkspace) {
       setNotice("International subscription checkout is not active yet. Your plan and workspace have not been changed.");
       return;
     }
@@ -340,7 +372,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
     return billingCountryCode === "IN" && digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
   };
   const checkout = async (plan) => {
-    if (APP_EDITION === "global") {
+    if (isGlobalWorkspace) {
       setNotice("International subscription checkout is not active yet. Your plan and workspace have not been changed.");
       return;
     }
@@ -400,7 +432,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
           {currentPlan?.active && (
             <CurrentPlanCard planName={currentPlan.planName} benefits={activePlan?.included || []} startedAt={currentPlan.startedAt} expiresAt={currentPlan.expiresAt} />
           )}
-          <p className="mb-3 text-center text-xs text-slate-500">Billing country: {getCountryByCode(billingCountryCode)?.name || (APP_EDITION === "global" ? "Not resolved" : "India")} · {billingConfig?.currency || "Currency not resolved"}</p>
+          <p className="mb-3 text-center text-xs text-slate-500">Billing country: {getCountryByCode(billingCountryCode)?.name || "Not resolved"} · {billingConfig?.currency || "Currency not resolved"}</p>
           {!billingConfig && <p role="alert" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">Workspace country and currency could not be verified. Plivex has not substituted Indian pricing. Confirm the workspace country and base currency before choosing a paid plan.</p>}
           {billingConfig && <div className="mb-4 flex items-center justify-center gap-2 rounded-xl bg-slate-100 p-1">
             <button onClick={() => setBilling("monthly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "monthly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Monthly</button>
@@ -413,7 +445,7 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
                 <div className="flex items-center gap-2"><p className="text-[13px] font-bold text-slate-900">{plan.name}</p></div>
                 <p className="mt-2 text-[26px] font-bold leading-none text-slate-900">{plan.price}<span className="text-[12px] font-medium text-slate-400">/{plan.period}</span></p>
                 <div className="mt-3 flex-1 space-y-1.5">{plan.included.map((item) => <div key={item} className="flex items-start gap-2 text-[11px] font-medium text-slate-700"><span className="mt-0.5 text-emerald-600">✓</span>{item}</div>)}</div>
-                {plan.checkoutPlan ? <button onClick={() => checkout(plan.checkoutPlan)} disabled={checkoutLoading} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9]"}`}>{checkoutLoading ? "Connecting to payment provider…" : APP_EDITION === "global" ? `Prepare checkout · ${plan.price}/${plan.period}` : `Pay with Cashfree · ${plan.price}/${plan.period}`}</button> : plan.paymentUnavailable ? <button type="button" disabled className="mt-4 w-full rounded-xl border border-amber-200 bg-amber-50 py-2.5 text-[11px] font-bold text-amber-700">{APP_EDITION === "global" ? "International checkout not active" : "Cashfree currency not enabled"}</button> : <button onClick={onClose} className="mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-[12px] font-bold text-slate-600">{currentPlan?.plan === "free" ? "Current plan" : "Use Free plan"}</button>}
+                {plan.checkoutPlan ? <button onClick={() => checkout(plan.checkoutPlan)} disabled={checkoutLoading} className={`mt-4 w-full rounded-xl py-2.5 text-[12px] font-bold disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white" : "border border-[#6D28D9] text-[#6D28D9]"}`}>{checkoutLoading ? "Connecting to payment provider…" : isGlobalWorkspace ? `Prepare checkout · ${plan.price}/${plan.period}` : `Pay with Cashfree · ${plan.price}/${plan.period}`}</button> : plan.paymentUnavailable ? <button type="button" disabled className="mt-4 w-full rounded-xl border border-amber-200 bg-amber-50 py-2.5 text-[11px] font-bold text-amber-700">{isGlobalWorkspace ? "International checkout not active" : "Cashfree currency not enabled"}</button> : <button onClick={onClose} className="mt-4 w-full rounded-xl border border-slate-200 py-2.5 text-[12px] font-bold text-slate-600">{currentPlan?.plan === "free" ? "Current plan" : "Use Free plan"}</button>}
               </div>
             ))}
           </div>
