@@ -33,7 +33,7 @@ test("unified authentication resolves workspace country before selecting regiona
   const backend = read("../../api/backendClient.js");
   assert.match(auth, /resolveSignedInEdition\(currentUser\)/);
   assert.match(auth, /resolveWorkspaceEdition\(countryCode, supportedCodes\)/);
-  assert.match(auth, /setRuntimeEdition\(edition\)/);
+  assert.ok(auth.includes('setRuntimeEdition(edition, { verifiedGlobal: edition === "global" && Boolean(globalUser) });'));
   assert.match(auth, /const wasGlobalWorkspace = APP_EDITION === 'global'/);
   assert.match(auth, /migrateLegacy: !wasGlobalWorkspace/);
   assert.match(backend, /export let APP_EDITION/);
