@@ -40,6 +40,15 @@ create index if not exists workspace_settings_country_idx
 
 alter table public.workspace_settings enable row level security;
 
+-- Profile identity and authorization fields are server-managed.
+-- A user's own-row policy must never let them promote themselves or reassign workspaces.
+revoke update on table public.profiles from authenticated;
+revoke update (
+  id, email, full_name, role, workspace_id, user_ref, profile_picture,
+  trial_start_at, trial_expires_at, created_at, updated_at, country_code, locale_code
+) on public.profiles from authenticated;
+grant update (full_name, profile_picture) on public.profiles to authenticated;
+
 drop policy if exists "workspace settings read members" on public.workspace_settings;
 create policy "workspace settings read members"
   on public.workspace_settings for select to authenticated
