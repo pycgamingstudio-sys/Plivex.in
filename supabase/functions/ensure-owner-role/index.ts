@@ -92,7 +92,7 @@ Deno.serve(async (req: Request) => {
       workspace_id: workspaceId,
       country_code: countryCode,
       locale_code: localeCode,
-      phone: String(metadata.phone || "").trim().slice(0, 40) || null,
+      phone: String(metadata.phone || "").trim() ? `${phoneCodeByCountry[countryCode]} ${String(metadata.phone).trim().slice(0, 32)}` : null,
       name: String(body?.businessName || metadata.full_name || metadata.name || "").trim().slice(0, 160) || null,
     }, { onConflict: "workspace_id" });
     if (countryError) {
