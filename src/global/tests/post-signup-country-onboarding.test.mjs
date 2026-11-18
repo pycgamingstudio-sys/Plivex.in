@@ -97,3 +97,10 @@ test("unified workspace feature links open the matching India-master dashboard m
   assert.match(dashboard, /initialSub=\{initialSub\}/);
   assert.match(sales, /initialSub === "quotations" \? "quotations" : "invoices"/);
 });
+
+test("dashboard waits for workspace feature preferences before validating a deep-linked tab", async () => {
+  const dashboard = await read("../../pages/Dashboard.jsx");
+  assert.match(dashboard, /ready: workspaceFeaturesReady/);
+  assert.match(dashboard, /if \(!workspaceFeaturesReady\) return/);
+  assert.match(dashboard, /\[visibleTabs, tab, workspaceFeaturesReady\]/);
+});
