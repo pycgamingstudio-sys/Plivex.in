@@ -164,6 +164,17 @@ export const AuthProvider = ({ children }) => {
         setUser(currentUser); signedInRef.current = true; setIsAuthenticated(true);
         setAuthError(null); setIsLoadingAuth(false); setAuthChecked(true); return;
       }
+      // Existing authenticated sessions must stop before hydrating business data
+      // until the owner has completed the current one-Workspace migration review.
+      // The auth session and workspace ID stay intact; this is not a new signup.
+      if (isUnifiedBuild && currentUser?.workspace_id && (
+        Number(currentUser?.onboarding_version || 0) < 1
+        || currentUser?.migration_status !== "ready"
+        || currentUser?.legacy_review_required === true
+      )) {
+        setUser(currentUser); signedInRef.current = true; setIsAuthenticated(true);
+        setAuthError(null); setIsLoadingAuth(false); setAuthChecked(true); return;
+      }
       // Global identity and workspace authorization are read only from Global RPCs.
       // Never consult India public.profiles, invites, or workspace-record endpoints.
       if (APP_EDITION === "global") {
