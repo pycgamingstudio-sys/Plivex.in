@@ -183,6 +183,9 @@ test("legacy Global workspaces are mapped into one canonical Workspace without c
   assert.match(migration, /legacy Global team membership requires an explicit member migration/);
   assert.match(migration, /Global transactional records need a dedicated row-preserving migration/);
   assert.match(migration, /references public\.workspace_settings\(workspace_id\) on delete restrict/);
+  const indexMigration = await read("../../../supabase/migrations/20261118170000_plivex_one_workspace_settings_created_by_index.sql");
+  assert.match(indexMigration, /workspace_settings_created_by_idx/);
+  assert.match(indexMigration, /on public\.workspace_settings\(created_by\)/);
   assert.match(migration, /greatest\(public\.workspace_settings\.onboarding_version, excluded\.onboarding_version\)/);
   assert.match(migration, /public\.workspace_settings\.migration_status = 'ready'/);
 });
