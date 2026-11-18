@@ -14,6 +14,19 @@ const STAGES = ["New Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost
 const blankClient = { name: "", company: "", email: "", phone: "", gstin: "", address: "" };
 const blankLead = { name: "", phone: "", email: "", company: "", source: "", requirement: "", value: "", nextFollowUpAt: "" };
 
+const formatCurrencyTotals = (records, currencyCode) => {
+  const totals = new Map();
+  records.forEach((record) => {
+    const currency = String(record.currencyCode || "").trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(currency)) return;
+    totals.set(currency, (totals.get(currency) || 0) + Number(record.value || 0));
+  });
+  return [...totals.entries()]
+    .sort(([a], [b]) => a === currencyCode ? -1 : b === currencyCode ? 1 : a.localeCompare(b))
+    .map(([currency, amount]) => money2(amount, currency))
+    .join(" · ");
+};
+
 export default function CrmTab({ intent, onConsumeIntent }) {
   const { user } = useAuth();
   const currencyCode = user?.currency_code || "INR";
@@ -58,14 +71,14 @@ export default function CrmTab({ intent, onConsumeIntent }) {
   const pages = totalPages(filteredClients);
 
   const activeLeads = leads.filter((l) => !["Won", "Lost"].includes(l.stage));
-  const pipelineValue = activeLeads.reduce((s, l) => s + Number(l.value || 0), 0);
+  const pipelineValue = formatCurrencyTotals(activeLeads, currencyCode) || money2(0, currencyCode);
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <SummaryCard label="Total Clients" value={String(clients.length)} gradient="bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" icon={Users} badge="directory" />
         <SummaryCard label="Active Leads" value={String(activeLeads.length)} gradient="bg-gradient-to-br from-[#2563EB] to-[#3B82F6]" icon={Target} badge="open" />
-        <SummaryCard label="Pipeline Value" value={money2(pipelineValue, currencyCode)} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={Wallet} badge="forecast" />
+        <SummaryCard label="Pipeline Value" value={pipelineValue} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={Wallet} badge="forecast" />
       </div>
 
       <div className="flex gap-1.5 rounded-xl border border-[#E5E7EB] bg-white p-1.5">
@@ -170,11 +183,11 @@ export default function CrmTab({ intent, onConsumeIntent }) {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {STAGES.map((stage) => {
               const items = leads.filter((l) => l.stage === stage);
-              const stageValue = items.reduce((s, l) => s + Number(l.value || 0), 0);
+              const stageValue = formatCurrencyTotals(items, currencyCode);
               return (
                 <div key={stage} className="rounded-2xl border border-[#E5E7EB] bg-white p-3 shadow-sm">
                   <div className="mb-3 flex items-center justify-between"><h4 className="text-[12px] font-bold text-slate-700">{stage}</h4><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">{items.length}</span></div>
-                  {stageValue > 0 && <p className="mb-2 text-[11px] font-bold text-[#6D28D9]">{money2(stageValue, currencyCode)}</p>}
+                  {stageValue && <p className="mb-2 text-[11px] font-bold text-[#6D28D9]">{stageValue}</p>}
                   <div className="space-y-2">
                     {items.map((l) => (
                       <div key={l.id} className="rounded-xl border border-[#E5E7EB] p-3">
@@ -183,7 +196,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
                         <p className="mt-1 text-[9px] font-semibold text-slate-500">Lead score: {Number(l.score || 0)}/100</p>
                         {l.nextFollowUpAt && <p className="text-[9px] text-slate-500">Follow-up: {new Date(l.nextFollowUpAt).toLocaleString()}</p>}
                         <p className="mt-1 text-[11px] text-slate-500">{l.requirement || "—"}</p>
-                        <p className="mt-1 text-[12px] font-bold text-[#6D28D9]">{money2(l.value, currencyCode)}</p>
+                        <p className="mt-1 text-[12px] font-bold text-[#6D28D9]">{money2(l.value, l.currencyCode || currencyCode)}</p>
                         <div className="mt-2 flex flex-wrap gap-1">
                           {STAGES.filter((s) => s !== stage).map((s) => <button key={s} onClick={() => moveLead(l.id, s)} className="rounded-md bg-slate-100 px-2 py-1 text-[9px] font-semibold text-slate-600 hover:bg-slate-200">→ {s}</button>)}
                           <button onClick={() => persistLeads(removeItem(KEYS.leads, l.id))} className="rounded-md bg-red-50 px-2 py-1 text-[9px] font-semibold text-red-500 hover:bg-red-100">del</button>
