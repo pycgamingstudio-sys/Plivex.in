@@ -239,6 +239,92 @@ revoke all on function public.reset_workspace_country_atomic(uuid, text, text, t
 revoke all on function public.india_part4_create_purchase_order(text, jsonb, text, date, text) from public, anon;
 grant execute on function public.india_part4_create_purchase_order(text, jsonb, text, date, text) to authenticated, service_role;
 
+-- Locale updates must change the canonical Workspace setting, not only legacy profile metadata.
+create or replace function public.update_workspace_locale_atomic(
+  p_user_id uuid,
+  p_locale_code text
+) returns jsonb
+language plpgsql
+security definer
+set search_path to 'pg_catalog', 'public'
+as $function$
+declare
+  v_profile public.profiles%rowtype;
+  v_country text;
+  v_locales text[];
+  v_updated integer;
+begin
+  if p_user_id is null then
+    return jsonb_build_object('ok',false,'reason','user_required');
+  end if;
+
+  select * into v_profile
+  from public.profiles p
+  where p.id = p_user_id
+  for update;
+
+  if v_profile.id is null or v_profile.workspace_id is null or v_profile.role <> 'admin' then
+    return jsonb_build_object('ok',false,'reason','workspace_owner_required');
+  end if;
+
+  if not exists (
+    select 1 from public.workspace_members m
+    where m.workspace_id = v_profile.workspace_id
+      and m.user_id = p_user_id
+      and m.owner_id = p_user_id
+      and m.role = 'admin'
+      and m.status = 'active'
+  ) then
+    return jsonb_build_object('ok',false,'reason','workspace_owner_required');
+  end if;
+
+  select country_code into v_country
+  from public.workspace_settings
+  where workspace_id = v_profile.workspace_id
+  for update;
+
+  if v_country is null then
+    return jsonb_build_object('ok',false,'reason','workspace_settings_required');
+  end if;
+
+  v_locales := case v_country
+    when 'IN' then array['en-IN','hi-IN']
+    when 'US' then array['en-US','es-US']
+    when 'GB' then array['en-GB']
+    when 'AE' then array['en-AE','ar-AE']
+    when 'CA' then array['en-CA','fr-CA']
+    when 'AU' then array['en-AU']
+    when 'SG' then array['en-SG','zh-SG','ms-SG','ta-SG']
+    else array[]::text[]
+  end;
+
+  if not (p_locale_code = any(v_locales)) then
+    return jsonb_build_object('ok',false,'reason','unsupported_locale','country_code',v_country);
+  end if;
+
+  update public.workspace_settings
+  set locale_code = p_locale_code, updated_at = now()
+  where workspace_id = v_profile.workspace_id;
+  get diagnostics v_updated = row_count;
+  if v_updated <> 1 then
+    raise exception 'workspace_locale_update_failed';
+  end if;
+
+  update public.business_profile
+  set locale_code = p_locale_code, updated_at = now()
+  where workspace_id = v_profile.workspace_id;
+
+  update public.profiles
+  set locale_code = p_locale_code, updated_at = now()
+  where id = p_user_id;
+
+  return jsonb_build_object('ok',true,'country_code',v_country,'locale_code',p_locale_code);
+end
+$function$;
+
+revoke all on function public.update_workspace_locale_atomic(uuid, text) from public, anon, authenticated;
+grant execute on function public.update_workspace_locale_atomic(uuid, text) to service_role;
+
 comment on table public.workspace_settings is
   'PLIVEX ONE canonical country, currency, primary work profile and optional-feature settings for a public workspace. Country is explicitly selected; no IP or locale inference.';
 comment on column public.workspace_settings.optional_features is
