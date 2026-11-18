@@ -8,6 +8,7 @@
 //    with the Supabase access token in the Authorization header.
 import { createClient } from '@supabase/supabase-js';
 import { resolveEditionId, isSupportedEditionId, UNIFIED_EDITION_ID } from '@/global/core/edition-contract.js';
+import { getCountryByCode } from '@/global/countries/country-registry.js';
 
 export const BUILD_EDITION = import.meta.env.VITE_APP_EDITION === UNIFIED_EDITION_ID
   ? UNIFIED_EDITION_ID
@@ -302,25 +303,35 @@ const auth = {
     // For India workspaces the business profile is the authoritative regional
     // setting; user profile country fields may be stale after an approved reset.
     let workspaceRegion = null;
+    let workspaceSettings = null;
     if (profile?.workspace_id) {
-      const { data } = await supabase.from('business_profile')
-        .select('country_code,locale_code').eq('workspace_id', profile.workspace_id).maybeSingle();
-      workspaceRegion = data;
+      const [{ data: regionData }, { data: settingsData }] = await Promise.all([
+        supabase.from('business_profile').select('country_code,locale_code').eq('workspace_id', profile.workspace_id).maybeSingle(),
+        supabase.from('workspace_settings').select('country_code,locale_code,currency_code,workspace_type,optional_features,phone_country_code,phone_number').eq('workspace_id', profile.workspace_id).maybeSingle(),
+      ]);
+      workspaceRegion = regionData;
+      workspaceSettings = settingsData;
     }
+    const countryCode = workspaceSettings?.country_code || workspaceRegion?.country_code || profile?.country_code || undefined;
+    const localeCode = workspaceSettings?.locale_code || workspaceRegion?.locale_code || profile?.locale_code || undefined;
+    const countryConfig = getCountryByCode(countryCode);
     return {
       id: uid,
       email: session.user.email,
       full_name: profile?.full_name || session.user.user_metadata?.full_name || '',
       role: profile?.role,
       workspace_id: profile?.workspace_id || undefined,
-      country_code: workspaceRegion?.country_code || profile?.country_code || undefined,
-      locale_code: workspaceRegion?.locale_code || profile?.locale_code || undefined,
+      country_code: countryCode,
+      locale_code: localeCode,
+      currency_code: workspaceSettings?.currency_code || countryConfig?.currencyCode || undefined,
+      workspace_type: workspaceSettings?.workspace_type || undefined,
+      optional_features: workspaceSettings?.optional_features || undefined,
       user_ref: profile?.user_ref,
       trial_start_at: profile?.trial_start_at,
       trial_expires_at: profile?.trial_expires_at,
       created_date: profile?.created_at || session.user.created_at,
       profilePicture: profile?.profile_picture || '',
-      phone: session.user.user_metadata?.phone || '',
+      phone: workspaceSettings?.phone_number || session.user.user_metadata?.phone || '',
     };
   },
   async loginViaEmailPassword(email, password) {
