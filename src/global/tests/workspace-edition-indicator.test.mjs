@@ -10,8 +10,9 @@ test("single workspace dashboard displays the selected country without an India-
   assert.match(dashboard, /getCountryByCode\(user\?\.country_code\)/);
   assert.match(dashboard, /Workspace · \{getCountryByCode\(user\?\.country_code\)\?\.name \|\| "Choose country"\}/);
   assert.doesNotMatch(dashboard, /India Workspace/);
-  assert.match(backend, /business_profile/);
-  assert.match(backend, /workspaceRegion\?\.country_code/);
+  assert.match(backend, /workspace_settings/);
+  assert.match(backend, /workspaceSettings\?\.country_code/);
+  assert.doesNotMatch(backend, /workspaceRegion\?\.country_code|profile\?\.country_code/);
 });
 
 test("legacy Global layout is isolated from the single Workspace label", () => {
