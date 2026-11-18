@@ -67,27 +67,15 @@ export default function UnifiedWorkspaceOnboarding() {
       const selectedLocale = localeCode || locales[0];
       const { data: current } = await supabase.auth.getUser();
       if (!current?.user) throw new Error("Your sign-in session expired. Please sign in again.");
-      const previousMetadata = current.user.user_metadata || {};
-      const metadata = {
-        ...previousMetadata,
-        full_name: businessName.trim().slice(0, 160),
-        signup_country_code: country.code,
-        signup_locale_code: selectedLocale,
-        plivex_work_type: workTypes[0],
-        plivex_work_types: workTypes,
-        plivex_workspace_features: features,
-        phone: phone.trim() || null,
-      };
-      const { error: metadataError } = await supabase.auth.updateUser({ data: metadata });
-      if (metadataError) throw metadataError;
-
-      // One canonical workspace provisioning endpoint serves every manually selected country.
+      // One canonical workspace provisioning endpoint receives the explicit choices.
+      // No country, work type, feature selection or phone value is inferred from auth metadata.
       const result = await db.functions.invoke("ensureOwnerRole", {
         countryCode: country.code,
         localeCode: selectedLocale,
         businessName: businessName.trim(),
         businessType: workTypes[0],
         optionalFeatures: features,
+        phone: phone.trim() || null,
       });
       if (!result?.data?.ok) throw new Error(result?.data?.error || "Your workspace could not be created.");
       setRuntimeEdition("india");
