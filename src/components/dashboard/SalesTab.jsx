@@ -1,3 +1,4 @@
+import { useAuth } from "@/lib/AuthContext";
 import { backend as db } from '@/api/backendClient';
 
 import { useEffect, useMemo, useState } from "react";
@@ -17,6 +18,8 @@ const BANKS = ["HDFC Bank · 501000123456789", "ICICI Bank · 623400987654321", 
 
 export default function SalesTab({ intent, onConsumeIntent }) {
   const { requestAction, requireFeature, limits, usage, remaining, openPaywall } = usePaywall();
+  const { user } = useAuth();
+  const currencyCode = user?.currency_code || "INR";
   const { isAccountant } = useRole();
   const [sub, setSub] = useState("invoices");
   const [invoices, setInvoices] = useState(() => loadList(KEYS.history, { includeCancelled: true }));
@@ -109,9 +112,9 @@ export default function SalesTab({ intent, onConsumeIntent }) {
         ].map((item) => { const pct = item.limit > 0 ? Math.min(100, item.used / item.limit * 100) : 100; return <div key={item.key} className="rounded-xl border border-[#E5E7EB] bg-white p-3"><div className="flex items-center justify-between gap-2 text-xs"><span className="font-semibold text-slate-700">{item.label}</span><span className="font-bold text-slate-600">{item.used}/{item.limit}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-[#6D28D9]"}`} style={{ width: `${pct}%` }} /></div>{pct >= 80 && <p className={`mt-1.5 text-[11px] ${pct >= 100 ? "text-rose-600" : "text-amber-600"}`}>{pct >= 100 ? "Plan limit reached" : "Usage limit warning"}</p>}{pct >= 100 && <button onClick={() => openPaywall(`${item.label} limit reached for your current plan.`)} className="mt-2 rounded-lg bg-[#6D28D9] px-3 py-1.5 text-xs font-bold text-white">Upgrade</button>}</div>; })}
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <SummaryCard label="Total Invoiced" value={money2(totalInvoiced)} gradient="bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" icon={ReceiptIcon} badge={`${invoices.length} inv`} />
-        <SummaryCard label="Paid" value={money2(invoices.filter((it) => statusOf(it) === "Paid").reduce((s, it) => s + Number(it.total || 0), 0))} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={CheckCircle2} badge={`${paidCount} paid`} />
-        <SummaryCard label="Pending" value={money2(invoices.filter((it) => statusOf(it) === "Pending").reduce((s, it) => s + Number(it.total || 0), 0))} gradient="bg-gradient-to-br from-[#D97706] to-[#F59E0B]" icon={Clock} badge={`${pendingCount} due`} />
+        <SummaryCard label="Total Invoiced" value={money2(totalInvoiced, currencyCode)} gradient="bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" icon={ReceiptIcon} badge={`${invoices.length} inv`} />
+        <SummaryCard label="Paid" value={money2(invoices.filter((it) => statusOf(it) === "Paid").reduce((s, it) => s + Number(it.total || 0), 0), currencyCode)} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={CheckCircle2} badge={`${paidCount} paid`} />
+        <SummaryCard label="Pending" value={money2(invoices.filter((it) => statusOf(it) === "Pending").reduce((s, it) => s + Number(it.total || 0), 0), currencyCode)} gradient="bg-gradient-to-br from-[#D97706] to-[#F59E0B]" icon={Clock} badge={`${pendingCount} due`} />
         <SummaryCard label="Quotations" value={String(totalQuotes)} gradient="bg-gradient-to-br from-[#2563EB] to-[#3B82F6]" icon={FileText} badge="quotes" />
       </div>
 
@@ -207,7 +210,7 @@ export default function SalesTab({ intent, onConsumeIntent }) {
                                   {(it.items || []).map((li, i) => (
                                     <div key={i} className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 text-[11px]">
                                       <span className="text-slate-700">{li.description || "Item"}</span>
-                                      <span className="font-semibold text-slate-900">{li.quantity || 1} × {money2(li.rate)}</span>
+                                      <span className="font-semibold text-slate-900">{li.quantity || 1} × {money2(li.rate, view.currency || currencyCode)}</span>
                                     </div>
                                   ))}
                                   {(!it.items || it.items.length === 0) && <p className="text-[11px] text-slate-400">No item breakdown stored.</p>}
@@ -269,13 +272,14 @@ export default function SalesTab({ intent, onConsumeIntent }) {
         </div>
       )}
 
-      {qOpen && <QuotationModal onClose={() => setQOpen(false)} onSave={saveQuotation} />}
+      {qOpen && <QuotationModal onClose={() => setQOpen(false)} onSave={saveQuotation} currencyCode={currencyCode} countryCode={user?.country_code || "IN"} />}
     </div>
   );
 }
 
-function QuotationModal({ onClose, onSave }) {
-  const [form, setForm] = useState({ clientName: "", clientEmail: "", taxRate: 18, items: [{ id: "qi1", description: "", quantity: 1, rate: "" }], shipping: "", flatDiscount: "", pctDiscount: "", terms: "Payment due within 15 days of issue. Goods remain property of seller until paid in full.", bank: "", notes: "", attachmentName: "", signature: "" });
+function QuotationModal({ onClose, onSave, currencyCode, countryCode }) {
+  const isIndia = countryCode === "IN";
+  const [form, setForm] = useState({ clientName: "", clientEmail: "", taxRate: isIndia ? 18 : 0, items: [{ id: "qi1", description: "", quantity: 1, rate: "" }], shipping: "", flatDiscount: "", pctDiscount: "", terms: "Payment due within 15 days of issue. Goods remain property of seller until paid in full.", bank: "", notes: "", attachmentName: "", signature: "" });
   const [adv, setAdv] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const setItem = (id, k, v) => setForm((f) => ({ ...f, items: f.items.map((i) => (i.id === id ? { ...i, [k]: v } : i)) }));
@@ -293,7 +297,7 @@ function QuotationModal({ onClose, onSave }) {
 
   const save = () => {
     if (!form.clientName.trim()) return;
-    onSave({ id: genId("quo"), number: `QTN-${String(Date.now()).slice(-4)}`, clientName: form.clientName, clientEmail: form.clientEmail, date: new Date().toISOString().slice(0, 10), total, status: "sent", taxRate: Number(form.taxRate), items: form.items, shipping, flatDiscount: flatDisc, pctDiscount: Number(form.pctDiscount) || 0, terms: form.terms, bank: form.bank, notes: form.notes, attachmentName: form.attachmentName, signature: form.signature });
+    onSave({ id: genId("quo"), number: `QTN-${String(Date.now()).slice(-4)}`, clientName: form.clientName, clientEmail: form.clientEmail, date: new Date().toISOString().slice(0, 10), total, currency: currencyCode, status: "sent", taxRate: isIndia ? Number(form.taxRate) : 0, items: form.items, shipping, flatDiscount: flatDisc, pctDiscount: Number(form.pctDiscount) || 0, terms: form.terms, bank: form.bank, notes: form.notes, attachmentName: form.attachmentName, signature: form.signature });
   };
 
   return (
@@ -320,7 +324,7 @@ function QuotationModal({ onClose, onSave }) {
           <button onClick={addItem} className="text-[11px] font-bold text-[#6D28D9] hover:underline">+ Add line</button>
         </div>
 
-        <label className="mt-3 block text-[12px] font-semibold text-slate-500">GST rate<select className={inputCls} value={form.taxRate} onChange={(e) => set("taxRate", e.target.value)}>{[0, 5, 12, 18, 28].map((r) => <option key={r} value={r}>{r}%</option>)}</select></label>
+        {isIndia ? <label className="mt-3 block text-[12px] font-semibold text-slate-500">GST rate<select className={inputCls} value={form.taxRate} onChange={(e) => set("taxRate", e.target.value)}>{[0, 5, 12, 18, 28].map((r) => <option key={r} value={r}>{r}%</option>)}</select></label> : <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">Tax is left at zero until verified tax rules are available for your selected country. This quotation is not a tax invoice.</p>}
 
         <button onClick={() => setAdv((v) => !v)} className="mt-4 flex w-full items-center justify-between rounded-xl border border-[#E5E7EB] bg-slate-50 px-3 py-2.5 text-[12px] font-bold text-slate-700 hover:bg-slate-100">
           <span>Advanced details {adv ? "" : "(shipping, discounts, terms, bank, signature)"}</span>
@@ -328,8 +332,8 @@ function QuotationModal({ onClose, onSave }) {
         </button>
         {adv && (
           <div className="mt-2 grid gap-3 rounded-xl border border-[#E5E7EB] p-3 sm:grid-cols-2">
-            <label className="block text-[12px] font-semibold text-slate-500">Shipping / handling (₹)<input type="number" className={inputCls} value={form.shipping} onChange={(e) => set("shipping", e.target.value)} placeholder="0" /></label>
-            <label className="block text-[12px] font-semibold text-slate-500">Flat discount (₹)<input type="number" className={inputCls} value={form.flatDiscount} onChange={(e) => set("flatDiscount", e.target.value)} placeholder="0" /></label>
+            <label className="block text-[12px] font-semibold text-slate-500">Shipping / handling ({currencyCode})<input type="number" className={inputCls} value={form.shipping} onChange={(e) => set("shipping", e.target.value)} placeholder="0" /></label>
+            <label className="block text-[12px] font-semibold text-slate-500">Flat discount ({currencyCode})<input type="number" className={inputCls} value={form.flatDiscount} onChange={(e) => set("flatDiscount", e.target.value)} placeholder="0" /></label>
             <label className="block text-[12px] font-semibold text-slate-500">Percentage discount (%)<input type="number" className={inputCls} value={form.pctDiscount} onChange={(e) => set("pctDiscount", e.target.value)} placeholder="0" /></label>
             <label className="block text-[12px] font-semibold text-slate-500">Bank account<select className={inputCls} value={form.bank} onChange={(e) => set("bank", e.target.value)}><option value="">Select account</option>{BANKS.map((b) => <option key={b} value={b}>{b}</option>)}</select></label>
             <label className="block text-[12px] font-semibold text-slate-500 sm:col-span-2">Terms & conditions<textarea className={`${inputCls} min-h-[72px]`} value={form.terms} onChange={(e) => set("terms", e.target.value)} /></label>
@@ -340,11 +344,11 @@ function QuotationModal({ onClose, onSave }) {
         )}
 
         <div className="mt-4 space-y-1.5 rounded-xl bg-slate-50 px-3 py-2.5 text-[12px]">
-          <div className="flex justify-between text-slate-500"><span>Subtotal</span><span>{money2(subtotal)}</span></div>
-          {(pctDisc > 0 || flatDisc > 0) && <div className="flex justify-between text-slate-500"><span>Discount</span><span>-{money2(pctDisc + flatDisc)}</span></div>}
-          <div className="flex justify-between text-slate-500"><span>GST ({form.taxRate}%)</span><span>{money2(tax)}</span></div>
-          {shipping > 0 && <div className="flex justify-between text-slate-500"><span>Shipping</span><span>{money2(shipping)}</span></div>}
-          <div className="flex justify-between border-t border-slate-200 pt-1.5 font-bold"><span className="text-slate-700">Total</span><span className="text-[#6D28D9]">{money2(total)}</span></div>
+          <div className="flex justify-between text-slate-500"><span>Subtotal</span><span>{money2(subtotal, currencyCode)}</span></div>
+          {(pctDisc > 0 || flatDisc > 0) && <div className="flex justify-between text-slate-500"><span>Discount</span><span>-{money2(pctDisc + flatDisc, currencyCode)}</span></div>}
+          <div className="flex justify-between text-slate-500"><span>{isIndia ? `GST (${form.taxRate}%)` : "Tax (not calculated)"}</span><span>{money2(tax, currencyCode)}</span></div>
+          {shipping > 0 && <div className="flex justify-between text-slate-500"><span>Shipping</span><span>{money2(shipping, currencyCode)}</span></div>}
+          <div className="flex justify-between border-t border-slate-200 pt-1.5 font-bold"><span className="text-slate-700">Total</span><span className="text-[#6D28D9]">{money2(total, currencyCode)}</span></div>
         </div>
         <div className="mt-4 flex justify-end gap-2"><button onClick={onClose} className={btnGhost}>Cancel</button><button onClick={save} className={btnAccent}>Save quotation</button></div>
       </div>
