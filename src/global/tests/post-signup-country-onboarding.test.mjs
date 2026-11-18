@@ -41,7 +41,7 @@ test("unified runtime does not resolve a second Global workspace identity", asyn
   const auth = await read("../../lib/AuthContext.jsx");
   const app = await read("../../App.jsx");
   assert.match(auth, /if \(isUnifiedBuild\) \{[\s\S]*setRuntimeEdition\("india"\);[\s\S]*return currentUser;/);
-  assert.match(app, /\(!user\.workspace_id \|\| !user\.country_code \|\| !user\.workspace_type\)/);
+  assert.match(app, /\(!user\.workspace_id \|\| !user\.country_code \|\| !user\.workspace_type \|\| Number\(user\.onboarding_version \|\| 0\) < 1 \|\| user\.migration_status !== "ready" \|\| user\.legacy_review_required\)/);
 });
 
 test("Global owner provisioning rejects a missing country instead of defaulting to India", async () => {
@@ -150,10 +150,24 @@ test("PLIVEX ONE cannot reset or delete a workspace to change country", async ()
   assert.match(migration, /revoke all on function public\.reset_workspace_country_atomic\(uuid, text, text, text, text\) from public, anon, authenticated, service_role/);
 });
 
+test("existing signed-in workspaces must complete versioned onboarding before data hydration", async () => {
+  const auth = await read("../../lib/AuthContext.jsx");
+  const app = await read("../../App.jsx");
+  const backend = await read("../../api/backendClient.js");
+  const migration = await read("../../../supabase/migrations/20261118160000_plivex_one_mandatory_legacy_onboarding.sql");
+  assert.match(auth, /Existing authenticated sessions must stop before hydrating business data/);
+  assert.match(auth, /Number\(currentUser\?\.onboarding_version \|\| 0\) < 1/);
+  assert.match(auth, /currentUser\?\.migration_status !== "ready"/);
+  assert.match(app, /Number\(user\.onboarding_version \|\| 0\) < 1/);
+  assert.match(backend, /onboarding_version: Number\(workspaceSettings\?\.onboarding_version \|\| 0\)/);
+  assert.match(migration, /migration_status in \('legacy_pending','review_required','ready'\)/);
+  assert.match(migration, /set onboarding_version = 0/);
+});
+
 test("invited non-owner members wait for owner setup instead of entering owner onboarding", async () => {
   const app = await read("../../App.jsx");
   assert.match(app, /const canProvisionWorkspace = !user\.workspace_id \|\| !user\.role \|\| user\.role === "admin" \|\| user\.role === "user"/);
   assert.match(app, /Workspace setup is pending/);
-  assert.match(app, /Your workspace owner needs to finish the country and business setup/);
+  assert.match(app, /Your workspace owner needs to complete the mandatory Workspace review/);
   assert.match(app, /onClick=\{\(\) => logout\(\)\}/);
 });
