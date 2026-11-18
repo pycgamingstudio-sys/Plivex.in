@@ -60,8 +60,7 @@ export function useWorkspaceFeatures(workspaceId) {
       const { data, error: readError } = await supabase.from("workspace_settings")
         .select("optional_features").eq("workspace_id", workspaceId).maybeSingle();
       if (readError) throw readError;
-      return normalizeWorkspaceFeatures(data?.optional_features)
-        ?? WORKSPACE_FEATURE_CATALOG.map((item) => item.id);
+      return normalizeWorkspaceFeatures(data?.optional_features) ?? [];
     };
 
     load().then((next) => {
@@ -69,7 +68,7 @@ export function useWorkspaceFeatures(workspaceId) {
     }).catch(() => {
       if (!active) return;
       setError("Your workspace feature preferences could not be loaded.");
-      setFeatures(WORKSPACE_FEATURE_CATALOG.map((item) => item.id));
+      setFeatures([]);
     });
     return () => { active = false; };
   }, [workspaceId]);
