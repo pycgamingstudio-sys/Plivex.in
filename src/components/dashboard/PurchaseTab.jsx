@@ -16,6 +16,9 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
   const { requestAction, limits, usage, openPaywall } = usePaywall();
   const { user } = useAuth();
   const currencyCode = user?.currency_code || "INR";
+  const recordedExpenseAmount = (expense) => /^[A-Z]{3}$/.test(String(expense?.currencyCode || "").trim().toUpperCase())
+    ? money2(expense.amount, String(expense.currencyCode).trim().toUpperCase())
+    : "Currency not recorded";
   const { isAccountant } = useRole();
   const [expenses, setExpenses] = useState(() => loadList(KEYS.expenses));
   const [open, setOpen] = useState(false);
@@ -89,7 +92,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
   const save = (entry) => {
     if (!entry.vendor.trim() || !entry.amount) return;
     if (!requestAction()) return;
-    const next = [{ ...entry, id: genId("exp"), amount: Number(entry.amount) || 0 }, ...expenses];
+    const next = [{ ...entry, currencyCode, id: genId("exp"), amount: Number(entry.amount) || 0 }, ...expenses];
     setExpenses(next); saveList(KEYS.expenses, next); setOpen(false);
   };
   const resetFilters = () => { setQ(""); setFrom(""); setTo(""); setCat("all"); setStatusFilter("all"); setPage(1); };
@@ -166,7 +169,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
                         <td className="px-3 py-3 font-bold text-slate-900">{e.vendor}</td>
                         <td className="px-3 py-3 text-slate-500">{e.category}</td>
                         <td className="px-3 py-3 text-slate-500">{dateLabel(e.date)}</td>
-                        <td className="px-3 py-3 text-right font-bold text-slate-900">{money2(e.amount, e.currencyCode || currencyCode)}</td>
+                        <td className="px-3 py-3 text-right font-bold text-slate-900">{recordedExpenseAmount(e)}</td>
                         <td className="px-3 py-3">
                           <select value={e.status || "Unpaid"} onChange={(ev) => setStatus(e.id, ev.target.value)} aria-label="Order status" className={`cursor-pointer rounded-full border-0 px-2.5 py-1 text-[10px] font-bold uppercase outline-none ${statusCls(expenseStatus(e))}`}>
                             <option value="Pending">Pending</option>
@@ -204,7 +207,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
                                     {vendorLogs.slice(0, 4).map((v) => (
                                       <div key={v.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 text-[11px]">
                                         <span className="text-slate-700">{dateLabel(v.date)} · {v.category}</span>
-                                        <span className="font-semibold text-slate-900">{money2(v.amount, v.currencyCode || currencyCode)}</span>
+                                        <span className="font-semibold text-slate-900">{recordedExpenseAmount(v)}</span>
                                       </div>
                                     ))}
                                   </div>
