@@ -118,6 +118,28 @@ test("Workspace locale changes validate the selected country and update canonica
   assert.doesNotMatch(handler, /en-IN.*hi-IN/);
 });
 
+test("save-invoice Edge Function bundles the exact shared tax engine sources", () => {
+  const entry = read("../../../supabase/functions/save-invoice/index.ts");
+  assert.match(entry, /\.\/\_shared\/tax\/invoice-tax-integration\.js/);
+  const pairs = [
+    ["../tax/invoice-tax-integration.js", "../../../supabase/functions/save-invoice/_shared/tax/invoice-tax-integration.js"],
+    ["../tax/global-tax-engine.js", "../../../supabase/functions/save-invoice/_shared/tax/global-tax-engine.js"],
+    ["../tax/global-invoice-finalization.js", "../../../supabase/functions/save-invoice/_shared/tax/global-invoice-finalization.js"],
+    ["../tax/manual-tax-calculator.js", "../../../supabase/functions/save-invoice/_shared/tax/manual-tax-calculator.js"],
+    ["../tax/tax-invoice-formats.js", "../../../supabase/functions/save-invoice/_shared/tax/tax-invoice-formats.js"],
+    ["../tax/tax-treatment-policy.js", "../../../supabase/functions/save-invoice/_shared/tax/tax-treatment-policy.js"],
+    ["../tax/verified-rule-evaluator.js", "../../../supabase/functions/save-invoice/_shared/tax/verified-rule-evaluator.js"],
+    ["../tax/standard-rate-rules.js", "../../../supabase/functions/save-invoice/_shared/tax/standard-rate-rules.js"],
+    ["../tax/tax-rule-registry.js", "../../../supabase/functions/save-invoice/_shared/tax/tax-rule-registry.js"],
+    ["../money/currency-precision.js", "../../../supabase/functions/save-invoice/_shared/money/currency-precision.js"],
+  ];
+  for (const [sourcePath, bundlePath] of pairs) {
+    const source = read(sourcePath);
+    const bundle = read(bundlePath).replace(/^\/\/ Bundled copy for the save-invoice Edge Function\. Keep in sync with .+\n/, "");
+    assert.equal(bundle, source, `Bundled tax module differs from ${sourcePath}`);
+  }
+});
+
 test("historical monetary records retain their recorded legacy currency", () => {
   const migration = read("../../../supabase/migrations/20261118121500_plivex_one_workspace_settings.sql");
   const stores = read("../../lib/stores.js");
