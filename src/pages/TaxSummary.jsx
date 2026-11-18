@@ -1,15 +1,16 @@
+import { formatMoney } from "@/lib/currency";
 import { useState, useMemo } from "react";
 import { Receipt, Download } from "lucide-react";
 import PageShell from "@/components/PageShell";
 import { KEYS, loadList, loadState } from "@/lib/stores";
-import { backend, APP_EDITION } from "@/api/backendClient";
+import { backend } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
 import { getCountryExperience } from "@/global/countries/country-experience.js";
 import { getGlobalTaxCapability } from "@/global/tax/global-tax-capabilities.js";
 import { downloadGSTR1Json } from "@/lib/gstrExport";
 import { inputCls } from "@/lib/ui";
 
-const money = (v) => `₹ ${(Number(v) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (v, currency = "INR", locale) => formatMoney(Number(v) || 0, currency, locale);
 const PERIODS = [{ id: "month", label: "This month" }, { id: "last", label: "Last month" }, { id: "all", label: "All time" }];
 function Card({ label, value, accent }) {
   return <div className={`rounded-xl border bg-card p-4 ${accent ? "border-accent/40 bg-accent/10" : ""}`}><p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p><p className="mt-1 text-[20px] font-bold">{value}</p></div>;
@@ -58,7 +59,7 @@ export default function TaxSummary() {
     } finally { setExporting(false); }
   };
 
-  if (APP_EDITION === "global") {
+  if (user?.country_code && user.country_code !== "IN") {
     const experience = getCountryExperience(user?.country_code);
     const capability = getGlobalTaxCapability(user?.country_code);
     const calculationLabel = capability.calculation === "standard_rate_baseline"
@@ -88,9 +89,9 @@ export default function TaxSummary() {
       <div className="flex gap-1.5 rounded-lg border bg-card p-1">
         {PERIODS.map((p) => <button key={p.id} onClick={() => setPeriod(p.id)} className={`flex-1 rounded-md py-2 text-[11px] font-bold transition-colors ${period === p.id ? "bg-secondary text-primary" : "text-muted-foreground"}`}>{p.label}</button>)}
       </div>
-      <div className="grid gap-3 sm:grid-cols-3"><Card label="CGST collected" value={money(cgst)} /><Card label="SGST collected" value={money(sgst)} /><Card label="IGST collected" value={money(igst)} accent /></div>
+      <div className="grid gap-3 sm:grid-cols-3"><Card label="CGST collected" value={money(cgst, user?.currency_code, user?.locale_code)} /><Card label="SGST collected" value={money(sgst, user?.currency_code, user?.locale_code)} /><Card label="IGST collected" value={money(igst, user?.currency_code, user?.locale_code)} accent /></div>
       <div className="rounded-xl border bg-card p-5">
-        <div className="flex items-center justify-between"><p className="text-[13px] font-bold">Total tax</p><p className="text-[22px] font-bold tracking-[-0.03em] text-primary">{money(totalTax)}</p></div>
+        <div className="flex items-center justify-between"><p className="text-[13px] font-bold">Total tax</p><p className="text-[22px] font-bold tracking-[-0.03em] text-primary">{money(totalTax, user?.currency_code, user?.locale_code)}</p></div>
         <p className="mt-1 text-[11px] text-muted-foreground">{filtered.length} invoice(s) in this period.</p>
       </div>
       <div className="rounded-xl border bg-card p-5">
