@@ -62,7 +62,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 const initialInvoice = {
   business: { name: "", email: "", phone: "", gstin: "", address: "" },
   client: { name: "", company: "", email: "", phone: "", gstin: "", address: "" },
-  number: "", issueDate: "", dueDate: "", currency: "INR", globalDraftRequestId: crypto.randomUUID(),
+  number: "", issueDate: "", dueDate: "", currency: "", globalDraftRequestId: crypto.randomUUID(),
   items: [
     { id: "item-1", description: "", quantity: "", rate: "", gstRate: 18 },
   ],
@@ -129,11 +129,13 @@ function Sidebar({ onNew, onPricing }) {
   const { user } = useAuth();
   const regionalBilling = getBillingForCountry(user?.country_code);
   const regionalLocale = getCountryByCode(user?.country_code)?.locales?.[0] || "en";
-  const regionalPricingText = user?.country_code && user.country_code !== "IN"
-    ? regionalBilling
-      ? `Basic ${formatPlanPrice(regionalBilling.monthly.basic, regionalBilling.currency, regionalLocale)} · Pro ${formatPlanPrice(regionalBilling.monthly.pro, regionalBilling.currency, regionalLocale)}/month. International checkout is not active yet.`
-      : `Workspace currency ${user.currency_code || ""}. Pricing is unavailable until country and currency are verified.`
-    : "Three polished PDF exports, then keep going for ₹249/month.";
+  const regionalPricingText = !user?.country_code
+    ? "Choose and verify your Workspace country to see regional pricing."
+    : user.country_code !== "IN"
+      ? regionalBilling
+        ? `Basic ${formatPlanPrice(regionalBilling.monthly.basic, regionalBilling.currency, regionalLocale)} · Pro ${formatPlanPrice(regionalBilling.monthly.pro, regionalBilling.currency, regionalLocale)}/month. International checkout is not active yet.`
+        : `Workspace currency ${user.currency_code || ""}. Pricing is unavailable until country and currency are verified.`
+      : "Three polished PDF exports, then keep going for ₹249/month.";
   return (
     <aside className="app-chrome hidden w-[228px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
       <div className="flex items-center gap-2.5 px-5 py-6">
@@ -268,7 +270,7 @@ function InvoiceEditor({ invoice, setInvoice, user, workspaceTaxProfile, globalT
           </div>
         )}
         <div className="mt-3">
-          <Field label="Discount"><div className="grid grid-cols-[minmax(0,1fr)_76px] items-start gap-2"><input data-testid="input-discount" aria-label="Discount amount" type="number" inputMode="decimal" min="0" className={`${inputClass} mt-1.5 w-full min-w-0 px-3 text-[16px] font-semibold tabular-nums`} value={invoice.discount} placeholder="0" onChange={(e) => setInvoice((old) => ({ ...old, discount: e.target.value === "" ? "" : Number(e.target.value) }))} /><select data-testid="select-discount-type" aria-label="Discount type" className={`${inputClass} mt-1.5 w-full min-w-0 px-2 text-[15px] font-semibold`} value={invoice.discountType} onChange={(e) => setInvoice((old) => ({ ...old, discountType: e.target.value }))}><option value="percent">%</option><option value="flat">{invoice.currency || "INR"}</option></select></div></Field>
+          <Field label="Discount"><div className="grid grid-cols-[minmax(0,1fr)_76px] items-start gap-2"><input data-testid="input-discount" aria-label="Discount amount" type="number" inputMode="decimal" min="0" className={`${inputClass} mt-1.5 w-full min-w-0 px-3 text-[16px] font-semibold tabular-nums`} value={invoice.discount} placeholder="0" onChange={(e) => setInvoice((old) => ({ ...old, discount: e.target.value === "" ? "" : Number(e.target.value) }))} /><select data-testid="select-discount-type" aria-label="Discount type" className={`${inputClass} mt-1.5 w-full min-w-0 px-2 text-[15px] font-semibold`} value={invoice.discountType} onChange={(e) => setInvoice((old) => ({ ...old, discountType: e.target.value }))}><option value="percent">%</option><option value="flat">{invoice.currency || baseCurrencyCode || "Currency"}</option></select></div></Field>
         </div>
       </SectionCard>
       <SectionCard icon={Send} eyebrow="A little context" title="Notes & terms">
