@@ -221,14 +221,35 @@ set legacy_global_workspace_id = excluded.legacy_global_workspace_id,
       when public.workspace_settings.country_code <> excluded.country_code
         or public.workspace_settings.currency_code <> excluded.currency_code
       then 'review_required'
+      when public.workspace_settings.onboarding_version >= 1
+        and public.workspace_settings.migration_status = 'ready'
+      then 'ready'
       else 'legacy_pending'
     end,
-    onboarding_version = 0,
-    legacy_review_required = (
-      public.workspace_settings.country_code <> excluded.country_code
-      or public.workspace_settings.currency_code <> excluded.currency_code
-    ),
-    onboarding_completed_at = null,
+    onboarding_version = case
+      when public.workspace_settings.country_code <> excluded.country_code
+        or public.workspace_settings.currency_code <> excluded.currency_code
+      then 0
+      else greatest(public.workspace_settings.onboarding_version, excluded.onboarding_version)
+    end,
+    legacy_review_required = case
+      when public.workspace_settings.country_code <> excluded.country_code
+        or public.workspace_settings.currency_code <> excluded.currency_code
+      then true
+      when public.workspace_settings.onboarding_version >= 1
+        and public.workspace_settings.migration_status = 'ready'
+      then false
+      else public.workspace_settings.legacy_review_required
+    end,
+    onboarding_completed_at = case
+      when public.workspace_settings.country_code <> excluded.country_code
+        or public.workspace_settings.currency_code <> excluded.currency_code
+      then null
+      when public.workspace_settings.onboarding_version >= 1
+        and public.workspace_settings.migration_status = 'ready'
+      then public.workspace_settings.onboarding_completed_at
+      else null
+    end,
     updated_at = now();
 
 -- Carry over the legacy Global business profile without overwriting any
