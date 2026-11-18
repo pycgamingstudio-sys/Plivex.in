@@ -116,6 +116,6 @@ test("PLIVEX ONE disables destructive country reset and revokes the reset RPC", 
   assert.match(localeHandler, /authenticate\(req\)/);
   assert.match(localeHandler, /update_workspace_locale_atomic/);
   assert.doesNotMatch(localeHandler, /update_india_workspace_locale/);
-  assert.match(plivexOneMigration, /create or replace function public\.update_workspace_locale_atomic\(uuid, text\)/);
+  assert.match(plivexOneMigration, /create or replace function public\.update_workspace_locale_atomic\([\s\S]*?p_user_id uuid,[\s\S]*?p_locale_code text/);
   assert.match(plivexOneMigration, /grant execute on function public\.update_workspace_locale_atomic\(uuid, text\) to service_role/);
 });
