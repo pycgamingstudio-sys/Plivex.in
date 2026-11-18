@@ -55,7 +55,6 @@ Deno.serve(async (req: Request) => {
     }
 
     const email = String(profile?.email || auth.user.email || "").trim().toLowerCase();
-    const metadata = auth.user.user_metadata || {};
     const countryLocales: Record<string, string[]> = {
       IN: ["en-IN", "hi-IN"], US: ["en-US", "es-US"], GB: ["en-GB"],
       AE: ["en-AE", "ar-AE"], CA: ["en-CA", "fr-CA"], AU: ["en-AU"],
