@@ -133,8 +133,8 @@ export default function UnifiedWorkspaceOnboarding() {
         <div key={step} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-8 sm:py-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
           {step === 0 && <>
             <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><Globe2 className="h-6 w-6" /></div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Where is your business based?</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Choose the country where your business operates. We'll configure your workspace for that region.</p>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Choose your country.</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Choose where your business or independent work is based. Plivex will configure your one Workspace for that country.</p>
             <div className="mt-5 rounded-2xl border border-violet-100 bg-violet-50/70 p-4 text-sm leading-6 text-violet-950">
               <div className="flex items-start gap-2"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-violet-700" /><div><p className="font-semibold">A quick note before you choose</p><p className="mt-1 text-violet-900/80">Your country sets your workspace's base currency, regional formats and country-specific settings. Changing it after workspace creation requires a controlled reset or migration and may affect existing records. Please review your selection before continuing.</p></div></div>
             </div>
@@ -155,9 +155,9 @@ export default function UnifiedWorkspaceOnboarding() {
 
           {step === 1 && <>
             <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><Store className="h-6 w-6" /></div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Let's start with your business.</h1>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Let's set up your workspace.</h1>
             <p className="mt-2 text-sm leading-6 text-slate-500">Give your workspace a name. You can add your legal and billing details later.</p>
-            <label className="mt-7 block text-sm font-semibold">Business or workspace name <span className="text-rose-600">*</span>
+            <label className="mt-7 block text-sm font-semibold">Business or professional name <span className="text-rose-600">*</span>
               <input autoFocus required maxLength={160} value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="e.g. Sharma Traders" className="mt-2 h-13 w-full rounded-xl border border-slate-200 px-4 text-base outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" />
             </label>
           </>}
