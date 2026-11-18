@@ -141,3 +141,11 @@ test("additional invoice currencies require verified India Pro entitlement at AP
   assert.match(migration, /v_multi_currency := coalesce\(\(v_access->'features'->>'multi_currency'\)::boolean, false\)/);
   assert.match(migration, /if v_country <> 'IN' then[\s\S]*invoice_currency_must_match_workspace_base_currency/);
 });
+
+test("PLIVEX ONE cannot reset or delete a workspace to change country", async () => {
+  const reset = await read("../../../supabase/functions/reset-workspace-country/index.ts");
+  const migration = await read("../../../supabase/migrations/20261118121500_plivex_one_workspace_settings.sql");
+  assert.match(reset, /Workspace country is fixed after onboarding/);
+  assert.doesNotMatch(reset, /SUPABASE_SERVICE_ROLE_KEY|reset_workspace_country_atomic/);
+  assert.match(migration, /revoke all on function public\.reset_workspace_country_atomic\(uuid, text, text, text, text\) from public, anon, authenticated, service_role/);
+});
