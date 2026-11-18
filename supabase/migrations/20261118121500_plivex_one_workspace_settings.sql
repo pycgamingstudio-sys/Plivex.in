@@ -111,6 +111,86 @@ update public.purchase_order_items t set currency_code = o.currency_code
   from public.purchase_orders o where t.purchase_order_id = o.id and t.workspace_id = o.workspace_id
     and t.currency_code is null;
 
+-- Backfill historical records using the country/currency that was already stored
+-- for each legacy workspace. Global owners have an explicit Global workspace currency;
+-- legacy India-only workspaces used INR. Unknown countries stay NULL rather than guessed.
+update public.expenses t
+set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
+from public.profiles p
+left join lateral (
+  select w.currency_code from global.workspaces w
+  where w.created_by = p.id
+  order by w.updated_at desc nulls last, w.created_at desc
+  limit 1
+) gw on true
+where t.workspace_id = p.workspace_id and t.currency_code is null
+  and coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end) is not null;
+
+update public.stock t
+set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
+from public.profiles p
+left join lateral (
+  select w.currency_code from global.workspaces w
+  where w.created_by = p.id
+  order by w.updated_at desc nulls last, w.created_at desc
+  limit 1
+) gw on true
+where t.workspace_id = p.workspace_id and t.currency_code is null
+  and coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end) is not null;
+
+update public.services t
+set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
+from public.profiles p
+left join lateral (
+  select w.currency_code from global.workspaces w
+  where w.created_by = p.id
+  order by w.updated_at desc nulls last, w.created_at desc
+  limit 1
+) gw on true
+where t.workspace_id = p.workspace_id and t.currency_code is null
+  and coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end) is not null;
+
+update public.leads t
+set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
+from public.profiles p
+left join lateral (
+  select w.currency_code from global.workspaces w
+  where w.created_by = p.id
+  order by w.updated_at desc nulls last, w.created_at desc
+  limit 1
+) gw on true
+where t.workspace_id = p.workspace_id and t.currency_code is null
+  and coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end) is not null;
+
+update public.quotations t
+set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
+from public.profiles p
+left join lateral (
+  select w.currency_code from global.workspaces w
+  where w.created_by = p.id
+  order by w.updated_at desc nulls last, w.created_at desc
+  limit 1
+) gw on true
+where t.workspace_id = p.workspace_id and t.currency_code is null
+  and coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end) is not null;
+
+update public.purchase_orders t
+set currency_code = coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end)
+from public.profiles p
+left join lateral (
+  select w.currency_code from global.workspaces w
+  where w.created_by = p.id
+  order by w.updated_at desc nulls last, w.created_at desc
+  limit 1
+) gw on true
+where t.workspace_id = p.workspace_id and t.currency_code is null
+  and coalesce(gw.currency_code, case when p.country_code = 'IN' then 'INR' end) is not null;
+
+update public.purchase_order_items t
+set currency_code = o.currency_code
+from public.purchase_orders o
+where t.purchase_order_id = o.id and t.workspace_id = o.workspace_id and t.currency_code is null;
+
 create or replace function public.india_part4_create_purchase_order(
   p_supplier_name text,
   p_items jsonb,
