@@ -31,8 +31,20 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
   const now = new Date();
   const cur = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthExp = expenses.filter((e) => new Date(e.date) >= cur).reduce((s, e) => s + Number(e.amount || 0), 0);
-  const monthSales = loadList(KEYS.history).filter((it) => { const d = new Date(it.createdDate || it.issueDate); return d >= cur; }).reduce((s, it) => s + Number(it.total || 0), 0);
-  const net = monthSales - monthExp;
+  const monthInvoices = loadList(KEYS.history).filter((it) => { const d = new Date(it.createdDate || it.issueDate); return d >= cur; });
+  const salesByCurrency = new Map();
+  monthInvoices.forEach((it) => {
+    const currency = String(it.currency || currencyCode).trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(currency)) return;
+    salesByCurrency.set(currency, (salesByCurrency.get(currency) || 0) + Number(it.total || 0));
+  });
+  const monthSales = [...salesByCurrency.entries()]
+    .sort(([a], [b]) => a === currencyCode ? -1 : b === currencyCode ? 1 : a.localeCompare(b))
+    .map(([currency, amount]) => money2(amount, currency))
+    .join(" · ") || money2(0, currencyCode);
+  const baseCurrencySales = salesByCurrency.get(currencyCode) || 0;
+  const hasOtherCurrencySales = [...salesByCurrency.keys()].some((currency) => currency !== currencyCode);
+  const net = baseCurrencySales - monthExp;
 
   const expenseStatus = (e) => {
     if (e.status === "Paid" || e.status === "Received" || e.status === "Cancelled") return e.status;
@@ -77,8 +89,9 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <SummaryCard label="Monthly Expense" value={money2(monthExp, currencyCode)} gradient="bg-gradient-to-br from-[#E11D48] to-[#F43F5E]" icon={Wallet} badge="this month" />
         <SummaryCard label="Monthly Sales" value={money2(monthSales, currencyCode)} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={TrendingUp} badge="this month" />
-        <SummaryCard label="Net Profit" value={money2(net, currencyCode)} gradient={net >= 0 ? "bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" : "bg-gradient-to-br from-[#D97706] to-[#F59E0B]"} icon={PiggyBank} badge={net >= 0 ? "surplus" : "deficit"} />
+        <SummaryCard label={`Net Profit · ${currencyCode}`} value={money2(net, currencyCode)} gradient={net >= 0 ? "bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" : "bg-gradient-to-br from-[#D97706] to-[#F59E0B]"} icon={PiggyBank} badge={net >= 0 ? "surplus" : "deficit"} />
       </div>
+      {hasOtherCurrencySales && <p className="text-[11px] text-muted-foreground">Sales are grouped by recorded currency. Net profit uses base-currency sales only; no FX conversion is performed.</p>}
 
       <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-[#E5E7EB] p-4 lg:flex-row lg:items-center lg:justify-between">
