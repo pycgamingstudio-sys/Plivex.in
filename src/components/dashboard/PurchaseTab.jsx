@@ -40,7 +40,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
   const monthExp = [...expensesByCurrency.entries()]
     .sort(([a], [b]) => a === currencyCode ? -1 : b === currencyCode ? 1 : a.localeCompare(b))
     .map(([currency, amount]) => money2(amount, currency))
-    .join(" · ") || "Currency not recorded";
+    .join(" · ") || (monthExpenses.length ? "Currency not recorded" : money2(0, currencyCode));
   const baseCurrencyExpenses = expensesByCurrency.get(currencyCode) || 0;
   const hasOtherCurrencyExpenses = [...expensesByCurrency.keys()].some((currency) => currency !== currencyCode);
   const hasUnknownCurrencyExpenses = monthExpenses.some((e) => !/^[A-Z]{3}$/.test(String(e.currencyCode || "").trim().toUpperCase()));
