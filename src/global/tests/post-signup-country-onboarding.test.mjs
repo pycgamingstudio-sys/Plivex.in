@@ -48,3 +48,17 @@ test("Global owner provisioning rejects a missing country instead of defaulting 
   assert.match(edgeFunction, /Choose a valid regional format for your selected country/);
   assert.doesNotMatch(edgeFunction, /requestedCountry.*: "IN"/);
 });
+
+test("PLIVEX ONE persists country, currency, work type and optional modules under RLS", async () => {
+  const migration = await read("../../../supabase/migrations/20261118121500_plivex_one_workspace_settings.sql");
+  const provisioner = await read("../../../supabase/functions/ensure-owner-role/index.ts");
+  const backend = await read("../../api/backendClient.js");
+  assert.match(migration, /create table if not exists public\.workspace_settings/);
+  assert.match(migration, /enable row level security/);
+  assert.match(migration, /workspace_settings_country_currency_check/);
+  assert.match(migration, /Never infer India from missing data/);
+  assert.match(provisioner, /currency_code: currencyByCountry\[countryCode\]/);
+  assert.match(provisioner, /workspace_type: workspaceType/);
+  assert.match(provisioner, /optional_features: optionalFeatures/);
+  assert.match(backend, /currency_code: workspaceSettings\?\.currency_code/);
+});
