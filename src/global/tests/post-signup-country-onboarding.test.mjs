@@ -18,6 +18,10 @@ test("unified signup authenticates first and collects country after sign-in", as
   assert.doesNotMatch(onboarding, /globalEnsureOwner/);
   assert.match(onboarding, /ensureOwnerRole/);
   assert.match(onboarding, /businessType: workTypes\[0\]/);
+  assert.match(onboarding, /Previous country setting:/);
+  assert.match(onboarding, /Please select your country again and choose Freelancer or Business/);
+  assert.doesNotMatch(onboarding, /initial\.countryCode \|\| user\?\.country_code/);
+  assert.doesNotMatch(onboarding, /user\?\.workspace_type \? \[user\.workspace_type\]/);
   assert.match(onboarding, /optionalFeatures: features/);
   assert.match(onboarding, /phone: phone\.trim\(\) \|\| null/);
   assert.doesNotMatch(onboarding, /supabase\.auth\.updateUser/);
