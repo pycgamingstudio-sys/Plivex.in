@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [backend, authContext, stores, paywall, login, register, app, onboarding] = await Promise.all([
+const [backend, authContext, stores, paywall, login, register, app, onboarding, migration] = await Promise.all([
   read("../../api/backendClient.js"),
   read("../../lib/AuthContext.jsx"),
   read("../../lib/stores.js"),
@@ -12,6 +12,7 @@ const [backend, authContext, stores, paywall, login, register, app, onboarding] 
   read("../../pages/Register.jsx"),
   read("../../App.jsx"),
   read("../../components/global/UnifiedWorkspaceOnboarding.jsx"),
+  read("../../../supabase/migrations/20261118121500_plivex_one_workspace_settings.sql"),
 ]);
 
 test("retired Global backend adapters remain blocked from unified runtime", () => {
@@ -28,6 +29,13 @@ test("unified build keeps one public workspace identity and provisions through c
   assert.match(onboarding, /ensureOwnerRole/);
   assert.doesNotMatch(onboarding, /globalEnsureOwner/);
   assert.match(backend, /workspace_settings/);
+});
+
+
+test("authenticated users cannot self-promote or reassign their workspace through profiles", () => {
+  assert.match(migration, /revoke update on table public\.profiles from authenticated/);
+  assert.match(migration, /revoke update \([\s\S]*role, workspace_id[\s\S]*\) on public\.profiles from authenticated/);
+  assert.match(migration, /grant update \(full_name, profile_picture\) on public\.profiles to authenticated/);
 });
 
 test("legacy isolated storage never imports India localStorage keys", () => {
