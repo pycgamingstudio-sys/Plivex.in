@@ -100,7 +100,21 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
 
   const paidCount = invoices.filter((it) => statusOf(it) === "Paid").length;
   const pendingCount = invoices.length - paidCount;
-  const totalInvoiced = invoices.reduce((s, it) => s + Number(it.total || 0), 0);
+  const currencyTotals = (records) => {
+    const totals = new Map();
+    records.forEach((record) => {
+      const currency = String(record.currency || currencyCode).trim().toUpperCase();
+      if (!/^[A-Z]{3}$/.test(currency)) return;
+      totals.set(currency, (totals.get(currency) || 0) + Number(record.total || 0));
+    });
+    return [...totals.entries()]
+      .sort(([a], [b]) => a === currencyCode ? -1 : b === currencyCode ? 1 : a.localeCompare(b))
+      .map(([currency, amount]) => money2(amount, currency))
+      .join(" · ") || money2(0, currencyCode);
+  };
+  const totalInvoiced = currencyTotals(invoices);
+  const totalPaid = currencyTotals(invoices.filter((it) => statusOf(it) === "Paid"));
+  const totalPending = currencyTotals(invoices.filter((it) => statusOf(it) === "Pending"));
   const totalQuotes = quotations.length;
 
   return (
@@ -112,9 +126,9 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
         ].map((item) => { const pct = item.limit > 0 ? Math.min(100, item.used / item.limit * 100) : 100; return <div key={item.key} className="rounded-xl border border-[#E5E7EB] bg-white p-3"><div className="flex items-center justify-between gap-2 text-xs"><span className="font-semibold text-slate-700">{item.label}</span><span className="font-bold text-slate-600">{item.used}/{item.limit}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-[#6D28D9]"}`} style={{ width: `${pct}%` }} /></div>{pct >= 80 && <p className={`mt-1.5 text-[11px] ${pct >= 100 ? "text-rose-600" : "text-amber-600"}`}>{pct >= 100 ? "Plan limit reached" : "Usage limit warning"}</p>}{pct >= 100 && <button onClick={() => openPaywall(`${item.label} limit reached for your current plan.`)} className="mt-2 rounded-lg bg-[#6D28D9] px-3 py-1.5 text-xs font-bold text-white">Upgrade</button>}</div>; })}
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <SummaryCard label="Total Invoiced" value={money2(totalInvoiced, currencyCode)} gradient="bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" icon={ReceiptIcon} badge={`${invoices.length} inv`} />
-        <SummaryCard label="Paid" value={money2(invoices.filter((it) => statusOf(it) === "Paid").reduce((s, it) => s + Number(it.total || 0), 0), currencyCode)} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={CheckCircle2} badge={`${paidCount} paid`} />
-        <SummaryCard label="Pending" value={money2(invoices.filter((it) => statusOf(it) === "Pending").reduce((s, it) => s + Number(it.total || 0), 0), currencyCode)} gradient="bg-gradient-to-br from-[#D97706] to-[#F59E0B]" icon={Clock} badge={`${pendingCount} due`} />
+        <SummaryCard label="Total Invoiced" value={totalInvoiced} gradient="bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" icon={ReceiptIcon} badge={`${invoices.length} inv`} />
+        <SummaryCard label="Paid" value={totalPaid} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={CheckCircle2} badge={`${paidCount} paid`} />
+        <SummaryCard label="Pending" value={totalPending} gradient="bg-gradient-to-br from-[#D97706] to-[#F59E0B]" icon={Clock} badge={`${pendingCount} due`} />
         <SummaryCard label="Quotations" value={String(totalQuotes)} gradient="bg-gradient-to-br from-[#2563EB] to-[#3B82F6]" icon={FileText} badge="quotes" />
       </div>
 
