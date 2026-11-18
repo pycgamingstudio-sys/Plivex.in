@@ -16,12 +16,12 @@ import SummaryCard from "@/components/dashboard/SummaryCard";
 
 const BANKS = ["HDFC Bank · 501000123456789", "ICICI Bank · 623400987654321", "State Bank of India · 30012345678901", "Axis Bank · 910000456789012"];
 
-export default function SalesTab({ intent, onConsumeIntent }) {
+export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
   const { requestAction, requireFeature, limits, usage, remaining, openPaywall } = usePaywall();
   const { user } = useAuth();
   const currencyCode = user?.currency_code || "INR";
   const { isAccountant } = useRole();
-  const [sub, setSub] = useState("invoices");
+  const [sub, setSub] = useState(initialSub === "quotations" ? "quotations" : "invoices");
   const [invoices, setInvoices] = useState(() => loadList(KEYS.history, { includeCancelled: true }));
   const [quotations, setQuotations] = useState(() => loadList(KEYS.quotations));
   const [paylog] = useState(() => loadList(KEYS.paymentLogs));
