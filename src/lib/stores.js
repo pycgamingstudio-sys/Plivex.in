@@ -392,106 +392,10 @@ export async function saveInvoiceToServer(inv) {
   const sig = invoiceSignature(inv);
   const workspaceCountry = String(inv.workspaceCountryCode || "").trim().toUpperCase();
   const isGlobalWorkspaceInvoice = Boolean(workspaceCountry && workspaceCountry !== "IN");
-  if (APP_EDITION === "global" || isGlobalWorkspaceInvoice) {
-    const already = _savedSignatures.get(sig);
-    if (already) return already;
-    const currency = String(inv.currency || inv.workspaceCurrencyCode || "").trim().toUpperCase();
-    if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Workspace base currency could not be verified. Invoice PDF export is paused rather than defaulting to USD or INR.");
-    if (inv.workspaceCurrencyCode && currency !== String(inv.workspaceCurrencyCode).trim().toUpperCase()) {
-      throw new Error("Invoice currency must match the workspace base currency. Multi-Currency applies only to additional currencies.");
-    }
-    const digits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits;
-    const scale = 10 ** digits;
-    const rawLines = (inv.items || []).map((item) => ({
-      description: str(item.description),
-      quantity: num(item.quantity),
-      unitPriceMinor: Math.round(num(item.rate) * scale),
-    }));
-    const subtotalMinor = rawLines.reduce((sum, item) => sum + Math.round(item.quantity * item.unitPriceMinor), 0);
-    const discountValue = Math.max(0, num(inv.discount));
-    const discountMinor = Math.round((inv.discountType === "percent"
-      ? subtotalMinor * Math.min(100, discountValue) / 100
-      : Math.min(subtotalMinor, discountValue * scale)));
-    let allocated = 0;
-    const items = rawLines.map((item, index) => {
-      const lineSubtotal = Math.round(item.quantity * item.unitPriceMinor);
-      const share = index === rawLines.length - 1
-        ? discountMinor - allocated
-        : (subtotalMinor > 0 ? Math.floor(discountMinor * lineSubtotal / subtotalMinor) : 0);
-      allocated += share;
-      return {
-        description: item.description,
-        quantity: item.quantity,
-        unit_price_minor: item.unitPriceMinor,
-        discount_minor: share,
-      };
-    });
-    if (!items.length || items.some((item) => !item.description || !Number.isFinite(item.quantity) || item.quantity <= 0)) {
-      throw new Error("Add valid invoice lines before saving this Global draft.");
-    }
-    const requestKeyName = tenantKey(`global-draft-request:${sig}`);
-    let idempotencyKey = "";
-    try { idempotencyKey = localStorage.getItem(requestKeyName) || ""; } catch { /* use a fresh in-memory key */ }
-    if (!/^[0-9a-f-]{36}$/i.test(idempotencyKey)) {
-      idempotencyKey = typeof inv.globalDraftRequestId === "string" && /^[0-9a-f-]{36}$/i.test(inv.globalDraftRequestId)
-        ? inv.globalDraftRequestId
-        : crypto.randomUUID();
-      try { localStorage.setItem(requestKeyName, idempotencyKey); } catch { /* key still applies to this request */ }
-    }
-    const clientKeyName = tenantKey(`global-client-id:${sig}`);
-    let clientId = "";
-    try { clientId = localStorage.getItem(clientKeyName) || ""; } catch { /* resolve from the client list */ }
-    if (!/^[0-9a-f-]{36}$/i.test(clientId)) {
-      const clientName = str(inv.client?.name || inv.client?.company).trim();
-      const clientEmail = str(inv.client?.email).trim().toLowerCase();
-      const clientPhone = str(inv.client?.phone).trim();
-      const clientTaxNumber = str(inv.client?.gstin).trim();
-      const clientAddress = str(inv.client?.address).trim();
-      const clientList = await api.functions.invoke("workspaceRecords", { table:"clients", action:"list", limit:100 });
-      const knownClients = clientList?.data?.records || [];
-      const existingClient = clientEmail
-        ? knownClients.find((client) => String(client.email || "").trim().toLowerCase() === clientEmail)
-        : clientPhone
-          ? knownClients.find((client) => String(client.phone || "").replace(/\D/g, "") === clientPhone.replace(/\D/g, "")
-            && String(client.name || "").trim().toLowerCase() === clientName.toLowerCase())
-          : knownClients.filter((client) => String(client.name || "").trim().toLowerCase() === clientName.toLowerCase()).length === 1
-            ? knownClients.find((client) => String(client.name || "").trim().toLowerCase() === clientName.toLowerCase())
-            : null;
-      if (existingClient?.id) {
-        clientId = existingClient.id;
-      } else {
-        const createdClient = await api.functions.invoke("workspaceRecords", {
-          table:"clients",
-          action:"create",
-          values:{
-            name:clientName,
-            email:clientEmail || null,
-            phone:clientPhone || null,
-            tax_registration_number:clientTaxNumber || null,
-            billing_address:{ formatted:clientAddress },
-          },
-        });
-        clientId = createdClient?.data?.record?.id || createdClient?.data?.records?.[0]?.id || "";
-      }
-      if (!/^[0-9a-f-]{36}$/i.test(clientId)) throw new Error("The Global customer record could not be saved.");
-      try { localStorage.setItem(clientKeyName, clientId); } catch { /* the server record remains available */ }
-    }
-    const response = await api.functions.invoke("globalInvoices", {
-      action: "create_draft",
-      client_id: clientId,
-      currency_code: currency,
-      issue_date: dateOrNull(inv.issueDate) || new Date().toISOString().slice(0, 10),
-      due_date: dateOrNull(inv.dueDate),
-      notes: [inv.notes, inv.terms].filter(Boolean).join("\\n\\n").slice(0, 4000),
-      items,
-      idempotency_key: idempotencyKey,
-    });
-    const saved = response?.data?.invoice;
-    if (!saved?.id) throw new Error("The Global draft invoice could not be saved.");
-    const result = { id: saved.id, number: saved.invoice_number, status: "draft", currency, idempotencyKey };
-    _savedSignatures.set(sig, result);
-    return result;
-  }
+  const workspaceCurrency = String(inv.workspaceCurrencyCode || "").trim().toUpperCase();
+  const currency = String(inv.currency || workspaceCurrency || (workspaceCountry === "IN" ? "INR" : "")).trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Workspace base currency could not be verified. Invoice PDF export is paused rather than defaulting to INR.");
+  if (workspaceCurrency && currency !== workspaceCurrency) throw new Error("Invoice currency must match the workspace base currency. Additional currencies require an enabled plan feature.");
   const already = _savedSignatures.get(sig);
   if (already) return already; // same invoice downloaded or shared again: do not create a duplicate
   const payload = {
@@ -504,12 +408,12 @@ export async function saveInvoiceToServer(inv) {
     tax_rate: num(inv.taxRate),
     discount_type: inv.discountType === "flat" ? "flat" : "percent",
     discount: num(inv.discount),
-    is_draft: false,
+    is_draft: isGlobalWorkspaceInvoice,
     status: "Pending",
     client_name: str(inv.client?.name), client_email: str(inv.client?.email), business_name: str(inv.business?.name),
     issue_date: dateOrNull(inv.issueDate) || new Date().toISOString().slice(0, 10),
     due_date: dateOrNull(inv.dueDate),
-    currency: inv.currency || "INR", notes: str(inv.notes), terms: str(inv.terms),
+    currency, notes: str(inv.notes), terms: str(inv.terms),
     invoice_snapshot: inv && typeof inv === "object" ? { ...inv, design: String(inv.design || "classic") } : null,
   };
   const res = await api.functions.invoke("saveInvoice", payload);
