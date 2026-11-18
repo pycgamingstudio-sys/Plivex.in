@@ -37,7 +37,17 @@ Deno.serve(async (req: Request) => {
     const requestedCountry = String(body?.invoice_snapshot?.workspaceCountryCode || body?.invoice_snapshot?.globalTax?.countryCode || "");
     if (requestedCountry && requestedCountry !== countryCode) return json({ error: "Invoice country does not match the manually selected Workspace country." }, 422, origin);
     const requestedCurrency = String(body?.currency || body?.invoice_snapshot?.currency || "").trim().toUpperCase();
-    if (requestedCurrency !== baseCurrencyCode) return json({ error: "Invoice currency must match the Workspace base currency. Additional currencies require an enabled feature." }, 422, origin);
+    if (!/^[A-Z]{3}$/.test(requestedCurrency) || !["INR", "USD", "EUR", "GBP", "AED", "CAD", "AUD", "SGD"].includes(requestedCurrency)) {
+      return json({ error: "Choose a supported invoice currency." }, 422, origin);
+    }
+    if (requestedCurrency !== baseCurrencyCode) {
+      if (countryCode !== "IN") return json({ error: "Additional invoice currencies are not enabled for this Workspace country yet." }, 403, origin);
+      const { data: accessStatus, error: accessError } = await db.rpc("get_access_status", { p_workspace_id: userProfile.workspace_id });
+      if (accessError) return json({ error: "Additional currency access could not be verified." }, 503, origin);
+      if (accessStatus?.features?.multi_currency !== true) {
+        return json({ error: "Additional invoice currencies require the Pro multi-currency feature." }, 403, origin);
+      }
+    }
     let verifiedGlobalTaxResult: Record<string, unknown> | null = null;
     if (countryCode !== "IN") {
       if (body?.is_draft !== true) return json({ error: "Non-India invoices remain drafts until a verified server-side issuance capability is enabled." }, 409, origin);
