@@ -8,6 +8,7 @@ import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes, Navigate, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { APP_EDITION, isUnifiedBuild } from '@/api/backendClient';
+import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
 import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import RoleGuard from '@/components/RoleGuard';
@@ -121,18 +122,18 @@ const AuthenticatedApp = () => {
           <Route path="/quotations" element={isGlobalWorkspace ? <GlobalApp section="quotations" /> : <Navigate to="/dashboard" replace state={{ initialTab: "sales", initialSub: "quotations" }} />} />
           <Route path="/invoice-shares" element={<GlobalFeatureGate feature="Shared invoice links"><InvoiceShareManagement /></GlobalFeatureGate>} />
           <Route path="/business-profile" element={<GlobalFeatureGate feature="Business profile"><BusinessProfile /></GlobalFeatureGate>} />
-          <Route path="/client-database" element={isGlobalWorkspace ? <GlobalApp section="clients" /> : <ClientDatabase />} />
-          <Route path="/crm" element={isGlobalWorkspace ? <GlobalApp section="crm" /> : <CrmTab />} />
-          <Route path="/inventory-procurement" element={isGlobalWorkspace ? <GlobalApp section="inventory" /> : <IndiaPart4Tab user={user} />} />
-          <Route path="/usage-reports" element={<GlobalFeatureGate feature="Usage reports"><UsageReports /></GlobalFeatureGate>} />
+          <Route path="/client-database" element={isGlobalWorkspace ? <GlobalApp section="clients" /> : <WorkspaceFeatureGate anyOf={["crm", "leads"]}><ClientDatabase /></WorkspaceFeatureGate>} />
+          <Route path="/crm" element={isGlobalWorkspace ? <GlobalApp section="crm" /> : <WorkspaceFeatureGate anyOf={["crm", "leads"]}><CrmTab /></WorkspaceFeatureGate>} />
+          <Route path="/inventory-procurement" element={isGlobalWorkspace ? <GlobalApp section="inventory" /> : <WorkspaceFeatureGate feature="inventoryWorkspace"><IndiaPart4Tab user={user} /></WorkspaceFeatureGate>} />
+          <Route path="/usage-reports" element={<GlobalFeatureGate feature="Usage reports"><WorkspaceFeatureGate feature="reports"><UsageReports /></WorkspaceFeatureGate></GlobalFeatureGate>} />
           <Route path="/settings" element={<GlobalFeatureGate feature="Workspace settings"><Settings /></GlobalFeatureGate>} />
           <Route path="/templates" element={<GlobalFeatureGate feature="Quick templates"><QuickTemplates /></GlobalFeatureGate>} />
-          <Route path="/payment-logs" element={<GlobalFeatureGate feature="Payment logs"><PaymentLogs /></GlobalFeatureGate>} />
-          <Route path="/tax-summary" element={<GlobalFeatureGate feature="Tax summary"><TaxSummary /></GlobalFeatureGate>} />
+          <Route path="/payment-logs" element={<GlobalFeatureGate feature="Payment logs"><WorkspaceFeatureGate feature="expenses"><PaymentLogs /></WorkspaceFeatureGate></GlobalFeatureGate>} />
+          <Route path="/tax-summary" element={<GlobalFeatureGate feature="Tax summary"><WorkspaceFeatureGate feature="reports"><TaxSummary /></WorkspaceFeatureGate></GlobalFeatureGate>} />
           <Route path="/help-center" element={<HelpCenter />} />
-          <Route path="/account-activity" element={<GlobalFeatureGate feature="Account activity"><AccountActivity /></GlobalFeatureGate>} />
+          <Route path="/account-activity" element={<GlobalFeatureGate feature="Account activity"><WorkspaceFeatureGate feature="reports"><AccountActivity /></WorkspaceFeatureGate></GlobalFeatureGate>} />
           <Route path="/service-catalog" element={<GlobalFeatureGate feature="Service catalog"><ServiceCatalog /></GlobalFeatureGate>} />
-          <Route path="/team-management" element={<GlobalFeatureGate feature="Team management"><ProTeamRoute /></GlobalFeatureGate>} />
+          <Route path="/team-management" element={<GlobalFeatureGate feature="Team management"><WorkspaceFeatureGate businessOnly><ProTeamRoute /></WorkspaceFeatureGate></GlobalFeatureGate>} />
             </Route>
           </Route>
         </Route>
@@ -143,6 +144,17 @@ const AuthenticatedApp = () => {
 };
 
 // Shows a message when a change could not be saved on the server (e.g. a role without permission).
+
+function WorkspaceFeatureGate({ children, feature, anyOf = [], businessOnly = false }) {
+  const { user } = useAuth();
+  const { features, ready } = useWorkspaceFeatures(user?.workspace_id);
+  if (!isUnifiedBuild) return children;
+  if (!ready) return <main className="mx-auto max-w-xl p-6 text-sm text-muted-foreground" role="status">Loading Workspace features…</main>;
+  if (businessOnly && user?.workspace_type !== "business") return <Navigate to="/dashboard" replace />;
+  if (feature && !features.includes(feature)) return <Navigate to="/dashboard" replace />;
+  if (anyOf.length && !anyOf.some((item) => features.includes(item))) return <Navigate to="/dashboard" replace />;
+  return children;
+}
 
 function GlobalFeatureGate({ children, feature }) {
   const { user } = useAuth();
