@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { backend as db, supabase, setRuntimeEdition } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
 import { COUNTRY_REGISTRY, getCountryByCode, getCountryFlag } from "@/global/countries/country-registry.js";
-import { getSuggestedWorkspaceFeatures } from "@/lib/workspaceFeatures";
+import { getSuggestedWorkspaceFeatures, WORKSPACE_FEATURE_CATALOG } from "@/lib/workspaceFeatures";
 import { Check, ChevronLeft, ChevronRight, Globe2, MapPin, Search, Sparkles, Store, UserRound, Building2, ShieldCheck } from "lucide-react";
 
 const DRAFT_KEY = "plivex:workspace-onboarding:draft";
@@ -42,6 +42,12 @@ export default function UnifiedWorkspaceOnboarding() {
     const next = [type];
     setWorkTypes(next);
     setFeatures(getSuggestedWorkspaceFeatures(next, countryCode));
+  };
+
+  const toggleFeature = (featureId) => {
+    setFeatures((current) => current.includes(featureId)
+      ? current.filter((id) => id !== featureId)
+      : [...current, featureId]);
   };
 
   const next = () => {
@@ -189,6 +195,15 @@ export default function UnifiedWorkspaceOnboarding() {
             </div>
             <p className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">Your dashboard recommendations will follow this choice. You can add or remove optional features at any time. Invoices and Quotations are available in every workspace. Business profiles also include Stock Inventory and Team Members. You can add or remove optional tools later.</p>
             <p className="mt-3 text-xs font-medium text-violet-700">Suggested tools: {features.length ? selectedFeatureLabels.join(" · ") : "Choose a work type to see recommendations."}</p>
+            <div className="mt-5 rounded-2xl border border-slate-200 p-4">
+              <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-bold text-slate-900">Choose your optional features</h2><p className="mt-1 text-xs leading-5 text-slate-500">Select the tools you want in your Workspace. You can change these later in More Features.</p></div><span className="shrink-0 rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700">{features.length} selected</span></div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {WORKSPACE_FEATURE_CATALOG.map((feature) => <label key={feature.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${features.includes(feature.id) ? "border-violet-300 bg-violet-50/60" : "border-slate-200 hover:border-violet-200"}`}>
+                  <input type="checkbox" checked={features.includes(feature.id)} onChange={() => toggleFeature(feature.id)} className="mt-0.5 h-4 w-4 accent-violet-700" />
+                  <span className="min-w-0"><span className="block text-sm font-semibold text-slate-800">{feature.label}</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">{feature.description}</span></span>
+                </label>)}
+              </div>
+            </div>
           </>}
 
           {step === 4 && <>
