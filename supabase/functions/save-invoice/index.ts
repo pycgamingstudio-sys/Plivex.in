@@ -95,6 +95,43 @@ Deno.serve(async (req: Request) => {
       const status = error?.code === "42501" ? 403 : error?.code === "P0002" ? 404 : 400;
       return json({ error: error?.message || "Could not save invoice." }, status, origin);
     }
+
+    // Keep non-India invoice drafts connected to the canonical CRM customer record.
+    if (countryCode !== "IN") {
+      const client = body?.invoice_snapshot?.client && typeof body.invoice_snapshot.client === "object"
+        ? body.invoice_snapshot.client : {};
+      const clientName = String(body.client_name || client.name || client.company || "").trim().slice(0, 160);
+      const clientEmail = String(body.client_email || client.email || "").trim().toLowerCase().slice(0, 254);
+      const clientPhone = String(client.phone || "").trim().slice(0, 40);
+      if (clientName) {
+        let clientId: string | null = null;
+        let clientQuery = db.from("clients").select("id").eq("workspace_id", userProfile.workspace_id);
+        if (clientEmail) clientQuery = clientQuery.eq("email", clientEmail);
+        else if (clientPhone) clientQuery = clientQuery.eq("phone", clientPhone).eq("name", clientName);
+        else clientQuery = clientQuery.eq("name", clientName);
+        const { data: existingClient, error: clientLookupError } = await clientQuery.limit(1).maybeSingle();
+        if (clientLookupError) return json({ error: "Customer record could not be checked. The invoice remains a draft." }, 500, origin);
+        clientId = existingClient?.id || null;
+        if (!clientId) {
+          const { data: createdClient, error: clientCreateError } = await db.from("clients").insert({
+            workspace_id: userProfile.workspace_id,
+            created_by: user.id,
+            name: clientName,
+            email: clientEmail || null,
+            phone: clientPhone || null,
+            tax_registration_number: String(client.gstin || "").trim().slice(0, 80) || null,
+            billing_address: { formatted: String(client.address || "").trim().slice(0, 1000) },
+            status: "active",
+          }).select("id").single();
+          if (clientCreateError || !createdClient?.id) return json({ error: "Customer record could not be saved. The invoice remains a draft." }, 500, origin);
+          clientId = createdClient.id;
+        }
+        const { error: linkClientError } = await db.from("invoices").update({ client_id: clientId })
+          .eq("id", saved.id).eq("workspace_id", userProfile.workspace_id).eq("is_draft", true);
+        if (linkClientError) return json({ error: "Invoice draft saved, but its customer link could not be synchronized." }, 500, origin);
+      }
+    }
+
     if (verifiedGlobalTaxResult) {
       const taxMinor = Number(verifiedGlobalTaxResult.taxMinor);
       const totalMinor = Number(verifiedGlobalTaxResult.totalMinor);
