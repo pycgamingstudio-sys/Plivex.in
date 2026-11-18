@@ -188,6 +188,9 @@ begin
   if v_country is null or v_currency is null then
     raise exception 'workspace_country_currency_unconfigured';
   end if;
+  if upper(trim(new.currency)) not in ('INR','USD','EUR','GBP','AED','CAD','AUD','SGD') then
+    raise exception 'unsupported_invoice_currency';
+  end if;
   if upper(trim(new.currency)) <> v_currency then
     if v_country <> 'IN' then
       raise exception 'invoice_currency_must_match_workspace_base_currency';
