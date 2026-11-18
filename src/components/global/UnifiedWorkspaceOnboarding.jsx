@@ -74,18 +74,16 @@ export default function UnifiedWorkspaceOnboarding() {
       const { error: metadataError } = await supabase.auth.updateUser({ data: metadata });
       if (metadataError) throw metadataError;
 
-      if (country.code === "IN") {
-        const result = await db.functions.invoke("ensureOwnerRole", {
-          countryCode: country.code, localeCode: selectedLocale, businessName: businessName.trim(),
-        });
-        if (!result?.data?.ok) throw new Error(result?.data?.error || "Your India workspace could not be created.");
-      } else {
-        const result = await db.functions.invoke("globalEnsureOwner", {
-          countryCode: country.code, localeCode: selectedLocale, businessName: businessName.trim(),
-        });
-        if (!result?.data?.ok) throw new Error(result?.data?.error || "Your workspace could not be created.");
-      }
-      setRuntimeEdition(country.code === "IN" ? "india" : "global");
+      // One canonical workspace provisioning endpoint serves every manually selected country.
+      const result = await db.functions.invoke("ensureOwnerRole", {
+        countryCode: country.code,
+        localeCode: selectedLocale,
+        businessName: businessName.trim(),
+        businessType: workTypes[0],
+        optionalFeatures: features,
+      });
+      if (!result?.data?.ok) throw new Error(result?.data?.error || "Your workspace could not be created.");
+      setRuntimeEdition("india");
 
       if (taxType.trim() || taxNumber.trim()) {
         try {
