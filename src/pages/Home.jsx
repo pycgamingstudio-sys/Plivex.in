@@ -803,87 +803,9 @@ export default function Home() {
           documentStatus: "draft",
         }));
 
-        let issuedInvoice = null;
-        if (workspaceTaxProfile?.countryCode === "GB") {
-          let capabilities = null;
-          try {
-            capabilities = await backend.functions.invoke("globalInvoices", { action:"capabilities", workspace_id:user?.workspace_id });
-          } catch {
-            // A missing migration or undeployed Edge Function keeps this invoice draft-only.
-          }
-          if (capabilities?.data?.issuance_ready === true && globalTaxCalculation?.ok === true) {
-            const tax = invoiceForPreview.globalTax || {};
-            const issueResponse = await backend.functions.invoke("globalInvoices", {
-              action:"issue",
-              invoice_id:saved.id,
-              idempotency_key:issueKey,
-              tax_context:{
-                registration_confirmed:tax.registrationConfirmed === true,
-                place_of_supply_confirmed:tax.placeOfSupplyConfirmed === true,
-                tax_category_confirmed:tax.taxCategoryConfirmed === true,
-                tax_category:tax.taxCategory || "",
-                mode:tax.mode || "",
-                price_mode:tax.priceMode || "",
-                place_of_supply:tax.placeOfSupply || "",
-              },
-            });
-            if (!issueResponse?.data?.ok || !issueResponse?.data?.invoice?.invoice_number) {
-              throw new Error(issueResponse?.data?.error || "The server could not issue this invoice. Your saved draft is still available.");
-            }
-            issuedInvoice = issueResponse.data.invoice;
-            setInvoice((current) => ({
-              ...current,
-              number:issuedInvoice.invoice_number,
-              documentStatus:"issued",
-              globalTaxSnapshot:issuedInvoice.invoice_snapshot,
-            }));
-            trackStaffAction({
-              label:`Global invoice ${issuedInvoice.invoice_number} issued for ${invoice.client.name || "client"}`,
-              type:"invoice",
-              revenue:Number(issuedInvoice.total_minor || 0) / 100,
-            });
-          }
-        } else {
-          let capabilities = null;
-          try {
-            capabilities = await backend.functions.invoke("globalInvoices", { action:"capabilities", workspace_id:user?.workspace_id });
-          } catch {
-            // Keep the saved draft downloadable if the server capability is not deployed.
-          }
-          if (capabilities?.data?.commercial_issuance_ready === true
-            && capabilities.data.commercial_issuance_countries?.includes(workspaceTaxProfile?.countryCode)) {
-            const commercialIssueKey = invoice.globalIssueInvoiceId === saved.id && /^[0-9a-f-]{36}$/i.test(invoice.globalIssueRequestId || "")
-              ? invoice.globalIssueRequestId
-              : crypto.randomUUID();
-            setInvoice((current) => ({
-              ...current,
-              globalIssueInvoiceId:saved.id,
-              globalIssueRequestId:commercialIssueKey,
-            }));
-            const commercialResponse = await backend.functions.invoke("globalInvoices", {
-              action:"issue_commercial",
-              workspace_id:user?.workspace_id,
-              invoice_id:saved.id,
-              idempotency_key:commercialIssueKey,
-            });
-            if (!commercialResponse?.data?.ok || !commercialResponse?.data?.invoice?.invoice_number) {
-              throw new Error(commercialResponse?.data?.error || "Commercial invoice issuance failed. Your saved draft remains available.");
-            }
-            issuedInvoice = commercialResponse.data.invoice;
-            setInvoice((current) => ({
-              ...current,
-              number:issuedInvoice.invoice_number,
-              documentStatus:"issued",
-              globalTaxSnapshot:issuedInvoice.invoice_snapshot,
-            }));
-            trackStaffAction({
-              label:`Global commercial invoice ${issuedInvoice.invoice_number} issued for ${invoice.client.name || "client"}`,
-              type:"invoice",
-              revenue:Number(issuedInvoice.total_minor || 0) / 100,
-            });
-          }
-        }
-
+        // PLIVEX ONE stores non-India invoices in the same canonical ledger as drafts.
+        // Issuance stays disabled until a verified country rule and server capability are active.
+        const issuedInvoice = null;
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const pdf = await renderPdfDocument();
         if (!pdf) return;
@@ -892,7 +814,7 @@ export default function Home() {
           ? `Plivex_${String(exportNumber).replace(/[^a-zA-Z0-9]+/g, "-")}.pdf`
           : `Plivex_DRAFT_${String(exportNumber).replace(/[^a-zA-Z0-9]+/g, "-")}.pdf`;
         downloadPdfBlob(pdf, exportFilename);
-        recordActivity(issuedInvoice ? "Global invoice issued and PDF exported" : "Global draft invoice exported");
+        recordActivity(issuedInvoice ? "Workspace invoice issued and PDF exported" : "Workspace invoice draft exported");
         if (issuedInvoice) {
           notify(`UK VAT invoice ${issuedInvoice.invoice_number} issued and PDF downloaded. Payment-provider collection is not connected yet.`);
         } else {
@@ -999,7 +921,7 @@ export default function Home() {
       // exactly once. This prevents WhatsApp sharing from creating an unsaved invoice.
       const savedInvoice = await recordInvoice();
       if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
-      const shareLink = await createInvoiceShareLink(savedInvoice.id, user?.workspace_id, Boolean(workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN"));
+      const shareLink = await createInvoiceShareLink(savedInvoice.id, user?.workspace_id, false);
       if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
         setInvoice((current) => ({ ...current, number: savedInvoice.number }));
         // Let React update the visible invoice preview before rasterizing it.
