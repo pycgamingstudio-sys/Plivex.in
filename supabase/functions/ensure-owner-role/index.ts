@@ -87,7 +87,9 @@ Deno.serve(async (req: Request) => {
     if (!countryLocales[countryCode].includes(localeCode)) return jsonResponse({ error: "Choose a valid regional format for your selected country." }, 400, origin);
     const workspaceType = String(body?.businessType || "").trim().toLowerCase();
     if (!["freelancer", "business"].includes(workspaceType)) return jsonResponse({ error: "Choose Freelancer or Business for your workspace." }, 400, origin);
-    if (existingWorkspaceType && existingWorkspaceType !== workspaceType) {
+    if (existingWorkspaceType && existingWorkspaceType !== workspaceType
+      && Number(existingSettings?.onboarding_version || 0) >= 1
+      && existingSettings?.migration_status === "ready") {
       return jsonResponse({ error: "This Workspace already has a primary work profile. Changing it requires a separately reviewed migration." }, 409, origin);
     }
     const allowedFeatures = new Set(["expenses", "crm", "leads", "inventoryWorkspace", "reports"]);
