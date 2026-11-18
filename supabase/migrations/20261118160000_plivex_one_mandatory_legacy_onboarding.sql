@@ -283,7 +283,7 @@ on conflict do nothing;
 -- first-class public table with original row IDs and an explicit source key.
 create table if not exists public.accounting_accounts (
   id uuid primary key,
-  workspace_id text not null,
+  workspace_id text not null references public.workspace_settings(workspace_id) on delete restrict,
   legacy_global_workspace_id uuid not null,
   code text not null,
   name text not null,
