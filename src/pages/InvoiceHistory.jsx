@@ -81,7 +81,7 @@ export default function InvoiceHistory() {
       number: item.number || item.invoiceSnapshot.number || "",
       issueDate: item.issueDate || item.invoiceSnapshot.issueDate || "",
       dueDate: item.dueDate || item.invoiceSnapshot.dueDate || "",
-      currency: item.currency || item.invoiceSnapshot.currency || "INR",
+      currency: item.currency || item.invoiceSnapshot.currency || user?.currency_code || "",
     };
     saveState("invoicepulse-draft", snapshot);
     setView(null);
@@ -130,7 +130,7 @@ export default function InvoiceHistory() {
         number: it.number || saved.number || "INV-000",
         issueDate: it.issueDate || saved.issueDate || "",
         dueDate: it.dueDate || saved.dueDate || "",
-        currency: it.currency || saved.currency || "INR",
+        currency: it.currency || saved.currency || user?.currency_code || "",
         items: saved.items,
         design: saved.design || "classic",
       } : {
@@ -139,7 +139,7 @@ export default function InvoiceHistory() {
         number: it.number || "INV-000",
         issueDate: it.issueDate || "",
         dueDate: it.dueDate || "",
-        currency: it.currency || "INR",
+        currency: it.currency || user?.currency_code || "",
         items: (it.items || []).map((item, index) => ({ ...item, id: item.id || `history-item-${index}` })),
         taxRate: Number(it.taxRate) || 0,
         taxMode: it.taxMode || "split",
