@@ -8,7 +8,6 @@
 //    with the Supabase access token in the Authorization header.
 import { createClient } from '@supabase/supabase-js';
 import { resolveEditionId, isSupportedEditionId, UNIFIED_EDITION_ID } from '@/global/core/edition-contract.js';
-import { getCountryByCode } from '@/global/countries/country-registry.js';
 
 export const BUILD_EDITION = import.meta.env.VITE_APP_EDITION === UNIFIED_EDITION_ID
   ? UNIFIED_EDITION_ID
@@ -302,19 +301,18 @@ const auth = {
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
     // For India workspaces the business profile is the authoritative regional
     // setting; user profile country fields may be stale after an approved reset.
-    let workspaceRegion = null;
     let workspaceSettings = null;
     if (profile?.workspace_id) {
-      const [{ data: regionData }, { data: settingsData }] = await Promise.all([
-        supabase.from('business_profile').select('country_code,locale_code').eq('workspace_id', profile.workspace_id).maybeSingle(),
-        supabase.from('workspace_settings').select('country_code,locale_code,currency_code,workspace_type,optional_features,phone_country_code,phone_number').eq('workspace_id', profile.workspace_id).maybeSingle(),
-      ]);
-      workspaceRegion = regionData;
+      const { data: settingsData, error: settingsError } = await supabase.from('workspace_settings')
+        .select('country_code,locale_code,currency_code,workspace_type,optional_features,phone_country_code,phone_number')
+        .eq('workspace_id', profile.workspace_id).maybeSingle();
+      if (settingsError) throw settingsError;
       workspaceSettings = settingsData;
     }
-    const countryCode = workspaceSettings?.country_code || workspaceRegion?.country_code || profile?.country_code || undefined;
-    const localeCode = workspaceSettings?.locale_code || workspaceRegion?.locale_code || profile?.locale_code || undefined;
-    const countryConfig = getCountryByCode(countryCode);
+    // The canonical workspace settings row is the only authority for regional identity.
+    // Do not fall back to user-editable metadata or legacy business/profile country fields.
+    const countryCode = workspaceSettings?.country_code || undefined;
+    const localeCode = workspaceSettings?.locale_code || undefined;
     return {
       id: uid,
       email: session.user.email,
@@ -323,7 +321,7 @@ const auth = {
       workspace_id: profile?.workspace_id || undefined,
       country_code: countryCode,
       locale_code: localeCode,
-      currency_code: workspaceSettings?.currency_code || countryConfig?.currencyCode || undefined,
+      currency_code: workspaceSettings?.currency_code || undefined,
       workspace_type: workspaceSettings?.workspace_type || undefined,
       optional_features: workspaceSettings?.optional_features || undefined,
       user_ref: profile?.user_ref,
@@ -331,7 +329,7 @@ const auth = {
       trial_expires_at: profile?.trial_expires_at,
       created_date: profile?.created_at || session.user.created_at,
       profilePicture: profile?.profile_picture || '',
-      phone: workspaceSettings?.phone_number || session.user.user_metadata?.phone || '',
+      phone: workspaceSettings?.phone_number || '',
     };
   },
   async loginViaEmailPassword(email, password) {
