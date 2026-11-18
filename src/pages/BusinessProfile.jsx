@@ -15,7 +15,8 @@ function Field({ label, children }) {
 
 export default function BusinessProfile() {
   const { user } = useAuth();
-  const phonePrefix = getCountryByCode(user?.country_code)?.phoneCode || "";\n  const isIndiaWorkspace = user?.country_code === "IN";
+  const phonePrefix = getCountryByCode(user?.country_code)?.phoneCode || "";
+  const isIndiaWorkspace = user?.country_code === "IN";
   const [profile, setProfile] = useLocalState(KEYS.businessProfile, defaults);
   const set = (k, v) => setProfile((p) => ({ ...p, [k]: v }));
   // The logo is resized to a small image before it is saved with the business profile.
