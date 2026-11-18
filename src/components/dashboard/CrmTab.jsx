@@ -30,6 +30,9 @@ const formatCurrencyTotals = (records, currencyCode) => {
 export default function CrmTab({ intent, onConsumeIntent }) {
   const { user } = useAuth();
   const currencyCode = user?.currency_code || "INR";
+  const recordedLeadAmount = (lead) => /^[A-Z]{3}$/.test(String(lead?.currencyCode || "").trim().toUpperCase())
+    ? money2(lead.value, String(lead.currencyCode).trim().toUpperCase())
+    : "Currency not recorded";
   const { requestAction } = usePaywall();
   const [sub, setSub] = useState("clients");
   const [clients, setClients] = useState(() => loadList(KEYS.clients));
@@ -196,7 +199,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
                         <p className="mt-1 text-[9px] font-semibold text-slate-500">Lead score: {Number(l.score || 0)}/100</p>
                         {l.nextFollowUpAt && <p className="text-[9px] text-slate-500">Follow-up: {new Date(l.nextFollowUpAt).toLocaleString()}</p>}
                         <p className="mt-1 text-[11px] text-slate-500">{l.requirement || "—"}</p>
-                        <p className="mt-1 text-[12px] font-bold text-[#6D28D9]">{money2(l.value, l.currencyCode || currencyCode)}</p>
+                        <p className="mt-1 text-[12px] font-bold text-[#6D28D9]">{recordedLeadAmount(l)}</p>
                         <div className="mt-2 flex flex-wrap gap-1">
                           {STAGES.filter((s) => s !== stage).map((s) => <button key={s} onClick={() => moveLead(l.id, s)} className="rounded-md bg-slate-100 px-2 py-1 text-[9px] font-semibold text-slate-600 hover:bg-slate-200">→ {s}</button>)}
                           <button onClick={() => persistLeads(removeItem(KEYS.leads, l.id))} className="rounded-md bg-red-50 px-2 py-1 text-[9px] font-semibold text-red-500 hover:bg-red-100">del</button>
