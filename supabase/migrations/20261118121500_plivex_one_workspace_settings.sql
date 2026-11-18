@@ -232,6 +232,9 @@ for each row execute function public.enforce_workspace_invoice_currency();
 revoke all on function public.save_invoice(jsonb, jsonb, uuid) from public, anon;
 grant execute on function public.save_invoice(jsonb, jsonb, uuid) to authenticated, service_role;
 
+-- Country reset used to delete and recreate tenant data. PLIVEX ONE makes country immutable.
+revoke all on function public.reset_workspace_country_atomic(uuid, text, text, text, text) from public, anon, authenticated, service_role;
+
 -- SECURITY DEFINER RPC is callable only by authenticated workspace members.
 revoke all on function public.india_part4_create_purchase_order(text, jsonb, text, date, text) from public, anon;
 grant execute on function public.india_part4_create_purchase_order(text, jsonb, text, date, text) to authenticated, service_role;
