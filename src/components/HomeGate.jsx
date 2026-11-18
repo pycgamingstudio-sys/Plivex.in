@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { lazy } from "react";
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
@@ -11,6 +11,7 @@ import TrialGate from "@/components/TrialGate";
 // (stored before sign-in) are resumed automatically.
 export default function HomeGate() {
   const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings } = useAuth();
+  const location = useLocation();
   const [pending, setPending] = useState(null);
 
   useEffect(() => {
@@ -36,9 +37,14 @@ export default function HomeGate() {
   if (pending === "settings") return <Navigate to="/settings" replace />;
   // The workspace dashboard is an internal screen, so it sits behind the same
   // Apply the same plan-limit recovery banner as other internal routes; expired subscriptions fall back to Free.
+  const routeState = location.state && typeof location.state === "object" ? location.state : {};
   const dashboard = pending === "add-stock" ? <Dashboard initialTab="stock" />
     : pending === "open-crm" ? <Dashboard initialTab="crm" />
       : pending === "export-gst" ? <Dashboard initialTab="sales" />
-        : <Dashboard />;
+        : <Dashboard
+            initialTab={typeof routeState.initialTab === "string" ? routeState.initialTab : undefined}
+            initialSub={typeof routeState.initialSub === "string" ? routeState.initialSub : undefined}
+            initialIntent={typeof routeState.initialIntent === "string" ? routeState.initialIntent : undefined}
+          />;
   return <TrialGate>{dashboard}</TrialGate>;
 }
