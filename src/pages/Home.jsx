@@ -568,6 +568,13 @@ export default function Home() {
   const [pdfDownloading, setPdfDownloading] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState("");
 
+  useEffect(() => {
+    if (!user?.country_code || !user?.currency_code) return;
+    const baseCurrency = resolveInvoiceCurrencyForWorkspace(user.country_code, user.currency_code);
+    if (!baseCurrency) return;
+    setInvoice((current) => current.currency === baseCurrency ? current : { ...current, currency: baseCurrency });
+  }, [user?.country_code, user?.currency_code]);
+
   const [toast, setToast] = useState(null);
   const [errors, setErrors] = useState({});
   const toastTimer = useRef(undefined);
