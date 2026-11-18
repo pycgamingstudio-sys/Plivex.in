@@ -298,7 +298,7 @@ begin
     else array[]::text[]
   end;
 
-  if not (p_locale_code = any(v_locales)) then
+  if p_locale_code is null or not (p_locale_code = any(v_locales)) then
     return jsonb_build_object('ok',false,'reason','unsupported_locale','country_code',v_country);
   end if;
 
