@@ -70,14 +70,14 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
     if (!email) return;
     const es = loadState("invoicepulse:emailSettings", {});
     try {
-      await db.functions.invoke("sendPaymentReminder", { to: email, clientName: it.clientName, invoiceNumber: it.number, amount: money2(it.total, it.currency), dueDate: it.dueDate, senderEmail: es.senderEmail, appPassword: es.appPassword });
+      await db.functions.invoke("sendPaymentReminder", { to: email, clientName: it.clientName, invoiceNumber: it.number, amount: money2(it.total, it.currency || currencyCode), dueDate: it.dueDate, senderEmail: es.senderEmail, appPassword: es.appPassword });
       alert("Payment reminder sent to " + email);
     } catch (e) {
       const msg = e?.response?.data?.error || e?.message || "Failed to send reminder";
       alert("Reminder failed: " + msg);
     }
   };
-  const share = (it) => { if (!requireFeature("whatsapp_share", "WhatsApp sharing requires the Pro plan.")) return; const msg = `Hello ${it.clientName || "there"}, your invoice ${it.number || ""} for ${money2(it.total, it.currency)} from Plivex is ready.`; window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank"); };
+  const share = (it) => { if (!requireFeature("whatsapp_share", "WhatsApp sharing requires the Pro plan.")) return; const msg = `Hello ${it.clientName || "there"}, your invoice ${it.number || ""} for ${money2(it.total, it.currency || currencyCode)} from Plivex is ready.`; window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank"); };
   const convert = (qt) => { if (!requestAction()) return; const draft = loadState(KEYS.draft, {}); saveState(KEYS.draft, { ...draft, client: { ...draft.client, name: qt.clientName }, number: qt.number, items: qt.items || draft.items, taxRate: qt.taxRate ?? draft.taxRate }); navigate("/invoice-builder"); };
   const saveQuotation = (qt) => {
     if (!requestAction()) return;
@@ -182,7 +182,7 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
                         <td className="px-3 py-3 font-bold text-slate-900">{it.clientName || "Client"}</td>
                         <td className="px-3 py-3 font-mono-ui text-slate-500">{it.number || "—"}</td>
                         <td className="px-3 py-3 text-slate-500">{dateLabel(sub === "invoices" ? it.issueDate : it.date)}</td>
-                        <td className="px-3 py-3 text-right font-bold text-slate-900">{money2(it.total, it.currency)}</td>
+                        <td className="px-3 py-3 text-right font-bold text-slate-900">{money2(it.total, it.currency || currencyCode)}</td>
                         <td className="px-3 py-3"><button onClick={() => toggleStatus(it)} title="Toggle status" className={statusBadge(sub === "invoices" ? statusOf(it) : (it.status === "sent" ? "Sent" : "Draft")) + " cursor-pointer transition-opacity hover:opacity-80"}>{sub === "invoices" ? statusOf(it) : (it.status === "sent" ? "Sent" : "Draft")}</button></td>
                         <td className="px-3 py-3">
                           <div className="flex items-center justify-end gap-1.5">
