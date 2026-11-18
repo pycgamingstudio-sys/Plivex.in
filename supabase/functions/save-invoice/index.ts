@@ -55,11 +55,11 @@ Deno.serve(async (req: Request) => {
       const taxResult = calculateInvoiceGlobalTax(taxInput, {
         countryCode,
         currencyCode: baseCurrencyCode,
-        registrationNumber: businessProfile.tax_registration_number || "",
-        registrationType: businessProfile.tax_registration_type || "",
-        registrationStatus: businessProfile.tax_registration_status || "unregistered",
-        registrationEffectiveFrom: businessProfile.tax_registration_effective_from || "",
-        registeredJurisdiction: businessProfile.tax_jurisdiction_code || "",
+        registrationNumber: businessProfile?.tax_registration_number || "",
+        registrationType: businessProfile?.tax_registration_type || "",
+        registrationStatus: businessProfile?.tax_registration_status || "unregistered",
+        registrationEffectiveFrom: businessProfile?.tax_registration_effective_from || "",
+        registeredJurisdiction: businessProfile?.tax_jurisdiction_code || "",
       });
       if (taxResult.ok === true) verifiedGlobalTaxResult = taxResult as unknown as Record<string, unknown>;
       body.invoice_snapshot = {
@@ -67,11 +67,11 @@ Deno.serve(async (req: Request) => {
         globalTaxCalculation: { ...taxResult, countryCode },
         globalTaxProfileSnapshot: {
           countryCode,
-          registrationNumber: businessProfile.tax_registration_number || "",
-          registrationType: businessProfile.tax_registration_type || "",
-          registrationStatus: businessProfile.tax_registration_status || "unregistered",
-          registrationEffectiveFrom: businessProfile.tax_registration_effective_from || "",
-          registeredJurisdiction: businessProfile.tax_jurisdiction_code || "",
+          registrationNumber: businessProfile?.tax_registration_number || "",
+          registrationType: businessProfile?.tax_registration_type || "",
+          registrationStatus: businessProfile?.tax_registration_status || "unregistered",
+          registrationEffectiveFrom: businessProfile?.tax_registration_effective_from || "",
+          registeredJurisdiction: businessProfile?.tax_jurisdiction_code || "",
         },
       };
       // Drafts can be saved for review even when a tax rule is not yet verified.
