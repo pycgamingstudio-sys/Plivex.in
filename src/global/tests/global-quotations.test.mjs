@@ -39,7 +39,9 @@ test("Global quotations remain permanently visible outside More Features", async
   assert.match(layout, /if \(item\.to === "\/quotations"\) return true/);
   assert.match(app, /path="\/quotations".*GlobalApp section="quotations"/);
   assert.match(global, /GlobalQuotationsPanel account=\{account\}/);
-  assert.doesNotMatch(global, /tab: "quotations", icon: FileText/);
+  assert.match(global, /title: "Quotations"[\s\S]*tab: "quotations"[\s\S]*icon: FileText/);
+  assert.match(global, /setTab\(item\.tab\)/);
+  assert.doesNotMatch(global, /tab: "quotations", icon: FileText, tone:.*More Features/);
   assert.match(panel, /Save quotation draft/);
   assert.match(panel, /Convert to invoice draft/);
   assert.match(panel, /Download PDF/);
