@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/currency";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/api/backendClient";
 import { ArrowLeftRight, ClipboardList, History, Plus, RefreshCw, Warehouse as WarehouseIcon } from "lucide-react";
@@ -151,7 +152,7 @@ export default function IndiaPart4Tab({ user }) {
       <div className="grid grid-cols-2 gap-y-3 sm:grid-cols-3 sm:divide-x sm:divide-slate-100">
         <div className="pr-3"><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Stock items</p><p className="mt-1 text-xl font-bold text-slate-900">{stock.length}</p></div>
         <div className="sm:px-4"><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Warehouses</p><p className="mt-1 text-xl font-bold text-slate-900">{warehouses.length}</p></div>
-        <div className="sm:pl-4"><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Stock valuation*</p><p className="mt-1 text-xl font-bold text-[#6D28D9]">₹{valuation.toLocaleString("en-IN",{maximumFractionDigits:2})}</p></div>
+        <div className="sm:pl-4"><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Stock valuation*</p><p className="mt-1 text-xl font-bold text-[#6D28D9]">{formatMoney(valuation, user?.currency_code || "INR", user?.locale_code)}</p></div>
       </div>
       <p className="mt-2 text-[10px] text-slate-400">*Indicative value using the current stock purchase-cost field.</p>
     </div>
@@ -166,7 +167,7 @@ export default function IndiaPart4Tab({ user }) {
         <input type="date" className={field} value={po.expected} onChange={e=>setPo({...po,expected:e.target.value})}/>
         <select required className={field} value={po.stockId} onChange={e=>setPo({...po,stockId:e.target.value})}><option value="">Select stock item</option>{stock.map(s=><option key={s.id} value={s.id}>{s.name} · {s.sku||"No SKU"}</option>)}</select>
         <input required type="number" min="0.0001" step="0.0001" className={field} placeholder="Quantity" value={po.quantity} onChange={e=>setPo({...po,quantity:e.target.value})}/>
-        <input required type="number" min="0" step="0.0001" className={field} placeholder="Unit cost (₹)" value={po.unitCost} onChange={e=>setPo({...po,unitCost:e.target.value})}/>
+        <input required type="number" min="0" step="0.0001" className={field} placeholder="Unit cost ({user?.currency_code || "INR"})" value={po.unitCost} onChange={e=>setPo({...po,unitCost:e.target.value})}/>
         <button disabled={busy||!stock.length} className={primary+" sm:col-span-2 lg:col-span-3"}>Save purchase order</button>
       </form>}
       {showReceiptForm&&<form onSubmit={async e=>{if(await receiveGoods(e))setShowReceiptForm(false);}} className="grid gap-3 rounded-xl border border-emerald-100 bg-emerald-50/40 p-4 sm:grid-cols-2 lg:grid-cols-3">
