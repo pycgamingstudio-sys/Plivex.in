@@ -10,19 +10,34 @@ Deno.serve(async (req: Request) => {
     if ("error" in auth) return jsonResponse({ error: auth.error }, auth.status, origin);
     const body = await req.json().catch(() => ({}));
     const reset = body?.reset === true;
-    const { data: profile, error: profileError } = await auth.admin.from("profiles")
+    let { data: profile, error: profileError } = await auth.admin.from("profiles")
       .select("id,email,role,workspace_id").eq("id", auth.user.id).maybeSingle();
     if (profileError) return jsonResponse({ error: "Could not load profile" }, 500, origin);
 
-    // This endpoint must never bootstrap an arbitrary signed-in user into admin.
-    // Only an already-provisioned admin profile may initialize/repair its own workspace.
-    if (!profile) return jsonResponse({ error: "Owner account is not provisioned. Contact Plivex support." }, 403, origin);
-    if (profile.role !== "admin") return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
-    if (profile.workspace_id && !reset) return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
-
+    // An authenticated standalone signup may provision its own first workspace.
+    // Existing invited members are protected from accidental owner-workspace creation.
     const { data: invite, error: inviteError } = await auth.admin.from("invite_codes").select("id").eq("used_by", auth.user.id).limit(1);
     if (inviteError) return jsonResponse({ error: "Could not check invite history" }, 500, origin);
     if (invite?.length) return jsonResponse({ ok: true, skipped: true, role: profile?.role || "employee", workspaceId: profile?.workspace_id || null }, 200, origin);
+
+    if (!profile) {
+      const email = String(auth.user.email || "").trim().toLowerCase();
+      const { error: createProfileError } = await auth.admin.from("profiles").insert({
+        id: auth.user.id, email, role: "admin", workspace_id: null,
+        full_name: String(auth.user.user_metadata?.full_name || "").trim().slice(0, 160) || null,
+      });
+      if (createProfileError && createProfileError.code !== "23505") {
+        return jsonResponse({ error: "Could not initialize your workspace profile" }, 500, origin);
+      }
+      const refreshed = await auth.admin.from("profiles").select("id,email,role,workspace_id")
+        .eq("id", auth.user.id).maybeSingle();
+      if (refreshed.error || !refreshed.data) return jsonResponse({ error: "Could not verify your workspace profile" }, 500, origin);
+      profile = refreshed.data;
+    }
+    if (profile.role !== "admin" && profile.workspace_id) {
+      return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
+    }
+    if (profile.workspace_id && !reset) return jsonResponse({ ok: true, skipped: true, role: profile.role, workspaceId: profile.workspace_id }, 200, origin);
 
     const email = String(profile?.email || auth.user.email || "").trim().toLowerCase();
     const workspaceId = profile?.workspace_id || `WS-${auth.user.id.toUpperCase()}`;
