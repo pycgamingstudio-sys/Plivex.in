@@ -29,7 +29,9 @@ Deno.serve(async (req: Request) => {
     const countryCode = String(businessProfile?.country_code || "IN").toUpperCase();
     const requestedCountry = String(body?.invoice_snapshot?.globalTax?.countryCode || "");
     if (requestedCountry && requestedCountry !== countryCode) return json({ error: "Invoice tax country does not match the saved workspace country." }, 422, origin);
+    let verifiedGlobalTaxResult: Record<string, unknown> | null = null;
     if (countryCode !== "IN") {
+      if (body?.is_draft !== true) return json({ error: "Non-India invoices remain drafts until a verified server-side issuance capability is enabled." }, 409, origin);
       if (!businessProfile || !body?.invoice_snapshot || typeof body.invoice_snapshot !== "object") {
         return json({ error: "A saved workspace tax profile and invoice tax details are required." }, 422, origin);
       }
@@ -51,10 +53,10 @@ Deno.serve(async (req: Request) => {
         registrationEffectiveFrom: businessProfile.tax_registration_effective_from || "",
         registeredJurisdiction: businessProfile.tax_jurisdiction_code || "",
       });
-      if (taxResult.ok !== true) return json({ error: "message" in taxResult ? taxResult.message : "Global tax calculation could not be completed.", code: "code" in taxResult ? taxResult.code : "TAX_CALCULATION_FAILED", taxStatus: taxResult.status }, 422, origin);
+      if (taxResult.ok === true) verifiedGlobalTaxResult = taxResult as unknown as Record<string, unknown>;
       body.invoice_snapshot = {
         ...taxInput,
-        globalTaxCalculation: taxResult,
+        globalTaxCalculation: { ...taxResult, countryCode },
         globalTaxProfileSnapshot: {
           countryCode,
           registrationNumber: businessProfile.tax_registration_number || "",
@@ -64,6 +66,8 @@ Deno.serve(async (req: Request) => {
           registeredJurisdiction: businessProfile.tax_jurisdiction_code || "",
         },
       };
+      // Drafts can be saved for review even when a tax rule is not yet verified.
+      // No unverified tax amount is added to the server-side ledger.
       body.tax_rate = 0;
       body.tax_mode = "split";
     }
@@ -77,8 +81,7 @@ Deno.serve(async (req: Request) => {
       if (existingInvoice.is_draft !== true) return json({ error: "Only draft invoices can be edited from this workflow." }, 409, origin);
     }
     const { items, id, invoiceId: _ignored, ...data } = body;
-    const isGlobalInvoice = String(body?.invoice_snapshot?.globalTaxCalculation?.countryCode || "").toUpperCase() !== "" &&
-      String(body?.invoice_snapshot?.globalTaxCalculation?.countryCode || "").toUpperCase() !== "IN";
+    const isGlobalInvoice = countryCode !== "IN";
     const safeItems = items.map((it: Record<string, unknown>) => ({
       description: typeof it?.description === "string" ? it.description.slice(0, 500) : "",
       quantity: Number.isFinite(Number(it?.quantity)) ? Math.max(0, Number(it.quantity)) : 0,
@@ -91,6 +94,22 @@ Deno.serve(async (req: Request) => {
     if (error || !saved?.id) {
       const status = error?.code === "42501" ? 403 : error?.code === "P0002" ? 404 : 400;
       return json({ error: error?.message || "Could not save invoice." }, status, origin);
+    }
+    if (verifiedGlobalTaxResult) {
+      const taxMinor = Number(verifiedGlobalTaxResult.taxMinor);
+      const totalMinor = Number(verifiedGlobalTaxResult.totalMinor);
+      if (!Number.isSafeInteger(taxMinor) || !Number.isSafeInteger(totalMinor) || taxMinor < 0 || totalMinor < 0) {
+        return json({ error: "The verified tax result could not be safely stored. The invoice remains a draft." }, 422, origin);
+      }
+      const { error: totalsError } = await db.from("invoices").update({
+        tax_value: taxMinor / 100,
+        total: totalMinor / 100,
+        cgst: 0,
+        sgst: 0,
+        igst: 0,
+        invoice_snapshot: body.invoice_snapshot,
+      }).eq("id", saved.id).eq("workspace_id", userProfile.workspace_id).eq("is_draft", true);
+      if (totalsError) return json({ error: "Draft saved, but verified tax totals could not be synchronized. Please retry." }, 500, origin);
     }
     const { data: invoice, error: readError } = await db.from("invoices").select("*,invoice_items(*)")
       .eq("id", saved.id).maybeSingle();
