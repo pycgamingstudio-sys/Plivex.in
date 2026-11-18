@@ -47,7 +47,8 @@ test("Freelancer and Business profiles receive the right permanent dashboard car
   assert.match(helper, /\[\.\.\.PERMANENT_DASHBOARD_FEATURES, "stock", "team"\]/);
   assert.match(dashboard, /getPermanentDashboardFeatures\(user\?\.workspace_type\)/);
   assert.match(app, /useWorkspaceFeatures\(user\?\.workspace_id\)/);
-  assert.match(app, /workspace_type === "freelancer".*stock.*team.*warehouses/);
+  assert.match(app, /workspace_type === "freelancer".*stock.*team/);
+  assert.match(app, /if \(t\.id === "warehouses"\) return workspaceFeatures\.includes\("inventoryWorkspace"\)/);
   assert.ok(dashboard.indexOf('id: "invoices"') < dashboard.indexOf('id: "quotations"'));
 });
 
