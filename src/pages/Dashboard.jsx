@@ -37,9 +37,9 @@ const TABS = [
   { id: "reconciliation", label: "Reconcile", icon: RefreshCw },
 ];
 
-export default function Dashboard({ initialTab }) {
+export default function Dashboard({ initialTab, initialSub, initialIntent }) {
   const [tab, setTab] = useState(initialTab || "dashboard");
-  const [intent, setIntent] = useState(null);
+  const [intent, setIntent] = useState(initialIntent || null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const navigate = useNavigate();
@@ -156,7 +156,7 @@ export default function Dashboard({ initialTab }) {
         </header>
         <main className="plivex-dashboard-main p-4 pb-24 sm:p-6 md:pb-6">
           {tab === "dashboard" && <DashboardTab onNavigate={go} onCreateInvoice={createInvoice} role={role} teamUnlocked={canAccess("team_management")} />}
-          {tab === "sales" && <SalesTab intent={intent} onConsumeIntent={consume} />}
+          {tab === "sales" && <SalesTab intent={intent} initialSub={initialSub} onConsumeIntent={consume} />}
           {tab === "purchase" && <PurchaseTab intent={intent} onConsumeIntent={consume} />}
           {tab === "reports" && <ReportsTab />}
           {tab === "crm" && <CrmTab intent={intent} onConsumeIntent={consume} />}
