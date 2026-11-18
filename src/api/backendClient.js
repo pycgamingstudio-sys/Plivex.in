@@ -13,8 +13,8 @@ export const BUILD_EDITION = import.meta.env.VITE_APP_EDITION === UNIFIED_EDITIO
   ? UNIFIED_EDITION_ID
   : resolveEditionId(import.meta.env.VITE_APP_EDITION);
 export const isUnifiedBuild = BUILD_EDITION === UNIFIED_EDITION_ID;
-// Runtime starts fail-closed as India; AuthContext switches it only after the
-// signed-in user's workspace country has been verified by Supabase.
+// Unified builds reuse the India Workspace UI as the shared shell only; this is not country selection.
+// Regional identity remains unset until canonical workspace_settings are verified by Supabase.
 export let APP_EDITION = isUnifiedBuild ? "india" : BUILD_EDITION;
 export function setRuntimeEdition(edition, { verifiedGlobal = false } = {}) {
   if (!isSupportedEditionId(edition)) return false;
