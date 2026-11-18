@@ -61,3 +61,10 @@ test("India tax reporting never mixes foreign-currency amounts or guesses FX for
   assert.match(gstr, /invoiceCurrency !== "INR"/);
   assert.match(gstr, /foreign or missing currency cannot be converted automatically/);
 });
+
+test("profit analytics never adds foreign-currency sales to base-currency expenses", () => {
+  const purchase = read("../../components/dashboard/PurchaseTab.jsx");
+  assert.match(purchase, /salesByCurrency/);
+  assert.match(purchase, /baseCurrencySales = salesByCurrency\.get\(currencyCode\)/);
+  assert.match(purchase, /Net profit uses base-currency sales only; no FX conversion is performed/);
+});
