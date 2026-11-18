@@ -183,7 +183,8 @@ function MobileMenu({ open, onClose, onNew, onPricing }) {
 
 function InvoiceEditor({ invoice, setInvoice, workspaceTaxProfile, globalTaxCalculation, errors, onClearError, onToast, onSignature, canAccess = () => true, onLocked = () => {}, design }) {
   const stockItems = loadList(KEYS.stock);
-  const isGlobalWorkspace = Boolean(workspaceTaxProfile?.countryCode && workspaceTaxProfile.countryCode !== "IN");
+  const activeWorkspaceCountry = workspaceTaxProfile?.countryCode || user?.country_code || "";
+  const isGlobalWorkspace = Boolean(activeWorkspaceCountry && activeWorkspaceCountry !== "IN");
   const baseCurrencyCode = workspaceTaxProfile?.currencyCode || invoice.currency || "";
   const countryExperience = getCountryExperience(workspaceTaxProfile?.countryCode);
   const setBusiness = (key, value) => { setInvoice((old) => ({ ...old, business: { ...old.business, [key]: value } })); if (key === "name") onClearError("businessName"); };
@@ -593,12 +594,10 @@ export default function Home() {
         if (!active) return;
         const profileCountry = String(user?.country_code || "").trim().toUpperCase();
         const recordCountry = String(record.country_code || "").trim().toUpperCase();
-        // A verified non-India workspace from Global auth outranks stale legacy
-        // business_profile metadata left by the former India workspace.
-        const countryCode = profileCountry && profileCountry !== "IN"
-          ? profileCountry
-          : recordCountry || profileCountry || (APP_EDITION === "global" ? "" : "IN");
-        const setLocale = profileCountry && profileCountry !== "IN"
+        // The server-resolved workspace identity is authoritative for every country.
+        // A stale business_profile value must never override the manually selected country.
+        const countryCode = profileCountry || recordCountry || "";
+        const setLocale = profileCountry
           ? user?.locale_code || record.locale_code
           : record.locale_code || user?.locale_code;
         setWorkspaceTaxProfile({
@@ -619,7 +618,7 @@ export default function Home() {
         }
       } catch {
         if (active) {
-          const countryCode = String(user?.country_code || (APP_EDITION === "global" ? "" : "UNKNOWN")).trim().toUpperCase();
+          const countryCode = String(user?.country_code || "").trim().toUpperCase();
           setWorkspaceTaxProfile({
             countryCode,
             currencyCode: GLOBAL_COUNTRY_CURRENCIES[countryCode] || user?.currency_code || "",
