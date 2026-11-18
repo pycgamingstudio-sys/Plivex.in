@@ -41,7 +41,7 @@ test("Global overview has personalized interactive metrics and workspace action 
   assert.match(global, /const metricCards = \[/);
   assert.match(global, /const actionCards = \[/);
   assert.match(global, /actionCards\.map\(\(item\) => \(/);
-  assert.match(global, /visibleMetricCards\.map\(\(item\) => <button/);
+  assert.match(global, /visibleMetricCards\.map\(\(item\) => \(/);
   for (const title of ["Client CRM", "Inventory & Warehouse", "Reports", "Team Members", "Lead Tracker"]) {
     assert.ok(global.includes(`title: "${title}"`), `Missing dashboard card: ${title}`);
   }
