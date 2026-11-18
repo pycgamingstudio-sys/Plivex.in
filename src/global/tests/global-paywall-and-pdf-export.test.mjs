@@ -5,16 +5,15 @@ import { normalizeGlobalInvoiceSnapshot, getGlobalInvoicePdfFilename } from "../
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
-test("main View Plans modal follows a verified non-India workspace currency, not a transient India runtime", async () => {
+test("main View Plans modal resolves the server Global workspace before considering legacy India profile metadata", async () => {
   const paywall = await read("../../lib/paywall.jsx");
   const modal = paywall.slice(paywall.indexOf("function PaywallModal"));
-  assert.match(modal, /workspaceCountryCode && workspaceCountryCode !== "IN"/);
-  assert.match(modal, /const isGlobalWorkspace = APP_EDITION === "global" \|\| Boolean\(workspaceCountryCode && workspaceCountryCode !== "IN"\)/);
-  assert.match(modal, /candidateConfig\.currency === workspaceCurrencyCode/);
-  assert.match(modal, /const billingConfig = isGlobalWorkspace/);
-  assert.match(modal, /: GLOBAL_BILLING\.IN/);
+  assert.match(modal, /supabase\.functions\.invoke\("global-auth-context"/);
+  assert.match(modal, /globalUser\?\.id === user\.id/);
+  assert.match(modal, /resolveWorkspaceBillingContext\(billingCountryCode, resolvedBillingContext\.currencyCode\)/);
+  assert.match(modal, /profileCountry === "IN"/);
+  assert.match(modal, /const isGlobalWorkspace = APP_EDITION === "global" \|\| resolvedBillingContext\.edition === "global"/);
   assert.doesNotMatch(modal, /selectedBillingConfig \|\| \(APP_EDITION === "global" \? null : GLOBAL_BILLING\.IN\)/);
-  assert.match(modal, /if \(isGlobalWorkspace\)/);
 });
 
 test("Global invoice PDF export normalizes snapshots and downloads a non-empty PDF blob", async () => {
