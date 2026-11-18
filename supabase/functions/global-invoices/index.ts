@@ -37,9 +37,25 @@ Deno.serve(async (req: Request) => {
     try { body = JSON.parse(raw); } catch { return globalJson({ error: "Invalid JSON request." }, 400, origin); }
     if (!isObject(body)) return globalJson({ error: "Invalid request body." }, 400, origin);
 
-    const workspaceId = body.workspace_id;
+    // Resolve the active Global workspace from the authenticated identity.
+    // The browser may hold stale or missing workspace state after login; it is
+    // never the authority for workspace identity.
+    const { data: authContext, error: contextError } = await auth.admin.rpc("global_get_auth_context", {
+      p_user_id: auth.user.id,
+    });
+    if (contextError) {
+      console.error("Global invoice auth-context lookup failed", { code: contextError.code });
+      return globalJson({ error: "Could not verify your Global workspace. Please refresh and try again." }, 503, origin);
+    }
+    const workspaceId = authContext?.membership?.workspace_id;
     if (typeof workspaceId !== "string" || !UUID.test(workspaceId)) {
-      return globalJson({ error: "A valid Global workspace_id is required." }, 400, origin);
+      return globalJson({ error: "Your account does not have an active Global workspace. Complete workspace setup first." }, 409, origin);
+    }
+    // If a client sends a workspace id, it must match the server-resolved one.
+    // Missing client state is safe because the server supplies the canonical id.
+    if (body.workspace_id !== undefined && body.workspace_id !== null
+      && body.workspace_id !== workspaceId) {
+      return globalJson({ error: "The selected workspace does not match your authenticated Global workspace." }, 403, origin);
     }
 
     if (body.action === "create_draft") {
