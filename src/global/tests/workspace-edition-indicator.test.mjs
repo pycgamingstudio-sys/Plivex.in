@@ -66,7 +66,9 @@ test("profit analytics never adds foreign-currency sales to base-currency expens
   const purchase = read("../../components/dashboard/PurchaseTab.jsx");
   assert.match(purchase, /salesByCurrency/);
   assert.match(purchase, /baseCurrencySales = salesByCurrency\.get\(currencyCode\)/);
-  assert.match(purchase, /Net profit uses base-currency sales only; no FX conversion is performed/);
+  assert.match(purchase, /baseCurrencyExpenses = expensesByCurrency\.get\(currencyCode\)/);
+  assert.match(purchase, /Net profit uses only base-currency sales and expenses; records without a recorded currency are excluded/);
+  assert.match(purchase, /money2\(e\.amount, e\.currencyCode \|\| currencyCode\)/);
   assert.match(purchase, /label="Monthly Sales" value=\{monthSales\}/);
   assert.doesNotMatch(purchase, /money2\(monthSales, currencyCode\)/);
 });
