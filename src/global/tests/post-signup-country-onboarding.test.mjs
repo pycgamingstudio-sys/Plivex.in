@@ -107,3 +107,13 @@ test("dashboard waits for workspace feature preferences before validating a deep
   assert.match(dashboard, /if \(!workspaceFeaturesReady\) return/);
   assert.match(dashboard, /\[visibleTabs, tab, workspaceFeaturesReady\]/);
 });
+
+test("monetary workspace records are stamped with the verified canonical currency", async () => {
+  const records = await read("../../../supabase/functions/workspace-records/index.ts");
+  assert.match(records, /const CURRENCY_TABLES = new Set\(\["expenses", "stock", "services", "leads", "quotations"\]\)/);
+  assert.match(records, /from\("workspace_settings"\)[\s\S]*select\("currency_code"\)/);
+  assert.match(records, /No currency default is assumed/);
+  assert.match(records, /if \(CURRENCY_TABLES\.has\(table\)\) values\.currency_code = workspaceCurrencyCode/);
+  const fields = records.slice(records.indexOf("const FIELDS"), records.indexOf("const CURRENCY_TABLES"));
+  assert.doesNotMatch(fields, /currency_code/);
+});
