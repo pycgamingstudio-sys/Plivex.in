@@ -128,8 +128,6 @@ declare
   v_order public.purchase_orders%rowtype;
   v_item jsonb;
   v_currency text;
-  v_access jsonb;
-  v_multi_currency boolean := false;
 begin
   if v_user is null then return jsonb_build_object('ok',false,'reason','unauthenticated'); end if;
   select workspace_id into v_workspace from public.profiles where id=v_user;
@@ -174,6 +172,8 @@ as $function$
 declare
   v_country text;
   v_currency text;
+  v_access jsonb;
+  v_multi_currency boolean := false;
 begin
   -- save_invoice first creates an empty counter-backed invoice row, then fills it.
   if new.currency is null then
