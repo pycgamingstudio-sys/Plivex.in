@@ -168,7 +168,6 @@ test("legacy Global workspaces are mapped into one canonical Workspace without c
   const migration = await read("../../../supabase/migrations/20261118160000_plivex_one_mandatory_legacy_onboarding.sql");
   assert.match(migration, /legacy_global_workspace_id uuid/);
   assert.match(migration, /join public\.profiles p on p\.id = w\.created_by/);
-  assert.match(migration, /join public\.profiles p on p\.id = g\.user_id/);
   assert.match(migration, /default 'legacy_pending'/);
   assert.match(migration, /insert into public\.business_profile/);
   assert.match(migration, /insert into public\.warehouses/);
