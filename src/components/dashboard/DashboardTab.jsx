@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/currency";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FileText, FilePlus2, ShoppingCart, Users, UserPlus, BarChart3, ArrowRight, Phone, Mail, HelpCircle, Package, UsersRound, AlertTriangle, Settings2, X, Check, BellRing, Send, Warehouse } from "lucide-react";
@@ -136,7 +137,7 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
             <div className="mt-3 space-y-2">
               {reminderItems.map((event) => (
                 <div key={event.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
-                  <div className="min-w-0"><p className="text-xs font-bold text-slate-900">{event.invoice?.number || "Invoice"} · {event.invoice?.client_name || "Customer"}</p><p className="mt-0.5 text-[11px] text-slate-500">Due reminder · {event.scheduled_for} · {event.recipient_email}</p><p className="mt-0.5 text-xs font-semibold text-slate-700">₹{Number(event.invoice?.total || 0).toLocaleString("en-IN")}</p></div>
+                  <div className="min-w-0"><p className="text-xs font-bold text-slate-900">{event.invoice?.number || "Invoice"} · {event.invoice?.client_name || "Customer"}</p><p className="mt-0.5 text-[11px] text-slate-500">Due reminder · {event.scheduled_for} · {event.recipient_email}</p><p className="mt-0.5 text-xs font-semibold text-slate-700">{formatMoney(Number(event.invoice?.total || 0), event.invoice?.currency || user?.currency_code || "INR", user?.locale_code)}</p></div>
                   <button onClick={() => confirmReminder(event)} disabled={!!reminderBusyId} className="inline-flex items-center gap-1.5 rounded-lg bg-[#6D28D9] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{reminderBusyId === event.id ? "Sending…" : <><Send className="h-3.5 w-3.5" /> Still unpaid · Send</>}</button>
                 </div>
               ))}
