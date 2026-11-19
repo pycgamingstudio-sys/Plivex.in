@@ -389,11 +389,19 @@ export function useLocalState(key, fallback) {
 const invoiceSignature = invoiceSaveSignature;
 
 export async function saveInvoiceToServer(inv) {
-  const sig = invoiceSignature(inv);
   const workspaceCountry = String(inv.workspaceCountryCode || "").trim().toUpperCase();
   const isGlobalWorkspaceInvoice = Boolean(workspaceCountry && workspaceCountry !== "IN");
   const workspaceCurrency = String(inv.workspaceCurrencyCode || "").trim().toUpperCase();
-  const currency = String(inv.currency || "").trim().toUpperCase();
+  const enteredCurrency = String(inv.currency || "").trim().toUpperCase();
+  // Non-India workspaces currently use one verified base currency. A locally
+  // cached invoice draft may still carry the previous workspace currency after
+  // country onboarding; bind that draft to the newly verified base currency.
+  // This changes only the currency label, never the entered numeric amounts.
+  const invoiceToSave = isGlobalWorkspaceInvoice && /^[A-Z]{3}$/.test(workspaceCurrency)
+    ? { ...inv, currency: workspaceCurrency }
+    : inv;
+  const currency = String(invoiceToSave.currency || "").trim().toUpperCase();
+  const sig = invoiceSignature(invoiceToSave);
   if (!/^[A-Z]{2}$/.test(workspaceCountry) || !/^[A-Z]{3}$/.test(workspaceCurrency)) {
     throw new Error("Workspace country and base currency could not be verified. Reload the workspace before exporting this invoice.");
   }
@@ -421,7 +429,7 @@ export async function saveInvoiceToServer(inv) {
     issue_date: dateOrNull(inv.issueDate) || new Date().toISOString().slice(0, 10),
     due_date: dateOrNull(inv.dueDate),
     currency, notes: str(inv.notes), terms: str(inv.terms),
-    invoice_snapshot: inv && typeof inv === "object" ? { ...inv, design: String(inv.design || "classic") } : null,
+    invoice_snapshot: invoiceToSave && typeof invoiceToSave === "object" ? { ...invoiceToSave, design: String(invoiceToSave.design || "classic") } : null,
   };
   const res = await api.functions.invoke("saveInvoice", payload);
   const saved = res?.data?.invoice;
