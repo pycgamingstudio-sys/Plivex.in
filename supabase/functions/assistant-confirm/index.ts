@@ -36,6 +36,20 @@ function validateAction(action: unknown) {
   const candidate = action as Record<string, unknown>;
   const type = text(candidate.type, 40);
   const raw = candidate.payload && typeof candidate.payload === "object" ? candidate.payload as Record<string, unknown> : {};
+  if (type === "receive_purchase_order") {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const purchaseOrderId = text(raw.purchase_order_id, 36);
+    const warehouseId = text(raw.warehouse_id, 36);
+    if (!uuid.test(purchaseOrderId) || !uuid.test(warehouseId) || !Array.isArray(raw.items) || raw.items.length < 1 || raw.items.length > 200) return null;
+    const items = raw.items.map((item: any) => ({
+      purchase_order_item_id: text(item?.purchase_order_item_id, 36),
+      quantity: number(item?.quantity),
+      batch_number: text(item?.batch_number, 120),
+      expires_on: text(item?.expires_on, 10),
+    }));
+    if (items.some((item: any) => !uuid.test(item.purchase_order_item_id) || !(item.quantity > 0) || Math.round(item.quantity * 10000) !== item.quantity * 10000 || (item.expires_on && !/^\\d{4}-\\d{2}-\\d{2}$/.test(item.expires_on)))) return null;
+    return { type, payload: { purchase_order_id: purchaseOrderId, warehouse_id: warehouseId, items } };
+  }
   if (type === "create_invoice") {
     return validateInvoiceAction(action);
   }
@@ -102,6 +116,42 @@ Deno.serve(async (req: Request) => {
     if (actions.some((action: unknown) => !action)) return json({ error: "Some action details are missing or invalid. Nothing was saved." }, 400, origin);
     const idempotencyKey = text(body?.idempotencyKey,160);
     if (idempotencyKey.length < 16) return json({ error: "Confirmation key is missing. Please refresh the pending action and try again." }, 400, origin);
+    if (actions.some((action: any) => action.type === "receive_purchase_order")) {
+      if (actions.length !== 1) return json({ error: "Goods receipt must be confirmed separately from other actions so inventory changes remain atomic." }, 400, origin);
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) return json({ error: "The goods receipt confirmation key is invalid. Please prepare the action again." }, 400, origin);
+      const payload = actions[0].payload;
+      const { data: receipt, error: receiptError } = await supabase.rpc("india_part4_receive_purchase_order", {
+        p_purchase_order_id: payload.purchase_order_id,
+        p_warehouse_id: payload.warehouse_id,
+        p_idempotency_key: idempotencyKey,
+        p_items: payload.items,
+      });
+      if (receiptError) {
+        console.error("Goods receipt rejected", { code: receiptError.code, userId: user.id });
+        return json({ error: "The goods receipt could not be completed. Check the purchase order and warehouse, then try again." }, 400, origin);
+      }
+      if (!receipt?.ok || !receipt?.receipt_id) {
+        const reason = String(receipt?.reason || "");
+        const message = reason === "forbidden" ? "Your role cannot receive stock into this workspace."
+          : reason === "purchase_order_not_found" ? "That purchase order was not found in this workspace."
+          : reason === "warehouse_not_found" ? "That warehouse is unavailable or inactive."
+          : reason === "receipt_quantity_exceeded" ? "The received quantity exceeds the outstanding purchase-order quantity."
+          : reason === "stock_item_not_found" ? "A stock item linked to this purchase order no longer exists."
+          : "The goods receipt details were rejected. Nothing was saved.";
+        return json({ error: message }, reason === "forbidden" ? 403 : 400, origin);
+      }
+      const { data: receiptRow, error: verifyError } = await supabase.from("purchase_receipts")
+        .select("id").eq("workspace_id", profile.workspace_id).eq("id", receipt.receipt_id).maybeSingle();
+      const verified = !verifyError && Boolean(receiptRow?.id);
+      return json({
+        ok: true,
+        verified,
+        reply: verified ? "Goods receipt saved and verified. Plivex updated the stock ledger." : "The receipt was accepted, but Plivex could not verify it. Check purchase receipts and stock before retrying.",
+        created: [{ type: "receive_purchase_order", id: receipt.receipt_id }],
+        verification: [{ type: "receive_purchase_order", id: receipt.receipt_id, verified }],
+        duplicate: Boolean(receipt.duplicate),
+      }, 200, origin);
+    }
     const canonical = JSON.stringify(actions);
     const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
     const requestHash = [...new Uint8Array(digest)].map((b)=>b.toString(16).padStart(2,"0")).join("");
