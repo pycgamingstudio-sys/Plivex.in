@@ -62,6 +62,16 @@ test("supports Hindi and Hinglish stock and expense phrases", () => {
   assert.deepEqual(classifyBusinessIntents("maal aa gaya"), ["receive_stock"]);
 });
 
+test("keeps client and expense as separate intents in a compound request", () => {
+  assert.deepEqual(
+    classifyBusinessIntents("client add kar do aur expense add kar do naam hai Yash"),
+    ["create_client", "create_expense"],
+  );
+  const incomplete = buildBusinessIntentHints("expense add kar do");
+  assert.deepEqual(incomplete.intents, ["create_expense"]);
+  assert.equal(incomplete.amount, null);
+});
+
 test("rejects unsafe or non-finite amount values", () => {
   assert.equal(parseBusinessAmount("-500"), null);
   assert.equal(parseBusinessAmount("₹999999999999999999999"), null);
