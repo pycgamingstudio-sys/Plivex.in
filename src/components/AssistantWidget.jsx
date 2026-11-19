@@ -175,7 +175,9 @@ export default function AssistantWidget() {
       return;
     }
     const recognition = new SpeechRecognition();
-    recognition.lang = /[\u0900-\u097F]/.test(draft) ? "hi-IN" : "hi-IN";
+    const browserLanguage = String(navigator.language || "en-IN").toLowerCase();
+    const scriptHint = /[\\u0900-\\u097F]/.test(draft);
+    recognition.lang = scriptHint ? "hi-IN" : (browserLanguage.startsWith("hi") ? "hi-IN" : browserLanguage.startsWith("en") ? "en-IN" : browserLanguage);
     recognition.interimResults = true;
     recognition.continuous = false;
     recognition.onresult = (event) => {
