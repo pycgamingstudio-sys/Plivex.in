@@ -10,7 +10,7 @@ import { useRole } from "@/lib/roles";
 import SummaryCard from "@/components/dashboard/SummaryCard";
 
 const CATS = ["Rent", "Raw Materials", "Utilities", "Salary", "Logistics", "Software", "Marketing", "Other"];
-const localDate = () => { const now = new Date(); return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0"); };
+const localDate = (offsetDays = 0) => { const now = new Date(); now.setDate(now.getDate() + offsetDays); return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0"); };
 const blank = { vendor: "", category: "Raw Materials", amount: "", date: localDate(), status: "Unpaid", method: "Bank Transfer", notes: "" };
 
 export default function PurchaseTab({ intent, onConsumeIntent }) {
@@ -66,7 +66,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
 
   const expenseStatus = (e) => {
     if (e.status === "Paid" || e.status === "Received" || e.status === "Cancelled") return e.status;
-    const overdue = new Date(e.date) < new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+    const overdue = String(e.date || "").slice(0, 10) < localDate(-7);
     return overdue ? "Overdue" : (e.status || "Unpaid");
   };
 
@@ -115,9 +115,9 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <SummaryCard label="Monthly Expense" value={monthExp} gradient="bg-gradient-to-br from-[#E11D48] to-[#F43F5E]" icon={Wallet} badge="this month" />
         <SummaryCard label="Monthly Sales" value={monthSales} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={TrendingUp} badge="this month" />
-        <SummaryCard label={`Net Profit · ${currencyCode}`} value={money2(net, currencyCode)} gradient={net >= 0 ? "bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" : "bg-gradient-to-br from-[#D97706] to-[#F59E0B]"} icon={PiggyBank} badge={net >= 0 ? "surplus" : "deficit"} />
+        <SummaryCard label={`Operating Difference · ${currencyCode}`} value={money2(net, currencyCode)} gradient={net >= 0 ? "bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" : "bg-gradient-to-br from-[#D97706] to-[#F59E0B]"} icon={PiggyBank} badge={net >= 0 ? "positive" : "negative"} />
       </div>
-      {(hasOtherCurrencySales || hasOtherCurrencyExpenses || hasUnknownCurrencyExpenses || hasUnknownCurrencySales) && <p className="text-[11px] text-muted-foreground">Sales and expenses are grouped by their recorded currency. Net profit uses only base-currency sales and expenses; records without a recorded currency are excluded. No FX conversion is performed.</p>}
+      {(hasOtherCurrencySales || hasOtherCurrencyExpenses || hasUnknownCurrencyExpenses || hasUnknownCurrencySales) && <p className="text-[11px] text-muted-foreground">Sales and expenses are grouped by their recorded currency. Operating difference uses only base-currency sales and expenses; records without a recorded currency are excluded. No FX conversion is performed.</p>}
 
       <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-[#E5E7EB] p-4 lg:flex-row lg:items-center lg:justify-between">
