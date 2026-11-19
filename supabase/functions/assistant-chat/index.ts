@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
+import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";\nimport { generateWithFallback } from "../_shared/assistant-model-router.mjs";
 import { validateGlobalInvoicePaymentAction } from "../_shared/assistant-global-payment-validation.mjs";
 import { validateGlobalClientAction } from "../_shared/assistant-global-client-validation.mjs";
 import { validateGlobalExpenseAction } from "../_shared/assistant-global-expense-validation.mjs";
@@ -465,9 +465,9 @@ async function handleRequest(req: Request) {
   if (!authorization?.startsWith("Bearer ")) return json({ error: "Please sign in to use the assistant." }, 401);
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-  const geminiKey = Deno.env.get("GEMINI_API_KEY");
-  if (!supabaseUrl || !anonKey || !geminiKey) {
-    console.error("Assistant configuration missing", { supabaseUrl: !!supabaseUrl, anonKey: !!anonKey, geminiKey: !!geminiKey });
+  const geminiKey = Deno.env.get("GEMINI_API_KEY");\n  const groqKey = Deno.env.get("GROQ_API_KEY");\n  const openRouterKey = Deno.env.get("OPENROUTER_API_KEY");\n  const enableGroq = Deno.env.get("NOVA_ENABLE_GROQ") === "true";
+  if (!supabaseUrl || !anonKey || (!geminiKey && !openRouterKey && !(groqKey && enableGroq))) {
+    console.error("Assistant configuration missing", { supabaseUrl: !!supabaseUrl, anonKey: !!anonKey, geminiKey: !!geminiKey, groqKey: !!groqKey, openRouterKey: !!openRouterKey });
     return json({ error: "AI assistant is not configured yet. Please contact support." }, 503);
   }
   try {
@@ -723,25 +723,23 @@ async function handleRequest(req: Request) {
         },
       }),
     };
-    let response: Response | undefined;
-    let result: any;
-    try {
-      // One fast Flash request only: no serial model fallback or retry delays.
-      response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent", {
-        ...requestOptions,
-        signal: AbortSignal.timeout(25000),
-      });
-    } catch (networkError) {
-      const timedOut = networkError instanceof Error && (networkError.name === "TimeoutError" || networkError.name === "AbortError");
-      console.error("Gemini request ended", { reason: timedOut ? "timeout" : "network" });
-      return json({ error: timedOut ? "AI took too long. Please retry; your request was not saved." : "AI provider could not be reached. Please try again." }, 504);
+    const routed = await generateWithFallback({
+      requestOptions,
+      geminiKey,
+      groqKey,
+      openRouterKey,
+      enableGroq,
+    });
+    if (!routed.ok) {
+      const message = routed.status === 429
+        ? "AI providers are rate-limited right now. Please try again shortly."
+        : routed.status === 504
+          ? "AI providers took too long. Please retry; your request was not saved."
+          : "AI providers are temporarily unavailable. Please try again.";
+      return json({ error: message }, routed.status);
     }
-    if (!response) return json({ error: "AI provider could not be reached. Please try again shortly." }, 502);
-    result = await response.json();
-    if (!response.ok) {
-      console.error("Gemini API error", response.status, result?.error?.message || "unknown");
-      return json({ error: response.status === 429 ? "AI usage limit reached. Please try again shortly." : "Gemini could not answer right now. Please try again." }, response.status === 429 ? 429 : 502);
-    }
+    const result = routed.result;
+    console.info("Nova response provider", { provider: routed.provider, model: routed.model });
     const raw = result?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || "").join("").trim();
     if (!raw) return json({ error: "Gemini returned no text. Please try again." }, 502);
     let parsed: any;
