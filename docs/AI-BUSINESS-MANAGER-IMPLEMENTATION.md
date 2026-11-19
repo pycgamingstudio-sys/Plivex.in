@@ -21,6 +21,13 @@ All six require the existing user confirmation flow. The RPC enforces workspace 
 The registry catalogs clients, invoices, inventory, expenses, quotations, leads, services, suppliers, purchase orders, purchase receipts, warehouses, stock transfers, payments, staff, branches, analytics and automation.
 The assistant live context now includes bounded workspace-scoped reads for active warehouses, purchase orders, purchase-order lines, recent goods receipts and recent stock-movement metadata (movement type, quantity delta, references and timestamps), alongside the existing client, invoice, stock, expense, quotation, lead and service context. Stock movement free-text notes are deliberately excluded from the model context. Inventory history remains read-only. These purchasing/warehouse reads are informational only; purchase-order creation, goods receipt, stock transfer, supplier management, payment, staff, branch and automation writes must not be invented by the model. They remain unavailable until each has a permission-checked server executor and end-to-end tests.
 
+## Read-only business analytics
+- The assistant context derives overdue receivables aging buckets and oldest overdue age from loaded, non-draft open invoices.
+- Inventory analytics identify low-stock candidates using each item's configured threshold and summarize recent stock movement types.
+- Monetary receivables are deliberately not aggregated across currencies. These analytics are counts and operational indicators, not accounting ledger balances.
+- Every calculation is limited to loaded workspace-scoped rows; unavailable modules and sample limits remain disclosed.
+- Stock movement free-text notes are excluded from the model context to reduce prompt-injection exposure from untrusted operational notes.
+
 ## Deterministic intent assistance
 - A shared, unit-tested intent helper supplies advisory hints for common business operations, Indian amount formats (including thousand/lakh/crore shorthand), and inventory quantity units.
 - It explicitly separates product creation, purchase orders, goods receipts, warehouse creation, stock transfers, incoming payments and outgoing payments.
