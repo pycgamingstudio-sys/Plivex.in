@@ -39,3 +39,30 @@ test("intent hints are explicitly non-authorizing", () => {
   assert.deepEqual(hints.quantity, { quantity: 50, unit: "kg" });
   assert.equal(hints.amount, 50000);
 });
+
+test("detects multiple requested operations without collapsing them into one", () => {
+  assert.deepEqual(
+    classifyBusinessIntents("add client Rahul and create invoice for Rahul"),
+    ["create_invoice", "create_client"],
+  );
+});
+
+test("does not infer a stock receipt from unrelated use of the word received", () => {
+  assert.deepEqual(classifyBusinessIntents("I received your email"), []);
+});
+
+test("extracts a quantity from a descriptive request without inventing an operation", () => {
+  const hints = buildBusinessIntentHints("chini 50 kilo");
+  assert.deepEqual(hints.intents, []);
+  assert.deepEqual(hints.quantity, { quantity: 50, unit: "kg" });
+});
+
+test("supports Hindi and Hinglish stock and expense phrases", () => {
+  assert.deepEqual(classifyBusinessIntents("kharcha darj kar do"), ["create_expense"]);
+  assert.deepEqual(classifyBusinessIntents("maal aa gaya"), ["receive_stock"]);
+});
+
+test("rejects unsafe or non-finite amount values", () => {
+  assert.equal(parseBusinessAmount("-500"), null);
+  assert.equal(parseBusinessAmount("₹999999999999999999999"), null);
+});
