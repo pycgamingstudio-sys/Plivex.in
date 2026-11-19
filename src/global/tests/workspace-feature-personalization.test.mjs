@@ -92,3 +92,42 @@ test("optional Workspace modules stay gated when users open direct URLs", async 
   const dashboard = await read("../../pages/Dashboard.jsx");
   assert.match(dashboard, /path === "\/team-management"\) return user\?\.workspace_type === "business"/);
 });
+
+
+test("workspace feature preferences confirm that a canonical settings row was actually updated", async () => {
+  const helper = await read("../../lib/workspaceFeatures.js");
+  assert.match(helper, /select\("workspace_id"\)/);
+  assert.match(helper, /Workspace settings were not found, so feature changes could not be saved/);
+});
+
+test("dashboard card order is persisted and mobile visibility controls expose accessible reorder actions", async () => {
+  const dashboard = await read("../../components/dashboard/DashboardTab.jsx");
+  assert.match(dashboard, /CARD_ORDER_KEY = "invoicepulse:dashboardCardOrder"/);
+  assert.match(dashboard, /useLocalState\(CARD_ORDER_KEY, DEFAULT_CARD_ORDER\)/);
+  assert.match(dashboard, /setCardOrder\(\(current\)/);
+  assert.match(dashboard, /aria-label=\{\x60Move \$\{c\.title\} up\x60\}/);
+  assert.match(dashboard, /aria-label=\{\x60Move \$\{c\.title\} down\x60\}/);
+  assert.match(dashboard, /max-h-\[calc\(100dvh-1rem\)\]/);
+  assert.match(dashboard, /overflow-y-auto bg-black\/40 p-2/);
+});
+
+
+test("expense and lead entry modals receive the active workspace currency explicitly", async () => {
+  const expenses = await read("../../components/dashboard/PurchaseTab.jsx");
+  const crm = await read("../../components/dashboard/CrmTab.jsx");
+  assert.match(expenses, /<ExpenseModal currencyCode=\{currencyCode\}/);
+  assert.match(expenses, /function ExpenseModal\(\{ currencyCode, onClose, onSave \}\)/);
+  assert.match(crm, /<LeadModal currencyCode=\{currencyCode\}/);
+  assert.match(crm, /function LeadModal\(\{ currencyCode, onClose, onSave \}\)/);
+  assert.match(crm, /\{ \.\.\.entry, currencyCode, nextFollowUpAt/);
+});
+
+test("invoice editor uses canonical workspace_settings currency rather than stale profile currency", async () => {
+  const home = await read("../../pages/Home.jsx");
+  assert.match(home, /supabase\.from\("workspace_settings"\)/);
+  assert.match(home, /select\("country_code,currency_code,locale_code"\)/);
+  assert.match(home, /const countryCode = String\(settings\?\.country_code/);
+  assert.match(home, /const currencyCode = String\(settings\?\.currency_code/);
+  assert.match(home, /workspaceTaxProfile\?\.currencyCode \|\| user\?\.currency_code/);
+  assert.doesNotMatch(home, /if \(!user\?\.country_code \|\| !user\?\.currency_code\) return;/);
+});

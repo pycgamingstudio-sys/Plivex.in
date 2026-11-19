@@ -97,10 +97,15 @@ export function useWorkspaceFeatures(workspaceId) {
         });
         if (updateError) throw updateError;
       } else {
-        const { error: updateError } = await supabase.from("workspace_settings")
+        const { data: saved, error: updateError } = await supabase.from("workspace_settings")
           .update({ optional_features: next, updated_at: new Date().toISOString() })
-          .eq("workspace_id", workspaceId);
+          .eq("workspace_id", workspaceId)
+          .select("workspace_id")
+          .maybeSingle();
         if (updateError) throw updateError;
+        if (!saved?.workspace_id) {
+          throw new Error("Workspace settings were not found, so feature changes could not be saved. Complete Workspace setup again or contact support.");
+        }
       }
       setFeatures(next);
       window.dispatchEvent(new CustomEvent("plivex:workspace-features-updated", { detail: { features: next } }));
