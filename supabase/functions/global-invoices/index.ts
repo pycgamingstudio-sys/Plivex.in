@@ -42,7 +42,7 @@ Deno.serve(async (req: Request) => {
       return globalJson({ error: "A valid Global workspace_id is required." }, 400, origin);
     }
 
-    if (body.action === "create_draft" || body.action === "create_final_commercial") {
+    if (body.action === "create_draft" || body.action === "create_final_commercial" || body.action === "create_final_tax") {
       if (body.client_id !== null && body.client_id !== undefined && (typeof body.client_id !== "string" || !UUID.test(body.client_id))) {
         return globalJson({ error: "Choose a valid client." }, 400, origin);
       }
@@ -78,10 +78,25 @@ Deno.serve(async (req: Request) => {
           product_id: item.product_id || null,
         });
       }
+      if (body.action === "create_final_tax") {
+        const tax = body.tax_context;
+        if (!isObject(tax)
+          || typeof tax.registration_confirmed !== "boolean"
+          || typeof tax.place_of_supply_confirmed !== "boolean"
+          || typeof tax.tax_category_confirmed !== "boolean"
+          || typeof tax.tax_category !== "string"
+          || typeof tax.mode !== "string"
+          || typeof tax.price_mode !== "string"
+          || typeof tax.place_of_supply !== "string") {
+          return globalJson({ error: "Required tax evidence is incomplete." }, 400, origin);
+        }
+      }
       const rpcName = body.action === "create_final_commercial"
         ? "global_create_and_issue_commercial_invoice"
-        : "global_create_invoice_draft";
-      const { data, error } = await auth.admin.rpc(rpcName, {
+        : body.action === "create_final_tax"
+          ? "global_create_and_issue_tax_invoice"
+          : "global_create_invoice_draft";
+      const rpcArgs: Record<string, unknown> = {
         p_user_id: auth.user.id,
         p_workspace_id: workspaceId,
         p_client_id: body.client_id || null,
@@ -91,7 +106,9 @@ Deno.serve(async (req: Request) => {
         p_notes: typeof body.notes === "string" ? body.notes.trim() || null : null,
         p_items: items,
         p_idempotency_key: body.idempotency_key,
-      });
+      };
+      if (body.action === "create_final_tax") rpcArgs.p_tax_context = body.tax_context;
+      const { data, error } = await auth.admin.rpc(rpcName, rpcArgs);
       if (error) {
         console.error("Global invoice creation RPC failed", { code: error.code, action: body.action });
         return globalJson({ error: "Invoice creation service is not ready. Please try again later." }, 503, origin);
@@ -111,7 +128,7 @@ Deno.serve(async (req: Request) => {
           client_not_found: "The selected client is not active in this workspace.",
           product_not_found: "The selected product is not active in this workspace.",
         };
-        return globalJson({ error: messages[reason] || (body.action === "create_final_commercial" ? "Could not issue the commercial invoice." : "Could not create the draft invoice."), reason }, statusFor(reason), origin);
+        return globalJson({ error: messages[reason] || (body.action === "create_final_tax" ? "Could not issue the tax invoice." : body.action === "create_final_commercial" ? "Could not issue the commercial invoice." : "Could not create the draft invoice."), reason }, statusFor(reason), origin);
       }
       return globalJson(data, 201, origin);
     }
