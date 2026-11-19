@@ -90,7 +90,7 @@ test("pricing resolves canonical workspace currency even when optional business-
 
 test("new invoice inserts set workspace base currency before the existing currency guard", async () => {
   const migration = await read("../../../supabase/migrations/20261119000100_set_invoice_workspace_base_currency_before_insert.sql");
-  assert.match(migration, /SELECT upper\(trim\(currency_code\)\)[\s\S]*?FROM public\.workspace_settings/);
+  assert.match(migration, /SELECT upper\\(trim\\(country_code\\)\\), upper\\(trim\\(currency_code\\)\\)[\\s\\S]*?FROM public\\.workspace_settings/);
   assert.match(migration, /NEW\.currency := _base_currency/);
   assert.match(migration, /IF _country_code <> 'IN' THEN\s+NEW\.is_draft := true/);
   assert.match(migration, /BEFORE INSERT ON public\.invoices/);
