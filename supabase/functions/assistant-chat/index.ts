@@ -478,7 +478,7 @@ async function handleRequest(req: Request) {
     let result: any;
     try {
       // One fast Flash request only: no serial model fallback or retry delays.
-      response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent", {
+      response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent", {
         ...requestOptions,
         signal: AbortSignal.timeout(10000),
       });
