@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
 import { validateGlobalInvoicePaymentAction, majorToMinorUnits } from "../_shared/assistant-global-payment-validation.mjs";
 import { validateGlobalClientAction } from "../_shared/assistant-global-client-validation.mjs";
+import { validateGlobalExpenseAction } from "../_shared/assistant-global-expense-validation.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
 import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
 import { validateWarehouseAction } from "../_shared/assistant-warehouse-validation.mjs";
@@ -41,6 +42,9 @@ function validateAction(action: unknown) {
   const candidate = action as Record<string, unknown>;
   const type = text(candidate.type, 40);
   const raw = candidate.payload && typeof candidate.payload === "object" ? candidate.payload as Record<string, unknown> : {};
+  if (type === "create_global_expense") {
+    return validateGlobalExpenseAction(action);
+  }
   if (type === "create_global_client") {
     return validateGlobalClientAction(action);
   }
@@ -144,16 +148,64 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => null);
     const rawActions = Array.isArray(body?.actions) ? body.actions : [body?.action];
     if (!rawActions.length || rawActions.length > 10) return json({ error: "Please confirm between 1 and 10 valid actions." }, 400, origin);
-    if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_client", "record_global_invoice_payment"].includes(String(action?.type || "")))) {
+    if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_client", "create_global_expense", "record_global_invoice_payment"].includes(String(action?.type || "")))) {
       return json({ error: "This Global workspace action is not connected yet. No legacy India-table write was attempted." }, 403, origin);
     }
-    if (!isGlobalWorkspace && rawActions.some((action: any) => ["create_global_client", "record_global_invoice_payment"].includes(String(action?.type || "")))) {
+    if (!isGlobalWorkspace && rawActions.some((action: any) => ["create_global_client", "create_global_expense", "record_global_invoice_payment"].includes(String(action?.type || "")))) {
       return json({ error: "This Global-only action is not available in the current workspace." }, 403, origin);
     }
     const actions = rawActions.map(validateAction);
     if (actions.some((action: unknown) => !action)) return json({ error: "Some action details are missing or invalid. Nothing was saved." }, 400, origin);
     const idempotencyKey = text(body?.idempotencyKey,160);
     if (idempotencyKey.length < 16) return json({ error: "Confirmation key is missing. Please refresh the pending action and try again." }, 400, origin);
+    if (actions.some((action: any) => action.type === "create_global_expense")) {
+      if (actions.length !== 1) return json({ error: "Global expense creation must be confirmed separately so its ledger entry remains idempotent." }, 400, origin);
+      const payload = actions[0].payload;
+      const amountMinor = majorToMinorUnits(payload.amount, payload.currency_code);
+      if (amountMinor === null) return json({ error: "Expense amount does not match the currency's supported decimal precision." }, 400, origin);
+      const values = {
+        category: payload.category, vendor: payload.vendor || null,
+        amount_minor: amountMinor, currency_code: payload.currency_code,
+        expense_date: payload.expense_date || null,
+        payment_method: payload.payment_method || null,
+        reference: payload.reference || null, notes: payload.notes || null,
+      };
+      const canonical = JSON.stringify({ type: "create_global_expense", payload: values });
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+      const requestHash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const { data: expense, error: expenseError } = await supabase.rpc("assistant_create_global_expense_idempotent", {
+        p_workspace_id: workspaceId, p_idempotency_key: idempotencyKey,
+        p_request_hash: requestHash, p_values: values,
+      });
+      if (expenseError) {
+        const message = String(expenseError.message || "");
+        if (message.includes("PERMISSION_DENIED")) return json({ error: "Only a Global workspace owner, admin or accountant can record expenses." }, 403, origin);
+        if (message.includes("IDEMPOTENCY_PAYLOAD_MISMATCH")) return json({ error: "This confirmation key was already used for different expense details. Prepare the expense again." }, 409, origin);
+        console.error("Global expense creation rejected", { code: expenseError.code, userId: user.id });
+        return json({ error: "The Global expense could not be recorded. Check the details and try again." }, 400, origin);
+      }
+      if (!expense?.ok || !expense?.expense_id || !expense?.record) {
+        const reason = String(expense?.reason || "");
+        const message = reason === "forbidden" ? "Your Global workspace role cannot record expenses."
+          : reason === "access_denied" ? "You do not have access to this Global workspace."
+          : "The Global expense details were rejected. Nothing was saved.";
+        return json({ error: message }, reason === "forbidden" || reason === "access_denied" ? 403 : 400, origin);
+      }
+      const record = expense.record;
+      const verified = Boolean(record.id === expense.expense_id
+        && Number(record.amount_minor) === amountMinor
+        && String(record.currency_code || "").toUpperCase() === payload.currency_code
+        && record.category === payload.category);
+      return json({
+        ok: true, verified, duplicate: Boolean(expense.duplicate),
+        reply: verified
+          ? "Global expense recorded and verified in your workspace."
+          : "The Global expense service accepted the request, but Plivex could not verify the stored expense details. Check the expense list before retrying.",
+        created: [{ type: "create_global_expense", id: expense.expense_id }],
+        verification: [{ type: "create_global_expense", id: expense.expense_id, verified }],
+        expense: verified ? { category: record.category, amount_minor: amountMinor, currency_code: payload.currency_code, expense_date: record.expense_date || null } : null,
+      }, 200, origin);
+    }
     if (actions.some((action: any) => action.type === "create_global_client")) {
       if (actions.length !== 1) return json({ error: "Global client creation must be confirmed separately so its workspace record remains idempotent." }, 400, origin);
       const payload = actions[0].payload;
