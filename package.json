@@ -12,7 +12,8 @@
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview",
     "test:global": "node --test src/global/tests/*.test.mjs",
-    "verify:build-env": "node scripts/verify-build-env.mjs"
+    "verify:build-env": "node scripts/verify-build-env.mjs",
+    "test:assistant": "node --test supabase/functions/_shared/assistant-tool-registry.test.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^17.0.0",
