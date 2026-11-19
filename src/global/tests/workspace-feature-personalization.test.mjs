@@ -159,3 +159,13 @@ test("Lead Tracker modal keeps its save action visible on small screens", async 
   assert.match(crm, /shrink-0 justify-end gap-2 border-t/);
   assert.match(crm, /pb-\[max\(0\.75rem,env\(safe-area-inset-bottom\)\)\]/);
 });
+
+
+test("unified dashboard paywall resolves billing from the canonical public workspace identity", async () => {
+  const paywall = await read("../../lib/paywall.jsx");
+  assert.match(paywall, /if \(isUnifiedBuild\) \{[\s\S]*user\.country_code[\s\S]*user\.currency_code[\s\S]*resolveWorkspaceBillingContext\(countryCode, currencyCode\)/);
+  assert.match(paywall, /A Global membership is not required to display verified regional pricing/);
+  const unifiedBranch = paywall.slice(paywall.indexOf("if (isUnifiedBuild)"), paywall.indexOf("if (APP_EDITION === \"global\")"));
+  assert.doesNotMatch(unifiedBranch, /global-auth-context/);
+  assert.match(paywall, /if \(APP_EDITION === "global"\) \{[\s\S]*global-auth-context/);
+});
