@@ -59,3 +59,22 @@ test("a verified non-India membership can switch runtime edition without trustin
   assert.match(auth, /verifiedGlobal: edition === "global" && Boolean\(globalUser\)/);
   assert.match(backend, /!isUnifiedBuild && edition === "global" && !verifiedGlobal/);
 });
+
+
+test("unified onboarding has a bounded mobile viewport and a genuinely scrollable country picker", async () => {
+  const onboarding = await read("../../components/global/UnifiedWorkspaceOnboarding.jsx");
+  assert.match(onboarding, /h-\[100dvh\] min-h-0 .*overflow-hidden/);
+  assert.match(onboarding, /h-\[calc\(100dvh-2\.5rem\)\] min-h-0/);
+  assert.match(onboarding, /min-h-0 flex-1 overflow-y-auto overscroll-y-contain touch-pan-y/);
+  assert.match(onboarding, /filteredCountries\.map/);
+  assert.match(onboarding, /Choose your country/);
+});
+
+test("non-India invoice drafts are rebound to verified workspace base currency without changing amounts", async () => {
+  const stores = await read("../../lib/stores.js");
+  assert.match(stores, /const invoiceToSave = isGlobalWorkspaceInvoice &&/);
+  assert.match(stores, /currency: workspaceCurrency/);
+  assert.match(stores, /const sig = invoiceSignature\(invoiceToSave\)/);
+  assert.match(stores, /invoice_snapshot: invoiceToSave/);
+  assert.match(stores, /currency !== workspaceCurrency/);
+});

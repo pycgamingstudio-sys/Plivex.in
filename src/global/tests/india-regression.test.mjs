@@ -77,7 +77,7 @@ test("India HSN/SAC item classification is retained for all invoice design print
   assert.ok(home.includes('updateItem(item.id, "hsnSac", s.hsn_code)'));
   assert.ok(home.includes("HSN/SAC: {item.hsnSac}"));
   const stores = await read("../../lib/stores.js");
-  assert.ok(stores.includes('invoice_snapshot: inv && typeof inv === "object" ? { ...inv'));
+  assert.ok(stores.includes('invoice_snapshot: invoiceToSave && typeof invoiceToSave === "object" ? { ...invoiceToSave'));
 });
 
 test("invoice RPC source contract covers create, edit, totals, GST, status, and atomic stock writes", async () => {
