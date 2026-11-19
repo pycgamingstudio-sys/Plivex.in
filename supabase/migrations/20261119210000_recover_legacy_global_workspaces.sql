@@ -310,7 +310,7 @@ on conflict (id) do nothing;
 insert into global.products(id,workspace_id,name,sku,description,unit,sale_price_minor,purchase_cost_minor,currency_code,tax_code,is_active,created_by,created_at,updated_at,barcode,variant_of,variant_label)
 select
   s.id,m.global_workspace_id,left(btrim(s.name),200),nullif(s.sku,''),
-  null,nullif(s.unit,''),round(s.price*100)::bigint,round(s.purchase_cost*100)::bigint,
+  null,coalesce(nullif(s.unit,''),'unit'),round(s.price*100)::bigint,round(s.purchase_cost*100)::bigint,
   coalesce(nullif(upper(s.currency_code),''),m.currency_code),null,true,m.owner_id,
   s.created_at,s.updated_at,s.barcode,
   case when exists(select 1 from public.stock parent where parent.id=s.variant_of and parent.workspace_id=s.workspace_id) then s.variant_of else null end,
@@ -460,6 +460,11 @@ begin
   ) or exists (
     select 1 from public.quotations q join _legacy_global_workspace_map m on m.legacy_workspace_id=q.workspace_id
     where not exists(select 1 from global.quotations g where g.workspace_id=m.global_workspace_id and g.id=q.id)
+  ) or exists (
+    select 1 from public.quotations q join _legacy_global_workspace_map m on m.legacy_workspace_id=q.workspace_id
+    cross join lateral jsonb_array_elements(q.items) with ordinality as quote_items(item,ordinality)
+    where not exists(select 1 from global.quotation_items gi where gi.workspace_id=m.global_workspace_id
+      and gi.id=md5(m.global_workspace_id::text||':legacy-quotation-item:'||q.id::text||':'||coalesce(item->>'id',ordinality::text))::uuid)
   ) then
     raise exception 'Legacy Global recovery verification failed; transaction rolled back';
   end if;
