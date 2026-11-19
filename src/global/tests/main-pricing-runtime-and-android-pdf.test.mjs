@@ -28,10 +28,12 @@ test("the actual View Plans modal uses the authenticated workspace country and n
 
 test("manually selected workspace country is authoritative over stale business-profile metadata", async () => {
   const home = await read("../../pages/Home.jsx");
-  assert.match(home, /const countryCode = profileCountry \|\| recordCountry \|\| ""/);
-  assert.match(home, /const activeWorkspaceCountry = String\(effectiveWorkspaceTaxProfile\?\.countryCode \|\| ""\)/);
-  assert.match(home, /GLOBAL_COUNTRY_CURRENCIES\[countryCode\] \|\| user\?\.currency_code/);
-  assert.match(home, /const baseCurrency = resolveInvoiceCurrencyForWorkspace\(user\.country_code, user\.currency_code\)/);
+  assert.match(home, /supabase\.from\("workspace_settings"\)/);
+  assert.match(home, /select\("country_code,currency_code,locale_code"\)/);
+  assert.match(home, /const countryCode = String\(settings\?\.country_code/);
+  assert.match(home, /const currencyCode = String\(settings\?\.currency_code/);
+  assert.match(home, /resolveInvoiceCurrencyForWorkspace\(countryCode, currencyCode\)/);
+  assert.doesNotMatch(home, /const countryCode = profileCountry \|\| recordCountry/);
 });
 
 test("invoice PDF export waits for the preview and downloads a non-empty PDF blob", async () => {
