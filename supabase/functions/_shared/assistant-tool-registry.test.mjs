@@ -8,7 +8,7 @@ const validator = (action) => action && ASSISTANT_WRITE_TOOLS[action.type] && ac
 
 test("allows only the explicitly implemented confirmation actions", () => {
   assert.deepEqual(Object.keys(ASSISTANT_WRITE_TOOLS).sort(), [
-    "create_client", "create_expense", "create_invoice", "create_lead", "create_purchase_order", "create_quotation", "create_stock", "receive_purchase_order"
+    "create_client", "create_expense", "create_invoice", "create_lead", "create_purchase_order", "create_quotation", "create_stock", "create_warehouse", "receive_purchase_order"
   ]);
 });
 
@@ -38,8 +38,8 @@ test("rejects more than ten actions", () => {
 });
 
 test("catalog distinguishes implemented actions from planned modules", () => {
-  assert.deepEqual(BUSINESS_MODULE_CATALOG.warehouses.writeTools, []);
-  assert.equal(BUSINESS_MODULE_CATALOG.warehouses.planned, true);
+  assert.deepEqual(BUSINESS_MODULE_CATALOG.warehouses.writeTools, ["create_warehouse"]);
+  assert.equal(BUSINESS_MODULE_CATALOG.warehouses.planned, false);
   assert.equal(BUSINESS_MODULE_CATALOG.inventory.writeTools.includes("create_stock"), true);
   assert.equal(describeToolAvailability().length, Object.keys(BUSINESS_MODULE_CATALOG).length);
 });
