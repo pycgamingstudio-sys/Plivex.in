@@ -8,7 +8,7 @@ const validator = (action) => action && ASSISTANT_WRITE_TOOLS[action.type] && ac
 
 test("allows only the explicitly implemented confirmation actions", () => {
   assert.deepEqual(Object.keys(ASSISTANT_WRITE_TOOLS).sort(), [
-    "create_client", "create_expense", "create_invoice", "create_lead", "create_purchase_order", "create_quotation", "create_stock", "create_warehouse", "receive_purchase_order"
+    "create_client", "create_expense", "create_invoice", "create_lead", "create_purchase_order", "create_quotation", "create_stock", "create_warehouse", "receive_purchase_order", "record_global_invoice_payment"
   ]);
 });
 
@@ -51,4 +51,6 @@ test("catalog marks the idempotent purchasing and warehouse executors as impleme
   assert.equal(BUSINESS_MODULE_CATALOG.purchase_orders.planned, false);
   assert.deepEqual(BUSINESS_MODULE_CATALOG.purchase_receipts.writeTools, ["receive_purchase_order"]);
   assert.equal(BUSINESS_MODULE_CATALOG.purchase_receipts.planned, false);
+  assert.deepEqual(BUSINESS_MODULE_CATALOG.payments.writeTools, ["record_global_invoice_payment"]);
+  assert.equal(BUSINESS_MODULE_CATALOG.payments.planned, false);
 });
