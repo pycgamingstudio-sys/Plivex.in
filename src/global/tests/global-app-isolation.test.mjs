@@ -15,7 +15,7 @@ const [app, auth, backend, onboarding, worker, vite, layout, globalApp, roleGuar
   read("../../components/RoleGuard.jsx"),
 ]);
 
-test("India and Global use the same origin, authentication provider and responsive workspace shell", () => {
+test("India and Global use the same origin, authentication provider and responsive workspace shell", async () => {
   assert.match(app, /lazy\(\(\) => import\("@\/global\/GlobalApp"\)\)/);
   assert.match(app, /const isGlobalWorkspace = APP_EDITION === "global"/);
   assert.ok(app.includes('<Route path="/dashboard" element={<HomeGate />} />'));
