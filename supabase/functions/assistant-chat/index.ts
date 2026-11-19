@@ -463,10 +463,13 @@ async function handleRequest(req: Request) {
         let timeoutId: ReturnType<typeof setTimeout> | undefined;
         try {
           const invocation = supabase.functions.invoke("global-auth-context", { body: {} })
-            .then(({ data, error }: any) => ({ user: !error && data?.user?.workspace_id ? data.user : null, timedOut: false }))
-            .catch(() => ({ user: null, timedOut: false }));
-          const timeout = new Promise<{ user: null; timedOut: true }>((resolve) => {
-            timeoutId = setTimeout(() => resolve({ user: null, timedOut: true }), 2500);
+            .then(({ data, error }: any) => {
+              const status = Number(error?.context?.status || 0);
+              return { user: !error && data?.user?.workspace_id ? data.user : null, unavailable: Boolean(error && status !== 403), timedOut: false };
+            })
+            .catch(() => ({ user: null, unavailable: true, timedOut: false }));
+          const timeout = new Promise<{ user: null; unavailable: true; timedOut: true }>((resolve) => {
+            timeoutId = setTimeout(() => resolve({ user: null, unavailable: true, timedOut: true }), 2500);
           });
           return await Promise.race([invocation, timeout]);
         } finally {
@@ -474,7 +477,7 @@ async function handleRequest(req: Request) {
         }
       })(),
     ]);
-    if (globalAuthResult?.timedOut) return json({ error: "Workspace country context is temporarily unavailable. No business data was accessed; please retry." }, 503);
+    if (globalAuthResult?.timedOut || globalAuthResult?.unavailable) return json({ error: "Workspace country context is temporarily unavailable. No business data was accessed; please retry." }, 503);
     const globalUser = globalAuthResult?.user || null;
     const workspaceId = globalUser?.workspace_id || profileResult.data?.workspace_id || null;
     if (!workspaceId) return json({ error: "Your Plivex workspace could not be found for this account." }, 403);
