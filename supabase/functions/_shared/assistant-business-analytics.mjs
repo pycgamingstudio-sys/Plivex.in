@@ -88,7 +88,17 @@ export function buildAssistantBusinessAnalytics(input = {}) {
       },
       oldestOverdueDays: overdue.length ? Math.max(...overdue.map((item) => item.daysOverdue)) : 0,
     },
-    purchasing: {\n      openOrderCount: openPurchaseOrders.length,\n      overdueExpectedOrderCount: overduePurchaseOrders.length,\n      overdueOrders: overduePurchaseOrders.slice(0, 30).map((order) => ({\n        supplier: String(order?.supplier_name || ""),\n        reference: String(order?.supplier_reference || order?.id || ""),\n        expectedDate: String(order?.expected_date || ""),\n        daysOverdue: daysBetween(asOfDate, String(order?.expected_date || "")),\n      })),\n    },\n    inventory: {\n      lowStockCount: lowStock.length,
+    purchasing: {
+      openOrderCount: openPurchaseOrders.length,
+      overdueExpectedOrderCount: overduePurchaseOrders.length,
+      overdueOrders: overduePurchaseOrders.slice(0, 30).map((order) => ({
+        supplier: String(order?.supplier_name || ""),
+        reference: String(order?.supplier_reference || order?.id || ""),
+        expectedDate: String(order?.expected_date || ""),
+        daysOverdue: daysBetween(asOfDate, String(order?.expected_date || "")),
+      })),
+    },
+    inventory: {\n      lowStockCount: lowStock.length,
       lowStockItems: lowStock,
       movementRecordCount: stockMovements.length,
       movementTypes,
