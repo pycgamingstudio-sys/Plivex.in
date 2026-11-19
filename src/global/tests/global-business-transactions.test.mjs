@@ -105,6 +105,7 @@ test("Global taxable invoice uses one accessible combined confirmation instead o
   const source = await read("../tax/invoice-tax-integration.js");
   const edge = await read("../../../supabase/functions/save-invoice/_shared/tax/invoice-tax-integration.js");
   assert.match(editor, /global-tax-details-confirm/);
+  assert.match(editor, /allowNoTax = true/);
   assert.match(editor, /min-h-11/);
   assert.doesNotMatch(editor, /registrationConfirmed === true} onChange/);
   assert.match(source, /TAX_DETAILS_CONFIRMATION_REQUIRED/);
@@ -125,6 +126,7 @@ test("Global commercial invoice creation has one atomic server-side finalization
   assert.match(handler, /atomicTaxProbe/);
   assert.match(panel, /action:isTaxInvoice \? "create_final_tax" : "create_final_commercial"/);
   assert.match(panel, /UK VAT tax invoice · calculate VAT/);
+  assert.match(panel, /allowNoTax=\{false\}/);
   assert.match(panel, /data\?\.invoice\?\.status !== "issued"/);
   assert.match(panel, /await downloadPdf\(data\.invoice\)/);
   assert.match(migration, /global_create_invoice_draft/);
