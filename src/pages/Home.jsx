@@ -13,7 +13,7 @@ import CurrentPlanCard from "@/components/CurrentPlanCard";
 import DesignPicker from "@/components/invoice/DesignPicker";
 import { DEFAULT_DESIGN_ID, InvoiceDesign, isPremiumDesign } from "@/components/invoice/designs";
 import { SUPPORTED_CURRENCIES, formatMoney, amountInWords } from "@/lib/currency";
-import { backend } from "@/api/backendClient";
+import { backend, supabase } from "@/api/backendClient";
 import GlobalTaxEditor from "@/components/invoice/GlobalTaxEditor";
 import { calculateInvoiceGlobalTax, GLOBAL_COUNTRY_CURRENCIES, resolveInvoiceCurrencyForWorkspace } from "@/global/tax/invoice-tax-integration.js";
 import { getCountryByCode } from "@/global/countries/country-registry.js";
@@ -572,11 +572,13 @@ export default function Home() {
   const [checkoutNotice, setCheckoutNotice] = useState("");
 
   useEffect(() => {
-    if (!user?.country_code || !user?.currency_code) return;
-    const baseCurrency = resolveInvoiceCurrencyForWorkspace(user.country_code, user.currency_code);
+    const countryCode = String(workspaceTaxProfile?.countryCode || "").trim().toUpperCase();
+    const currencyCode = String(workspaceTaxProfile?.currencyCode || "").trim().toUpperCase();
+    if (!countryCode || !currencyCode) return;
+    const baseCurrency = resolveInvoiceCurrencyForWorkspace(countryCode, currencyCode);
     if (!baseCurrency) return;
     setInvoice((current) => current.currency === baseCurrency ? current : { ...current, currency: baseCurrency });
-  }, [user?.country_code, user?.currency_code]);
+  }, [workspaceTaxProfile?.countryCode, workspaceTaxProfile?.currencyCode]);
 
   const [toast, setToast] = useState(null);
   const [errors, setErrors] = useState({});
@@ -598,41 +600,45 @@ export default function Home() {
     async function loadWorkspaceTaxProfile() {
       if (!user?.workspace_id) { if (active) setWorkspaceTaxProfile(null); return; }
       try {
-        const response = await backend.functions.invoke("workspaceRecords", { table: "business_profile", action: "get" });
+        const [{ data: settings, error: settingsError }, response] = await Promise.all([
+          supabase.from("workspace_settings")
+            .select("country_code,currency_code,locale_code")
+            .eq("workspace_id", user.workspace_id)
+            .maybeSingle(),
+          backend.functions.invoke("workspaceRecords", { table: "business_profile", action: "get" }),
+        ]);
+        if (settingsError) throw settingsError;
         if (response?.error) throw response.error;
         const record = response?.data?.record || {};
         if (!active) return;
-        const profileCountry = String(user?.country_code || "").trim().toUpperCase();
-        const recordCountry = String(record.country_code || "").trim().toUpperCase();
-        // The server-resolved workspace identity is authoritative for every country.
-        // A stale business_profile value must never override the manually selected country.
-        const countryCode = profileCountry || recordCountry || "";
-        const setLocale = profileCountry
-          ? user?.locale_code || record.locale_code
-          : record.locale_code || user?.locale_code;
+        // Canonical Workspace settings are the source of truth. Profile metadata and
+        // business_profile may be stale after country onboarding and must not override it.
+        const countryCode = String(settings?.country_code || "").trim().toUpperCase();
+        const currencyCode = String(settings?.currency_code || "").trim().toUpperCase();
+        const setLocale = String(settings?.locale_code || "").trim();
+        if (!countryCode || !/^[A-Z]{3}$/.test(currencyCode)) {
+          throw new Error("Workspace country and base currency are not configured.");
+        }
         setWorkspaceTaxProfile({
           countryCode,
-          currencyCode: GLOBAL_COUNTRY_CURRENCIES[countryCode] || user?.currency_code || (countryCode === "IN" ? "INR" : ""),
-          localeCode: setLocale || getCountryExperience(countryCode)?.defaultLocale || getCountryByCode(countryCode)?.locales?.[0] || (countryCode === "IN" ? "en-IN" : ""),
+          currencyCode,
+          localeCode: setLocale || getCountryExperience(countryCode)?.defaultLocale || getCountryByCode(countryCode)?.locales?.[0] || "",
           registrationNumber: record.tax_registration_number || "",
           registrationType: record.tax_registration_type || "",
           registrationStatus: record.tax_registration_status || "unregistered",
           registrationEffectiveFrom: record.tax_registration_effective_from || "",
           registeredJurisdiction: record.tax_jurisdiction_code || "",
         });
-        if (countryCode !== "IN" && GLOBAL_COUNTRY_CURRENCIES[countryCode]) {
-          setInvoice((old) => ({
-            ...old,
-            currency: resolveInvoiceCurrencyForWorkspace(countryCode, old.currency),
-          }));
-        }
+        setInvoice((old) => ({
+          ...old,
+          currency: resolveInvoiceCurrencyForWorkspace(countryCode, currencyCode),
+        }));
       } catch {
         if (active) {
-          const countryCode = String(user?.country_code || "").trim().toUpperCase();
           setWorkspaceTaxProfile({
-            countryCode,
-            currencyCode: GLOBAL_COUNTRY_CURRENCIES[countryCode] || user?.currency_code || "",
-            localeCode: user?.locale_code || getCountryByCode(countryCode)?.locales?.[0] || "",
+            countryCode: "",
+            currencyCode: "",
+            localeCode: "",
             loadError: true,
           });
         }
@@ -887,7 +893,10 @@ export default function Home() {
     const preferredCurrency = canAccess("multi_currency")
       ? (loadState(KEYS.settings, { currency: "INR" })?.currency || "INR")
       : "INR";
-    const defaultCurrency = resolveInvoiceCurrencyForWorkspace(activeWorkspaceCountry, user?.currency_code || preferredCurrency);
+    const defaultCurrency = resolveInvoiceCurrencyForWorkspace(
+      activeWorkspaceCountry,
+      effectiveWorkspaceTaxProfile?.currencyCode || user?.currency_code || preferredCurrency,
+    );
     setInvoice(applyBusinessProfile({ ...initialInvoice, globalDraftRequestId: crypto.randomUUID(), currency: defaultCurrency, items: [{ ...initialInvoice.items[0], id: `item-${Date.now()}` }] }));
     setErrors({});
     setMobileMenuOpen(false);
