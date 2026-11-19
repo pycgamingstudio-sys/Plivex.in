@@ -119,6 +119,7 @@ test("Global commercial invoice creation has one atomic server-side finalization
   const migration = await read("../../../supabase/migrations/20261119100000_global_atomic_commercial_invoice_issue.sql");
   assert.match(handler, /create_final_commercial/);
   assert.match(handler, /global_create_and_issue_commercial_invoice/);
+  assert.match(handler, /atomicCommercialProbe/);
   assert.match(panel, /action:"create_final_commercial"/);
   assert.match(panel, /data\?\.invoice\?\.status !== "issued"/);
   assert.match(panel, /await downloadPdf\(data\.invoice\)/);
