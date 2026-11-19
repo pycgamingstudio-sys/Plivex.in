@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
+import { normalizeAssistantActionBatch } from "../_shared/assistant-tool-registry.mjs";
 
 const ALLOWED_ORIGINS = new Set([
   "https://plivex.in",
@@ -703,9 +704,10 @@ async function handleRequest(req: Request) {
     if (parsed.action?.type === "create_invoice") parsed.action = enrichedActions.find((action: any) => action?.type === "create_invoice") || parsed.action;
     const rawActions = Array.isArray(parsed.actions) ? parsed.actions : (parsed.action && parsed.action.type !== "none" ? [parsed.action] : []);
     const uniqueRawActions = [...new Map(rawActions.map((item: any) => [JSON.stringify(item), item])).values()];
-    const proposedActions = uniqueRawActions.slice(0, 10).map((item: unknown) => validateAction(item)).filter(Boolean);
-    if (rawActions.length && proposedActions.length !== rawActions.length) {
-      return json({ reply: "I understood your request, but one or more actions are missing required details. Nothing has been prepared yet. Please clarify the missing amount, quantity, price or name." });
+    const normalizedBatch = normalizeAssistantActionBatch(uniqueRawActions, validateAction);
+    const proposedActions = normalizedBatch.actions;
+    if (normalizedBatch.error || (rawActions.length && proposedActions.length !== uniqueRawActions.length)) {
+      return json({ reply: "I understood your request, but one or more actions are unsupported or missing required details. Nothing has been prepared yet. Please clarify the exact missing detail." });
     }
     const idempotencyKey = proposedActions.length ? crypto.randomUUID() : null;
     const pendingActions = proposedActions.map((item: any) => ({ type: item.type, payload: item.payload, summary: item.summary }));
