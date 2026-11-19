@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
+import { validateGlobalInvoicePaymentAction, majorToMinorUnits } from "../_shared/assistant-global-payment-validation.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
 import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
 import { validateWarehouseAction } from "../_shared/assistant-warehouse-validation.mjs";
@@ -40,18 +41,7 @@ function validateAction(action: unknown) {
   const type = text(candidate.type, 40);
   const raw = candidate.payload && typeof candidate.payload === "object" ? candidate.payload as Record<string, unknown> : {};
   if (type === "record_global_invoice_payment") {
-    const invoiceId = text(raw.invoice_id, 36);
-    const amount = number(raw.amount);
-    const currencyCode = text(raw.currency_code, 3).toUpperCase();
-    const paymentDate = text(raw.payment_date, 10);
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(invoiceId)
-      || !(amount > 0) || !/^[A-Z]{3}$/.test(currencyCode)
-      || !/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)
-      || Number.isNaN(Date.parse(paymentDate + "T00:00:00Z"))) return null;
-    return { type, payload: {
-      invoice_id: invoiceId, amount, currency_code: currencyCode, payment_date: paymentDate,
-      method: text(raw.method, 80), reference: text(raw.reference, 160), notes: text(raw.notes, 1000),
-    } };
+    return validateGlobalInvoicePaymentAction(action);
   }
   if (type === "create_warehouse") {
     return validateWarehouseAction(action);
@@ -149,11 +139,8 @@ Deno.serve(async (req: Request) => {
       if (!Number.isSafeInteger(outstandingMinor) || outstandingMinor <= 0) {
         return json({ error: "This invoice has no outstanding balance to receive." }, 409, origin);
       }
-      const fractionDigits = new Intl.NumberFormat("en", { style: "currency", currency: payload.currency_code }).resolvedOptions().maximumFractionDigits;
-      const scale = 10 ** fractionDigits;
-      const scaledAmount = payload.amount * scale;
-      const amountMinor = Math.round(scaledAmount);
-      if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0 || Math.abs(scaledAmount - amountMinor) > 1e-7) {
+      const amountMinor = majorToMinorUnits(payload.amount, payload.currency_code);
+      if (amountMinor === null) {
         return json({ error: "Payment amount has more decimal places than the invoice currency supports." }, 400, origin);
       }
       if (amountMinor > outstandingMinor) {
