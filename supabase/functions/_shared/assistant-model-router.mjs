@@ -3,10 +3,11 @@ const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 export const DEFAULT_GROQ_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"];
+// Use the live free-model router first, then current explicit free fallbacks.
 export const DEFAULT_OPENROUTER_MODELS = [
+  "openrouter/free",
   "nvidia/nemotron-3-ultra-550b-a55b:free",
-  "nvidia/nemotron-3-super-120b-a12b:free",
-  "openai/gpt-oss-20b:free",
+  "baidu/ernie-5.5-flash-preview:free",
 ];
 
 function openAiMessages(geminiBody) {
@@ -69,11 +70,14 @@ async function callOpenAiProvider({ provider, model, key, body, fetchImpl, deadl
     method: "POST",
     headers,
     body: JSON.stringify(toOpenAiChatPayload(body, model)),
-    signal: AbortSignal.timeout(Math.min(6000, remaining)),
+    signal: AbortSignal.timeout(Math.min(4500, remaining)),
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(`${provider}_http_${response.status}`);
+    const providerError = result?.error || {};
+    const detail = typeof providerError?.message === "string" ? providerError.message.slice(0, 180) : "";
+    const code = typeof providerError?.code === "string" || typeof providerError?.code === "number" ? String(providerError.code).slice(0, 40) : "";
+    const error = new Error(`${provider}_http_${response.status}${code ? `_${code}` : ""}${detail ? `: ${detail}` : ""}`);
     error.status = response.status;
     error.retryable = isRetryableProviderStatus(response.status) || [400, 401, 402, 403, 404].includes(response.status);
     throw error;
@@ -112,7 +116,7 @@ export async function generateWithFallback({
         const response = await fetchImpl(GEMINI_URL, {
           ...requestOptions,
           headers: { ...requestOptions.headers, "x-goog-api-key": geminiKey },
-          signal: AbortSignal.timeout(Math.min(6000, remaining)),
+          signal: AbortSignal.timeout(Math.min(10000, remaining)),
         });
         result = await response.json().catch(() => ({}));
         if (!response.ok) {
