@@ -139,9 +139,9 @@ test("invoice editor and pricing use authenticated canonical workspace country r
   assert.match(loader, /setWorkspaceTaxProfileLoading\(false\)/);
   assert.doesNotMatch(loader, /supabase\.from\("workspace_settings"\)/);
   assert.match(home, /const effectiveWorkspaceTaxProfile = workspaceTaxProfile/);
-  assert.match(home, /countryCode=\{workspaceTaxProfile\?\.countryCode \|\| ""\}/);
-  assert.match(home, /currencyCode=\{workspaceTaxProfile\?\.currencyCode \|\| ""\}/);
-  assert.doesNotMatch(home, /countryCode=\{user\?\.country_code \|\| workspaceTaxProfile/);
+  assert.match(home, /countryCode=\{user\?\.country_code \|\| workspaceTaxProfile\?\.countryCode \|\| ""\}/);
+  assert.match(home, /currencyCode=\{user\?\.currency_code \|\| workspaceTaxProfile\?\.currencyCode \|\| ""\}/);
+  assert.match(home, /countryCode=\{user\?\.country_code \|\| workspaceTaxProfile/);
 });
 
 

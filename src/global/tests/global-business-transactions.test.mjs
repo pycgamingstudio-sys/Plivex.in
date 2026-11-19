@@ -54,7 +54,7 @@ test("PLIVEX ONE saves non-India invoices as canonical public drafts", async () 
   assert.doesNotMatch(home, /action:"issue_commercial"/);
   assert.match(home, /createInvoiceShareLink\(savedInvoice\.id, user\?\.workspace_id, isGlobalWorkspace\)/);
   assert.match(home, /allowGlobalDraftExport: isGlobalWorkspace/);
-  assert.match(home, /profileLoading=\{workspaceTaxProfileLoading\}/);
+  assert.match(home, /profileLoading=\{workspaceTaxProfileLoading && !\(user\?\.country_code && user\?\.currency_code\)\}/);
   assert.match(shareHelper, /invoice-share/);
   assert.match(home, /This is not an issued tax invoice; payment-provider collection is not connected yet/);
 });
