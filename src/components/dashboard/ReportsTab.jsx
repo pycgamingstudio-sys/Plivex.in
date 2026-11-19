@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
-import { Download, TrendingUp, Clock, Wallet, PiggyBank, LockKeyhole, CalendarDays } from "lucide-react";
+import { Download, TrendingUp, Clock, Wallet, PiggyBank, LockKeyhole } from "lucide-react";
 import { KEYS, loadList } from "@/lib/stores";
 import { money2, exportCsv } from "@/lib/dashboardData";
 import { usePaywall } from "@/lib/paywall";
@@ -49,8 +49,8 @@ export default function ReportsTab() {
     const end = to ? new Date(`${to}T23:59:59.999`) : null;
     return (!start || date >= start) && (!end || date <= end);
   };
-  const filteredInvoices = useMemo(() => invoices.filter((item) => inRange(item, "issueDate")), [invoices, from, to]);
-  const filteredExpenses = useMemo(() => expenses.filter((item) => inRange(item, "date")), [expenses, from, to]);
+  const filteredInvoices = invoices.filter((item) => inRange(item, "issueDate"));
+  const filteredExpenses = expenses.filter((item) => inRange(item, "date"));
   const statusOf = (item) => item.status === "Paid" || item.status === "Pending"
     ? item.status
     : paidNos.has(item.number) ? "Paid" : "Pending";
