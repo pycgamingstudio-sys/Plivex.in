@@ -545,9 +545,9 @@ async function handleRequest(req: Request) {
             const combined = Promise.all([financeInvocation, clientsInvocation]).then(([finance, clients]) => {
               if (!finance && !clients && !isGlobalWorkspace) return null;
               return {
-                global_workspace: true,
-                country_code: finance?.country_code || null,
-                currency_code: clients?.currency_code || null,
+                global_workspace: isGlobalWorkspace || Boolean(finance || clients),
+                country_code: finance?.country_code || globalUser?.country_code || null,
+                currency_code: clients?.currency_code || globalUser?.currency_code || null,
                 invoices: finance?.invoices || [],
                 clients: clients?.records || [],
                 source: "authenticated Global workspace records",
