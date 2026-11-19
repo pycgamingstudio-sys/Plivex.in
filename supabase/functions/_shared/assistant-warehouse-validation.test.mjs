@@ -16,6 +16,7 @@ test("rejects empty names and invalid codes", () => {
   assert.equal(validateWarehouseAction({ type: "create_warehouse", payload: { name: " " } }), null);
   assert.equal(validateWarehouseAction({ type: "create_warehouse", payload: { name: "North", code: "bad code" } }), null);
   assert.equal(validateWarehouseAction({ type: "create_warehouse", payload: { name: "North", code: "x".repeat(33) } }), null);
+  assert.equal(validateWarehouseAction({ type: "create_warehouse", payload: { name: "N".repeat(161) } }), null);
 });
 
 test("does not accept a different action type", () => {
