@@ -118,6 +118,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
         <SummaryCard label={`Operating Difference · ${currencyCode}`} value={money2(net, currencyCode)} gradient={net >= 0 ? "bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" : "bg-gradient-to-br from-[#D97706] to-[#F59E0B]"} icon={PiggyBank} badge={net >= 0 ? "positive" : "negative"} />
       </div>
       {(hasOtherCurrencySales || hasOtherCurrencyExpenses || hasUnknownCurrencyExpenses || hasUnknownCurrencySales) && <p className="text-[11px] text-muted-foreground">Sales and expenses are grouped by their recorded currency. Operating difference uses only base-currency sales and expenses; records without a recorded currency are excluded. No FX conversion is performed.</p>}
+      <p className="text-[11px] leading-relaxed text-muted-foreground">Operating difference is sales minus recorded expenses, not a complete accounting profit. It excludes cost of goods, taxes and other unrecorded adjustments.</p>
 
       <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-[#E5E7EB] p-4 lg:flex-row lg:items-center lg:justify-between">
