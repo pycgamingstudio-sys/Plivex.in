@@ -3,6 +3,7 @@ import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.m
 import { validateGlobalInvoicePaymentAction, majorToMinorUnits } from "../_shared/assistant-global-payment-validation.mjs";
 import { validateGlobalClientAction } from "../_shared/assistant-global-client-validation.mjs";
 import { validateGlobalExpenseAction } from "../_shared/assistant-global-expense-validation.mjs";
+import { validateGlobalProductAction } from "../_shared/assistant-global-product-validation.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
 import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
 import { validateWarehouseAction } from "../_shared/assistant-warehouse-validation.mjs";
@@ -42,6 +43,9 @@ function validateAction(action: unknown) {
   const candidate = action as Record<string, unknown>;
   const type = text(candidate.type, 40);
   const raw = candidate.payload && typeof candidate.payload === "object" ? candidate.payload as Record<string, unknown> : {};
+  if (type === "create_global_product") {
+    return validateGlobalProductAction(action);
+  }
   if (type === "create_global_expense") {
     return validateGlobalExpenseAction(action);
   }
@@ -148,7 +152,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => null);
     const rawActions = Array.isArray(body?.actions) ? body.actions : [body?.action];
     if (!rawActions.length || rawActions.length > 10) return json({ error: "Please confirm between 1 and 10 valid actions." }, 400, origin);
-    if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_client", "create_global_expense", "record_global_invoice_payment"].includes(String(action?.type || "")))) {
+    if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_client", "create_global_expense", "create_global_product", "record_global_invoice_payment"].includes(String(action?.type || "")))) {
       return json({ error: "This Global workspace action is not connected yet. No legacy India-table write was attempted." }, 403, origin);
     }
     if (!isGlobalWorkspace && rawActions.some((action: any) => ["create_global_client", "create_global_expense", "record_global_invoice_payment"].includes(String(action?.type || "")))) {
@@ -158,6 +162,58 @@ Deno.serve(async (req: Request) => {
     if (actions.some((action: unknown) => !action)) return json({ error: "Some action details are missing or invalid. Nothing was saved." }, 400, origin);
     const idempotencyKey = text(body?.idempotencyKey,160);
     if (idempotencyKey.length < 16) return json({ error: "Confirmation key is missing. Please refresh the pending action and try again." }, 400, origin);
+    if (actions.some((action: any) => action.type === "create_global_product")) {
+      if (actions.length !== 1) return json({ error: "Global product creation must be confirmed separately so its catalog record remains idempotent." }, 400, origin);
+      const payload = actions[0].payload;
+      const salePriceMinor = payload.sale_price === null ? null : payload.sale_price === 0 ? 0 : majorToMinorUnits(payload.sale_price, payload.currency_code);
+      const purchaseCostMinor = payload.purchase_cost === null ? null : payload.purchase_cost === 0 ? 0 : majorToMinorUnits(payload.purchase_cost, payload.currency_code);
+      if ((payload.sale_price !== null && salePriceMinor === null) || (payload.purchase_cost !== null && purchaseCostMinor === null)) {
+        return json({ error: "Product price has more decimal places than the workspace currency supports." }, 400, origin);
+      }
+      const values = {
+        name: payload.name, sku: payload.sku || null, description: payload.description || null,
+        unit: payload.unit, currency_code: payload.currency_code,
+        tax_code: payload.tax_code || null, is_active: payload.is_active,
+        ...(salePriceMinor === null ? {} : { sale_price_minor: salePriceMinor }),
+        ...(purchaseCostMinor === null ? {} : { purchase_cost_minor: purchaseCostMinor }),
+      };
+      const canonical = JSON.stringify({ type: "create_global_product", payload: values });
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+      const requestHash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const { data: product, error: productError } = await supabase.rpc("assistant_create_global_product_idempotent", {
+        p_workspace_id: workspaceId, p_idempotency_key: idempotencyKey,
+        p_request_hash: requestHash, p_values: values,
+      });
+      if (productError) {
+        const message = String(productError.message || "");
+        if (message.includes("PERMISSION_DENIED")) return json({ error: "Only a Global workspace owner, admin or manager can create products." }, 403, origin);
+        if (message.includes("IDEMPOTENCY_PAYLOAD_MISMATCH")) return json({ error: "This confirmation key was already used for different product details. Prepare the product again." }, 409, origin);
+        console.error("Global product creation rejected", { code: productError.code, userId: user.id });
+        return json({ error: "The Global product could not be created. Check the details and try again." }, 400, origin);
+      }
+      if (!product?.ok || !product?.product_id || !product?.record) {
+        const reason = String(product?.reason || "");
+        const message = reason === "duplicate_sku" ? "A product with this SKU already exists in the Global catalog. Use the existing product or choose a different SKU."
+          : reason === "forbidden" ? "Your Global workspace role cannot create products."
+          : reason === "access_denied" ? "You do not have access to this Global workspace."
+          : "The Global product details were rejected. Nothing was saved.";
+        return json({ error: message }, reason === "forbidden" || reason === "access_denied" ? 403 : 409, origin);
+      }
+      const record = product.record;
+      const verified = Boolean(record.id === product.product_id
+        && record.name === payload.name
+        && String(record.currency_code || "").toUpperCase() === payload.currency_code
+        && (payload.sku ? record.sku === payload.sku : true));
+      return json({
+        ok: true, verified, duplicate: Boolean(product.duplicate),
+        reply: verified
+          ? "Global product created and verified in your catalog. No stock quantity was added."
+          : "The Global product service accepted the request, but Plivex could not verify the catalog row. Check the product list before retrying.",
+        created: [{ type: "create_global_product", id: product.product_id }],
+        verification: [{ type: "create_global_product", id: product.product_id, verified }],
+        product: verified ? { name: record.name, sku: record.sku || null, unit: record.unit, currency_code: record.currency_code } : null,
+      }, 200, origin);
+    }
     if (actions.some((action: any) => action.type === "create_global_expense")) {
       if (actions.length !== 1) return json({ error: "Global expense creation must be confirmed separately so its ledger entry remains idempotent." }, 400, origin);
       const payload = actions[0].payload;
