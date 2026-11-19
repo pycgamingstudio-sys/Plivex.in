@@ -84,7 +84,7 @@ const AuthenticatedApp = () => {
   }
 
   // One shared post-auth onboarding provisions either regional workspace.
-  if (isUnifiedBuild && isAuthenticated && user && (!user.workspace_id || !user.country_code || !user.workspace_type || Number(user.onboarding_version || 0) < 1 || user.migration_status !== "ready" || user.legacy_review_required) && !getPendingInviteCode()) {
+  if (isUnifiedBuild && isAuthenticated && user && (!user.workspace_id || !user.country_code || !user.workspace_type || Number(user.onboarding_version || 0) < 1 || user.migration_status !== "ready" || user.legacy_review_required) && (!getPendingInviteCode() || Boolean(user.workspace_id))) {
     const canProvisionWorkspace = !user.workspace_id || !user.role || user.role === "admin" || user.role === "user";
     if (canProvisionWorkspace) return <UnifiedWorkspaceOnboarding />;
     return (
