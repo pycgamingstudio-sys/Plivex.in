@@ -18,8 +18,9 @@ const formatCurrencyTotals = (records, currencyCode) => {
   const totals = new Map();
   records.forEach((record) => {
     const currency = String(record.currencyCode || "").trim().toUpperCase();
-    if (!/^[A-Z]{3}$/.test(currency)) return;
-    totals.set(currency, (totals.get(currency) || 0) + Number(record.value || 0));
+    const amount = Number(record.value || 0);
+    if (!/^[A-Z]{3}$/.test(currency) || !Number.isFinite(amount)) return;
+    totals.set(currency, (totals.get(currency) || 0) + amount);
   });
   return [...totals.entries()]
     .sort(([a], [b]) => a === currencyCode ? -1 : b === currencyCode ? 1 : a.localeCompare(b))
@@ -53,7 +54,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
 
   const persistClients = (n) => { setClients(n); saveList(KEYS.clients, n); };
   const persistLeads = (n) => { setLeads(n); saveList(KEYS.leads, n); };
-  const saveClient = (entry) => { if (!entry.name.trim()) { window.alert("Enter a client name."); return; } if (entry.email && (!entry.email.includes("@") || !entry.email.split("@")[1]?.includes("."))) { window.alert("Enter a valid client email address."); return; } if (!requestAction()) return; const n = clientModal.id ? clients.map((c) => (c.id === clientModal.id ? { ...entry, id: clientModal.id } : c)) : [{ ...entry, id: genId("client") }, ...clients]; persistClients(n); setClientModal(null); };
+  const saveClient = (entry) => { if (!entry.name.trim()) { window.alert("Enter a client name."); return; } if (entry.email && !(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(entry.email.trim()))) { window.alert("Enter a valid client email address."); return; } if (!requestAction()) return; const n = clientModal.id ? clients.map((c) => (c.id === clientModal.id ? { ...entry, id: clientModal.id } : c)) : [{ ...entry, id: genId("client") }, ...clients]; persistClients(n); setClientModal(null); };
   const saveLead = (entry) => {
     if (!entry.name.trim()) { window.alert("Enter a lead name."); return; }
     if (entry.email && (!entry.email.includes("@") || !entry.email.split("@")[1]?.includes("."))) { window.alert("Enter a valid lead email address."); return; }
@@ -79,6 +80,15 @@ export default function CrmTab({ intent, onConsumeIntent }) {
 
   const activeLeads = leads.filter((l) => !["Won", "Lost"].includes(l.stage));
   const pipelineValue = formatCurrencyTotals(activeLeads, currencyCode) || money2(0, currencyCode);
+  const leadsByStage = useMemo(() => {
+    const query = leadQuery.trim().toLowerCase();
+    const groups = Object.fromEntries(STAGES.map((stage) => [stage, []]));
+    leads.forEach((lead) => {
+      const haystack = [lead.name, lead.company, lead.phone, lead.email, lead.requirement].join(" ").toLowerCase();
+      if ((!query || haystack.includes(query)) && groups[lead.stage]) groups[lead.stage].push(lead);
+    });
+    return groups;
+  }, [leads, leadQuery]);
 
   return (
     <div className="space-y-5">
@@ -202,7 +212,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div className="relative min-w-0 flex-1 sm:max-w-sm"><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><input value={leadQuery} onChange={(event) => setLeadQuery(event.target.value)} placeholder="Search leads by name, company or contact…" aria-label="Search leads" className={inputCls + " pl-9"} /></div><button onClick={() => setLeadModal(true)} className={btnAccent}><UserPlus className="h-3.5 w-3.5" />Add new lead</button></div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {STAGES.map((stage) => {
-              const items = leads.filter((l) => l.stage === stage && (!leadQuery || (l.name + " " + l.company + " " + l.phone + " " + l.email + " " + l.requirement).toLowerCase().includes(leadQuery.toLowerCase())));
+              const items = leadsByStage[stage] || [];
               const stageValue = formatCurrencyTotals(items, currencyCode);
               return (
                 <div key={stage} className="rounded-2xl border border-[#E5E7EB] bg-white p-3 shadow-sm">
