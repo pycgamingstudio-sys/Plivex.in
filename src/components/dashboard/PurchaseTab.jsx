@@ -100,7 +100,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
     const validDate = /^\d{4}-\d{2}-\d{2}$/.test(entry.date) && calendarDate.getFullYear() === year && calendarDate.getMonth() === month - 1 && calendarDate.getDate() === day;
     if (!entry.vendor.trim()) { window.alert("Enter a vendor or payee name."); return; }
     if (!Number.isFinite(amount) || amount <= 0) { window.alert("Enter an amount greater than zero."); return; }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(entry.date) || Number.isNaN(new Date(entry.date + "T12:00:00").getTime())) { window.alert("Choose a valid expense date."); return; }
+    if (!validDate) { window.alert("Choose a valid expense date."); return; }
     if (!requestAction()) return;
     const next = [{ ...entry, currencyCode, id: genId("exp"), amount }, ...expenses];
     setExpenses(next); saveList(KEYS.expenses, next); setOpen(false);
