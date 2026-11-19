@@ -521,7 +521,7 @@ async function handleRequest(req: Request) {
     // functions, not the legacy public-table snapshot above. Reuse the user's
     // JWT through the Supabase client; the Global function re-checks membership.
     const needsGlobalFinanceContext = deterministicIntentHints.intents.includes("payment_incoming") || /invoice|bill|payment|paid|received|refund|reconcil|ledger|balance|outstanding|due|receivable|payable|paise|jama|bhugtan|पेमेंट|भुगतान|पैसे|रकम/i.test(String(latestUserText));
-    const needsGlobalClientContext = /\\b(client|customer|grahak)\\b|ग्राहक|कस्टमर/i.test(String(latestUserText));
+    const needsGlobalClientContext = /\b(client|customer|grahak)\b|ग्राहक|कस्टमर/i.test(String(latestUserText));
     const globalContextPromise = isGlobalWorkspace || needsGlobalFinanceContext || needsGlobalClientContext
       ? (async () => {
           let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -543,7 +543,7 @@ async function handleRequest(req: Request) {
                 } : null).catch(() => null)
               : Promise.resolve(null);
             const combined = Promise.all([financeInvocation, clientsInvocation]).then(([finance, clients]) => {
-              if (!finance && !clients) return null;
+              if (!finance && !clients && !isGlobalWorkspace) return null;
               return {
                 global_workspace: true,
                 country_code: finance?.country_code || null,
