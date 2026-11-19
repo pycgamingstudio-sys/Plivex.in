@@ -19,7 +19,8 @@ test("the actual View Plans modal uses the authenticated workspace country and n
   const home = await read("../../pages/Home.jsx");
   const modal = home.slice(home.indexOf("function PricingModal("), home.indexOf("\nfunction Toast("));
   assert.match(home, /countryCode=\{user\?\.country_code \|\| workspaceTaxProfile\?\.countryCode \|\| ""\}/);
-  assert.match(home, /currencyCode=\{user\?\.currency_code \|\| workspaceTaxProfile\?\.currencyCode \|\| ""\}/);\n  assert.match(home, /profileLoading=\\{workspaceTaxProfileLoading && !\\(user\\?\\.country_code && user\\?\\.currency_code\\)\\}/);
+  assert.match(home, /currencyCode=\{user\?\.currency_code \|\| workspaceTaxProfile\?\.currencyCode \|\| ""\}/);
+  assert.match(home, /profileLoading=\{workspaceTaxProfileLoading && !\(user\?\.country_code && user\?\.currency_code\)\}/);
   assert.match(modal, /countryCode = "", currencyCode = ""/);
   assert.match(modal, /normalizedCountryCode === "IN"/);
   assert.match(modal, /No substitute pricing is shown/);
