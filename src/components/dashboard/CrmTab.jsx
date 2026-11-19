@@ -134,8 +134,8 @@ export default function CrmTab({ intent, onConsumeIntent }) {
                     const open = expanded === c.id;
                     const history = invoices.filter((it) => it.clientName === c.name);
                     return (
-                      <>
-                        <tr key={c.id} className="hover:bg-slate-50">
+                      <Fragment key={c.id}>
+                        <tr className="hover:bg-slate-50">
                           <td className="px-3 py-3">
                             <button onClick={() => setExpanded(open ? null : c.id)} className="rounded-md p-1 text-slate-400 hover:bg-slate-100" aria-label="Expand">
                               {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -178,7 +178,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </tbody>
