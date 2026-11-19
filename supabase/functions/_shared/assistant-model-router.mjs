@@ -12,8 +12,7 @@ export const DEFAULT_OPENROUTER_MODELS = [
 function openAiMessages(geminiBody) {
   const systemText = (geminiBody?.system_instruction?.parts || [])
     .map((part) => typeof part?.text === "string" ? part.text : "")
-    .filter(Boolean).join("
-");
+    .filter(Boolean).join("\n");
   const messages = [];
   if (systemText) messages.push({ role: "system", content: systemText });
   for (const item of Array.isArray(geminiBody?.contents) ? geminiBody.contents : []) {
