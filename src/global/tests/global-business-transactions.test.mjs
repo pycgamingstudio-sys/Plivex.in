@@ -133,3 +133,14 @@ test("Global commercial invoice creation has one atomic server-side finalization
   assert.match(migration, /global_create_and_issue_tax_invoice/);
   assert.match(migration, /delete from global\.invoices/);
 });
+
+
+test("Unified non-India workspaces use the Global invoice desk and its plan-independent base currency", async () => {
+  const app = await read("../../App.jsx");
+  const panel = await read("../../components/global/GlobalInvoicesPanel.jsx");
+  assert.match(app, /isUnifiedBuild && Boolean\(user\?\.country_code && user\.country_code !== "IN"\)/);
+  assert.match(app, /isGlobalWorkspace \? <AppLayout><GlobalApp section="invoices" \/><\/AppLayout> : <Home \/>/);
+  assert.match(panel, /resolveGlobalInvoiceContext\(account\)/);
+  assert.doesNotMatch(panel, /multi_currency|canAccess\(/);
+  assert.match(panel, /currency_code:currency/);
+});
