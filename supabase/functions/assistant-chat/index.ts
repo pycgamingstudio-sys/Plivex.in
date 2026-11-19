@@ -203,8 +203,7 @@ function parseClientConversation(incoming: any[]) {
 function parseInvoiceConversation(incoming: any[], businessProfile: any = null) {
   const history = incoming.slice(-16);
   const userTurns = history.filter((item) => item?.role !== "assistant").map((item) => text(item?.content, 1200)).filter(Boolean);
-  const combined = userTurns.join("
-");
+  const combined = userTurns.join("\n");
   if (!/(?:invoice|inv[o]?ice|bill|billing|इ invoice|इनवॉइस|बिल)/i.test(combined) ||
       !/(?:bnao|banao|banana|banado|create|make|generate|prepare|बनाओ|बना दो)/i.test(combined)) return null;
   const currencyMatch = combined.match(/\b(INR|USD|EUR|GBP|AED|CAD|AUD|SGD)\b/i);
@@ -287,8 +286,7 @@ function parseInvoiceConversation(incoming: any[], businessProfile: any = null) 
 function parseExpenseConversation(incoming: any[]) {
   const history = incoming.slice(-16);
   const userTurns = history.filter((item) => item?.role !== "assistant").map((item) => text(item?.content, 1200)).filter(Boolean);
-  const combined = userTurns.join("
-");
+  const combined = userTurns.join("\n");
   if (!/(?:expense|kharcha|kharch|खर्च)/i.test(combined) ||
       !/(?:add|create|save|record|jod(?:o|na)?|bnao|banao|बनाओ|जोड़ो)/i.test(combined)) return null;
   const parseMoney = (raw: string, scale = "") => {
@@ -677,8 +675,7 @@ async function handleRequest(req: Request) {
       "GLOBAL PAYMENT ACTION: If the user explicitly asks to record a payment received against a Global invoice, use record_global_invoice_payment only when the exact invoice_id and currency_code exist in GLOBAL WORKSPACE CONTEXT, outstanding_minor is positive, and the user supplied the payment amount and date. amount is expressed in major currency units; never send minor units in amount. Do not use this for outgoing supplier payments, refunds, subscription payments or screenshots alone. Never mark an invoice paid manually; the Global ledger recalculates its balance. This action is one invoice at a time and requires confirmation. If the workspace has no Global reconciliation context, explain that this action is not connected for that workspace.",
       "GLOBAL WORKSPACE CONTEXT: When present, this is the authenticated Global workspace snapshot. The clients array contains a capped Global client list. The expenses array is the recent Global expense ledger snapshot. The products array is the Global product catalog and stock_levels is a read-only current quantity snapshot keyed by product_id; join those records by exact IDs. The invoices array is the authenticated Global invoice reconciliation snapshot from the workspace's own country context. Match invoices by the visible invoice_number or client_name when the user refers to a customer; if multiple invoices match, ask which invoice. Use invoice_id only from these records when preparing a payment action. Amount fields ending in _minor are minor currency units, not major units; do not display them as whole currency amounts without the currency's correct exponent. Distinguish invoice total, gross payments, refunds, net received and outstanding. This context is read-only; payment/refund writes still require an explicitly supported action and confirmation. " + JSON.stringify(globalBusinessContext),
       "LIVE DATA JSON: " + JSON.stringify(liveContext),
-    ].join("
-");
+    ].join("\n");
     const requestOptions = {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
