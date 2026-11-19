@@ -141,6 +141,7 @@ export default function AssistantWidget() {
         create_invoice: "history", create_expense: "expenses", create_stock: "stock",
         create_client: "clients", create_lead: "leads", create_quotation: "quotations",
         create_purchase_order: "stock",
+        create_warehouse: "stock",
         receive_purchase_order: "stock",
       }[action?.type])).filter(Boolean))];
       await Promise.all(affectedKeys.map((key) => refreshWorkspaceKey(key)));
