@@ -39,8 +39,9 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
     supabase.from("purchase_orders").select("id,supplier_name,supplier_reference,status,order_date,expected_date,currency_code,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(200),
     supabase.from("purchase_order_items").select("purchase_order_id,quantity_ordered,quantity_received,unit_cost,currency_code").eq("workspace_id", workspaceId).limit(1000),
     supabase.from("purchase_receipts").select("purchase_order_id,warehouse_id,received_at").eq("workspace_id", workspaceId).order("received_at", { ascending: false }).limit(200),
+    supabase.from("stock_movements").select("stock_id,warehouse_id,movement_type,quantity_delta,reference_type,created_at,notes").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
   ]);
-  const names = ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile", "warehouses", "purchase_orders", "purchase_order_items", "purchase_receipts"];
+  const names = ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile", "warehouses", "purchase_orders", "purchase_order_items", "purchase_receipts", "stock_movements"];
   const rows: Record<string, any> = Object.fromEntries(names.map((name, i) => [name, results[i].data ?? (name === "business_profile" ? null : [])]));
   const errors = names.filter((name, i) => results[i].error).map((name) => name);
   const invoices = rows.invoices || [];
@@ -53,6 +54,7 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
   const purchaseOrders = rows.purchase_orders || [];
   const purchaseOrderItems = rows.purchase_order_items || [];
   const purchaseReceipts = rows.purchase_receipts || [];
+  const stockMovements = rows.stock_movements || [];
   const purchaseItemsByOrder = new Map<string, any[]>();
   for (const item of purchaseOrderItems) {
     const current = purchaseItemsByOrder.get(item.purchase_order_id) || [];
@@ -84,6 +86,7 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
       quotations: { loadedRecords: quotations.length, totalValue: money(quotations, "total") },
       leads: { loadedRecords: leads.length, totalPotentialValue: money(leads, "value") },
       services: { loadedRecords: (rows.services || []).length },
+      stockMovements: { loadedRecords: stockMovements.length, movementTypes: stockMovements.reduce((counts: Record<string, number>, item: any) => { const key = String(item.movement_type || "unknown"); counts[key] = (counts[key] || 0) + 1; return counts; }, {}) },
       warehouses: { activeCount: warehouses.length, defaultWarehouse: warehouses.find((item: any) => item.is_default)?.name || null },
       purchasing: {
         loadedOrders: purchaseOrders.length,
@@ -107,6 +110,7 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
         items: (purchaseItemsByOrder.get(order.id) || []).slice(0, 30),
       })),
       recent_purchase_receipts: purchaseReceipts.slice(0, 30),
+      stock_movements: stockMovements.slice(0, 30),
     },
     limitNote: "For each module, loaded records are capped (500 for core records, 200 for warehouses/orders/receipts, 1,000 purchase-order lines); record lists are recent samples. Summaries are calculated only from loaded rows. A missing module in this context is not proof that the workspace has no records.",
   };
@@ -752,7 +756,7 @@ async function handleRequest(req: Request) {
       pendingAction: pendingActions.length === 1 ? { ...pendingActions[0], idempotencyKey } : null,
       pendingActions: pendingActions.length > 1 ? pendingActions : null,
       idempotencyKey,
-      liveData: { modules: ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile", "warehouses", "purchase_orders", "purchase_order_items", "purchase_receipts"], unavailableModules: liveContext.unavailableModules || [], warning: liveContext.warning || null },
+      liveData: { modules: ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile", "warehouses", "purchase_orders", "purchase_order_items", "purchase_receipts", "stock_movements"], unavailableModules: liveContext.unavailableModules || [], warning: liveContext.warning || null },
     });
   } catch (error) {
     console.error("Assistant request failed", error);
