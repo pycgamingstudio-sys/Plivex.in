@@ -5,7 +5,7 @@ import { getTaxInvoiceFormat } from "@/global/tax/tax-invoice-formats.js";
 const fieldClass = "mt-1 w-full rounded-lg border bg-background px-3 py-2.5 text-sm";
 const labelClass = "block text-xs font-semibold text-foreground";
 
-export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile, calculation }) {
+export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile, calculation, allowNoTax = true }) {
   const countryCode = workspaceProfile?.countryCode || "";
   const format = getTaxInvoiceFormat(countryCode);
   const config = {
@@ -49,7 +49,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
   const isCA = countryCode === "CA";
   const currency = invoice.currency || workspaceProfile?.currencyCode || "";
   const manual = selectedMode === "manual" && config.taxMode !== "no_tax";
-  const noTax = config.taxMode === "no_tax";
+  const noTax = allowNoTax && config.taxMode === "no_tax";
 
   return (
     <section className="rounded-xl border bg-card p-4 sm:p-5" data-testid="global-tax-editor">
@@ -64,9 +64,9 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
 
       <div className="mt-3 rounded-lg bg-muted/40 p-3 text-[11px] text-muted-foreground"><strong>Tax treatment:</strong> Plivex records the choice you make here. It does not independently verify registration, tax obligations or exemptions.</div>
       <label className={labelClass + " mt-4"}>How should tax be handled?
-        <select data-testid="global-tax-mode" className={fieldClass} value={config.taxMode || "taxable"} onChange={(e) => update({ taxMode: e.target.value, noTaxConfirmed: false })}>
+        <select data-testid="global-tax-mode" className={fieldClass} value={noTax ? "no_tax" : "taxable"} onChange={(e) => update({ taxMode: e.target.value, noTaxConfirmed: false })}>
           <option value="taxable">Tax applies · calculate tax</option>
-          <option value="no_tax">No tax charged · commercial invoice</option>
+          {allowNoTax && <option value="no_tax">No tax charged · commercial invoice</option>}
         </select>
       </label>
       {noTax ? (
