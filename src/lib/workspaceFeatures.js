@@ -37,7 +37,7 @@ export function getSuggestedWorkspaceFeatures(workTypes = []) {
     ["expenses", "crm", "leads", "reports"].forEach((id) => selected.add(id));
   }
   if (workTypes.includes("business")) {
-    ["expenses", "crm", "leads", "inventoryWorkspace", "reports"].forEach((id) => selected.add(id));
+    ["expenses", "crm", "leads", "reports", "stock", "team", "inventoryWorkspace"].forEach((id) => selected.add(id));
   }
   return [...selected];
 }
