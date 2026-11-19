@@ -31,7 +31,7 @@ export function validateGlobalInvoicePaymentAction(action) {
 export function majorToMinorUnits(amount, currencyCode) {
   const value = Number(amount);
   const currency = String(currencyCode ?? "").trim().toUpperCase();
-  if (!Number.isFinite(value) || value <= 0 || !/^[A-Z]{3}$/.test(currency)) return null;
+  if (!Number.isFinite(value) || value <= 0 || currency === "XXX" || !/^[A-Z]{3}$/.test(currency)) return null;
   try {
     const digits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits;
     const scale = 10 ** digits;
