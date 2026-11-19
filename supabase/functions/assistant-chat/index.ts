@@ -398,7 +398,7 @@ function validateAction(action: any) {
     const payload = validated.payload;
     return {
       ...validated,
-      summary: "Create Global product master: " + payload.name + (payload.sku ? " · SKU " + payload.sku : "") + " · " + payload.currency_code + (payload.sale_price === null && payload.purchase_cost === null ? " · prices not supplied (catalog defaults apply)" : "") + ". This does not add stock quantity.",
+      summary: "Create Global product master: " + payload.name + (payload.sku ? " · SKU " + payload.sku : "") + " · " + payload.currency_code + (payload.sale_price === null ? " · sale price defaults to 0" : "") + (payload.purchase_cost === null ? " · purchase cost defaults to 0" : "") + ". This does not add stock quantity.",
     };
   }
   if (type === "create_global_expense") {
