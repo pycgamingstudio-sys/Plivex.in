@@ -59,7 +59,8 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
   const consume = () => setIntent(null);
   const visibleTabs = TABS.filter((t) => {
     if (!canAccessTab(role, t.id)) return false;
-    if (user?.workspace_type === "freelancer" && ["stock", "team"].includes(t.id)) return false;
+    if (t.id === "stock") return user?.workspace_type === "business" || workspaceFeatures.includes("stock");
+    if (t.id === "team") return user?.workspace_type === "business" || workspaceFeatures.includes("team");
     if (t.id === "warehouses") return workspaceFeatures.includes("inventoryWorkspace");
     if (t.id === "purchase" || t.id === "reconciliation") return workspaceFeatures.includes("expenses");
     if (t.id === "reports") return workspaceFeatures.includes("reports");
