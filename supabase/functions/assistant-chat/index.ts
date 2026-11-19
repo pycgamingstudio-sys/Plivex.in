@@ -608,7 +608,7 @@ async function handleRequest(req: Request) {
                   payload: {
                     type: "OBJECT",
                     properties: {
-                      name: { type: "STRING" }, company: { type: "STRING" }, email: { type: "STRING" }, phone: { type: "STRING" }, gstin: { type: "STRING" }, address: { type: "STRING" }, invoice_id: { type: "STRING" }, currency_code: { type: "STRING" }, payment_date: { type: "STRING" }, reference: { type: "STRING" },
+                      name: { type: "STRING" }, company: { type: "STRING" }, email: { type: "STRING" }, phone: { type: "STRING" }, gstin: { type: "STRING" }, address: { type: "STRING" }, tax_registration_number: { type: "STRING" }, invoice_id: { type: "STRING" }, currency_code: { type: "STRING" }, payment_date: { type: "STRING" }, reference: { type: "STRING" },
                       vendor: { type: "STRING" }, category: { type: "STRING" }, amount: { type: "NUMBER" }, date: { type: "STRING" }, status: { type: "STRING" }, method: { type: "STRING" }, notes: { type: "STRING" },
                       requirement: { type: "STRING" }, value: { type: "NUMBER" }, stage: { type: "STRING" },
                       sku: { type: "STRING" }, quantity: { type: "NUMBER" }, unit: { type: "STRING" }, price: { type: "NUMBER" }, low_stock: { type: "NUMBER" },
