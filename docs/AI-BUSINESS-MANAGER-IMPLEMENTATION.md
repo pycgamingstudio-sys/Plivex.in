@@ -31,6 +31,7 @@ The assistant live context now includes bounded workspace-scoped reads for activ
 ## Deterministic intent assistance
 - A shared, unit-tested intent helper supplies advisory hints for common business operations, Indian amount formats (including thousand/lakh/crore shorthand), and inventory quantity units.
 - It explicitly separates product creation, purchase orders, goods receipts, warehouse creation, stock transfers, incoming payments and outgoing payments.
+- Quantity-only inventory requests and mixed purchase/receipt requests produce explicit clarification flags instead of guessing the business event.
 - These hints are fallible and never authorize writes. The model's proposal still passes strict server validation, the authenticated database executor, role checks and user confirmation.
 - The helper is regression-tested for amount parsing, quantity normalization, business-operation distinctions, multiple intents, unrelated “received” wording, Hindi/Hinglish phrasing and invalid numeric values.
 
