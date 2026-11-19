@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { LayoutDashboard, Receipt, ShoppingCart, BarChart3, Users, UsersRound, Package, Boxes, Sparkles, Zap, LayoutGrid, X, RefreshCw, FileText, ScrollText, Lock } from "lucide-react";
 import DashboardTab from "@/components/dashboard/DashboardTab";
+import Logo from "@/components/Logo";
 import SalesTab from "@/components/dashboard/SalesTab";
 import PurchaseTab from "@/components/dashboard/PurchaseTab";
 import ReportsTab from "@/components/dashboard/ReportsTab";
@@ -91,7 +92,7 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
     <div className="plivex-dashboard min-h-screen bg-slate-50 text-slate-900">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col overflow-y-auto border-r border-[#E5E7EB] bg-white md:flex">
         <div className="flex items-center gap-2.5 px-5 py-6">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#6D28D9] text-[14px] font-bold text-white">P</div>
+          <Logo className="h-9 w-9" />
           <div><p className="text-[16px] font-bold tracking-[-0.03em]">Plivex</p><p className="text-[10px] text-slate-400">Enterprise billing</p></div>
         </div>
         <nav className="mt-2 space-y-1 px-3">
@@ -145,11 +146,10 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
       <div className="md:pl-64">
         <header className="sticky top-0 z-20 border-b border-[#E5E7EB] bg-white/90 backdrop-blur-xl">
           <div className="flex min-w-0 items-center justify-between gap-2 px-3 py-3 sm:px-6">
-            <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2"><active.icon className="h-5 w-5 shrink-0 text-[#6D28D9]" /><h1 className="whitespace-nowrap text-[15px] font-bold tracking-[-0.03em] sm:text-[17px]">{active.label}</h1></div>
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2"><active.icon className="h-5 w-5 shrink-0 text-[#6D28D9]" /><h1 className="min-w-0 max-w-full break-words text-[15px] font-bold leading-tight tracking-[-0.03em] sm:text-[17px]">{active.label}</h1></div>
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 sm:inline">{`● ${planName || "Free"}`}</span>
               <span data-testid="active-workspace-edition" className="hidden rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-800 sm:inline-flex">Workspace · {getCountryByCode(user?.country_code)?.name || "Choose country"}</span>
-              <span className="hidden items-center gap-1.5 rounded-full bg-[#6D28D9]/10 px-2.5 py-1 text-[11px] font-semibold text-[#6D28D9] sm:inline-flex"><Sparkles className="h-3 w-3" />Current Plan: {planName}</span>
               {!isAccountant && <button onClick={createInvoice} aria-label="Create new invoice" title="Create new invoice" className="flex h-9 items-center gap-1 rounded-lg bg-[#6D28D9] px-2 sm:px-2.5 text-[11px] font-bold text-white hover:bg-[#7C3AED] md:hidden">+ <span>Invoice</span></button>}
               <button onClick={() => setAccountOpen(true)} aria-label="Account" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E5E7EB] p-0.5 hover:bg-slate-50 sm:w-auto sm:gap-2 sm:py-1 sm:pl-1 sm:pr-2.5">
                 {user?.profilePicture ? <img src={user.profilePicture} alt="avatar" className="h-7 w-7 rounded-full object-cover" /> : <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#6D28D9] text-[11px] font-bold text-white">{(user?.full_name || user?.email || "U").charAt(0).toUpperCase()}</div>}
@@ -196,24 +196,29 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
       <AssistantWidget />
 
       {moreOpen && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/40 sm:items-center sm:justify-center" onClick={() => setMoreOpen(false)}>
-          <div className="w-full rounded-t-2xl border border-[#E5E7EB] bg-white p-5 sm:max-w-[520px] sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between"><h3 className="text-[15px] font-bold text-slate-900">All workspace pages</h3><button onClick={() => setMoreOpen(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
-            <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-              {morePages.map((p) => p.to === "/tax-summary" && !hasGstrAccess ? (
-                <button key={p.to} onClick={() => { setMoreOpen(false); openPaywall("Tax reporting is available on eligible plans."); }} className="flex flex-col items-center gap-2 rounded-xl border border-[#E5E7EB] p-4 text-center hover:border-[#6D28D9] hover:bg-slate-50">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#6D28D9]/10 text-[#6D28D9]"><p.icon className="h-4.5 w-4.5" /></span>
-                  <span className="text-[11px] font-semibold text-slate-700">{p.label}</span>
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800">BASIC / PRO</span>
-                </button>
-              ) : (
-                <NavLink key={p.to} to={p.to} onClick={() => setMoreOpen(false)} className="flex flex-col items-center gap-2 rounded-xl border border-[#E5E7EB] p-4 text-center hover:border-[#6D28D9] hover:bg-slate-50">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#6D28D9]/10 text-[#6D28D9]"><p.icon className="h-4.5 w-4.5" /></span>
-                  <span className="text-[11px] font-semibold text-slate-700">{p.label}</span>
-                </NavLink>
-              ))}
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-4" onClick={() => setMoreOpen(false)}>
+          <section role="dialog" aria-modal="true" aria-labelledby="workspace-pages-title" className="flex max-h-[min(86dvh,760px)] w-full max-w-[560px] flex-col overflow-hidden rounded-t-2xl border border-[#E5E7EB] bg-white shadow-2xl sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+              <div><h3 id="workspace-pages-title" className="text-[15px] font-bold tracking-tight text-slate-900">Workspace tools</h3><p className="mt-0.5 text-[11px] text-slate-500">Open a workspace area or explore available tools.</p></div>
+              <button type="button" onClick={() => setMoreOpen(false)} aria-label="Close workspace tools" className="rounded-lg border border-slate-200 p-2 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"><X className="h-4 w-4" /></button>
             </div>
-          </div>
+            <div className="min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-5">
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                {morePages.map((p) => p.to === "/tax-summary" && !hasGstrAccess ? (
+                  <button key={p.to} onClick={() => { setMoreOpen(false); openPaywall("Tax reporting is available on eligible plans."); }} className="group flex min-h-[104px] flex-col items-start gap-2 rounded-xl border border-[#E5E7EB] bg-white p-3.5 text-left transition-all hover:-translate-y-px hover:border-violet-300 hover:bg-violet-50/40 hover:shadow-sm">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-[#6D28D9] transition-colors group-hover:bg-violet-100"><p.icon className="h-4 w-4" /></span>
+                    <span className="text-[12px] font-semibold leading-snug text-slate-800">{p.label}</span>
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-bold text-amber-800">BASIC / PRO</span>
+                  </button>
+                ) : (
+                  <NavLink key={p.to} to={p.to} onClick={() => setMoreOpen(false)} className="group flex min-h-[104px] flex-col items-start gap-2 rounded-xl border border-[#E5E7EB] bg-white p-3.5 text-left transition-all hover:-translate-y-px hover:border-violet-300 hover:bg-violet-50/40 hover:shadow-sm">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-50 text-slate-600 transition-colors group-hover:bg-violet-50 group-hover:text-[#6D28D9]"><p.icon className="h-4 w-4" /></span>
+                    <span className="text-[12px] font-semibold leading-snug text-slate-800">{p.label}</span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          </section>
         </div>
       )}
     </div>
