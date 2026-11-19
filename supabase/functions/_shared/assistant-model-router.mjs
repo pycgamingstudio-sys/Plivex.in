@@ -36,7 +36,7 @@ export function toOpenAiChatPayload(geminiBody, model) {
     model,
     messages: openAiMessages(geminiBody),
     max_tokens: geminiBody?.generationConfig?.maxOutputTokens || 2200,
-    response_format: { type: "json_object" },
+    response_format: { type: "json_object" },\n    provider: { data_collection: "deny", zdr: true },
   };
 }
 
@@ -68,7 +68,7 @@ async function callOpenAiProvider({ provider, model, key, body, fetchImpl, deadl
     method: "POST",
     headers,
     body: JSON.stringify(toOpenAiChatPayload(body, model)),
-    signal: AbortSignal.timeout(Math.min(10000, remaining)),
+    signal: AbortSignal.timeout(Math.min(6000, remaining)),
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -111,7 +111,7 @@ export async function generateWithFallback({
         const response = await fetchImpl(GEMINI_URL, {
           ...requestOptions,
           headers: { ...requestOptions.headers, "x-goog-api-key": geminiKey },
-          signal: AbortSignal.timeout(Math.min(10000, remaining)),
+          signal: AbortSignal.timeout(Math.min(6000, remaining)),
         });
         result = await response.json().catch(() => ({}));
         if (!response.ok) {
