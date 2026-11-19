@@ -47,6 +47,8 @@ begin
   if coalesce((v_issued->>'ok')::boolean,false) is not true then
     -- The draft exists only as an internal staging row. Remove it before
     -- returning failure so the user never receives a half-created final invoice.
+    delete from global.invoice_items
+    where invoice_id=v_invoice_id and workspace_id=p_workspace_id;
     delete from global.invoices
     where id=v_invoice_id and workspace_id=p_workspace_id and status='draft';
     return v_issued;
