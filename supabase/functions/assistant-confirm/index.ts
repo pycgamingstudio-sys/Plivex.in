@@ -173,6 +173,7 @@ Deno.serve(async (req: Request) => {
         const reason = String(client?.reason || "");
         const message = reason === "forbidden" ? "Your Global workspace role cannot create clients."
           : reason === "access_denied" ? "You do not have access to this Global workspace."
+          : reason === "duplicate_client" ? "A Global client with this name or email already exists. Use the existing client instead; no duplicate was created."
           : "The Global client details were rejected. Nothing was saved.";
         return json({ error: message }, reason === "forbidden" || reason === "access_denied" ? 403 : 400, origin);
       }
