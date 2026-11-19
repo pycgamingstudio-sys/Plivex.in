@@ -74,7 +74,7 @@ const inputClass = "mt-1.5 w-full rounded-lg border bg-card px-3 py-2.5 text-[13
 const smallInputClass = "w-full rounded-md border bg-card px-2.5 py-2 text-[13px] text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10";
 const descInputClass = "w-full min-w-0 rounded-lg border bg-card px-3.5 py-3 text-[14px] text-foreground transition-colors placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/10";
 const itemDescInputClass = "block w-full min-w-0 max-w-full rounded-lg border bg-card px-3 text-[14px] text-black transition-colors placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/10 sm:px-3.5";
-const dateInputClass = "mt-1.5 block h-11 w-full min-w-[150px] cursor-pointer rounded-lg border bg-card px-3 text-[15px] font-medium text-foreground transition-colors focus:border-primary focus:ring-2 focus:ring-primary/10";
+const dateInputClass = "mt-1.5 block h-11 w-full min-w-0 cursor-pointer rounded-lg border bg-card px-3 text-[15px] font-medium text-foreground transition-colors focus:border-primary focus:ring-2 focus:ring-primary/10 sm:min-w-[150px]";
 const invalidInputClass = "border-destructive focus:border-destructive focus:ring-destructive/10";
 const withErrorClass = (baseClass, error) => `${baseClass} ${error ? invalidInputClass : ""}`;
 

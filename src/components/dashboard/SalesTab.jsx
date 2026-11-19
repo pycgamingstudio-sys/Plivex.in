@@ -158,10 +158,10 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
               <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search client, invoice no…" className={`${inputCls} pl-9`} />
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} className={`${inputCls} w-auto`} aria-label="From date" />
-            <span className="text-slate-300">–</span>
-            <input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} className={`${inputCls} w-auto`} aria-label="To date" />
+          <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
+            <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} className={`${inputCls} w-full min-w-0 flex-1 sm:w-auto sm:min-w-[150px]`} aria-label="From date" />
+            <span className="hidden text-slate-300 sm:inline">–</span>
+            <input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} className={`${inputCls} w-full min-w-0 flex-1 sm:w-auto sm:min-w-[150px]`} aria-label="To date" />
             {sub === "invoices" && (
               <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className={`${inputCls} w-auto`}>
                 <option value="all">All status</option>
