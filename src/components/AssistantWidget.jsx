@@ -95,7 +95,7 @@ export default function AssistantWidget() {
     setBusy(true);
     try {
       const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 15000);
+      const timeout = window.setTimeout(() => controller.abort(), 60000);
       let response;
       try {
         response = await supabase.functions.invoke("assistant-chat", {
@@ -118,6 +118,10 @@ export default function AssistantWidget() {
         actionStatus: (data.pendingAction || data.pendingActions?.length) ? "pending" : null,
       }]);
     } catch (err) {
+      // Keep the user's request (and attachment) available after provider/network
+      // failures so they can retry without reconstructing the business instruction.
+      setDraft(content);
+      if (sentAttachment) setAttachment(sentAttachment);
       setRetryAction(null);
       setError(await readableError(err));
     } finally {
@@ -131,22 +135,41 @@ export default function AssistantWidget() {
     setRetryAction(null);
     setBusy(true);
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke("assistant-confirm", {
-        body: { actions, idempotencyKey },
-      });
+      // Bound confirmation latency in the browser. If the request is aborted after
+      // the server has started, retryAction retains the same idempotency key so a
+      // retry cannot create a second record.
+      const controller = new AbortController();
+      const confirmationTimeout = window.setTimeout(() => controller.abort(), 45000);
+      let confirmation;
+      try {
+        confirmation = await supabase.functions.invoke("assistant-confirm", {
+          body: { actions, idempotencyKey },
+          signal: controller.signal,
+        });
+      } finally {
+        window.clearTimeout(confirmationTimeout);
+      }
+      const { data, error: invokeError } = confirmation;
       if (invokeError) throw invokeError;
+      if (!data?.ok) throw new Error(data?.error || data?.reply || "Plivex did not confirm that these records were saved. Check the module before retrying.");
       setRetryAction(null);
       const affectedKeys = [...new Set(actions.map((action) => ({
         create_invoice: "history", create_expense: "expenses", create_stock: "stock",
         create_client: "clients", create_lead: "leads", create_quotation: "quotations",
+        create_purchase_order: "stock",
+        create_warehouse: "stock",
+        receive_purchase_order: "stock",
       }[action?.type])).filter(Boolean))];
       await Promise.all(affectedKeys.map((key) => refreshWorkspaceKey(key)));
       window.dispatchEvent(new CustomEvent("plivex-workspace-data-updated", { detail: { keys: affectedKeys } }));
       setMessages((current) => {
         const updated = current.map((message, index) => index === messageIndex
-          ? { ...message, pendingAction: null, pendingActions: null, actionStatus: "done" }
+          ? { ...message, pendingAction: null, pendingActions: null, actionStatus: data?.verified ? "done" : "unverified" }
           : message);
-        return [...updated, { role: "assistant", content: actions.some((action) => action?.type === "create_invoice") ? "Invoice draft saved. Open Invoice History → Drafts to find and download it." : (data?.reply || "The record was saved.") }];
+        const successMessage = data?.verified && actions.some((action) => action?.type === "create_invoice")
+          ? "Invoice draft saved and verified. Open Invoice History → Drafts to find and download it."
+          : (data?.reply || "The save operation status is unclear. Check the relevant module before retrying.");
+        return [...updated, { role: "assistant", content: successMessage }];
       });
     } catch (err) {
       setRetryAction({ actions, idempotencyKey, messageIndex });
@@ -175,7 +198,9 @@ export default function AssistantWidget() {
       return;
     }
     const recognition = new SpeechRecognition();
-    recognition.lang = /[\u0900-\u097F]/.test(draft) ? "hi-IN" : "hi-IN";
+    const browserLanguage = String(navigator.language || "en-IN").toLowerCase();
+    const scriptHint = /[\u0900-\u097F]/.test(draft);
+    recognition.lang = scriptHint ? "hi-IN" : (browserLanguage.startsWith("hi") ? "hi-IN" : browserLanguage.startsWith("en") ? "en-IN" : browserLanguage);
     recognition.interimResults = true;
     recognition.continuous = false;
     recognition.onresult = (event) => {
@@ -208,7 +233,7 @@ export default function AssistantWidget() {
           <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 px-3 py-4">
             {messages.length === 0 && <div className="rounded-xl bg-white p-3 text-sm text-slate-600 shadow-sm">
               <p className="font-semibold text-slate-800">Namaste! I can check live data in your Plivex workspace.</p>
-              <p className="mt-1 text-xs">I can read invoices, clients, stock, expenses, quotations, leads and services. I can prepare invoice drafts, clients, expenses, leads, stock items and quotations for your confirmation. I won't save anything until you tap Confirm & Add.</p>
+              <p className="mt-1 text-xs">I can understand requests across your Plivex business modules. I can currently prepare client, expense, lead, stock-item, quotation and invoice drafts, create purchase orders, receive goods against existing purchase orders, and create warehouses. Purchase orders, goods receipts and warehouse creation are confirmed separately. You review every proposed change before confirming. I never mark an invoice as paid or treat a payment screenshot as bank verification.</p>
               <div className="mt-3 flex flex-wrap gap-2">{STARTERS.map((q) => <button key={q} onClick={() => send(q)} className="rounded-full border border-purple-200 bg-purple-50 px-3 py-2 text-left text-xs text-purple-800">{q}</button>)}</div>
             </div>}
             {messages.map((m, i) => <div key={m.id || i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
@@ -216,15 +241,16 @@ export default function AssistantWidget() {
                 {m.content}
                 {m.imageDataUrl && <img src={m.imageDataUrl} alt="Attached business document" className="mt-2 max-h-40 max-w-full rounded-lg border border-slate-200 object-contain" />}
                 {(m.pendingAction || m.pendingActions?.length) && <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50 p-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-purple-900"><PlusCircle className="h-4 w-4" /> {m.pendingActions?.length > 1 ? "Ready to complete " + m.pendingActions.length + " actions" : "Ready to add"}</div>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-purple-900"><PlusCircle className="h-4 w-4" /> {m.pendingActions?.length > 1 ? "Ready to complete " + m.pendingActions.length + " actions" : "Ready for confirmation"}</div>
                   <div className="mt-2 space-y-2">{(m.pendingActions || [m.pendingAction]).map((action, actionIndex) => <p key={actionIndex} className="text-sm font-medium text-slate-800">{actionIndex + 1}. {action.summary}</p>)}</div>
-                  <p className="mt-2 text-[11px] text-slate-600">Nothing is saved until you confirm. All actions are validated together; if one fails, the batch is rolled back.</p>
+                  <p className="mt-2 text-[11px] text-slate-600">Nothing is saved until you confirm. Purchase orders and goods receipts are confirmed separately; other supported action batches are validated and executed atomically.</p>
                   <div className="mt-3 flex gap-2">
-                    <button disabled={busy} onClick={() => confirmAction(m.pendingActions || [m.pendingAction], m.idempotencyKey || m.pendingAction?.idempotencyKey, i)} className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#6D28D9] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</> : <><CheckCircle2 className="h-3.5 w-3.5" /> Confirm & Add</>}</button>
+                    <button disabled={busy} onClick={() => confirmAction(m.pendingActions || [m.pendingAction], m.idempotencyKey || m.pendingAction?.idempotencyKey, i)} className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#6D28D9] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</> : <><CheckCircle2 className="h-3.5 w-3.5" /> Confirm & Save</>}</button>
                     <button disabled={busy} onClick={() => cancelAction(i)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 disabled:opacity-50">Cancel</button>
                   </div>
                 </div>}
-                {m.actionStatus === "done" && <p className="mt-2 flex items-center gap-1 text-[11px] text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" /> Saved to Plivex</p>}
+                {m.actionStatus === "done" && <p className="mt-2 flex items-center gap-1 text-[11px] text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" /> Saved and verified in Plivex</p>}
+                {m.actionStatus === "unverified" && <p role="status" className="mt-2 text-[11px] text-amber-700">Save was accepted, but verification is incomplete. Check the relevant Plivex module before retrying.</p>}
                 {m.actionStatus === "cancelled" && <p className="mt-2 text-[11px] text-slate-500">Addition cancelled; nothing was saved.</p>}
               </div>
             </div>)}
