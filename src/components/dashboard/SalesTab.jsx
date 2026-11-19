@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Eye, Trash2, MessageCircle, ArrowRight, X, Search, ChevronDown, ChevronRight, Paperclip, PenLine, FileText, CheckCircle2, Clock, Receipt as ReceiptIcon, RotateCcw, Bell } from "lucide-react";
 import { KEYS, loadList, saveList, removeItem, genId, loadState, saveState } from "@/lib/stores";
 import { inputCls, btnGhost } from "@/lib/ui";
-import { money2, dateLabel, btnAccent, subPill, statusBadge, Empty } from "@/lib/dashboardData";
+import { money2, dateLabel, btnAccent, subPill, statusBadge } from "@/lib/dashboardData";
 import { paginate, totalPages } from "@/lib/paging";
 import { usePaywall } from "@/lib/paywall";
 import { useRole } from "@/lib/roles";
@@ -66,8 +66,8 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
   const rows = paginate(list, page);
   const pages = totalPages(list);
 
-  const delInv = (id) => { setInvoices(removeItem(KEYS.history, id)); setExpanded(null); };
-  const delQuo = (id) => { setQuotations(removeItem(KEYS.quotations, id)); setExpanded(null); };
+  const delInv = (id) => { const record = invoices.find((item) => item.id === id); if (!window.confirm(`Delete invoice ${record?.number || ""} for ${record?.clientName || "this client"}? This cannot be undone.`)) return; setInvoices(removeItem(KEYS.history, id)); setExpanded(null); };
+  const delQuo = (id) => { const record = quotations.find((item) => item.id === id); if (!window.confirm(`Delete quotation ${record?.number || ""} for ${record?.clientName || "this client"}? This cannot be undone.`)) return; setQuotations(removeItem(KEYS.quotations, id)); setExpanded(null); };
   const sendReminder = async (it) => {
     const clients = loadList(KEYS.clients);
     const match = clients.find((c) => (c.name || "").toLowerCase() === (it.clientName || "").toLowerCase());
@@ -97,13 +97,17 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
     trackStaffAction({ label: `Quotation ${qt.number} created for ${qt.clientName}`, type: "quotation" });
   };
   const resetFilters = () => { setQ(""); setFrom(""); setTo(""); setStatusFilter("all"); setPage(1); };
+  const activeFilterCount = [q.trim(), from, to, statusFilter !== "all" ? statusFilter : ""].filter(Boolean).length;
   const toggleStatus = (it) => {
+    const currentStatus = sub === "invoices" ? statusOf(it) : (it.status === "sent" ? "Sent" : "Draft");
+    const nextStatus = sub === "invoices" ? (currentStatus === "Paid" ? "Pending" : "Paid") : (currentStatus === "Sent" ? "Draft" : "Sent");
+    if (!window.confirm(`Change ${sub === "invoices" ? "invoice" : "quotation"} ${it.number || ""} from ${currentStatus} to ${nextStatus}?`)) return;
     if (sub === "invoices") {
-      const next = statusOf(it) === "Paid" ? "Pending" : "Paid";
+      const next = nextStatus;
       const updated = invoices.map((x) => (x.id === it.id ? { ...x, status: next } : x));
       setInvoices(updated); saveList(KEYS.history, updated);
     } else {
-      const next = it.status === "sent" ? "draft" : "sent";
+      const next = nextStatus.toLowerCase();
       const updated = quotations.map((x) => (x.id === it.id ? { ...x, status: next } : x));
       setQuotations(updated); saveList(KEYS.quotations, updated);
     }
@@ -150,7 +154,7 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
         <button onClick={() => { setSub("quotations"); setPage(1); setExpanded(null); }} className={subPill(sub, "quotations")}>Quotations</button>
       </div>
 
-      <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
         <div className="flex flex-col gap-3 border-b border-[#E5E7EB] p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-1 items-center gap-2">
             <div className="relative flex-1 max-w-xs">
@@ -178,10 +182,11 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
           </div>
         </div>
 
+        {activeFilterCount > 0 && <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-2.5"><span className="text-[11px] font-semibold text-slate-600">Active filters · {activeFilterCount}</span>{q.trim() && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-700">Search: {q.trim()}</span>}{from && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-700">From {dateLabel(from)}</span>}{to && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-700">To {dateLabel(to)}</span>}{statusFilter !== "all" && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-700">{statusFilter}</span>}<button onClick={resetFilters} className="ml-auto text-[11px] font-semibold text-[#6D28D9] hover:underline">Clear filters</button></div>}
         {list.length === 0 ? (
-          <Empty label={sub === "invoices" ? "No invoices match your filters." : "No quotations match your filters."} />
+          <div className="flex flex-col items-center px-5 py-10 text-center"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-50 text-[#6D28D9]"><ReceiptIcon className="h-5 w-5" /></span><h3 className="mt-3 text-[14px] font-bold text-slate-900">{activeFilterCount ? "No matching records" : sub === "invoices" ? "No invoices yet" : "No quotations yet"}</h3><p className="mt-1 max-w-sm text-[12px] leading-relaxed text-slate-600">{activeFilterCount ? "Try adjusting your search or filters to find the record you need." : sub === "invoices" ? "Create your first invoice to start tracking sales and payments." : "Create a quotation to share an estimate with your client."}</p><div className="mt-4 flex flex-wrap justify-center gap-2">{activeFilterCount > 0 && <button onClick={resetFilters} className="min-h-9 rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-semibold text-slate-700 hover:bg-slate-50">Clear filters</button>}{!activeFilterCount && (sub === "invoices" ? !isAccountant && <button onClick={() => navigate("/invoice-builder")} className={btnAccent}><Plus className="h-3.5 w-3.5" />Create invoice</button> : <button onClick={() => setQOpen(true)} className={btnAccent}><Plus className="h-3.5 w-3.5" />Create quotation</button>)}</div></div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[640px] text-left text-[12px]">
               <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 <tr>
@@ -210,19 +215,19 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
                         <td className="px-3 py-3 font-mono-ui text-slate-500">{it.number || "—"}</td>
                         <td className="px-3 py-3 text-slate-500">{dateLabel(sub === "invoices" ? it.issueDate : it.date)}</td>
                         <td className="px-3 py-3 text-right font-bold text-slate-900">{invoiceAmount(it)}</td>
-                        <td className="px-3 py-3"><button onClick={() => toggleStatus(it)} title="Toggle status" className={statusBadge(sub === "invoices" ? statusOf(it) : (it.status === "sent" ? "Sent" : "Draft")) + " cursor-pointer transition-opacity hover:opacity-80"}>{sub === "invoices" ? statusOf(it) : (it.status === "sent" ? "Sent" : "Draft")}</button></td>
+                        <td className="px-3 py-3"><button onClick={() => toggleStatus(it)} title="Change status" aria-label={`Change status from ${sub === "invoices" ? statusOf(it) : (it.status === "sent" ? "Sent" : "Draft")}`} className={statusBadge(sub === "invoices" ? statusOf(it) : (it.status === "sent" ? "Sent" : "Draft")) + " cursor-pointer transition-opacity hover:opacity-80"}>{sub === "invoices" ? statusOf(it) : (it.status === "sent" ? "Sent" : "Draft")}</button></td>
                         <td className="px-3 py-3">
                           <div className="flex items-center justify-end gap-1.5">
                             {sub === "invoices" ? (
                               <>
-                                <button onClick={() => setView(it)} className="rounded-lg border border-[#E5E7EB] p-1.5 text-slate-500 hover:bg-slate-50" aria-label="View"><Eye className="h-3.5 w-3.5" /></button>
-                                <button onClick={() => share(it)} className="rounded-lg border border-[#E5E7EB] p-1.5 text-[#25D366] hover:bg-slate-50" aria-label="Share"><MessageCircle className="h-3.5 w-3.5" /></button>
+                                <button onClick={() => setView(it)} title="View invoice" className="rounded-lg border border-[#E5E7EB] p-1.5 text-slate-500 hover:bg-slate-50" aria-label="View invoice"><Eye className="h-3.5 w-3.5" /></button>
+                                <button onClick={() => share(it)} title="Share invoice" className="rounded-lg border border-[#E5E7EB] p-1.5 text-[#25D366] hover:bg-slate-50" aria-label="Share invoice"><MessageCircle className="h-3.5 w-3.5" /></button>
                               {statusOf(it) === "Pending" && <button onClick={() => sendReminder(it)} className="rounded-lg border border-[#E5E7EB] p-1.5 text-[#6D28D9] hover:bg-slate-50" aria-label="Send payment reminder"><Bell className="h-3.5 w-3.5" /></button>}
                               </>
                             ) : (
                               <button onClick={() => convert(it)} className="inline-flex items-center gap-1 rounded-lg bg-[#6D28D9] px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-[#7C3AED]"><ArrowRight className="h-3 w-3" />Convert</button>
                             )}
-                            <button onClick={() => (sub === "invoices" ? delInv(it.id) : delQuo(it.id))} className="rounded-lg border border-[#E5E7EB] p-1.5 text-red-500 hover:bg-red-50" aria-label="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
+                            <button onClick={() => (sub === "invoices" ? delInv(it.id) : delQuo(it.id))} title={sub === "invoices" ? "Delete invoice" : "Delete quotation"} className="rounded-lg border border-[#E5E7EB] p-1.5 text-red-500 hover:bg-red-50" aria-label={sub === "invoices" ? "Delete invoice" : "Delete quotation"}><Trash2 className="h-3.5 w-3.5" /></button>
                           </div>
                         </td>
                       </tr>
@@ -269,6 +274,8 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
             </table>
           </div>
         )}
+
+        {list.length > 0 && <div className="space-y-2.5 p-3 md:hidden">{rows.map((it) => { const open = expanded === it.id; const logs = paylog.filter((l) => l.invoiceNumber === it.number); const status = sub === "invoices" ? statusOf(it) : (it.status === "sent" ? "Sent" : "Draft"); return <article key={it.id} className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words text-[13px] font-bold text-slate-900">{it.clientName || "Client"}</p><p className="mt-0.5 font-mono-ui text-[10px] text-slate-500">{it.number || "—"}</p></div><p className="shrink-0 text-right text-[13px] font-bold tabular-nums text-slate-900">{invoiceAmount(it)}</p></div><div className="mt-2.5 flex flex-wrap items-center justify-between gap-2"><span className="text-[11px] text-slate-600">{dateLabel(sub === "invoices" ? it.issueDate : it.date)}</span><button onClick={() => toggleStatus(it)} title="Change status" className={statusBadge(status) + " cursor-pointer"}>{status}</button></div><div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">{sub === "invoices" ? <><button onClick={() => setView(it)} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-slate-700"><Eye className="h-3.5 w-3.5" />View</button><button onClick={() => share(it)} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-emerald-700"><MessageCircle className="h-3.5 w-3.5" />Share</button>{status === "Pending" && <button onClick={() => sendReminder(it)} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-violet-700"><Bell className="h-3.5 w-3.5" />Reminder</button>}</> : <button onClick={() => convert(it)} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-[#6D28D9] px-2.5 py-1.5 text-[10px] font-bold text-white"><ArrowRight className="h-3 w-3" />Convert</button>}<button onClick={() => (sub === "invoices" ? delInv(it.id) : delQuo(it.id))} className="ml-auto inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-rose-100 px-2.5 py-1.5 text-[10px] font-semibold text-rose-700"><Trash2 className="h-3.5 w-3.5" />Delete</button></div>{open && <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3"><div><p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Line items</p>{(it.items || []).map((li, index) => <div key={index} className="flex items-center justify-between gap-3 py-1 text-[11px]"><span className="min-w-0 text-slate-700">{li.description || "Item"}</span><span className="shrink-0 font-semibold text-slate-900">{li.quantity || 1} × {amountInRecordedCurrency(li.rate, recordedCurrency(it))}</span></div>)}{(!it.items || it.items.length === 0) && <p className="text-[11px] text-slate-500">No item breakdown stored.</p>}</div>{sub === "invoices" && <div><p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Payment history</p>{logs.length ? logs.map((log) => <div key={log.id} className="flex justify-between gap-3 py-1 text-[11px]"><span className="text-slate-700">{dateLabel(log.date)} · {log.method || "—"}</span><span className={statusBadge(log.status === "paid" ? "Paid" : "Pending")}>{log.status}</span></div>) : <p className="text-[11px] text-slate-500">No payments recorded yet.</p>}</div>}</div>}<button onClick={() => setExpanded(open ? null : it.id)} className="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-[#6D28D9]">{open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}{open ? "Hide details" : "Show details"}</button></article>; })}</div>}
 
         <div className="flex items-center justify-between border-t border-[#E5E7EB] px-4 py-3 text-[11px] text-slate-500">
           <span>{list.length} record{list.length !== 1 ? "s" : ""}</span>
