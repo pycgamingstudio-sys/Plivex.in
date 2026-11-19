@@ -3,6 +3,7 @@
  * Counts and operational flags are preferred over cross-currency monetary totals.
  */
 const finite = (value, fallback = 0) => {
+  if (value === null || value === undefined || value === "") return fallback;
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
 };
