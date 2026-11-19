@@ -492,7 +492,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
                 <input required min="0" step="0.01" type="number" className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm outline-none" value={form.unitPrice} onChange={(e)=>setForm((v)=>({...v,unitPrice:e.target.value}))}/>
               </span>
             </label>
-            {countryCode==="GB" && form.documentType==="tax" && <div className="sm:col-span-2"><GlobalTaxEditor invoice={createPreviewInvoice} setInvoice={(updater)=>setTaxContext((old)=>typeof updater==="function"?updater({globalTax:old}).globalTax:updater.globalTax)} workspaceProfile={workspaceProfile} calculation={createTaxPreview}/></div>}
+            {countryCode==="GB" && form.documentType==="tax" && <div className="sm:col-span-2"><GlobalTaxEditor invoice={createPreviewInvoice} setInvoice={(updater)=>setTaxContext((old)=>typeof updater==="function"?updater({globalTax:old}).globalTax:updater.globalTax)} workspaceProfile={workspaceProfile} calculation={createTaxPreview} allowNoTax={false}/></div>}
             <div className="sm:col-span-2 flex items-center justify-between gap-3"><span className="text-sm text-slate-500">Invoice amount: {money(minor(Number(form.quantity||0)*Number(form.unitPrice||0),currency),currency)}</span><button disabled={busy || !sellerProfileReady || (form.documentType==="tax" ? !backendCapabilities.issuanceReady : !backendCapabilities.commercialIssuanceReady)} className={button}>Create final invoice</button></div>
           </form>
         </div>
