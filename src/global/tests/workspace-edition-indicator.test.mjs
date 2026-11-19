@@ -49,7 +49,9 @@ test("multi-currency invoice summaries group amounts by recorded currency withou
 test("additional invoice currency selector is restricted to India Pro workspaces", () => {
   const home = read("../../pages/Home.jsx");
   assert.match(home, /activeWorkspaceCountry === "IN" && canAccess\("multi_currency"\)/);
-  assert.match(home, /Additional invoice currencies are not available for this Workspace country yet/);
+  assert.match(home, /Invoices always use your Workspace's verified base currency/);
+  assert.match(home, /Included on every plan/);
+  assert.match(home, /data-testid="workspace-base-currency"/);
 });
 
 test("India tax reporting never mixes foreign-currency amounts or guesses FX for GSTR-1", () => {

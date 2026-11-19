@@ -13,8 +13,8 @@ test("new workspace onboarding follows country, business name, regional details,
   assert.match(source, /Skip mobile number/);
   assert.match(source, /getCountryFlag\(country.code\)/);
   assert.match(source, /businessType: workTypes\[0\]/);
-  assert.match(source, /optionalFeatures: features/);
-  assert.match(source, /localeCode, phone, taxType, taxNumber, workTypes, features/);
+  assert.match(source, /optionalFeatures: getSuggestedWorkspaceFeatures\(workTypes\)/);
+  assert.match(source, /localeCode, phone, taxType, taxNumber, workTypes/);
   assert.match(source, /workTypes.length === 0/);
 });
 
@@ -173,4 +173,26 @@ test("unified dashboard paywall resolves billing from canonical public workspace
   assert.match(unifiedBranch, /resolveWorkspaceBillingContext\(countryCode, currencyCode\)/);
   assert.doesNotMatch(unifiedBranch, /global-auth-context|user\.country_code|user\.currency_code/);
   assert.match(paywall, /if \(APP_EDITION === "global"\) \{[\s\S]*global-auth-context/);
+});
+
+test("onboarding asks only Freelancer or Business and applies module defaults automatically", async () => {
+  const onboarding = await read("../../components/global/UnifiedWorkspaceOnboarding.jsx");
+  const features = await read("../../lib/workspaceFeatures.js");
+  assert.match(onboarding, /chooseWorkType\("freelancer"\)/);
+  assert.match(onboarding, /chooseWorkType\("business"\)/);
+  assert.ok(onboarding.includes("optionalFeatures: getSuggestedWorkspaceFeatures(workTypes)"));
+  assert.doesNotMatch(onboarding, /Choose your optional features|type="checkbox"|WORKSPACE_FEATURE_CATALOG|toggleFeature/);
+  assert.match(onboarding, /available in More Features/);
+  assert.match(features, /\["expenses", "crm", "leads", "reports", "stock", "team", "inventoryWorkspace"\]/);
+  assert.match(features, /workTypes\.includes\("freelancer"\)/);
+});
+
+test("workspace feature database constraint accepts Stock Inventory and Team Members for freelancer upgrades", async () => {
+  const migration = await read("../../../supabase/migrations/20261119000200_workspace_optional_feature_catalog.sql");
+  assert.match(migration, /drop constraint if exists workspace_settings_optional_features_check/);
+  assert.match(migration, /'stock'[\s\S]*'team'[\s\S]*'inventoryWorkspace'/);
+  assert.match(migration, /where workspace_type = 'business'/);
+  const helper = await read("../../lib/workspaceFeatures.js");
+  assert.match(helper, /id: "stock"/);
+  assert.match(helper, /id: "team"/);
 });
