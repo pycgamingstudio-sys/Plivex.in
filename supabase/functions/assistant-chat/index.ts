@@ -175,11 +175,11 @@ function parseClientConversation(incoming: any[]) {
   if (!explicitNow && !(hadClientCommand && awaitingName)) return null;
   let name = "";
   if (explicitNow) {
-    const m = latest.match(/(?:client|customer)(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:and|aur|expense|kharcha|invoice|bill)\\b|[,;\\n]|$)/i)
-      || latest.match(/(?:add|create|jod(?:o)?|bana(?:o)?|darj)\s+(?:a\s+)?(?:client|customer)\s+(?:named\\s+)?(.+?)(?=\\s+(?:and|aur|expense|kharcha|invoice|bill)\\b|[,;\\n]|$)/i);
+    const m = latest.match(/(?:client|customer)(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:and|aur|expense|kharcha|invoice|bill)\b|[,;\n]|$)/i)
+      || latest.match(/(?:add|create|jod(?:o)?|bana(?:o)?|darj)\s+(?:a\s+)?(?:client|customer)\s+(?:named\s+)?(.+?)(?=\s+(?:and|aur|expense|kharcha|invoice|bill)\b|[,;\n]|$)/i);
     name = text(m?.[1], 120);
     if (!name) {
-      const genericName = latest.match(/\\b(?:naam|name)\\s+(?:hai|is)\\s+([A-Za-z][A-Za-z .'-]{0,100}?)(?=\\s+(?:and|aur|expense|kharcha|invoice|bill)\\b|[,;\\n]|$)/i);
+      const genericName = latest.match(/\b(?:naam|name)\s+(?:hai|is)\s+([A-Za-z][A-Za-z .'-]{0,100}?)(?=\s+(?:and|aur|expense|kharcha|invoice|bill)\b|[,;\n]|$)/i);
       const hasExpenseRequest = /(?:expense|kharcha|kharch|खर्च)/i.test(latest);
       if (genericName && hasExpenseRequest) {
         return { pending: true, reply: genericName[1].trim() + " kis ka naam hai—client ka ya expense vendor/payee ka? Main galat record nahi banaunga." };
