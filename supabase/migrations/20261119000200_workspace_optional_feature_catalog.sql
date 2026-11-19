@@ -31,7 +31,7 @@ set optional_features = array(
         'stock',
         'team',
         'inventoryWorkspace'
-      ]::text[]) as feature_id
+      ]::text[]) as features(feature_id)
       order by feature_id
     ),
     updated_at = now()
@@ -46,7 +46,7 @@ where workspace_type = 'business'
       'stock',
       'team',
       'inventoryWorkspace'
-    ]::text[]) as feature_id
+    ]::text[]) as features(feature_id)
     order by feature_id
   );
 
