@@ -164,7 +164,7 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
           const hasLimit = Number.isFinite(Number(item.limit)) && item.limit !== null && item.limit !== undefined;
           const limit = hasLimit ? Number(item.limit) : null;
           const percent = limit && limit > 0 ? Math.min(100, item.used / limit * 100) : 0;
-          return <div key={item.id} className="rounded-xl border border-[#E5E7EB] bg-white p-3"><div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold text-slate-500">{item.label}</span><span className="text-[12px] font-bold text-slate-800">{item.used}{hasLimit ? ` / ${limit}` : " saved"}</span></div>{hasLimit && <><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full ${percent >= 100 ? "bg-rose-500" : percent >= 80 ? "bg-amber-500" : "bg-[#6D28D9]"}`} style={{ width: `${percent}%` }} /></div><p className="mt-1 text-[10px] text-slate-400">{Math.max(0, limit - item.used)} remaining in current plan</p></>}</div>;
+          return <div key={item.id} className="rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-shadow hover:shadow-sm"><div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold text-slate-600">{item.label}</span><span className="text-[12px] font-bold tabular-nums text-slate-800">{item.used}{hasLimit ? ` / ${limit}` : " saved"}</span></div>{hasLimit && <><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label={`${item.label} usage`} aria-valuemin={0} aria-valuemax={limit} aria-valuenow={Math.min(item.used, limit)}><div className={`h-full rounded-full transition-[width] duration-300 ${percent >= 100 ? "bg-rose-500" : percent >= 80 ? "bg-amber-500" : "bg-[#6D28D9]"}`} style={{ width: `${percent}%` }} /></div><p className={`mt-1.5 text-[10px] font-medium ${item.used >= limit ? "text-amber-700" : "text-slate-500"}`}>{item.used > limit ? `Limit exceeded by ${item.used - limit}` : item.used === limit ? "Plan limit reached" : `${limit - item.used} remaining this cycle`}</p></>}</div>;
         })}
       </section>
       {pct < 100 && (
@@ -192,27 +192,26 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
 
       <div className="plivex-action-cards grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
         {visibleCards.map((c) => (
-          <div key={c.id} className="flex flex-col overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm transition-transform hover:-translate-y-0.5">
-            <div className={`relative flex h-28 items-center justify-center ${c.gradient}`}>
+          <div key={c.id} className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
+            <div className={`relative flex h-28 items-center justify-center ${c.gradient} transition-colors`}>
               <c.icon className="h-12 w-12 text-[#6D28D9]" strokeWidth={1.5} aria-hidden="true" />
               {c.stat !== undefined && <span className="absolute right-3 top-3 rounded-full bg-white/85 px-2.5 py-1 text-[11px] font-bold text-slate-700 shadow-sm">{c.stat} saved</span>}
               {c.alert > 0 && <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1 text-[10px] font-bold uppercase text-white shadow-sm"><AlertTriangle className="h-3 w-3" />Low Stock Alert</span>}
             </div>
-            <div className="flex flex-1 flex-col p-5">
+            <div className="flex flex-1 flex-col p-4 sm:p-5">
               <div className="flex items-center gap-2">
                 <h3 className="text-[15px] font-bold text-slate-900">{c.title}</h3>
                 {c.pro && <span className="ml-auto rounded-full bg-amber-400 px-2 py-0.5 text-[9px] font-bold text-amber-900">PRO</span>}
               </div>
-              <p className="mt-2 flex-1 text-[12px] leading-relaxed text-slate-500">{c.desc}</p>
-              <button onClick={c.onClick} className="mt-4 inline-flex items-center gap-1.5 self-start rounded-xl bg-[#6D28D9] px-3.5 py-2 text-[12px] font-bold text-white transition-colors hover:bg-[#7C3AED]">{c.cta}</button>
+              <p className="mt-2 flex-1 text-[12px] leading-[1.65] text-slate-600">{c.desc}</p>
+              <button onClick={c.onClick} className="mt-4 inline-flex min-h-9 items-center gap-1.5 self-start rounded-lg bg-[#6D28D9] px-3.5 py-2 text-[11px] font-bold text-white shadow-sm transition-all hover:bg-[#5B21B6] hover:shadow">{c.cta}</button>
             </div>
           </div>
         ))}
-        {isAdmin && <button type="button" onClick={() => setFeatureOpen(true)} className="group flex min-h-[270px] flex-col items-center justify-center rounded-2xl border border-dashed border-violet-300 bg-gradient-to-br from-white to-violet-50/80 p-6 text-center shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-500 hover:shadow-lg">
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 shadow-sm transition-transform group-hover:scale-105"><Settings2 className="h-7 w-7" /></span>
-          <span className="mt-4 text-base font-bold text-slate-900">More Features</span>
-          <span className="mt-1 max-w-[230px] text-xs leading-5 text-slate-500">Explore Plivex tools and add or remove the ones that fit the way you work.</span>
-          <span className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#6D28D9] px-4 py-2 text-xs font-bold text-white">Customize workspace <ArrowRight className="h-3.5 w-3.5" /></span>
+        {isAdmin && <button type="button" onClick={() => setFeatureOpen(true)} className="group flex min-h-[270px] flex-col items-start justify-between overflow-hidden rounded-2xl border border-violet-200 bg-gradient-to-br from-white via-white to-violet-50/80 p-5 text-left shadow-[0_1px_3px_rgba(76,29,149,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-md sm:p-6">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-violet-100 bg-violet-50 text-violet-700 transition-colors group-hover:bg-violet-100"><Settings2 className="h-5 w-5" /></span>
+          <span className="mt-5 block"><span className="block text-[15px] font-bold tracking-tight text-slate-900">More Features</span><span className="mt-1.5 block max-w-[250px] text-[12px] leading-[1.65] text-slate-600">Shape your workspace with the tools that match the way your business works.</span></span>
+          <span className="mt-5 inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[#6D28D9] px-3.5 py-2 text-[11px] font-bold text-white shadow-sm transition-colors group-hover:bg-[#5B21B6]">Explore features <ArrowRight className="h-3.5 w-3.5" /></span>
         </button>}
       </div>
 
