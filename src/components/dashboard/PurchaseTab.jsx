@@ -1,5 +1,5 @@
 import { useAuth } from "@/lib/AuthContext";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Plus, Trash2, X, Search, ChevronDown, ChevronRight, RotateCcw, Wallet, TrendingUp, PiggyBank } from "lucide-react";
 import { KEYS, loadList, saveList, removeItem, genId } from "@/lib/stores";
 import { inputCls, btnGhost } from "@/lib/ui";
@@ -124,7 +124,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
           <div className="flex flex-1 items-center gap-2">
             <div className="relative max-w-xs flex-1">
               <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search vendor, category…" className={`${inputCls} pl-9`} />
+              <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search vendor, category…" aria-label="Search expenses" className={`${inputCls} pl-9`} />
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -182,7 +182,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
                         <td className="px-3 py-3 text-slate-500">{dateLabel(e.date)}</td>
                         <td className="px-3 py-3 text-right font-bold text-slate-900">{recordedExpenseAmount(e)}</td>
                         <td className="px-3 py-3">
-                          <select value={e.status || "Unpaid"} onChange={(ev) => setStatus(e.id, ev.target.value)} aria-label="Order status" className={`cursor-pointer rounded-full border-0 px-2.5 py-1 text-[10px] font-bold uppercase outline-none ${statusCls(expenseStatus(e))}`}>
+                          <select value={e.status || "Unpaid"} onChange={(ev) => setStatus(e.id, ev.target.value)} aria-label={"Status for expense " + e.vendor} className={`cursor-pointer rounded-full border-0 px-2.5 py-1 text-[10px] font-bold uppercase outline-none ${statusCls(expenseStatus(e))}`}>
                             <option value="Pending">Pending</option>
                             <option value="Unpaid">Unpaid</option>
                             <option value="Received">Received</option>
