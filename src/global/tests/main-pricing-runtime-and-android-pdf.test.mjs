@@ -107,7 +107,7 @@ test("new invoice inserts set workspace base currency before the existing curren
 test("every Global workspace can use its verified base currency without a paid multi-currency feature", async () => {
   const home = await read("../../pages/Home.jsx");
   const editorStart = home.indexOf("function InvoiceEditor(");
-  const editorEnd = home.indexOf("\\nfunction ", editorStart + 20);
+  const editorEnd = home.indexOf("\nfunction ", editorStart + 20);
   const editor = home.slice(editorStart, editorEnd);
   assert.ok(editorStart >= 0 && editorEnd > editorStart);
   assert.match(editor, /const baseCurrencyCode = workspaceTaxProfile\?\.currencyCode \|\| user\?\.currency_code/);
