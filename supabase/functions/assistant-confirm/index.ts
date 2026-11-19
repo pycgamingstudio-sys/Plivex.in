@@ -47,7 +47,7 @@ function validateAction(action: unknown) {
       batch_number: text(item?.batch_number, 120),
       expires_on: text(item?.expires_on, 10),
     }));
-    if (items.some((item: any) => !uuid.test(item.purchase_order_item_id) || !(item.quantity > 0) || Math.round(item.quantity * 10000) !== item.quantity * 10000 || (item.expires_on && !/^\\d{4}-\\d{2}-\\d{2}$/.test(item.expires_on)))) return null;
+    if (items.some((item: any) => !uuid.test(item.purchase_order_item_id) || !(item.quantity > 0) || Math.round(item.quantity * 10000) !== item.quantity * 10000 || (item.expires_on && !/^\d{4}-\d{2}-\d{2}$/.test(item.expires_on)))) return null;
     return { type, payload: { purchase_order_id: purchaseOrderId, warehouse_id: warehouseId, items } };
   }
   if (type === "create_invoice") {
