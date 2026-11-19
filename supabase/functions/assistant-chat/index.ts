@@ -508,7 +508,7 @@ async function handleRequest(req: Request) {
                   body: { action: "list", table: "clients", workspace_id: profile.workspace_id, limit: 100 },
                 }).then(({ data, error }: any) => !error && data?.ok ? {
                   currency_code: data.currency_code || null,
-                  records: Array.isArray(data.records) ? data.records.slice(0, 100) : [],
+                  records: Array.isArray(data.records) ? data.records.slice(0, 100).map((item: any) => ({ id: item.id, name: item.name, email: item.email || null, status: item.status || null })) : [],
                 } : null).catch(() => null)
               : Promise.resolve(null);
             const combined = Promise.all([financeInvocation, clientsInvocation]).then(([finance, clients]) => {
