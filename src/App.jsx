@@ -163,7 +163,7 @@ function WorkspaceFeatureGate({ children, feature, anyOf = [], businessOnly = fa
   if (!isUnifiedBuild) return children;
   if (!ready) return <main className="mx-auto max-w-xl p-6 text-sm text-muted-foreground" role="status">Loading Workspace features…</main>;
   if (businessOnly && user?.workspace_type !== "business") return <Navigate to="/dashboard" replace />;
-  if (feature && !features.includes(feature)) return <Navigate to="/dashboard" replace />;
+  if (feature && !features.includes(feature) && !(user?.workspace_type === "business" && ["stock", "team"].includes(feature))) return <Navigate to="/dashboard" replace />;
   if (anyOf.length && !anyOf.some((item) => features.includes(item))) return <Navigate to="/dashboard" replace />;
   return children;
 }
