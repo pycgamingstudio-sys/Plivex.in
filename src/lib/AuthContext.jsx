@@ -18,18 +18,15 @@ async function resolveSignedInEdition(currentUser) {
   // PLIVEX ONE has one runtime and one public workspace identity. The workspace
   // country controls regional settings; it never switches the user into a second app.
   if (isUnifiedBuild) {
-    const countryCode = String(currentUser?.country_code || "").trim().toUpperCase();
-    if (!countryCode || countryCode === "IN") {
-      setRuntimeEdition("india");
-      return currentUser;
-    }
+    const profileCountry = String(currentUser?.country_code || "").trim().toUpperCase();
 
-    // A unified build must resolve non-India workspace identity from the
-    // server-owned Global membership, not the legacy India profile row.
+    // Always resolve the server-owned Global membership, even when the legacy
+    // India profile says country_code=IN. A user's India profile can coexist
+    // with their Global workspace, so it must never short-circuit this lookup.
     const { data: globalContext, error: globalError } = await supabase.functions.invoke("global-auth-context", { body: {} });
     const globalUser = globalContext?.user;
     if (globalError || !globalUser?.id || globalUser.id !== currentUser?.id) {
-      throw new Error("Your Global workspace could not be verified. Your existing data has not been changed.");
+      throw new Error("Your workspace identity could not be verified. Your existing data has not been changed.");
     }
 
     if (globalUser.workspace_id) {
@@ -43,9 +40,13 @@ async function resolveSignedInEdition(currentUser) {
       return { ...currentUser, ...globalUser };
     }
 
-    // A new non-India signup has not provisioned a workspace yet. Let the
-    // shared onboarding flow create it; existing memberships must never fall
-    // back to a different tenant identity.
+    // No Global membership: preserve existing India workspaces, including
+    // legacy profiles without a country stamp. New accounts continue through
+    // the shared country/workspace onboarding flow.
+    if (currentUser?.workspace_id && (!profileCountry || profileCountry === "IN")) {
+      setRuntimeEdition("india");
+      return { ...currentUser, country_code: profileCountry || "IN" };
+    }
     if (!currentUser?.workspace_id && !currentUser?.role) {
       setRuntimeEdition("india");
       return currentUser;
