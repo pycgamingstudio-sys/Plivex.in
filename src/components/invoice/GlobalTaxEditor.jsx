@@ -18,7 +18,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
     placeOfSupplyConfirmed: false,
     taxCategory: "",
     taxCategoryConfirmed: false,
-    registrationConfirmed: false,
+    taxDetailsConfirmed: false,
     collectionObligationAttested: false,
     destinationJurisdiction: { state: "", county: "", city: "", province: "" },
     components: [{ id: "manual-tax-1", name: "", rateBps: 0 }],
@@ -68,7 +68,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
       </label>
       {noTax ? (
         <div className="mt-3 rounded-lg border p-3 text-xs">
-          <label className="flex items-start gap-2"><input data-testid="global-no-tax-confirm" type="checkbox" checked={config.noTaxConfirmed === true} onChange={(e) => update({ noTaxConfirmed: e.target.checked })} /><span>I confirm that I have checked the rules for this business and transaction and am not required to charge this tax. I understand this is not a zero-rated or tax-exempt classification.</span></label>
+          <label className="flex items-start gap-2"><input data-testid="global-no-tax-confirm" type="checkbox" checked={config.noTaxConfirmed === true} onChange={(e) => update({ noTaxConfirmed: e.target.checked })} className="mt-0.5 h-5 w-5 shrink-0 accent-primary" /><span>I confirm that I have checked the rules for this business and transaction and am not required to charge this tax. I understand this is not a zero-rated or tax-exempt classification.</span></label>
           <p className="mt-2 text-[11px] text-muted-foreground">The invoice will show no tax added. Plivex does not decide whether your business or transaction legally qualifies.</p>
         </div>
       ) : (
@@ -109,10 +109,11 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
         </label>
       </div>
 
-      <div className="mt-3 grid gap-2 rounded-lg bg-muted/40 p-3 text-xs">
-        <label className="flex items-start gap-2"><input type="checkbox" checked={config.registrationConfirmed === true} onChange={(e) => update({ registrationConfirmed: e.target.checked })} /><span>I confirm the saved registration number, status and effective date are accurate and active for this invoice.</span></label>
-        <label className="flex items-start gap-2"><input type="checkbox" checked={config.placeOfSupplyConfirmed === true} onChange={(e) => update({ placeOfSupplyConfirmed: e.target.checked })} /><span>I confirm the place of supply entered above.</span></label>
-        <label className="flex items-start gap-2"><input type="checkbox" checked={config.taxCategoryConfirmed === true} onChange={(e) => update({ taxCategoryConfirmed: e.target.checked })} /><span>I confirm the goods/services tax category entered above.</span></label>
+      <div className="mt-3 rounded-lg bg-muted/40 p-3 text-xs">
+        <label className="flex min-h-11 items-start gap-3 rounded-md p-1 leading-relaxed">
+          <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-primary" checked={config.taxDetailsConfirmed === true} onChange={(e) => update({ taxDetailsConfirmed: e.target.checked })} />
+          <span>I confirm the saved tax registration and the place of supply and tax treatment selected for this invoice are accurate.</span>
+        </label>
       </div>
 
       {(isUS || isCA) && (
