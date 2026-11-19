@@ -557,7 +557,7 @@ async function handleRequest(req: Request) {
                 source: "authenticated Global workspace records",
               };
             });
-            const timeout = new Promise<null>((resolve) => {
+            const timeout = new Promise<any>((resolve) => {
               timeoutId = setTimeout(() => resolve(isGlobalWorkspace ? { global_workspace: true, country_code: globalUser?.country_code || null, currency_code: globalUser?.currency_code || null, invoices: [], clients: [], context_unavailable: true, source: "Global workspace identity; module context timed out" } : null), 4000);
             });
             return await Promise.race([combined, timeout]);
