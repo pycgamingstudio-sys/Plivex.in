@@ -98,7 +98,8 @@ export function buildAssistantBusinessAnalytics(input = {}) {
         daysOverdue: daysBetween(asOfDate, String(order?.expected_date || "")),
       })),
     },
-    inventory: {\n      lowStockCount: lowStock.length,
+    inventory: {
+      lowStockCount: lowStock.length,
       lowStockItems: lowStock,
       movementRecordCount: stockMovements.length,
       movementTypes,
