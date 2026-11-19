@@ -64,7 +64,7 @@ test("groups money by currency and never adds different currencies together", ()
 });
 
 test("returns a grand total only when inventory quantities share one unit", () => {
-  const { groupNumericTotals } = requireAnalyticsHelpers;
+  
   const mixed = groupNumericTotals([
     { quantity: 10, unit: "kg" },
     { quantity: 12, unit: "pcs" },
@@ -73,4 +73,11 @@ test("returns a grand total only when inventory quantities share one unit", () =
   assert.deepEqual(mixed.byGroup, { KG: 10, PCS: 12 });
   const same = groupNumericTotals([{ quantity: 2, unit: "kg" }, { quantity: 3, unit: "kg" }], "quantity", "unit");
   assert.equal(same.total, 5);
+});
+
+test("does not report a total when currency or unit is missing", () => {
+  const { groupNumericTotals } = requireAnalyticsHelpers;
+  const result = groupNumericTotals([{ total: 200 }], "total", "currency");
+  assert.equal(result.total, null);
+  assert.equal(result.mixedGroups, true);
 });
