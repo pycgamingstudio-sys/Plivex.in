@@ -3,6 +3,7 @@
 -- record validation/creation to the existing Global business-records RPC.
 
 CREATE OR REPLACE FUNCTION public.assistant_create_global_client_idempotent(
+  p_workspace_id uuid,
   p_idempotency_key text,
   p_request_hash text,
   p_values jsonb
@@ -14,7 +15,7 @@ SET search_path TO 'pg_catalog', 'public', 'global'
 AS $function$
 DECLARE
   v_user_id uuid := auth.uid();
-  v_workspace_id uuid;
+  v_workspace_id uuid := p_workspace_id;
   v_existing public.assistant_action_batches%rowtype;
   v_result jsonb;
   v_client_id uuid;
@@ -30,10 +31,6 @@ BEGIN
     OR nullif(trim(p_values->>'name'), '') IS NULL THEN
     RAISE EXCEPTION 'INVALID_IDEMPOTENCY_REQUEST';
   END IF;
-
-  SELECT NULLIF(workspace_id, '')::uuid INTO v_workspace_id
-  FROM public.profiles
-  WHERE id = v_user_id;
 
   IF v_workspace_id IS NULL THEN
     RAISE EXCEPTION 'WORKSPACE_NOT_FOUND';
@@ -109,5 +106,5 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION public.assistant_create_global_client_idempotent(text, text, jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.assistant_create_global_client_idempotent(uuid, text, text, jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.assistant_create_global_client_idempotent(text, text, jsonb) TO authenticated;
