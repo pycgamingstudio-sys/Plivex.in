@@ -232,7 +232,7 @@ Deno.serve(async (req: Request) => {
         return json({ error: message }, reason === "forbidden" ? 403 : 409, origin);
       }
       const { data: after, error: afterError } = await supabase.functions.invoke("global-invoices", {
-        body: { action: "list_reconciliation", workspace_id: profile.workspace_id, limit: 200 },
+        body: { action: "list_reconciliation", workspace_id: workspaceId, limit: 200 },
       });
       const updated = !afterError && after?.ok && Array.isArray(after.records)
         ? after.records.find((item: any) => item?.invoice_id === payload.invoice_id)
