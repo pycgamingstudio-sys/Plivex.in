@@ -118,7 +118,41 @@ Deno.serve(async (req: Request) => {
       if (message.includes("AUTH_REQUIRED") || message.includes("WORKSPACE_NOT_FOUND")) return json({ error: "Your workspace session could not be verified." }, 403, origin);
       return json({ error: "The action batch could not be completed. No partial records were saved." }, 400, origin);
     }
-    return json({ ok: true, reply: actions.length === 1 ? "The record was saved to your Plivex workspace." : "All requested records were saved together to your Plivex workspace.", created: data?.created || [], duplicate: Boolean(data?.duplicate), batchId: data?.batch_id }, 200, origin);
+    const created = Array.isArray(data?.created) ? data.created : [];
+    const tableByAction: Record<string, string> = {
+      create_client: "clients",
+      create_expense: "expenses",
+      create_lead: "leads",
+      create_stock: "stock",
+      create_quotation: "quotations",
+      create_invoice: "invoices",
+    };
+    const verification = await Promise.all(created.map(async (record: any) => {
+      const table = tableByAction[text(record?.type, 40)];
+      const id = text(record?.id, 80);
+      if (!table || !id) return { type: text(record?.type, 40), id: id || null, verified: false };
+      const { data: row, error: verifyError } = await supabase
+        .from(table)
+        .select("id")
+        .eq("workspace_id", profile.workspace_id)
+        .eq("id", id)
+        .maybeSingle();
+      return { type: text(record?.type, 40), id, verified: !verifyError && Boolean(row?.id) };
+    }));
+    const allVerified = actions.length === created.length
+      && verification.length === actions.length
+      && verification.every((item: any) => item.verified);
+    return json({
+      ok: true,
+      verified: allVerified,
+      reply: allVerified
+        ? (actions.length === 1 ? "The record was saved and verified in your Plivex workspace." : "All requested records were saved together and verified in your Plivex workspace.")
+        : "The save operation was accepted, but Plivex could not verify every created record. Please check the relevant module before retrying.",
+      created,
+      verification,
+      duplicate: Boolean(data?.duplicate),
+      batchId: data?.batch_id,
+    }, 200, origin);
   } catch (error) {
     console.error("Assistant confirmation failed", error);
     return json({ error: "Something went wrong while confirming the action." }, 500, origin);
