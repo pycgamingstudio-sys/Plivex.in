@@ -76,11 +76,11 @@ export function buildAssistantBusinessAnalytics(input = {}) {
   const positiveBatches = inventoryBatches.filter((batch) => finite(batch?.quantity, 0) > 0);
   const expiredBatches = validDate ? positiveBatches.filter((batch) => {
     const expiry = String(batch?.expires_on || "");
-    return /^\\d{4}-\\d{2}-\\d{2}$/.test(expiry) && daysBetween(asOfDate, expiry) > 0;
+    return /^\d{4}-\d{2}-\d{2}$/.test(expiry) && daysBetween(asOfDate, expiry) > 0;
   }) : [];
   const expiringBatches = validDate ? positiveBatches.filter((batch) => {
     const expiry = String(batch?.expires_on || "");
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(expiry)) return false;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(expiry)) return false;
     const daysUntilExpiry = daysBetween(expiry, asOfDate);
     return daysUntilExpiry !== null && daysUntilExpiry >= 0 && daysUntilExpiry <= 30;
   }) : [];
