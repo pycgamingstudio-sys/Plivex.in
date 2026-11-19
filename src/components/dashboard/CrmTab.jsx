@@ -106,7 +106,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
           {filteredClients.length === 0 ? (
             <Empty label="No clients match your search. Add a client to invoice them in one click." />
           ) : (
-            <div className="overflow-x-auto">
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[640px] text-left text-[12px]">
                 <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   <tr>
@@ -172,6 +172,17 @@ export default function CrmTab({ intent, onConsumeIntent }) {
                   })}
                 </tbody>
               </table>
+            </div>
+            <div className="space-y-2.5 p-3 md:hidden">
+              {rows.map((client) => {
+                const clientOpen = expanded === client.id;
+                const clientInvoices = invoices.filter((invoice) => invoice.clientName === client.name);
+                return <article key={client.id} className="rounded-xl border border-slate-200 p-3.5">
+                  <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words text-[13px] font-bold text-slate-900">{client.name}</p><p className="mt-0.5 text-[10px] text-slate-500">{client.company || "Individual client"}</p><p className="mt-1 break-all text-[10px] text-slate-500">{client.email || "No email"}{client.phone ? " · " + client.phone : ""}</p></div><button type="button" onClick={() => setExpanded(clientOpen ? null : client.id)} className="shrink-0 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-slate-600">{clientOpen ? "Hide details" : "Details"}</button></div>
+                  {clientOpen && <div className="mt-3 rounded-lg bg-slate-50 p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Invoice history · {clientInvoices.length}</p>{clientInvoices.length ? clientInvoices.slice(0, 5).map((invoice) => <div key={invoice.id} className="flex items-center justify-between gap-2 border-b border-slate-200 py-2 text-[10px] last:border-0"><span className="text-slate-600">{invoice.number} · {invoice.issueDate || "—"}</span><strong className="text-slate-800">{money2(invoice.total, invoice.currency || currencyCode)}</strong></div>) : <p className="mt-2 text-[11px] text-slate-500">No invoices recorded.</p>}{client.address && <p className="mt-2 text-[10px] text-slate-500">{client.address}</p>}</div>}
+                  <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => invoiceFor(client)} className="min-h-9 rounded-lg bg-[#6D28D9] px-3 text-[11px] font-bold text-white">Create invoice</button><button type="button" onClick={() => setClientModal({ ...client })} className="min-h-9 rounded-lg border border-slate-200 px-3 text-[11px] font-semibold text-slate-700">Edit</button><button type="button" onClick={() => { if (window.confirm("Delete client " + client.name + "? This cannot be undone.")) persistClients(removeItem(KEYS.clients, client.id)); }} className="min-h-9 rounded-lg border border-rose-100 px-3 text-[11px] font-semibold text-rose-700">Delete</button></div>
+                </article>;
+              })}
             </div>
           )}
 
