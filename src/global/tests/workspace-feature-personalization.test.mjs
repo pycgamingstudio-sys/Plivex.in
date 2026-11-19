@@ -92,3 +92,24 @@ test("optional Workspace modules stay gated when users open direct URLs", async 
   const dashboard = await read("../../pages/Dashboard.jsx");
   assert.match(dashboard, /path === "\/team-management"\) return user\?\.workspace_type === "business"/);
 });
+
+
+test("workspace feature preferences confirm persistence and can recover a missing settings row", async () => {
+  const helper = await read("../../lib/workspaceFeatures.js");
+  assert.match(helper, /select\("workspace_id"\)/);
+  assert.match(helper, /\.upsert\([\s\S]*optional_features: next/);
+  assert.match(helper, /workspaceIdentity\.country_code/);
+  assert.match(helper, /workspaceIdentity\.currency_code/);
+  assert.match(helper, /Workspace feature preferences were not saved/);
+});
+
+test("dashboard card order is persisted and mobile visibility controls expose accessible reorder actions", async () => {
+  const dashboard = await read("../../components/dashboard/DashboardTab.jsx");
+  assert.match(dashboard, /CARD_ORDER_KEY = "invoicepulse:dashboardCardOrder"/);
+  assert.match(dashboard, /useLocalState\(CARD_ORDER_KEY, DEFAULT_CARD_ORDER\)/);
+  assert.match(dashboard, /setCardOrder\(\(current\)/);
+  assert.match(dashboard, /aria-label=\{\x60Move \$\{c\.title\} up\x60\}/);
+  assert.match(dashboard, /aria-label=\{\x60Move \$\{c\.title\} down\x60\}/);
+  assert.match(dashboard, /max-h-\[calc\(100dvh-1rem\)\]/);
+  assert.match(dashboard, /overflow-y-auto bg-black\/40 p-2/);
+});
