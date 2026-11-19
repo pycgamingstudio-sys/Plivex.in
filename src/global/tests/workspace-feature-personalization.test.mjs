@@ -70,7 +70,7 @@ test("More Features exposes every dashboard module and supports adding optional 
   assert.match(library, /Stock and Team Members can be added by Freelancer workspaces too/);
   for (const id of ["invoices", "quotations", "expenses", "crm", "leads", "reports", "stock", "team", "inventoryWorkspace"]) assert.ok(library.includes(id) || (await read("../../lib/workspaceFeatures.js")).includes(`id: "${id}"`), "Missing module: " + id);
   assert.match(nav, /workspaceFeatures.includes\("inventoryWorkspace"\)/);
-  assert.match(nav, /workspaceFeatures.includes\("reports"\)/);
+  assert.match(nav, /workspaceFeatures.includes\("reports"\)/);\n  assert.match(nav, /workspaceFeatures.includes\("team"\)/);
   for (const label of ["Dashboard", "Sales", "Purchase", "Reports", "Client CRM", "Stock", "Team", "Warehouse"]) assert.ok(layout.includes(`label: "${label}"`), "Missing Global navigation area: " + label);
 });
 
@@ -90,9 +90,9 @@ test("optional Workspace modules stay gated when users open direct URLs", async 
   assert.match(app, /WorkspaceFeatureGate anyOf=\{\["crm", "leads"\]\}/);
   assert.match(app, /WorkspaceFeatureGate feature="reports"/);
   assert.match(app, /WorkspaceFeatureGate feature="expenses"/);
-  assert.match(app, /WorkspaceFeatureGate businessOnly/);
+  assert.match(app, /WorkspaceFeatureGate feature="team"/);
   const dashboard = await read("../../pages/Dashboard.jsx");
-  assert.match(dashboard, /path === "\/team-management"\) return user\?\.workspace_type === "business"/);
+  assert.match(dashboard, /path === "\/team-management"\) return workspaceFeatures\.includes\("team"\)/);
 });
 
 
