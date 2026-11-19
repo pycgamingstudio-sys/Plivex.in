@@ -482,19 +482,30 @@ async function handleRequest(req: Request) {
     // JWT through the Supabase client; the Global function re-checks membership.
     const needsGlobalFinanceContext = /invoice|bill|payment|paid|received|refund|reconcil|ledger|balance|outstanding|due|receivable|payable|paise|jama|bhugtan|पेमेंट|भुगतान|पैसे|रकम/i.test(String(latestUserText));
     const globalContextPromise = needsGlobalFinanceContext
-      ? supabase.functions.invoke("global-invoices", {
-          body: { action: "list_reconciliation", workspace_id: profile.workspace_id, limit: 100 },
-        }).then(({ data, error }: any) => {
-          if (error || !data?.ok) return null;
-          return {
-            country_code: data.country_code || null,
-            invoices: Array.isArray(data.records) ? data.records.slice(0, 100) : [],
-            source: "authenticated Global invoice reconciliation",
-          };
-        }).catch((error: any) => {
-          console.warn("Global assistant context unavailable", { message: String(error?.message || "request_failed").slice(0, 120) });
-          return null;
-        })
+      ? (async () => {
+          let timeoutId: ReturnType<typeof setTimeout> | undefined;
+          try {
+            const invocation = supabase.functions.invoke("global-invoices", {
+              body: { action: "list_reconciliation", workspace_id: profile.workspace_id, limit: 100 },
+            }).then(({ data, error }: any) => {
+              if (error || !data?.ok) return null;
+              return {
+                country_code: data.country_code || null,
+                invoices: Array.isArray(data.records) ? data.records.slice(0, 100) : [],
+                source: "authenticated Global invoice reconciliation",
+              };
+            }).catch((error: any) => {
+              console.warn("Global assistant context unavailable", { message: String(error?.message || "request_failed").slice(0, 120) });
+              return null;
+            });
+            const timeout = new Promise<null>((resolve) => {
+              timeoutId = setTimeout(() => resolve(null), 4000);
+            });
+            return await Promise.race([invocation, timeout]);
+          } finally {
+            if (timeoutId !== undefined) clearTimeout(timeoutId);
+          }
+        })()
       : Promise.resolve(null);
     const [liveContext, globalBusinessContext] = await Promise.all([liveContextPromise, globalContextPromise]);
     const systemInstruction = [
