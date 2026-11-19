@@ -114,6 +114,8 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
       leads: { loadedRecords: leads.length, totalPotentialValue: money(leads, "value") },
       services: { loadedRecords: (rows.services || []).length },
       stockMovements: { loadedRecords: stockMovements.length, movementTypes: stockMovements.reduce((counts: Record<string, number>, item: any) => { const key = String(item.movement_type || "unknown"); counts[key] = (counts[key] || 0) + 1; return counts; }, {}) },
+      inventoryBatches: { loadedRecords: inventoryBatches.length, expired: businessAnalytics.inventory.expiredBatchCount, expiringWithin30Days: businessAnalytics.inventory.expiringWithin30DaysCount },
+      stockTransfers: { loadedTransfers: stockTransfers.length, loadedTransferLines: stockTransferItems.length },
       warehouses: { activeCount: warehouses.length, defaultWarehouse: warehouses.find((item: any) => item.is_default)?.name || null },
       purchasing: {
         loadedOrders: purchaseOrders.length,
@@ -139,8 +141,10 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
       })),
       recent_purchase_receipts: purchaseReceipts.slice(0, 30),
       stock_movements: stockMovements.slice(0, 30),
+      recent_inventory_batches: batchesWithNames.slice(0, 100),
+      recent_stock_transfers: transfersWithDetails,
     },
-    limitNote: "For each module, loaded records are capped (500 for core records, 200 for warehouses/orders/receipts, 1,000 purchase-order lines); record lists are recent samples. Summaries are calculated only from loaded rows. A missing module in this context is not proof that the workspace has no records.",
+    limitNote: "For each module, loaded records are capped (500 for core records, 200 for warehouses/orders/receipts, 1,000 purchase-order and stock-transfer lines, 500 inventory batches); record lists are recent samples. Summaries are calculated only from loaded rows. A missing module in this context is not proof that the workspace has no records.",
   };
 }
 
