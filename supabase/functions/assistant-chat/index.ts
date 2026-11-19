@@ -535,6 +535,7 @@ async function handleRequest(req: Request) {
     // JWT through the Supabase client; the Global function re-checks membership.
     const needsGlobalFinanceContext = deterministicIntentHints.intents.includes("payment_incoming") || /invoice|bill|payment|paid|received|refund|reconcil|ledger|balance|outstanding|due|receivable|payable|paise|jama|bhugtan|पेमेंट|भुगतान|पैसे|रकम/i.test(String(latestUserText));
     const needsGlobalClientContext = /\b(client|customer|grahak)\b|ग्राहक|कस्टमर/i.test(String(latestUserText));
+    const needsGlobalExpenseContext = /\b(expense|kharcha|kharch|spend|business cost)\b|खर्च|व्यय/i.test(String(latestUserText));
     const globalContextPromise = isGlobalWorkspace || needsGlobalFinanceContext || needsGlobalClientContext || needsGlobalExpenseContext
       ? (async () => {
           let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -653,7 +654,7 @@ async function handleRequest(req: Request) {
                   properties: {
                     type: { type: "STRING", enum: ["create_client", "create_global_client", "create_global_expense", "create_expense", "create_lead", "create_stock", "create_quotation", "create_invoice", "create_purchase_order", "receive_purchase_order", "create_warehouse", "record_global_invoice_payment"] },
                     payload: { type: "OBJECT", properties: {
-                      name:{type:"STRING"}, company:{type:"STRING"}, email:{type:"STRING"}, phone:{type:"STRING"}, gstin:{type:"STRING"}, address:{type:"STRING"}, tax_registration_number:{type:"STRING"}, invoice_id:{type:"STRING"}, currency_code:{type:"STRING"}, payment_date:{type:"STRING"}, reference:{type:"STRING"},
+                      name:{type:"STRING"}, company:{type:"STRING"}, email:{type:"STRING"}, phone:{type:"STRING"}, gstin:{type:"STRING"}, address:{type:"STRING"}, tax_registration_number:{type:"STRING"}, invoice_id:{type:"STRING"}, currency_code:{type:"STRING"}, payment_date:{type:"STRING"}, reference:{type:"STRING"}, category:{type:"STRING"}, vendor:{type:"STRING"}, expense_date:{type:"STRING"}, payment_method:{type:"STRING"},
                       vendor:{type:"STRING"}, category:{type:"STRING"}, amount:{type:"NUMBER"}, date:{type:"STRING"}, status:{type:"STRING"}, method:{type:"STRING"}, notes:{type:"STRING"},
                       requirement:{type:"STRING"}, value:{type:"NUMBER"}, stage:{type:"STRING"}, sku:{type:"STRING"}, quantity:{type:"NUMBER"}, unit:{type:"STRING"}, price:{type:"NUMBER"}, low_stock:{type:"NUMBER"},
                       purchase_order_id:{type:"STRING"}, warehouse_id:{type:"STRING"}, supplier_name:{type:"STRING"}, supplier_reference:{type:"STRING"}, expected_date:{type:"STRING"}, code:{type:"STRING"}, client_name:{type:"STRING"}, client_email:{type:"STRING"}, business_name:{type:"STRING"}, issue_date:{type:"STRING"}, due_date:{type:"STRING"}, currency:{type:"STRING"}, tax_mode:{type:"STRING"}, discount_type:{type:"STRING"}, discount:{type:"NUMBER"}, terms:{type:"STRING"}, is_draft:{type:"BOOLEAN"}, total:{type:"NUMBER"}, tax_rate:{type:"NUMBER"},
@@ -670,7 +671,7 @@ async function handleRequest(req: Request) {
                   payload: {
                     type: "OBJECT",
                     properties: {
-                      name: { type: "STRING" }, company: { type: "STRING" }, email: { type: "STRING" }, phone: { type: "STRING" }, gstin: { type: "STRING" }, address: { type: "STRING" }, tax_registration_number: { type: "STRING" }, invoice_id: { type: "STRING" }, currency_code: { type: "STRING" }, payment_date: { type: "STRING" }, reference: { type: "STRING" },
+                      name: { type: "STRING" }, company: { type: "STRING" }, email: { type: "STRING" }, phone: { type: "STRING" }, gstin: { type: "STRING" }, address: { type: "STRING" }, tax_registration_number: { type: "STRING" }, invoice_id: { type: "STRING" }, currency_code: { type: "STRING" }, payment_date: { type: "STRING" }, reference: { type: "STRING" }, category: { type: "STRING" }, vendor: { type: "STRING" }, expense_date: { type: "STRING" }, payment_method: { type: "STRING" },
                       vendor: { type: "STRING" }, category: { type: "STRING" }, amount: { type: "NUMBER" }, date: { type: "STRING" }, status: { type: "STRING" }, method: { type: "STRING" }, notes: { type: "STRING" },
                       requirement: { type: "STRING" }, value: { type: "NUMBER" }, stage: { type: "STRING" },
                       sku: { type: "STRING" }, quantity: { type: "NUMBER" }, unit: { type: "STRING" }, price: { type: "NUMBER" }, low_stock: { type: "NUMBER" },
