@@ -193,13 +193,18 @@ Deno.serve(async (req: Request) => {
         p_user_id:null, p_workspace_id:null, p_client_id:null, p_currency_code:null,
         p_issue_date:null, p_due_date:null, p_notes:null, p_items:null, p_idempotency_key:null,
       });
+      const atomicTaxProbe = await auth.admin.rpc("global_create_and_issue_tax_invoice", {
+        p_user_id:null, p_workspace_id:null, p_client_id:null, p_currency_code:null,
+        p_issue_date:null, p_due_date:null, p_notes:null, p_items:null, p_tax_context:null, p_idempotency_key:null,
+      });
       const commercialFunctionReady = !commercialProbe.error && commercialProbe.data?.reason === "invalid_request"
         && !atomicCommercialProbe.error && atomicCommercialProbe.data?.reason === "invalid_request";
+      const taxFunctionReady = !atomicTaxProbe.error && atomicTaxProbe.data?.reason === "invalid_request";
       const commercialCountries = ["US","GB","AE","CA","AU","SG"];
       return globalJson({
         ok: true,
         ledger_ready: ledgerReady,
-        issuance_ready: ledgerReady && data?.country_code === "GB",
+        issuance_ready: ledgerReady && taxFunctionReady && data?.country_code === "GB",
         issuance_countries: ["GB"],
         commercial_issuance_ready: ledgerReady && commercialFunctionReady && commercialCountries.includes(data?.country_code),
         commercial_issuance_countries: commercialCountries,
