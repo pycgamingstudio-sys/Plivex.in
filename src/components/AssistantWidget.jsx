@@ -216,7 +216,7 @@ export default function AssistantWidget() {
           <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 px-3 py-4">
             {messages.length === 0 && <div className="rounded-xl bg-white p-3 text-sm text-slate-600 shadow-sm">
               <p className="font-semibold text-slate-800">Namaste! I can check live data in your Plivex workspace.</p>
-              <p className="mt-1 text-xs">I can understand requests across your Plivex business modules. I can currently prepare client, expense, lead, stock-item, quotation and invoice drafts for your confirmation. Other operations are being connected carefully. I won't save anything until you tap Confirm & Add.</p>
+              <p className="mt-1 text-xs">I can understand requests across your Plivex business modules. I can currently prepare client, expense, lead, stock-item, quotation, invoice and purchase-order drafts, and goods receipts against existing purchase orders. You review every proposed change before confirming. I never mark an invoice as paid or treat a payment screenshot as bank verification.</p>
               <div className="mt-3 flex flex-wrap gap-2">{STARTERS.map((q) => <button key={q} onClick={() => send(q)} className="rounded-full border border-purple-200 bg-purple-50 px-3 py-2 text-left text-xs text-purple-800">{q}</button>)}</div>
             </div>}
             {messages.map((m, i) => <div key={m.id || i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
@@ -224,11 +224,11 @@ export default function AssistantWidget() {
                 {m.content}
                 {m.imageDataUrl && <img src={m.imageDataUrl} alt="Attached business document" className="mt-2 max-h-40 max-w-full rounded-lg border border-slate-200 object-contain" />}
                 {(m.pendingAction || m.pendingActions?.length) && <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50 p-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-purple-900"><PlusCircle className="h-4 w-4" /> {m.pendingActions?.length > 1 ? "Ready to complete " + m.pendingActions.length + " actions" : "Ready to add"}</div>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-purple-900"><PlusCircle className="h-4 w-4" /> {m.pendingActions?.length > 1 ? "Ready to complete " + m.pendingActions.length + " actions" : "Ready for confirmation"}</div>
                   <div className="mt-2 space-y-2">{(m.pendingActions || [m.pendingAction]).map((action, actionIndex) => <p key={actionIndex} className="text-sm font-medium text-slate-800">{actionIndex + 1}. {action.summary}</p>)}</div>
-                  <p className="mt-2 text-[11px] text-slate-600">Nothing is saved until you confirm. All actions are validated together; if one fails, the batch is rolled back.</p>
+                  <p className="mt-2 text-[11px] text-slate-600">Nothing is saved until you confirm. Purchase orders and goods receipts are confirmed separately; other supported action batches are validated and executed atomically.</p>
                   <div className="mt-3 flex gap-2">
-                    <button disabled={busy} onClick={() => confirmAction(m.pendingActions || [m.pendingAction], m.idempotencyKey || m.pendingAction?.idempotencyKey, i)} className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#6D28D9] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</> : <><CheckCircle2 className="h-3.5 w-3.5" /> Confirm & Add</>}</button>
+                    <button disabled={busy} onClick={() => confirmAction(m.pendingActions || [m.pendingAction], m.idempotencyKey || m.pendingAction?.idempotencyKey, i)} className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#6D28D9] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</> : <><CheckCircle2 className="h-3.5 w-3.5" /> Confirm & Save</>}</button>
                     <button disabled={busy} onClick={() => cancelAction(i)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 disabled:opacity-50">Cancel</button>
                   </div>
                 </div>}
