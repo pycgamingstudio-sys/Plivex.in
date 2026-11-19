@@ -13,8 +13,8 @@ test("new workspace onboarding follows country, business name, regional details,
   assert.match(source, /Skip mobile number/);
   assert.match(source, /getCountryFlag\(country.code\)/);
   assert.match(source, /businessType: workTypes\[0\]/);
-  assert.match(source, /optionalFeatures: features/);
-  assert.match(source, /localeCode, phone, taxType, taxNumber, workTypes, features/);
+  assert.match(source, /optionalFeatures: getSuggestedWorkspaceFeatures\(workTypes\)/);
+  assert.match(source, /localeCode, phone, taxType, taxNumber, workTypes/);
   assert.match(source, /workTypes.length === 0/);
 });
 
