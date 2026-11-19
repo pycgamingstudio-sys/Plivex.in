@@ -13,7 +13,7 @@ import CurrentPlanCard from "@/components/CurrentPlanCard";
 import DesignPicker from "@/components/invoice/DesignPicker";
 import { DEFAULT_DESIGN_ID, InvoiceDesign, isPremiumDesign } from "@/components/invoice/designs";
 import { SUPPORTED_CURRENCIES, formatMoney, amountInWords } from "@/lib/currency";
-import { backend, supabase } from "@/api/backendClient";
+import { backend } from "@/api/backendClient";
 import GlobalTaxEditor from "@/components/invoice/GlobalTaxEditor";
 import { calculateInvoiceGlobalTax, resolveInvoiceCurrencyForWorkspace } from "@/global/tax/invoice-tax-integration.js";
 import { getCountryByCode } from "@/global/countries/country-registry.js";
