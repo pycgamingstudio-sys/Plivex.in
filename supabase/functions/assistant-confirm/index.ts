@@ -203,6 +203,9 @@ Deno.serve(async (req: Request) => {
       const verified = Boolean(record.id === product.product_id
         && record.name === payload.name
         && String(record.currency_code || "").toUpperCase() === payload.currency_code
+        && Number(record.sale_price_minor) === (salePriceMinor ?? 0)
+        && Number(record.purchase_cost_minor) === (purchaseCostMinor ?? 0)
+        && record.unit === payload.unit && record.is_active === payload.is_active
         && (payload.sku ? record.sku === payload.sku : true));
       return json({
         ok: true, verified, duplicate: Boolean(product.duplicate),
