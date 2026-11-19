@@ -21,6 +21,12 @@ All six require the existing user confirmation flow. The RPC enforces workspace 
 The registry catalogs clients, invoices, inventory, expenses, quotations, leads, services, suppliers, purchase orders, purchase receipts, warehouses, stock transfers, payments, staff, branches, analytics and automation.
 The assistant live context now includes bounded workspace-scoped reads for active warehouses, purchase orders, purchase-order lines and recent goods receipts, alongside the existing client, invoice, stock, expense, quotation, lead and service context. These purchasing/warehouse reads are informational only; purchase-order creation, goods receipt, stock transfer, supplier management, payment, staff, branch and automation writes must not be invented by the model. They remain unavailable until each has a permission-checked server executor and end-to-end tests.
 
+## Deterministic intent assistance
+- A shared, unit-tested intent helper supplies advisory hints for common business operations, Indian amount formats (including thousand/lakh/crore shorthand), and inventory quantity units.
+- It explicitly separates product creation, purchase orders, goods receipts, warehouse creation, stock transfers, incoming payments and outgoing payments.
+- These hints are fallible and never authorize writes. The model's proposal still passes strict server validation, the authenticated database executor, role checks and user confirmation.
+- The helper is regression-tested for amount parsing, quantity normalization and business-operation distinctions.
+
 ## Required execution pipeline
 1. Parse the message and attachments; identify all intents and entities.
 2. Retrieve only authorized workspace context, with bounded/paginated reads.
