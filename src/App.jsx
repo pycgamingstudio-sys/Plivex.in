@@ -145,7 +145,7 @@ const AuthenticatedApp = () => {
           <Route path="/help-center" element={<HelpCenter />} />
           <Route path="/account-activity" element={<GlobalFeatureGate feature="Account activity"><WorkspaceFeatureGate feature="reports"><AccountActivity /></WorkspaceFeatureGate></GlobalFeatureGate>} />
           <Route path="/service-catalog" element={<GlobalFeatureGate feature="Service catalog"><ServiceCatalog /></GlobalFeatureGate>} />
-          <Route path="/team-management" element={<GlobalFeatureGate feature="Team management"><WorkspaceFeatureGate businessOnly><ProTeamRoute /></WorkspaceFeatureGate></GlobalFeatureGate>} />
+          <Route path="/team-management" element={<GlobalFeatureGate feature="Team management"><WorkspaceFeatureGate feature="team"><ProTeamRoute /></WorkspaceFeatureGate></GlobalFeatureGate>} />
             </Route>
           </Route>
         </Route>
