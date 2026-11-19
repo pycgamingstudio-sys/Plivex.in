@@ -66,7 +66,9 @@ test("More Features exposes every dashboard module and supports adding optional 
   assert.match(dashboard, /More Features/);
   assert.match(library, /getAvailableWorkspaceFeatureCatalog\(APP_EDITION\)\.map\(\(item\) =>/);
   assert.match(library, /Remove from dashboard/);
-  assert.match(library, /Always included/);\n  assert.match(library, /Stock and Team Members can be added by Freelancer workspaces too/);\n  for (const id of ["invoices", "quotations", "expenses", "crm", "leads", "reports", "stock", "team", "inventoryWorkspace"]) assert.ok(library.includes(id) || (await read("../../lib/workspaceFeatures.js")).includes(`id: "${id}"`), "Missing module: " + id);
+  assert.match(library, /Always included/);
+  assert.match(library, /Stock and Team Members can be added by Freelancer workspaces too/);
+  for (const id of ["invoices", "quotations", "expenses", "crm", "leads", "reports", "stock", "team", "inventoryWorkspace"]) assert.ok(library.includes(id) || (await read("../../lib/workspaceFeatures.js")).includes(`id: "${id}"`), "Missing module: " + id);
   assert.match(nav, /workspaceFeatures.includes\("inventoryWorkspace"\)/);
   assert.match(nav, /workspaceFeatures.includes\("reports"\)/);
   for (const label of ["Dashboard", "Sales", "Purchase", "Reports", "Client CRM", "Stock", "Team", "Warehouse"]) assert.ok(layout.includes(`label: "${label}"`), "Missing Global navigation area: " + label);
@@ -128,7 +130,10 @@ test("invoice editor uses canonical workspace_settings currency rather than stal
   assert.match(home, /select\("country_code,currency_code,locale_code"\)/);
   assert.match(home, /const countryCode = String\(settings\?\.country_code/);
   assert.match(home, /const currencyCode = String\(settings\?\.currency_code/);
-  assert.match(home, /workspaceTaxProfile\?\.currencyCode \|\| user\?\.currency_code/);
+  assert.match(home, /const effectiveWorkspaceTaxProfile = workspaceTaxProfile/);
+  assert.match(home, /countryCode=\{workspaceTaxProfile\?\.countryCode \|\| ""\}/);
+  assert.match(home, /currencyCode=\{workspaceTaxProfile\?\.currencyCode \|\| ""\}/);
+  assert.doesNotMatch(home, /countryCode=\{user\?\.country_code \|\| workspaceTaxProfile/);
   assert.doesNotMatch(home, /if \(!user\?\.country_code \|\| !user\?\.currency_code\) return;/);
 });
 
