@@ -45,7 +45,7 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
   const navigate = useNavigate();
   const { isPremium, openPaywall, planName, plan, planLoading, canAccess } = usePaywall();
   const { user } = useAuth();
-  const { features: workspaceFeatures, ready: workspaceFeaturesReady } = useWorkspaceFeatures(user?.workspace_id, user);
+  const { features: workspaceFeatures, ready: workspaceFeaturesReady } = useWorkspaceFeatures(user?.workspace_id);
   const { role, isAccountant } = useRole();
   useEffect(() => {
     seedDashboard();
