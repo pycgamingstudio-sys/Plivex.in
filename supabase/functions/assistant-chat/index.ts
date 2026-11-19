@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
 import { normalizeAssistantActionBatch } from "../_shared/assistant-tool-registry.mjs";
+import { buildBusinessIntentHints } from "../_shared/assistant-intent-planner.mjs";
 
 const ALLOWED_ORIGINS = new Set([
   "https://plivex.in",
@@ -384,6 +385,7 @@ async function handleRequest(req: Request) {
     if (!messages.length || messages[messages.length - 1].role !== "user") return json({ error: "Please enter a message." }, 400);
 
     const latestUserText = [...incoming].reverse().find((item: { role?: string }) => item?.role !== "assistant")?.content || "";
+    const deterministicIntentHints = buildBusinessIntentHints(latestUserText);
     const isRecordCreationRequest = /\b(add|create|save|record|jod(?:o)?|bana(?:o|na)?|darj)\b/i.test(String(latestUserText));
     // Image analysis and record creation do not need a 500-row workspace snapshot.
     const hasReadQueryIntent = /(due|balance|ledger|pending|kitna|kitne|baki|baaki|outstanding|total|report|dikha|bata|show|list|how many|how much)/i.test(String(latestUserText));
@@ -392,6 +394,7 @@ async function handleRequest(req: Request) {
       : await loadLiveContext(supabase, profile.workspace_id);
     const systemInstruction = [
       "You are Plivex AI, a business assistant for the signed-in user's own workspace.",
+      "DETERMINISTIC USER-INTENT HINTS (ADVISORY ONLY): " + JSON.stringify(deterministicIntentHints) + ". These hints are fallible and never authorize a write; follow the user's actual meaning, ask when ambiguous, and use only server-validated tools.",
       "Answer briefly and directly in the user's language (Hindi/Hinglish or English), usually 1–4 short sentences. Use the LIVE DATA JSON below to answer questions about their invoices, clients, stock, expenses, quotations, leads, services, business profile, active warehouses, purchase orders, purchase-order lines and recent goods receipts.",
       "Do not invent facts or totals. Distinguish an empty result from an unavailable module: if unavailableModules lists a module, its empty records/default zero are NOT evidence that the workspace has no records or a zero balance. Tell the user that module could not be read and do not calculate or assert its totals. The lists are recent samples and summaries are calculated only from successfully loaded rows; disclose the stated limit when relevant.",
       "RECEIPT / PAYMENT IMAGE UNDERSTANDING (MANDATORY): When an image is attached, inspect the image itself together with the user's text. For PhonePe, Google Pay, bank transfer, cash memo, bills and receipts, extract only visibly supported fields: amount, payee/merchant/vendor, transaction/receipt date, payment method, transaction/reference ID, and line-item descriptions when legible. Do not say the image is unreadable if these fields are visible. Distinguish a payment confirmation screenshot from a purchase invoice/receipt: a completed outgoing payment may support an expense; an incoming payment is not an expense; a mere QR code, balance screen, failed/pending transaction, or unclear direction is not proof of an expense. If user says 'expense add kar do' with a visible completed outgoing payment, propose create_expense using the visible amount/vendor/date/method and put reference ID plus concise image-derived context in notes. If the image is a purchase bill and user requests stock, extract item names, quantities, units and rates only when legible; do not assume all billed goods are inventory unless user asks to add stock. If the user asks to add both expense and stock, create separate actions only when the evidence and instruction support both. If a mandatory field is obscured or uncertain, ask one focused clarification and do not invent it. Never infer that the full account balance is the transaction amount. Currency amounts must be parsed exactly, including Indian comma grouping.",
