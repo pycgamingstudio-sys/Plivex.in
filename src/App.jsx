@@ -120,7 +120,7 @@ const AuthenticatedApp = () => {
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/i/:token" element={<PublicInvoicePage />} />
       <Route path="/" element={isGlobalWorkspace && isAuthenticated ? <Navigate to="/dashboard" replace /> : <HomeGate />} />
-      <Route path="/dashboard" element={isGlobalWorkspace && isAuthenticated ? <AppLayout><GlobalApp section="overview" /></AppLayout> : <HomeGate />} />
+      <Route path="/dashboard" element={<HomeGate />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/" replace />} />}>
         <Route element={<TrialGate />}>
           <Route element={<RoleGuard />}>
