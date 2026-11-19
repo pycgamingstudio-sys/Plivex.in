@@ -15,6 +15,25 @@ function daysBetween(later, earlier) {
 }
 
 /**
+ * Groups numeric totals by currency, unit or another explicit measurement key.
+ * A grand total is exposed only when all rows share exactly one key.
+ */
+export function groupNumericTotals(items = [], valueField, groupField) {
+  const byGroup = items.reduce((totals, item) => {
+    const key = String(item?.[groupField] || "UNKNOWN").toUpperCase();
+    const value = finite(item?.[valueField], NaN);
+    if (Number.isFinite(value)) totals[key] = (totals[key] || 0) + value;
+    return totals;
+  }, {});
+  const keys = Object.keys(byGroup);
+  return {
+    total: keys.length <= 1 ? (keys.length ? byGroup[keys[0]] : 0) : null,
+    byGroup,
+    mixedGroups: keys.length > 1,
+  };
+}
+
+/**
  * @param {{
  *   invoices?: Array<Record<string, unknown>>,
  *   stock?: Array<Record<string, unknown>>,
