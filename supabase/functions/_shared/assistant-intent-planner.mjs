@@ -29,7 +29,7 @@ const UNIT_ALIASES = Object.freeze({
 const UNIT_PATTERN = Object.keys(UNIT_ALIASES).sort((a, b) => b.length - a.length).join("|");
 
 export function parseBusinessQuantity(value) {
-  const match = String(value ?? "").trim().match(/^([0-9]+(?:\.[0-9]+)?)\s*(kilograms|kilogram|kilos|kilo|kgs|kg|grams|gram|gm|g|liters|litres|liter|litre|ltr|lt|l|pieces|piece|pcs|pc|packets|packet|boxes|box|dozen)\b/i);
+  const match = String(value ?? "").trim().match(/([0-9]+(?:\.[0-9]+)?)\s*(kilograms|kilogram|kilos|kilo|kgs|kg|grams|gram|gm|g|liters|litres|liter|litre|ltr|lt|l|pieces|piece|pcs|pc|packets|packet|boxes|box|dozen)\b/i);
   if (!match) return null;
   const quantity = Number(match[1]);
   if (!Number.isFinite(quantity) || quantity <= 0) return null;
@@ -44,10 +44,10 @@ const RULES = [
   { type: "create_lead", pattern: /\b(add|create|save|jod(?:o)?)\b.{0,30}\b(lead|prospect)\b|\b(lead|prospect)\b.{0,30}\b(add|create|save)\b/iu },
   { type: "create_stock", pattern: /\b(add|create|save|jod(?:o)?|bana(?:o)?)\b.{0,35}\b(stock item|inventory item|product)\b|\b(stock item|inventory item|product)\b.{0,35}\b(add|create|save)\b|\bstock\s+mein\s+(?:add|jod)/iu },
   { type: "create_purchase_order", pattern: /\b(purchase order|po)\b|\b(order|mangwa(?:ya|i)|mangwaya)\b.{0,35}\b(stock|maal|goods|saman)\b|\b(stock|maal|goods|saman)\b.{0,35}\b(order|mangwa)/iu },
-  { type: "receive_stock", pattern: /\b(receive|received|receive[d]?|goods receipt|grn|stock received|maal aa gaya|maal mil gaya|stock aa gaya)\b|माल\s+(?:आ\s+गया|मिल\s+गया)/iu },
+  { type: "receive_stock", pattern: /\b(receive|received)\s+(?:the\s+)?(?:stock|goods|inventory|items|maal)\b|\b(goods receipt|grn|stock received|received stock|maal aa gaya|maal mil gaya|stock aa gaya)\b|माल\s+(?:आ\s+गया|मिल\s+गया)/iu },
   { type: "create_warehouse", pattern: /\b(add|create|open|bana(?:o)?)\b.{0,30}\b(warehouse|godown)\b|\b(warehouse|godown)\b.{0,30}\b(add|create|open|bana)/iu },
   { type: "stock_transfer", pattern: /\b(transfer|move|shift)\b.{0,40}\b(stock|inventory|warehouse|godown)\b|\b(stock|inventory)\b.{0,40}\b(transfer|move|shift)\b/iu },
-  { type: "payment_incoming", pattern: /\b(received|got|customer paid|payment received|paise mile|payment aaya|jama hua)\b|पेमेंट\s+मिला/iu },
+  { type: "payment_incoming", pattern: /\b(customer paid|payment received|received payment|paise mile|payment aaya|jama hua)\b|पेमेंट\s+मिला/iu },
   { type: "payment_outgoing", pattern: /\b(paid|payment made|paid to|sent payment|paise diye|payment kiya)\b|भुगतान\s+किया/iu },
 ];
 
