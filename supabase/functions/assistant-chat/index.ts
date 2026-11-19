@@ -190,20 +190,16 @@ function parseClientConversation(incoming: any[]) {
 function parseInvoiceConversation(incoming: any[], businessProfile: any = null) {
   const history = incoming.slice(-16);
   const userTurns = history.filter((item) => item?.role !== "assistant").map((item) => text(item?.content, 1200)).filter(Boolean);
-  const combined = userTurns.join("
-");
+  const combined = userTurns.join("\n");
   if (!/(?:invoice|inv[o]?ice|bill|billing|इ invoice|इनवॉइस|बिल)/i.test(combined) ||
       !/(?:bnao|banao|banana|banado|create|make|generate|prepare|बनाओ|बना दो)/i.test(combined)) return null;
   const currencyMatch = combined.match(/\b(INR|USD|EUR|GBP|AED|CAD|AUD|SGD)\b/i);
   const workspaceCountryCode = text(businessProfile?.country_code || "IN", 2).toUpperCase();
   const countryCurrency: Record<string, string> = { IN: "INR", US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD" };
   const currency = currencyMatch ? currencyMatch[1].toUpperCase() : (countryCurrency[workspaceCountryCode] || "INR");
-  const client = captureField(combined, /client(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:mera|my|issue|due|date|item|product|price|rate|quantity|qty)\b|[,;
-]|$)/i);
-  const business = captureField(combined, /(?:mera|my)\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:issue|due|date|item|product|price|rate|quantity|qty)\b|[,;
-]|$)/i);
-  const item = captureField(combined, /(?:item|product)\s+(?:hai|is)\s+(.+?)(?=\s+(?:quantity|qty|price|rate|ki|ka|ke|and|aur)\b|[,;
-]|$)/i);
+  const client = captureField(combined, /client(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:mera|my|issue|due|date|item|product|price|rate|quantity|qty)\b|[,;\n]|$)/i);
+  const business = captureField(combined, /(?:mera|my)\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:issue|due|date|item|product|price|rate|quantity|qty)\b|[,;\n]|$)/i);
+  const item = captureField(combined, /(?:item|product)\s+(?:hai|is)\s+(.+?)(?=\s+(?:quantity|qty|price|rate|ki|ka|ke|and|aur)\b|[,;\n]|$)/i);
   const priceMatch = combined.match(/(?:price|rate|daam|keemat|कीमत|दाम)\s*(?:hai|is|[:=])?\s*(?:₹|rs\.?\s*)?([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
   const quantityMatch = combined.match(/(?:quantity|qty|matra|मात्रा)\s*(?:hai|is|[:=])?\s*([0-9][0-9,]*(?:\.[0-9]+)?)/i);
   let quantity = quantityMatch ? Number(quantityMatch[1].replace(/,/g, "")) : NaN;
@@ -215,11 +211,8 @@ function parseInvoiceConversation(incoming: any[], businessProfile: any = null) 
   }
   const price = priceMatch ? Number(priceMatch[1].replace(/,/g, "")) : NaN;
   const asksToday = /(?:aaj|today|आज)/i.test(combined);
-  const issueDate = /(?:issue\s*date|issued\s*on)[^
-]{0,60}(?:aaj|today|आज)/i.test(combined) ? indiaToday() : "";
-  const dueDate = /(?:due\s*date|due\s*भी|due)[^
-]{0,60}(?:aaj|today|आज)/i.test(combined) || (asksToday && /issue[^
-]{0,80}due/i.test(combined)) ? indiaToday() : "";
+  const issueDate = /(?:issue\s*date|issued\s*on)[^\n]{0,60}(?:aaj|today|आज)/i.test(combined) ? indiaToday() : "";
+  const dueDate = /(?:due\s*date|due\s*भी|due)[^\n]{0,60}(?:aaj|today|आज)/i.test(combined) || (asksToday && /issue[^\n]{0,80}due/i.test(combined)) ? indiaToday() : "";
   const missing = [];
   if (!client) missing.push("client name");
   if (!item) missing.push("item name");
@@ -277,8 +270,7 @@ function parseInvoiceConversation(incoming: any[], businessProfile: any = null) 
 function parseExpenseConversation(incoming: any[]) {
   const history = incoming.slice(-16);
   const userTurns = history.filter((item) => item?.role !== "assistant").map((item) => text(item?.content, 1200)).filter(Boolean);
-  const combined = userTurns.join("
-");
+  const combined = userTurns.join("\n");
   if (!/(?:expense|kharcha|kharch|खर्च)/i.test(combined) ||
       !/(?:add|create|save|record|jod(?:o|na)?|bnao|banao|बनाओ|जोड़ो)/i.test(combined)) return null;
   const parseMoney = (raw: string, scale = "") => {
@@ -295,13 +287,10 @@ function parseExpenseConversation(incoming: any[]) {
   if (!(amount > 0) && latestNumber && /(?:amount|price|total|kitna|kitne|how much|रकम)/i.test(String(lastAssistant))) {
     amount = parseMoney(latestNumber[1], latestNumber[2] || "");
   }
-  const namedVendor = combined.match(/(?:vendor|payee|supplier|name|naam|नाम)\s*(?:hai|is|[:=])?\s*([A-Za-z][A-Za-z .'-]{0,80}?)(?=\s+(?:amount|price|total|cost|value|description|purpose|reason|note|category|date|payment|method)\b|[,;
-]|$)/i);
-  const leadingVendor = combined.match(/(?:^|
-)\s*([A-Za-z][A-Za-z .'-]{1,50}?)\s+(?=(?:amount|price|total|description|purpose)\b)/i);
+  const namedVendor = combined.match(/(?:vendor|payee|supplier|name|naam|नाम)\s*(?:hai|is|[:=])?\s*([A-Za-z][A-Za-z .'-]{0,80}?)(?=\s+(?:amount|price|total|cost|value|description|purpose|reason|note|category|date|payment|method)\b|[,;\n]|$)/i);
+  const leadingVendor = combined.match(/(?:^|\n)\s*([A-Za-z][A-Za-z .'-]{1,50}?)\s+(?=(?:amount|price|total|description|purpose)\b)/i);
   const vendor = text(namedVendor?.[1] || leadingVendor?.[1], 120).replace(/[.,;:]+$/, "").trim();
-  const descriptionMatch = combined.match(/(?:description|purpose|reason|note)\s*(?:hai|is|[:=])?\s*([A-Za-z][A-Za-z0-9 /&().'-]{0,120}?)(?=\s+(?:amount|price|total|cost|value|vendor|payee|supplier|name|naam|category|date|payment|method)\b|[,;
-]|$)/i);
+  const descriptionMatch = combined.match(/(?:description|purpose|reason|note)\s*(?:hai|is|[:=])?\s*([A-Za-z][A-Za-z0-9 /&().'-]{0,120}?)(?=\s+(?:amount|price|total|cost|value|vendor|payee|supplier|name|naam|category|date|payment|method)\b|[,;\n]|$)/i);
   const notes = text(descriptionMatch?.[1], 500).replace(/[.,;:]+$/, "").trim();
   // Newest-turn corrections override older draft values.
   const correctionText = latest;
@@ -314,8 +303,7 @@ function parseExpenseConversation(incoming: any[]) {
   }
   const correctionVendor = correctionText.match(/(?:vendor|payee|supplier|name|naam)\s*(?:is|hai|[:=])?\s*([A-Za-z][A-Za-z .'-]{0,70})/i);
   const correctionNotes = correctionText.match(/(?:description|purpose|reason|note)\s*(?:is|hai|[:=])?\s*([A-Za-z][A-Za-z0-9 /&().'-]{0,100})/i);
-  const explicitCategory = combined.match(/category\s*(?:hai|is|[:=])?\s*([A-Za-z ]{2,40}?)(?=\s+(?:amount|price|description|date)\b|[,;
-]|$)/i);
+  const explicitCategory = combined.match(/category\s*(?:hai|is|[:=])?\s*([A-Za-z ]{2,40}?)(?=\s+(?:amount|price|description|date)\b|[,;\n]|$)/i);
   const lowerNotes = notes.toLowerCase();
   const categoryText = text(explicitCategory?.[1], 50).toLowerCase();
   const effectiveVendor = text(correctionVendor?.[1] || vendor, 120).replace(/[.,;:]+$/, "").trim();
@@ -500,8 +488,7 @@ async function handleRequest(req: Request) {
       "If the user reports an app bug, technical problem, or something not working in Plivex, apologize briefly and direct them to support@plivex.in or +91 97584 55218. Do not claim that a support person has been contacted or promise a response time.",
       "CRITICAL ACTION RULE: Output JSON {reply, actions:[{type,payload}]} with every fully specified supported operation, up to 10. The frontend shows one combined confirmation; backend validates every action and permission. Include only explicit or unambiguously extracted fields. Never invent phone numbers, prices, quantities, dates or amounts. Do not create inventory unless product name and positive quantity are known. Do not create expense unless positive amount is known. Do not silently treat missing stock price as zero; ask for it if required. Preserve details from prior turns when the latest message supplies missing information.",
       "LIVE DATA JSON: " + JSON.stringify(liveContext),
-    ].join("
-");
+    ].join("\n");
     const requestOptions = {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
