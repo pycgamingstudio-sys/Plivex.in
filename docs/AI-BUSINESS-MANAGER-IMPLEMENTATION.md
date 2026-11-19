@@ -63,3 +63,7 @@ The assistant live context now includes bounded workspace-scoped reads for activ
 - Idempotent retries and explicit duplicate reporting.
 - Tests cover Hindi/Hinglish/English variants, typo/noisy input, multi-intent requests, ambiguity, invalid values, permissions, retries and failures.
 - Production deployment and destructive schema changes require explicit approval.
+
+
+## Assistant identity
+The user-facing AI assistant is named **Plivex Nova** (short name: **Nova**). Use this name consistently in the assistant UI and system identity. Nova is an assistant within Plivex Intelligence; its capability claims must remain limited to connected, tested modules.
