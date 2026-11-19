@@ -1,21 +1,20 @@
 /**
  * Deterministic, advisory business-intent hints for Plivex AI.
- * These hints never authorize writes; server validators and the confirmation RPC remain authoritative.
+ * These hints never authorize writes; server validators and confirmation remain authoritative.
  */
 const AMOUNT_RE = /^\s*(?:₹|rs\.?\s*|inr\s*)?([0-9][0-9,]*(?:\.[0-9]+)?)\s*(k|thousand|lakh|lac|cr|crore)?\s*$/i;
 const MULTIPLIERS = Object.freeze({ k: 1000, thousand: 1000, lakh: 100000, lac: 100000, cr: 10000000, crore: 10000000 });
 
 export function parseBusinessAmount(value) {
-  const source = String(value ?? "").trim();
+  const source = String(value ?? "").normalize("NFKC").trim();
   const match = source.match(AMOUNT_RE)
     || source.match(/(?:₹|rs\.?\s*|inr\s*)([0-9][0-9,]*(?:\.[0-9]+)?)\s*(k|thousand|lakh|lac|cr|crore)?/i)
-    || source.match(/(?:rate|price|amount|total|rakam|keemat|kimat|daam)\s*(?:is|hai|[:=])?\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*(k|thousand|lakh|lac|cr|crore)?/i)
+    || source.match(/(?:rate|price|amount|total|rakam|keemat|kimat|daam|रकम|कीमत|दाम)\s*(?:is|hai|है|[:=])?\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*(k|thousand|lakh|lac|cr|crore)?/i)
     || source.match(/([0-9][0-9,]*(?:\.[0-9]+)?)\s*(k|thousand|lakh|lac|cr|crore)\b/i);
   if (!match) return null;
   const base = Number(match[1].replace(/,/g, ""));
   if (!Number.isFinite(base) || base < 0) return null;
-  const multiplier = MULTIPLIERS[String(match[2] || "").toLowerCase()] || 1;
-  const amount = base * multiplier;
+  const amount = base * (MULTIPLIERS[String(match[2] || "").toLowerCase()] || 1);
   return Number.isSafeInteger(Math.round(amount * 100)) ? amount : null;
 }
 
@@ -26,10 +25,9 @@ const UNIT_ALIASES = Object.freeze({
   pc: "pcs", pcs: "pcs", piece: "pcs", pieces: "pcs", packet: "packet", packets: "packet",
   box: "box", boxes: "box", dozen: "dozen",
 });
-const UNIT_PATTERN = Object.keys(UNIT_ALIASES).sort((a, b) => b.length - a.length).join("|");
 
 export function parseBusinessQuantity(value) {
-  const match = String(value ?? "").trim().match(/([0-9]+(?:\.[0-9]+)?)\s*(kilograms|kilogram|kilos|kilo|kgs|kg|grams|gram|gm|g|liters|litres|liter|litre|ltr|lt|l|pieces|piece|pcs|pc|packets|packet|boxes|box|dozen)\b/i);
+  const match = String(value ?? "").normalize("NFKC").trim().match(/([0-9]+(?:\.[0-9]+)?)\s*(kilograms|kilogram|kilos|kilo|kgs|kg|grams|gram|gm|g|liters|litres|liter|litre|ltr|lt|l|pieces|piece|pcs|pc|packets|packet|boxes|box|dozen)\b/i);
   if (!match) return null;
   const quantity = Number(match[1]);
   if (!Number.isFinite(quantity) || quantity <= 0) return null;
@@ -37,27 +35,29 @@ export function parseBusinessQuantity(value) {
 }
 
 const RULES = [
-  { type: "create_invoice", pattern: /\b(create|make|prepare|generate|bana(?:o|na)?|taiyar)\b.{0,35}\b(invoice|bill|invoic)\b|\b(invoice|bill)\b.{0,35}\b(create|make|bana(?:o|na)?)\b|invoice\s+(?:bana|banao|kar do)|इनवॉइस|चालान\s+बना/iu },
-  { type: "create_quotation", pattern: /\b(create|make|prepare|bana(?:o|na)?)\b.{0,35}\b(quotation|quote|estimate)\b|\b(quotation|quote|estimate)\b.{0,35}\b(create|make|bana(?:o|na)?)\b|कोटेशन\s+बना/iu },
-  { type: "create_client", pattern: /\b(add|create|save|register|jod(?:o)?|bana(?:o|na)?|darj)\b.{0,35}\b(client|customer)\b|\b(client|customer)\b.{0,35}\b(add|create|save|jod(?:o)?)\b|ग्राहक\s+जोड़/iu },
-  { type: "create_expense", pattern: /\b(add|record|save|create|darj)\b.{0,30}\b(expense|kharcha|kharch)\b|\b(expense|kharcha|kharch)\b.{0,30}\b(add|record|save|create|darj)\b|खर्च\s+दर्ज/iu },
-  { type: "create_lead", pattern: /\b(add|create|save|jod(?:o)?)\b.{0,30}\b(lead|prospect)\b|\b(lead|prospect)\b.{0,30}\b(add|create|save)\b/iu },
-  { type: "create_stock", pattern: /\b(add|create|save|jod(?:o)?|bana(?:o)?)\b.{0,35}\b(stock item|inventory item|product)\b|\b(stock item|inventory item|product)\b.{0,35}\b(add|create|save)\b|\bstock\s+mein\s+(?:add|jod)/iu },
-  { type: "create_purchase_order", pattern: /\b(purchase order|po)\b|\b(order|mangwa(?:ya|i)|mangwaya)\b.{0,35}\b(stock|maal|goods|saman)\b|\b(stock|maal|goods|saman)\b.{0,35}\b(order|mangwa)/iu },
-  { type: "receive_stock", pattern: /\b(receive|received)\s+(?:the\s+)?(?:stock|goods|inventory|items|maal)\b|\b(goods receipt|grn|stock received|received stock|maal aa gaya|maal mil gaya|stock aa gaya)\b|माल\s+(?:आ\s+गया|मिल\s+गया)/iu },
-  { type: "create_warehouse", pattern: /\b(add|create|open|bana(?:o)?)\b.{0,30}\b(warehouse|godown)\b|\b(warehouse|godown)\b.{0,30}\b(add|create|open|bana)/iu },
-  { type: "stock_transfer", pattern: /\b(transfer|move|shift)\b.{0,40}\b(stock|inventory|warehouse|godown)\b|\b(stock|inventory)\b.{0,40}\b(transfer|move|shift)\b/iu },
-  { type: "payment_incoming", pattern: /\b(customer paid|payment received|received payment|paise mile|payment aaya|jama hua)\b|पेमेंट\s+मिला/iu },
-  { type: "payment_outgoing", pattern: /\b(paid|payment made|paid to|sent payment|paise diye|payment kiya)\b|भुगतान\s+किया/iu },
+  { type: "create_invoice", pattern: /\b(create|make|prepare|generate|issue|draft|bana(?:o|na)?|taiyar|nikal(?:o)?|bnao)\b.{0,55}\b(invoice|bill|invoic|tax invoice)\b|\b(invoice|bill|invoic)\b.{0,55}\b(create|make|prepare|generate|bana(?:o|na)?|taiyar)\b|invoice\s+(?:bana|banao|kar do)|इनवॉइस|चालान\s*(?:बना|तैयार)|बिल\s*बना/iu },
+  { type: "create_quotation", pattern: /\b(create|make|prepare|generate|draft|bana(?:o|na)?)\b.{0,55}\b(quotation|quote|estimate|proposal)\b|\b(quotation|quote|estimate|proposal)\b.{0,55}\b(create|make|prepare|bana(?:o|na)?)\b|कोटेशन\s*(?:बना|तैयार)|अनुमान\s*बना/iu },
+  { type: "create_client", pattern: /\b(add|create|save|register|insert|new|jod(?:o|na)?|bana(?:o|na)?|darj|likh(?:o)?|rakh(?:o)?)\b.{0,55}\b(client|customer|buyer|grahak|customer detail)\b|\b(client|customer|buyer|grahak)\b.{0,55}\b(add|create|save|register|jod(?:o|na)?|bana(?:o|na)?)\b|ग्राहक\s*(?:जोड़|बना|दर्ज)|नया\s*कस्टमर/iu },
+  { type: "create_expense", pattern: /\b(add|record|save|create|log|enter|book|note|darj|likh(?:o)?|jod(?:o)?)\b.{0,45}\b(expense|kharcha|kharch|spend|outgoing payment|business cost)\b|\b(expense|kharcha|kharch|business cost)\b.{0,45}\b(add|record|save|create|log|enter|book|darj|jod(?:o)?)\b|खर्च\s*(?:दर्ज|जोड़|लिख)|व्यय\s*दर्ज/iu },
+  { type: "create_lead", pattern: /\b(add|create|save|register|capture|jod(?:o|na)?)\b.{0,45}\b(lead|prospect|enquiry|inquiry|potential customer)\b|\b(lead|prospect|enquiry|inquiry)\b.{0,45}\b(add|create|save|capture|jod(?:o)?)\b|नई\s*(?:लीड|पूछताछ)/iu },
+  { type: "create_stock", pattern: /\b(add|create|save|jod(?:o|na)?|bana(?:o)?|list|register|enter)\b.{0,50}\b(stock item|inventory item|product|item master|new item|product item)\b|\b(stock item|inventory item|product|item master|new item)\b.{0,50}\b(add|create|save|jod(?:o)?|register)\b|\bstock\s+(?:mein|me)\s+(?:add|jod)|inventory\s+mein\s+add|नया\s*(?:प्रोडक्ट|सामान)|माल\s*की\s*एंट्री/iu },
+  { type: "create_purchase_order", pattern: /\b(purchase order|po|buying order|supplier order)\b|\b(order|mangwa(?:ya|i|o)?|mangwaya|purchase|procure)\b.{0,55}\b(stock|maal|goods|saman|items|products|supplier)\b|\b(stock|maal|goods|saman|items|products)\b.{0,55}\b(order|mangwa|purchase|procure)\b|खरीद\s*(?:ऑर्डर|आर्डर)|माल\s*(?:मंगवा|ऑर्डर)/iu },
+  { type: "receive_stock", pattern: /\b(receive|received|accept|book in)\s+(?:the\s+)?(?:stock|goods|inventory|items|maal)\b|\b(goods receipt|grn|stock received|received stock|maal aa gaya|maal mil gaya|stock aa gaya|delivery received)\b|माल\s*(?:आ\s*गया|मिल\s*गया|प्राप्त)|स्टॉक\s*(?:मिल|आ)\s*गया/iu },
+  { type: "create_warehouse", pattern: /\b(add|create|open|register|set up|bana(?:o)?|jod(?:o)?)\b.{0,45}\b(warehouse|godown|stockroom|store room)\b|\b(warehouse|godown|stockroom|store room)\b.{0,45}\b(add|create|open|register|bana|jod)\b|गोदाम\s*(?:बना|जोड़|खोल)|नया\s*वेयरहाउस/iu },
+  { type: "stock_transfer", pattern: /\b(transfer|move|shift|send|relocate)\b.{0,55}\b(stock|inventory|warehouse|godown|items)\b|\b(stock|inventory|items)\b.{0,55}\b(transfer|move|shift|relocate)\b|स्टॉक\s*(?:ट्रांसफर|भेज)|माल\s*(?:दूसरे गोदाम|एक गोदाम)/iu },
+  { type: "payment_incoming", pattern: /\b(customer paid|payment received|received payment|money received|amount received|got paid|paise mile|payment aaya|payment aa gaya|jama hua|credit received)\b|पेमेंट\s*(?:मिला|आया)|पैसे\s*(?:मिले|आए)|रकम\s*जमा/iu },
+  { type: "payment_outgoing", pattern: /\b(paid|payment made|paid to|sent payment|money sent|amount paid|i paid|we paid|paise diye|payment kiya|debit paid)\b|भुगतान\s*(?:किया|दिया)|पैसे\s*(?:दिए|भेजे)/iu },
+  { type: "supplier", pattern: /\b(add|create|save|register|new)\b.{0,45}\b(supplier|vendor)\b|\b(supplier|vendor)\b.{0,45}\b(add|create|save|register)\b|नया\s*(?:सप्लायर|विक्रेता)/iu },
+  { type: "staff", pattern: /\b(add|create|register|hire|onboard)\b.{0,45}\b(staff|employee|worker|team member)\b|\b(staff|employee|worker)\b.{0,45}\b(add|create|register|hire)\b|कर्मचारी\s*(?:जोड़|रख)|स्टाफ\s*जोड़/iu },
+  { type: "branch", pattern: /\b(add|create|open|register)\b.{0,45}\b(branch|outlet|location)\b|\b(branch|outlet)\b.{0,45}\b(add|create|open)\b|नई\s*(?:ब्रांच|शाखा)/iu },
+  { type: "automation", pattern: /\b(automate|schedule|set up|create)\b.{0,45}\b(reminder|recurring|workflow|automation|follow.?up)\b|\b(reminder|workflow|automation)\b.{0,45}\b(automate|schedule|set up|create)\b|ऑटोमेट|रिमाइंडर\s*लग/iu },
 ];
 
 export function classifyBusinessIntents(value) {
-  const source = String(value ?? "").normalize("NFKC").trim();
+  const source = String(value ?? "").normalize("NFKC").replace(/[’‘]/g, "'").trim();
   if (!source) return [];
   const found = [];
-  for (const rule of RULES) {
-    if (rule.pattern.test(source)) found.push(rule.type);
-  }
+  for (const rule of RULES) if (rule.pattern.test(source)) found.push(rule.type);
   return [...new Set(found)];
 }
 
@@ -82,10 +82,7 @@ export function buildBusinessIntentHints(value) {
     });
   }
   return {
-    intents,
-    quantity,
-    amount,
-    ambiguities,
+    intents, quantity, amount, ambiguities,
     policy: "Advisory only: hints do not authorize or validate any write. Ask when the operation is ambiguous; use only server-allow-listed tools and require the normal confirmation flow.",
   };
 }
