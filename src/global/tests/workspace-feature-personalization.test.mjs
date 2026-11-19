@@ -127,17 +127,21 @@ test("expense and lead entry modals receive the active workspace currency explic
   assert.match(crm, /\{ \.\.\.entry, currencyCode, nextFollowUpAt/);
 });
 
-test("invoice editor uses canonical workspace_settings currency rather than stale profile currency", async () => {
+test("invoice editor and pricing use authenticated canonical workspace country rather than stale profile currency", async () => {
   const home = await read("../../pages/Home.jsx");
-  assert.match(home, /supabase\.from\("workspace_settings"\)/);
-  assert.match(home, /select\("country_code,currency_code,locale_code"\)/);
-  assert.match(home, /const countryCode = String\(settings\?\.country_code/);
-  assert.match(home, /const currencyCode = String\(settings\?\.currency_code/);
+  const loaderStart = home.indexOf("const countryCode = String(user?.country_code");
+  const loaderEnd = home.indexOf("// Canonical workspace_settings is the only source");
+  const loader = home.slice(loaderStart, loaderEnd);
+  assert.ok(loaderStart >= 0);
+  assert.match(loader, /user\?\.country_code/);
+  assert.match(loader, /user\?\.currency_code/);
+  assert.match(loader, /resolveInvoiceCurrencyForWorkspace\(countryCode, currencyCode\)/);
+  assert.match(loader, /setWorkspaceTaxProfileLoading\(false\)/);
+  assert.doesNotMatch(loader, /supabase\.from\("workspace_settings"\)/);
   assert.match(home, /const effectiveWorkspaceTaxProfile = workspaceTaxProfile/);
   assert.match(home, /countryCode=\{workspaceTaxProfile\?\.countryCode \|\| ""\}/);
   assert.match(home, /currencyCode=\{workspaceTaxProfile\?\.currencyCode \|\| ""\}/);
   assert.doesNotMatch(home, /countryCode=\{user\?\.country_code \|\| workspaceTaxProfile/);
-  assert.doesNotMatch(home, /if \(!user\?\.country_code \|\| !user\?\.currency_code\) return;/);
 });
 
 
