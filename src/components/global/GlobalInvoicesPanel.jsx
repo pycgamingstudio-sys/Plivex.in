@@ -46,7 +46,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ clientId:"", issueDate:today(), dueDate:"", description:"", quantity:"1", unitPrice:"" });
+  const [form, setForm] = useState({ clientId:"", issueDate:today(), dueDate:"", description:"", quantity:"1", unitPrice:"", documentType:"commercial" });
   const [taxContext, setTaxContext] = useState({
     countryCode, mode:"automatic", priceMode:"exclusive", placeOfSupply:"",
     placeOfSupplyConfirmed:false, taxCategory:"standard-rated", taxCategoryConfirmed:true,
@@ -121,6 +121,13 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     discountType:"fixed", discount:Number(selected?.discount_minor || 0) / (10 ** digits(currency)), globalTax:taxContext,
   }), [currency, form.issueDate, profile, selected, selectedItems, taxContext]);
   const taxPreview = useMemo(() => calculateInvoiceGlobalTax(previewInvoice, workspaceProfile), [previewInvoice, workspaceProfile]);
+  const createPreviewInvoice = useMemo(() => ({
+    currency, issueDate:form.issueDate,
+    business:{ name:profile?.legal_name || profile?.display_name || "", address:profile?.address || "" },
+    items:form.description.trim() ? [{ quantity:Number(form.quantity), rate:Number(form.unitPrice) }] : [],
+    discountType:"fixed", discount:0, globalTax:taxContext,
+  }), [currency, form.description, form.issueDate, form.quantity, form.unitPrice, profile, taxContext]);
+  const createTaxPreview = useMemo(() => calculateInvoiceGlobalTax(createPreviewInvoice, workspaceProfile), [createPreviewInvoice, workspaceProfile]);
 
   const saveProfile = async (event) => {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
@@ -141,12 +148,18 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
     try {
       if (!workspaceContext.ok) throw new Error("Your workspace country and base currency could not be verified. No fallback currency has been applied.");
-      if (!backendCapabilities.commercialIssuanceReady || !sellerProfileReady) {
-        throw new Error("Complete the seller legal name and business address, then wait for the server issuance service before creating a final invoice.");
+      const isTaxInvoice = form.documentType === "tax" && countryCode === "GB";
+      if (!sellerProfileReady) throw new Error("Complete the seller legal name and business address before issuing an invoice.");
+      if (isTaxInvoice && (!backendCapabilities.issuanceReady || createTaxPreview.ok !== true)) {
+        throw new Error(createTaxPreview.message || "Complete the verified UK VAT details before issuing this tax invoice.");
+      }
+      if (!isTaxInvoice && !backendCapabilities.commercialIssuanceReady) {
+        throw new Error("The server commercial-issuance service is not ready yet.");
       }
       const { data, error: invokeError } = await supabase.functions.invoke("global-invoices", {
         body:{
-          action:"create_final_commercial", workspace_id:account.workspace_id,
+          action:isTaxInvoice ? "create_final_tax" : "create_final_commercial",
+          workspace_id:account.workspace_id,
           client_id:form.clientId || null, currency_code:currency,
           issue_date:form.issueDate, due_date:form.dueDate || null,
           notes:null, idempotency_key:newId(),
@@ -154,6 +167,15 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
             description:form.description.trim(), quantity:Number(form.quantity),
             unit_price_minor:minor(form.unitPrice,currency), discount_minor:0, product_id:null,
           }],
+          ...(isTaxInvoice ? { tax_context:{
+            registration_confirmed:taxContext.registrationConfirmed === true,
+            place_of_supply_confirmed:taxContext.placeOfSupplyConfirmed === true,
+            tax_category_confirmed:taxContext.taxCategoryConfirmed === true,
+            tax_category:taxContext.taxCategory || "",
+            mode:taxContext.mode || "",
+            price_mode:taxContext.priceMode || "",
+            place_of_supply:taxContext.placeOfSupply || "",
+          } } : {}),
         },
       });
       if (invokeError) throw invokeError;
@@ -162,7 +184,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       }
       setSelectedId(data.invoice.id);
       setShowCreate(false);
-      setNotice("Final commercial invoice " + data.invoice.invoice_number + " issued by the server. Preparing its official PDF…");
+      setNotice((isTaxInvoice ? "Final tax invoice " : "Final commercial invoice ") + data.invoice.invoice_number + " issued by the server. Preparing its official PDF…");
       await refresh();
       await downloadPdf(data.invoice);
     } catch (e) { setError(e.message || "Could not create the final invoice."); }
@@ -454,6 +476,12 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
           <h2 className="font-semibold">New final invoice</h2>
           <form onSubmit={createDraft} className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="text-xs font-semibold text-slate-600">Customer<select className={field+" mt-1"} value={form.clientId} onChange={(e)=>setForm((v)=>({...v,clientId:e.target.value}))}><option value="">No customer selected</option>{clients.map((c)=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+            {countryCode==="GB" && <label className="text-xs font-semibold text-slate-600">Document type
+              <select className={field+" mt-1"} value={form.documentType} onChange={(e)=>setForm((v)=>({...v,documentType:e.target.value}))}>
+                <option value="commercial">Commercial invoice · tax not assessed</option>
+                <option value="tax">UK VAT tax invoice · calculate VAT</option>
+              </select>
+            </label>}
             <label className="text-xs font-semibold text-slate-600">Issue date<input required type="date" className={field+" mt-1"} value={form.issueDate} onChange={(e)=>setForm((v)=>({...v,issueDate:e.target.value}))}/></label>
             <label className="text-xs font-semibold text-slate-600">Due date<input type="date" className={field+" mt-1"} value={form.dueDate} onChange={(e)=>setForm((v)=>({...v,dueDate:e.target.value}))}/></label>
             <label className="text-xs font-semibold text-slate-600">Description<input required maxLength={500} className={field+" mt-1"} value={form.description} onChange={(e)=>setForm((v)=>({...v,description:e.target.value}))}/></label>
@@ -464,7 +492,8 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
                 <input required min="0" step="0.01" type="number" className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm outline-none" value={form.unitPrice} onChange={(e)=>setForm((v)=>({...v,unitPrice:e.target.value}))}/>
               </span>
             </label>
-            <div className="sm:col-span-2 flex items-center justify-between gap-3"><span className="text-sm text-slate-500">Draft amount: {money(minor(Number(form.quantity||0)*Number(form.unitPrice||0),currency),currency)}</span><button disabled={busy} className={button}>Create final invoice</button></div>
+            {countryCode==="GB" && form.documentType==="tax" && <div className="sm:col-span-2"><GlobalTaxEditor invoice={createPreviewInvoice} setInvoice={(updater)=>setTaxContext((old)=>typeof updater==="function"?updater({globalTax:old}).globalTax:updater.globalTax)} workspaceProfile={workspaceProfile} calculation={createTaxPreview}/></div>}
+            <div className="sm:col-span-2 flex items-center justify-between gap-3"><span className="text-sm text-slate-500">Invoice amount: {money(minor(Number(form.quantity||0)*Number(form.unitPrice||0),currency),currency)}</span><button disabled={busy || !sellerProfileReady || (form.documentType==="tax" ? !backendCapabilities.issuanceReady : !backendCapabilities.commercialIssuanceReady)} className={button}>Create final invoice</button></div>
           </form>
         </div>
       )}
