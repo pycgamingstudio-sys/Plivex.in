@@ -38,11 +38,12 @@ export function groupNumericTotals(items = [], valueField, groupField) {
  *   invoices?: Array<Record<string, unknown>>,
  *   stock?: Array<Record<string, unknown>>,
  *   stockMovements?: Array<Record<string, unknown>>,
+ *   purchaseOrders?: Array<Record<string, unknown>>,
  *   asOfDate?: string
  * }} input
  */
 export function buildAssistantBusinessAnalytics(input = {}) {
-  const { invoices = [], stock = [], stockMovements = [], asOfDate } = input;
+  const { invoices = [], stock = [], stockMovements = [], purchaseOrders = [], asOfDate } = input;
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(String(asOfDate || ""));
   const openInvoices = invoices.filter((item) => {
     const status = String(item?.status || "").toLowerCase();
@@ -64,6 +65,13 @@ export function buildAssistantBusinessAnalytics(input = {}) {
     threshold: finite(item?.low_stock, 5),
     unit: String(item?.unit || ""),
   }));
+  const openPurchaseOrders = purchaseOrders.filter((order) =>
+    !["received", "cancelled", "closed"].includes(String(order?.status || "").toLowerCase())
+  );
+  const overduePurchaseOrders = validDate ? openPurchaseOrders.filter((order) => {
+    const expectedDate = String(order?.expected_date || "");
+    return Boolean(expectedDate) && daysBetween(asOfDate, expectedDate) > 0;
+  }) : [];
   const movementTypes = stockMovements.reduce((counts, item) => {
     const type = String(item?.movement_type || "unknown").slice(0, 40);
     counts[type] = (counts[type] || 0) + 1;
@@ -80,8 +88,7 @@ export function buildAssistantBusinessAnalytics(input = {}) {
       },
       oldestOverdueDays: overdue.length ? Math.max(...overdue.map((item) => item.daysOverdue)) : 0,
     },
-    inventory: {
-      lowStockCount: lowStock.length,
+    purchasing: {\n      openOrderCount: openPurchaseOrders.length,\n      overdueExpectedOrderCount: overduePurchaseOrders.length,\n      overdueOrders: overduePurchaseOrders.slice(0, 30).map((order) => ({\n        supplier: String(order?.supplier_name || ""),\n        reference: String(order?.supplier_reference || order?.id || ""),\n        expectedDate: String(order?.expected_date || ""),\n        daysOverdue: daysBetween(asOfDate, String(order?.expected_date || "")),\n      })),\n    },\n    inventory: {\n      lowStockCount: lowStock.length,
       lowStockItems: lowStock,
       movementRecordCount: stockMovements.length,
       movementTypes,
