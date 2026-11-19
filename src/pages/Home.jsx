@@ -1111,7 +1111,7 @@ export default function Home() {
         </main>
       </div>
       {signatureOpen && <SignatureModal onClose={() => setSignatureOpen(false)} onSave={(data) => { setInvoice((old) => ({ ...old, signature: data })); notify("Signature saved"); }} />}
-      {pricingOpen && <PricingModal onClose={() => { setPricingOpen(false); setCheckoutNotice(""); }} onCheckout={checkout} checkoutNotice={checkoutNotice} profileLoading={workspaceTaxProfileLoading} userEmail={user?.email} countryCode={workspaceTaxProfile?.countryCode || ""} currencyCode={workspaceTaxProfile?.currencyCode || ""} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} />}
+      {pricingOpen && <PricingModal onClose={() => { setPricingOpen(false); setCheckoutNotice(""); }} onCheckout={checkout} checkoutNotice={checkoutNotice} profileLoading={workspaceTaxProfileLoading && !(user?.country_code && user?.currency_code)} userEmail={user?.email} countryCode={user?.country_code || workspaceTaxProfile?.countryCode || ""} currencyCode={user?.currency_code || workspaceTaxProfile?.currencyCode || ""} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} />}
       {whatsappOpen && <WhatsAppNumberModal value={whatsappNumber} onChange={setWhatsappNumber} onClose={() => setWhatsappOpen(false)} onSend={() => sendWhatsApp(whatsappNumber)} sending={whatsappSending} />}
       <PresenceBeacon />
       <Toast toast={toast} onClose={() => setToast(null)} />
