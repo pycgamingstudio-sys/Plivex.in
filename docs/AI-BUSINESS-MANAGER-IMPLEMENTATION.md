@@ -5,6 +5,7 @@
 - Treat model output, user text, files, OCR and tool results as untrusted data.
 - The model may propose allow-listed actions; only server validators and authenticated backend executors may write.
 - A prepared draft is not a saved record. Report success only after the backend confirms and the result is verified.
+- After an atomic save, the confirmation endpoint re-reads each created record within the authenticated workspace; the UI distinguishes verified saves from accepted-but-unverified outcomes.
 - Ask one focused clarification when a required field or the intended business operation is genuinely ambiguous.
 - Never claim a capability is live merely because its database table exists.
 
