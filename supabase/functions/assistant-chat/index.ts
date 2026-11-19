@@ -535,7 +535,7 @@ async function handleRequest(req: Request) {
     // JWT through the Supabase client; the Global function re-checks membership.
     const needsGlobalFinanceContext = deterministicIntentHints.intents.includes("payment_incoming") || /invoice|bill|payment|paid|received|refund|reconcil|ledger|balance|outstanding|due|receivable|payable|paise|jama|bhugtan|पेमेंट|भुगतान|पैसे|रकम/i.test(String(latestUserText));
     const needsGlobalClientContext = /\b(client|customer|grahak)\b|ग्राहक|कस्टमर/i.test(String(latestUserText));
-    const needsGlobalExpenseContext = /\b(expense|kharcha|kharch|spend|business cost)\b|खर्च|व्यय/i.test(String(latestUserText));
+    const needsGlobalExpenseContext = /\b(expense|expenses|kharcha|kharch|spend|spent|spending|business cost|cost|costs|outgoing|debit)\b|खर्च|व्यय/i.test(String(latestUserText));
     const globalContextPromise = isGlobalWorkspace || needsGlobalFinanceContext || needsGlobalClientContext || needsGlobalExpenseContext
       ? (async () => {
           let timeoutId: ReturnType<typeof setTimeout> | undefined;
