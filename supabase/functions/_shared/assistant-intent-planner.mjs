@@ -40,7 +40,7 @@ const RULES = [
   { type: "create_invoice", pattern: /\b(create|make|prepare|generate|bana(?:o|na)?|taiyar)\b.{0,35}\b(invoice|bill|invoic)\b|\b(invoice|bill)\b.{0,35}\b(create|make|bana(?:o|na)?)\b|invoice\s+(?:bana|banao|kar do)|इनवॉइस|चालान\s+बना/iu },
   { type: "create_quotation", pattern: /\b(create|make|prepare|bana(?:o|na)?)\b.{0,35}\b(quotation|quote|estimate)\b|\b(quotation|quote|estimate)\b.{0,35}\b(create|make|bana(?:o|na)?)\b|कोटेशन\s+बना/iu },
   { type: "create_client", pattern: /\b(add|create|save|register|jod(?:o)?|bana(?:o|na)?|darj)\b.{0,35}\b(client|customer)\b|\b(client|customer)\b.{0,35}\b(add|create|save|jod(?:o)?)\b|ग्राहक\s+जोड़/iu },
-  { type: "create_expense", pattern: /\b(add|record|save|create|darj)\b.{0,30}\b(expense|kharcha|kharch)\b|\b(expense|kharcha|kharch)\b.{0,30}\b(add|record|save|create)\b|खर्च\s+दर्ज/iu },
+  { type: "create_expense", pattern: /\b(add|record|save|create|darj)\b.{0,30}\b(expense|kharcha|kharch)\b|\b(expense|kharcha|kharch)\b.{0,30}\b(add|record|save|create|darj)\b|खर्च\s+दर्ज/iu },
   { type: "create_lead", pattern: /\b(add|create|save|jod(?:o)?)\b.{0,30}\b(lead|prospect)\b|\b(lead|prospect)\b.{0,30}\b(add|create|save)\b/iu },
   { type: "create_stock", pattern: /\b(add|create|save|jod(?:o)?|bana(?:o)?)\b.{0,35}\b(stock item|inventory item|product)\b|\b(stock item|inventory item|product)\b.{0,35}\b(add|create|save)\b|\bstock\s+mein\s+(?:add|jod)/iu },
   { type: "create_purchase_order", pattern: /\b(purchase order|po)\b|\b(order|mangwa(?:ya|i)|mangwaya)\b.{0,35}\b(stock|maal|goods|saman)\b|\b(stock|maal|goods|saman)\b.{0,35}\b(order|mangwa)/iu },
