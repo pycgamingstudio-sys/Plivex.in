@@ -148,7 +148,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
         {filtered.length === 0 ? (
           <Empty label="No expenses match your filters." />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[640px] text-left text-[12px]">
               <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 <tr>
@@ -229,6 +229,13 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
                 })}
               </tbody>
             </table>
+          </div>
+          <div className="space-y-2.5 p-3 md:hidden">
+            {rows.map((expense) => <article key={expense.id} className="rounded-xl border border-slate-200 p-3.5">
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words text-[13px] font-bold text-slate-900">{expense.vendor}</p><p className="mt-0.5 text-[10px] text-slate-500">{expense.category} · {dateLabel(expense.date)}</p></div><p className="shrink-0 text-[13px] font-bold text-slate-900">{recordedExpenseAmount(expense)}</p></div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3"><span className={"rounded-full px-2.5 py-1 text-[10px] font-bold " + statusCls(expenseStatus(expense))}>{expenseStatus(expense)}</span><div className="flex items-center gap-2"><select value={expense.status || "Unpaid"} onChange={(event) => setStatus(expense.id, event.target.value)} aria-label={"Change status for " + expense.vendor} className="min-h-9 max-w-[125px] rounded-lg border border-slate-200 bg-white px-2 text-[10px]"><option value="Pending">Pending</option><option value="Unpaid">Unpaid</option><option value="Received">Received</option><option value="Paid">Paid</option><option value="Cancelled">Cancelled</option></select><button type="button" onClick={() => remove(expense.id)} aria-label={"Delete expense for " + expense.vendor} className="min-h-9 rounded-lg border border-rose-100 px-3 text-[11px] font-semibold text-rose-700">Delete</button></div></div>
+              {expense.notes && <p className="mt-2 text-[11px] leading-relaxed text-slate-500">{expense.notes}</p>}
+            </article>)}
           </div>
         )}
 
