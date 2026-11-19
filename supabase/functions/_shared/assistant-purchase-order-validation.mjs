@@ -5,6 +5,7 @@ const finite = (value) => {
   const number = Number(value);
   return Number.isFinite(number) ? number : NaN;
 };
+const precision4 = (value) => Number.isSafeInteger(Math.round(value * 10000)) && Math.abs(value * 10000 - Math.round(value * 10000)) < 1e-7;
 const realDate = (value) => {
   if (!DATE_RE.test(value)) return false;
   const [year, month, day] = value.split("-").map(Number);
@@ -22,7 +23,7 @@ export function validatePurchaseOrderAction(action) {
   const supplierName = clean(rawSupplierName, 200);
   if (!Array.isArray(raw.items) || raw.items.length < 1 || raw.items.length > 200) return null;
   const items = raw.items.map((item) => ({
-    stock_id: clean(item?.stock_id, 36),
+    stock_id: String(item?.stock_id ?? "").trim(),
     quantity_ordered: finite(item?.quantity_ordered),
     unit_cost: finite(item?.unit_cost),
   }));
@@ -30,11 +31,13 @@ export function validatePurchaseOrderAction(action) {
   if (items.some((item) =>
     !UUID_RE.test(item.stock_id)
     || !(item.quantity_ordered > 0)
-    || !Number.isSafeInteger(Math.round(item.quantity_ordered * 10000)) || Math.round(item.quantity_ordered * 10000) !== item.quantity_ordered * 10000
+    || !precision4(item.quantity_ordered)
     || !(item.unit_cost >= 0)
-    || !Number.isSafeInteger(Math.round(item.unit_cost * 10000)) || Math.round(item.unit_cost * 10000) !== item.unit_cost * 10000
+    || !precision4(item.unit_cost)
   )) return null;
-  const expectedDate = clean(raw.expected_date, 10);
+  const rawExpectedDate = String(raw.expected_date ?? "").trim();
+  if (rawExpectedDate.length > 10) return null;
+  const expectedDate = clean(rawExpectedDate, 10);
   if (expectedDate && !realDate(expectedDate)) return null;
   return {
     type: "create_purchase_order",
