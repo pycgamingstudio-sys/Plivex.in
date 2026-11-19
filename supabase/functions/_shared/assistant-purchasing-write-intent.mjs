@@ -10,7 +10,7 @@ export function detectPurchasingWriteIntent(value, {
   const goodsReceiptMention = /\b(?:goods\s*receipt|grn|stock\s*received|receive\s+(?:stock|goods))\b|\bmaal\s+(?:aa\s+gaya|mil\s+gaya)\b|माल\s+(?:आ\s+गया|मिल\s+गया)/i.test(source);
   return {
     purchaseOrderIntentActive: purchaseOrderMention && (explicitWriteIntent || awaitingPurchaseOrderField || /\bmangwa(?:ya|i)\b|\bmangwaya\b/i.test(source)),
-    warehouseIntentActive: warehouseMention && (explicitWriteIntent || awaitingWarehouseField),
+    warehouseIntentActive: awaitingWarehouseField || (warehouseMention && (explicitWriteIntent || /\\b(?:open|opened|khola|kholna|bana(?:o|na)?)\\b/i.test(source))),
     goodsReceiptIntentActive: goodsReceiptMention && (explicitWriteIntent || awaitingGoodsReceiptField || /\b(?:stock\s*received|maal\s+(?:aa\s+gaya|mil\s+gaya))\b|माल\s+(?:आ\s+गया|मिल\s+गया)/i.test(source)),
   };
 }
