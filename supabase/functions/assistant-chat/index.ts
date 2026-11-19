@@ -566,11 +566,11 @@ async function handleRequest(req: Request) {
               action: {
                 type: "OBJECT",
                 properties: {
-                  type: { type: "STRING", enum: ["none", "create_client", "create_expense", "create_lead", "create_stock", "create_quotation", "create_invoice", "create_purchase_order", "receive_purchase_order", "create_warehouse"] },
+                  type: { type: "STRING", enum: ["none", "create_client", "create_expense", "create_lead", "create_stock", "create_quotation", "create_invoice", "create_purchase_order", "receive_purchase_order", "create_warehouse", "record_global_invoice_payment"] },
                   payload: {
                     type: "OBJECT",
                     properties: {
-                      name: { type: "STRING" }, company: { type: "STRING" }, email: { type: "STRING" }, phone: { type: "STRING" }, gstin: { type: "STRING" }, address: { type: "STRING" },
+                      name: { type: "STRING" }, company: { type: "STRING" }, email: { type: "STRING" }, phone: { type: "STRING" }, gstin: { type: "STRING" }, address: { type: "STRING" }, invoice_id: { type: "STRING" }, currency_code: { type: "STRING" }, payment_date: { type: "STRING" }, reference: { type: "STRING" },
                       vendor: { type: "STRING" }, category: { type: "STRING" }, amount: { type: "NUMBER" }, date: { type: "STRING" }, status: { type: "STRING" }, method: { type: "STRING" }, notes: { type: "STRING" },
                       requirement: { type: "STRING" }, value: { type: "NUMBER" }, stage: { type: "STRING" },
                       sku: { type: "STRING" }, quantity: { type: "NUMBER" }, unit: { type: "STRING" }, price: { type: "NUMBER" }, low_stock: { type: "NUMBER" },
