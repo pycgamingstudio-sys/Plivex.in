@@ -17,7 +17,9 @@ test("India and Global experiences share the same Plivex application shell and n
   const global = read("../../global/GlobalApp.jsx");
   assert.doesNotMatch(app, /return <AppLayout><GlobalApp \/><\/AppLayout>/);
   assert.match(app, /<AuthProvider>/);
-  assert.ok(app.includes('<Route path="/dashboard" element={isGlobalWorkspace && isAuthenticated ? <AppLayout><GlobalApp section="overview" /></AppLayout> : <HomeGate />} />'));
+  assert.ok(app.includes('<Route path="/dashboard" element={<HomeGate />} />'));
+  const homeGate = read("../../components/HomeGate.jsx");
+  assert.ok(homeGate.includes("<TrialGate><AppLayout><GlobalApp section=\"overview\" /></AppLayout></TrialGate>"));
   assert.ok(app.includes('<Route path="/invoice-history" element={isGlobalWorkspace ? <GlobalApp section="invoices" /> : <InvoiceHistory />} />'));
   assert.match(layout, /GLOBAL_NAV/);
   assert.match(layout, /Global Workspace/);
