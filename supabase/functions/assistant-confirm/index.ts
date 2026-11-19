@@ -144,7 +144,8 @@ Deno.serve(async (req: Request) => {
       const { data: warehouseRow, error: verifyError } = await supabase.from("warehouses")
         .select("id,code,name,is_active").eq("workspace_id", profile.workspace_id)
         .eq("id", warehouse.warehouse_id).maybeSingle();
-      const verified = !verifyError && Boolean(warehouseRow?.id) && warehouseRow.is_active === true;
+      const verifiedWarehouse = !verifyError && warehouseRow?.id && warehouseRow.is_active === true ? warehouseRow : null;
+      const verified = Boolean(verifiedWarehouse);
       return json({
         ok: true,
         verified,
@@ -152,7 +153,7 @@ Deno.serve(async (req: Request) => {
         created: [{ type: "create_warehouse", id: warehouse.warehouse_id }],
         verification: [{ type: "create_warehouse", id: warehouse.warehouse_id, verified }],
         duplicate: Boolean(warehouse.duplicate),
-        warehouse: verified ? { code: warehouseRow.code, name: warehouseRow.name } : null,
+        warehouse: verifiedWarehouse ? { code: verifiedWarehouse.code, name: verifiedWarehouse.name } : null,
       }, 200, origin);
     }
     if (actions.some((action: any) => action.type === "create_purchase_order")) {
