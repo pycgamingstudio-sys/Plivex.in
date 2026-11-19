@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildAssistantBusinessAnalytics } from "./assistant-business-analytics.mjs";
+import { buildAssistantBusinessAnalytics, groupNumericTotals } from "./assistant-business-analytics.mjs";
 
 test("calculates overdue invoice aging without mixing monetary currencies", () => {
   const result = buildAssistantBusinessAnalytics({
@@ -49,4 +49,28 @@ test("does not calculate overdue aging without a valid reference date", () => {
   });
   assert.equal(result.receivables.openInvoiceCount, 1);
   assert.equal(result.receivables.overdueInvoiceCount, 0);
+});
+
+test("groups money by currency and never adds different currencies together", () => {
+  
+  const result = groupNumericTotals([
+    { total: 1200, currency: "INR" },
+    { total: 80, currency: "USD" },
+    { total: 300, currency: "INR" },
+  ], "total", "currency");
+  assert.equal(result.total, null);
+  assert.deepEqual(result.byGroup, { INR: 1500, USD: 80 });
+  assert.equal(result.mixedGroups, true);
+});
+
+test("returns a grand total only when inventory quantities share one unit", () => {
+  const { groupNumericTotals } = requireAnalyticsHelpers;
+  const mixed = groupNumericTotals([
+    { quantity: 10, unit: "kg" },
+    { quantity: 12, unit: "pcs" },
+  ], "quantity", "unit");
+  assert.equal(mixed.total, null);
+  assert.deepEqual(mixed.byGroup, { KG: 10, PCS: 12 });
+  const same = groupNumericTotals([{ quantity: 2, unit: "kg" }, { quantity: 3, unit: "kg" }], "quantity", "unit");
+  assert.equal(same.total, 5);
 });
