@@ -18,8 +18,40 @@ async function resolveSignedInEdition(currentUser) {
   // PLIVEX ONE has one runtime and one public workspace identity. The workspace
   // country controls regional settings; it never switches the user into a second app.
   if (isUnifiedBuild) {
-    setRuntimeEdition("india");
-    return currentUser;
+    const countryCode = String(currentUser?.country_code || "").trim().toUpperCase();
+    if (!countryCode || countryCode === "IN") {
+      setRuntimeEdition("india");
+      return currentUser;
+    }
+
+    // A unified build must resolve non-India workspace identity from the
+    // server-owned Global membership, not the legacy India profile row.
+    const { data: globalContext, error: globalError } = await supabase.functions.invoke("global-auth-context", { body: {} });
+    const globalUser = globalContext?.user;
+    if (globalError || !globalUser?.id || globalUser.id !== currentUser?.id) {
+      throw new Error("Your Global workspace could not be verified. Your existing data has not been changed.");
+    }
+
+    if (globalUser.workspace_id) {
+      const verifiedCountry = String(globalUser.country_code || "").trim().toUpperCase();
+      if (!verifiedCountry || verifiedCountry === "IN") {
+        throw new Error("Your Global workspace country could not be verified. Your existing data has not been changed.");
+      }
+      setRuntimeEdition("global", { verifiedGlobal: true });
+      // Keep shared onboarding/migration fields from the India profile while
+      // replacing tenant identity and regional settings with verified Global data.
+      return { ...currentUser, ...globalUser };
+    }
+
+    // A new non-India signup has not provisioned a workspace yet. Let the
+    // shared onboarding flow create it; existing memberships must never fall
+    // back to a different tenant identity.
+    if (!currentUser?.workspace_id && !currentUser?.role) {
+      setRuntimeEdition("india");
+      return currentUser;
+    }
+
+    throw new Error("Your Global workspace could not be verified. Your existing data has not been changed.");
   }
   const existingCountry = String(currentUser?.country_code || "").trim().toUpperCase();
   if (!isUnifiedBuild && APP_EDITION !== "global" && (!existingCountry || existingCountry === "IN")) return currentUser;
