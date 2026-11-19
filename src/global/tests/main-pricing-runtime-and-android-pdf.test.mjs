@@ -78,3 +78,20 @@ test("non-India invoice drafts are rebound to verified workspace base currency w
   assert.match(stores, /invoice_snapshot: invoiceToSave/);
   assert.match(stores, /currency !== workspaceCurrency/);
 });
+
+test("pricing resolves canonical workspace currency even when optional business-profile lookup fails", async () => {
+  const home = await read("../../pages/Home.jsx");
+  const loader = home.slice(home.indexOf("async function loadWorkspaceTaxProfile()"), home.indexOf("// Canonical workspace_settings is the only source"));
+  assert.match(loader, /supabase\.from\("workspace_settings"\)/);
+  assert.match(loader, /let record = \{\};[\s\S]*?try \{[\s\S]*?workspaceRecords/);
+  assert.match(loader, /catch \{[\s\S]*?Registration details are optional/);
+  assert.doesNotMatch(loader, /Promise\.all/);
+});
+
+test("new invoice inserts set workspace base currency before the existing currency guard", async () => {
+  const migration = await read("../../../supabase/migrations/20261119000100_set_invoice_workspace_base_currency_before_insert.sql");
+  assert.match(migration, /SELECT upper\(trim\(currency_code\)\)[\s\S]*?FROM public\.workspace_settings/);
+  assert.match(migration, /NEW\.currency := _base_currency/);
+  assert.match(migration, /BEFORE INSERT ON public\.invoices/);
+  assert.match(migration, /a_set_invoice_workspace_base_currency/);
+});
