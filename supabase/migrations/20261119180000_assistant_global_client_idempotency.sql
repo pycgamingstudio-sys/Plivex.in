@@ -50,7 +50,7 @@ BEGIN
   -- Serialize same-name/email checks so simultaneous confirmations cannot create duplicates.
   PERFORM pg_advisory_xact_lock(hashtextextended(
     v_workspace_id::text || ':global-client:' ||
-    lower(regexp_replace(btrim(p_values->>'name'), '\\s+', ' ', 'g')), 0
+    lower(regexp_replace(btrim(p_values->>'name'), '\s+', ' ', 'g')), 0
   ));
 
   INSERT INTO public.assistant_action_batches(workspace_id, user_id, idempotency_key, request_hash)
@@ -81,8 +81,8 @@ BEGIN
     FROM global.clients
     WHERE workspace_id = v_workspace_id
       AND (
-        lower(regexp_replace(btrim(name), '\\s+', ' ', 'g')) =
-          lower(regexp_replace(btrim(p_values->>'name'), '\\s+', ' ', 'g'))
+        lower(regexp_replace(btrim(name), '\s+', ' ', 'g')) =
+          lower(regexp_replace(btrim(p_values->>'name'), '\s+', ' ', 'g'))
         OR (nullif(btrim(p_values->>'email'), '') IS NOT NULL
           AND lower(coalesce(email, '')) = lower(btrim(p_values->>'email')))
       )
