@@ -112,8 +112,8 @@ export default function UnifiedWorkspaceOnboarding() {
   }[id] || id));
 
   return (
-    <main className="min-h-[100dvh] bg-[#F8F7FC] px-3 py-5 text-slate-900 sm:grid sm:place-items-center sm:px-5 sm:py-10">
-      <section className="mx-auto flex min-h-[min(780px,calc(100dvh-2.5rem))] w-full max-w-3xl flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_80px_rgba(36,20,74,0.10)]">
+    <main className="flex h-[100dvh] min-h-0 items-center justify-center overflow-hidden bg-[#F8F7FC] px-3 py-5 text-slate-900 sm:grid sm:place-items-center sm:px-5 sm:py-10">
+      <section className="mx-auto flex h-[calc(100dvh-2.5rem)] min-h-0 w-full max-w-3xl flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_80px_rgba(36,20,74,0.10)] sm:h-[min(780px,calc(100dvh-5rem))]">
         <header className="shrink-0 border-b border-slate-100 px-5 py-5 sm:px-8">
           <div className="flex items-center justify-between gap-3">
             <span className="text-lg font-black tracking-tight text-violet-700">Plivex</span>
@@ -125,7 +125,7 @@ export default function UnifiedWorkspaceOnboarding() {
           <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400"><span>{STEPS[step]}</span><span>{[20, 30, 55, 80, 100][step]}% complete</span></div>
         </header>
 
-        <div key={step} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-8 sm:py-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div key={step} className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain touch-pan-y px-5 py-6 sm:px-8 sm:py-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
           {step === 0 && <>
             <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><Globe2 className="h-6 w-6" /></div>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Choose your country.</h1>
