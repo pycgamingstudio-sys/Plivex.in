@@ -12,7 +12,8 @@ export const DEFAULT_OPENROUTER_MODELS = [
 function openAiMessages(geminiBody) {
   const systemText = (geminiBody?.system_instruction?.parts || [])
     .map((part) => typeof part?.text === "string" ? part.text : "")
-    .filter(Boolean).join("\n");
+    .filter(Boolean).join("
+");
   const messages = [];
   if (systemText) messages.push({ role: "system", content: systemText });
   for (const item of Array.isArray(geminiBody?.contents) ? geminiBody.contents : []) {
@@ -36,7 +37,8 @@ export function toOpenAiChatPayload(geminiBody, model) {
     model,
     messages: openAiMessages(geminiBody),
     max_tokens: geminiBody?.generationConfig?.maxOutputTokens || 2200,
-    response_format: { type: "json_object" },\n    provider: { data_collection: "deny", zdr: true },
+    response_format: { type: "json_object" },
+    provider: { data_collection: "deny", zdr: true },
   };
 }
 
@@ -122,7 +124,8 @@ export async function generateWithFallback({
       } else {
         result = await callOpenAiProvider({ ...attempt, key: attempt.provider === "groq" ? groqKey : openRouterKey, body, fetchImpl, deadline });
       }
-      assertJsonModelResult(result);\n      return { ok: true, provider: attempt.provider, model: attempt.model, result };
+      assertJsonModelResult(result);
+      return { ok: true, provider: attempt.provider, model: attempt.model, result };
     } catch (error) {
       lastStatus = Number(error?.status) || (error?.name === "TimeoutError" || error?.name === "AbortError" ? 504 : 503);
       console.warn("Nova provider attempt failed", {
