@@ -188,7 +188,7 @@ test("onboarding asks only Freelancer or Business and applies module defaults au
 });
 
 test("workspace feature database constraint accepts Stock Inventory and Team Members for freelancer upgrades", async () => {
-  const migration = await read("../../../supabase/migrations/20261119000200_workspace_optional_feature_catalog.sql");
+  const migration = await read("../../../supabase/migrations/20261119094339_workspace_optional_feature_catalog.sql");
   assert.match(migration, /drop constraint if exists workspace_settings_optional_features_check/);
   assert.match(migration, /'stock'[\s\S]*'team'[\s\S]*'inventoryWorkspace'/);
   assert.match(migration, /where workspace_type = 'business'/);
