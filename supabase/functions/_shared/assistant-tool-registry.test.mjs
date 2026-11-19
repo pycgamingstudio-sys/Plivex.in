@@ -42,7 +42,6 @@ test("catalog distinguishes implemented actions from planned modules", () => {
   assert.deepEqual(BUSINESS_MODULE_CATALOG.global_clients.writeTools, ["create_global_client"]);
   assert.deepEqual(BUSINESS_MODULE_CATALOG.global_expenses.writeTools, ["create_global_expense"]);
   assert.deepEqual(BUSINESS_MODULE_CATALOG.global_products.writeTools, ["create_global_product"]);
-  assert.deepEqual(BUSINESS_MODULE_CATALOG.global_products.writeTools, ["create_global_product"]);
   assert.equal(BUSINESS_MODULE_CATALOG.global_clients.planned, undefined);
   assert.equal(BUSINESS_MODULE_CATALOG.warehouses.planned, false);
   assert.equal(BUSINESS_MODULE_CATALOG.inventory.writeTools.includes("create_stock"), true);
