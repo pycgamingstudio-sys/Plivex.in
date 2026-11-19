@@ -14,12 +14,15 @@ function daysBetween(later, earlier) {
   return Math.floor((a - b) / 86400000);
 }
 
-export function buildAssistantBusinessAnalytics({
-  invoices = [],
-  stock = [],
-  stockMovements = [],
-  asOfDate,
+type BusinessRecord = Record<string, unknown>;
+
+export function buildAssistantBusinessAnalytics(input: {
+  invoices?: BusinessRecord[];
+  stock?: BusinessRecord[];
+  stockMovements?: BusinessRecord[];
+  asOfDate?: string;
 } = {}) {
+  const { invoices = [], stock = [], stockMovements = [], asOfDate } = input;
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(String(asOfDate || ""));
   const openInvoices = invoices.filter((item) => {
     const status = String(item?.status || "").toLowerCase();
