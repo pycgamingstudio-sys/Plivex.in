@@ -460,8 +460,8 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
           {currentPlan?.active && (
             <CurrentPlanCard planName={currentPlan.planName} benefits={activePlan?.included || []} startedAt={currentPlan.startedAt} expiresAt={currentPlan.expiresAt} />
           )}
-          <p className="mb-3 text-center text-xs text-slate-500">Billing country: {getCountryByCode(billingCountryCode)?.name || "Not resolved"} · {billingConfig?.currency || "Currency not resolved"}</p>
-          {!billingConfig && <p role="alert" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">Workspace country and currency could not be verified. Plivex has not substituted Indian pricing. Confirm the workspace country and base currency before choosing a paid plan.</p>}
+          <p className="mb-3 text-center text-xs text-slate-500">{resolvedBillingContext.loading ? "Verifying workspace billing country and currency…" : `Billing country: ${getCountryByCode(billingCountryCode)?.name || "Not resolved"} · ${billingConfig?.currency || "Currency not resolved"}`}</p>
+          {!resolvedBillingContext.loading && !billingConfig && <p role="alert" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">Workspace country and currency could not be verified. Plivex has not substituted Indian pricing. Confirm the workspace country and base currency before choosing a paid plan.</p>}
           {billingConfig && <div className="mb-4 flex items-center justify-center gap-2 rounded-xl bg-slate-100 p-1">
             <button onClick={() => setBilling("monthly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "monthly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Monthly</button>
             {billingConfig.yearly && <button onClick={() => setBilling("yearly")} className={`rounded-lg px-4 py-2 text-xs font-bold ${billing === "yearly" ? "bg-white text-[#6D28D9] shadow-sm" : "text-slate-500"}`}>Yearly</button>}
