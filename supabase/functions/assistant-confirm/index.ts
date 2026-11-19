@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
 import { validateGlobalInvoicePaymentAction, majorToMinorUnits } from "../_shared/assistant-global-payment-validation.mjs";
+import { validateGlobalClientAction } from "../_shared/assistant-global-client-validation.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
 import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
 import { validateWarehouseAction } from "../_shared/assistant-warehouse-validation.mjs";
@@ -40,6 +41,9 @@ function validateAction(action: unknown) {
   const candidate = action as Record<string, unknown>;
   const type = text(candidate.type, 40);
   const raw = candidate.payload && typeof candidate.payload === "object" ? candidate.payload as Record<string, unknown> : {};
+  if (type === "create_global_client") {
+    return validateGlobalClientAction(action);
+  }
   if (type === "record_global_invoice_payment") {
     return validateGlobalInvoicePaymentAction(action);
   }
@@ -118,6 +122,48 @@ Deno.serve(async (req: Request) => {
     if (actions.some((action: unknown) => !action)) return json({ error: "Some action details are missing or invalid. Nothing was saved." }, 400, origin);
     const idempotencyKey = text(body?.idempotencyKey,160);
     if (idempotencyKey.length < 16) return json({ error: "Confirmation key is missing. Please refresh the pending action and try again." }, 400, origin);
+    if (actions.some((action: any) => action.type === "create_global_client")) {
+      if (actions.length !== 1) return json({ error: "Global client creation must be confirmed separately so its workspace record remains idempotent." }, 400, origin);
+      const payload = actions[0].payload;
+      const canonical = JSON.stringify(actions);
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+      const requestHash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const { data: client, error: clientError } = await supabase.rpc("assistant_create_global_client_idempotent", {
+        p_idempotency_key: idempotencyKey,
+        p_request_hash: requestHash,
+        p_values: payload,
+      });
+      if (clientError) {
+        console.error("Global client creation rejected", { code: clientError.code, userId: user.id });
+        const message = String(clientError.message || "");
+        if (message.includes("PERMISSION_DENIED")) return json({ error: "Only a Global workspace owner, admin or manager can create a client." }, 403, origin);
+        if (message.includes("IDEMPOTENCY_PAYLOAD_MISMATCH")) return json({ error: "This confirmation key was already used for different client details. Prepare the client again." }, 409, origin);
+        return json({ error: "The Global client could not be created. Check the details and try again." }, 400, origin);
+      }
+      if (!client?.ok || !client?.client_id) {
+        const reason = String(client?.reason || "");
+        const message = reason === "forbidden" ? "Your Global workspace role cannot create clients."
+          : reason === "access_denied" ? "You do not have access to this Global workspace."
+          : "The Global client details were rejected. Nothing was saved.";
+        return json({ error: message }, reason === "forbidden" || reason === "access_denied" ? 403 : 400, origin);
+      }
+      const { data: clients, error: verifyError } = await supabase.functions.invoke("global-business-records", {
+        body: { action: "list", table: "clients", workspace_id: profile.workspace_id, limit: 100 },
+      });
+      const verifiedClient = !verifyError && clients?.ok && Array.isArray(clients.records)
+        ? clients.records.find((item: any) => item?.id === client.client_id && item?.name === payload.name)
+        : null;
+      const verified = Boolean(verifiedClient);
+      return json({
+        ok: true, verified, duplicate: Boolean(client.duplicate),
+        reply: verified
+          ? "Global client created and verified in your workspace."
+          : "The Global client service accepted the request, but Plivex could not verify the new record. Check the client list before retrying.",
+        created: [{ type: "create_global_client", id: client.client_id }],
+        verification: [{ type: "create_global_client", id: client.client_id, verified }],
+        client: verified ? { name: verifiedClient.name, email: verifiedClient.email || null } : null,
+      }, 200, origin);
+    }
     if (actions.some((action: any) => action.type === "record_global_invoice_payment")) {
       if (actions.length !== 1) return json({ error: "A Global invoice payment must be confirmed separately so its ledger entry remains atomic." }, 400, origin);
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) {
