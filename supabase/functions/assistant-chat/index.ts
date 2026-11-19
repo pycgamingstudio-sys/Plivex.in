@@ -29,9 +29,9 @@ const SUPPORTED_CURRENCIES = new Set(["INR", "USD", "EUR", "GBP", "AED", "CAD", 
 
 async function loadLiveContext(supabase: any, workspaceId: string) {
   const results = await Promise.all([
-    supabase.from("invoices").select("number,client_name,issue_date,due_date,status,subtotal,tax_value,total,is_draft,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
+    supabase.from("invoices").select("number,client_name,issue_date,due_date,status,subtotal,tax_value,total,currency,is_draft,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("clients").select("name,company,email,phone,gstin,address,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
-    supabase.from("stock").select("name,sku,quantity,unit,price,low_stock,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
+    supabase.from("stock").select("id,name,sku,quantity,unit,price,low_stock,warehouse_id,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("expenses").select("vendor,category,amount,date,status,method,notes,created_at").eq("workspace_id", workspaceId).order("date", { ascending: false }).limit(500),
     supabase.from("quotations").select("number,client_name,date,total,status,tax_rate,items,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("leads").select("name,phone,requirement,value,stage,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
@@ -57,24 +57,24 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
   const purchaseOrderItems = rows.purchase_order_items || [];
   const purchaseReceipts = rows.purchase_receipts || [];
   const stockMovements = rows.stock_movements || [];
-  const purchaseItemsByOrder = new Map<string, any[]>();
+  const stockById = new Map<string, any>(stock.map((item: any) => [item.id, item]));\n  const purchaseItemsByOrder = new Map<string, any[]>();
   for (const item of purchaseOrderItems) {
     const current = purchaseItemsByOrder.get(item.purchase_order_id) || [];
-    current.push(item);
+    const stockItem = stockById.get(item.stock_id);\n    current.push({ ...item, stock_name: stockItem?.name || null, stock_sku: stockItem?.sku || null, stock_unit: stockItem?.unit || null });
     purchaseItemsByOrder.set(item.purchase_order_id, current);
   }
-  const money = (items: any[], field: string) => items.reduce((sum: number, item: any) => sum + number(item[field]), 0);
+  const money = (items: any[], field: string) => items.reduce((sum: number, item: any) => sum + number(item[field]), 0);\n  const moneyByCurrency = (items: any[], field: string, currencyField: string) => items.reduce((totals: Record<string, number>, item: any) => {\n    const currency = String(item?.[currencyField] || "UNKNOWN").toUpperCase();\n    totals[currency] = (totals[currency] || 0) + number(item?.[field]);\n    return totals;\n  }, {});\n  const currencyTotals = (items: any[], field: string, currencyField: string) => {\n    const byCurrency = moneyByCurrency(items, field, currencyField);\n    const keys = Object.keys(byCurrency);\n    return { total: keys.length <= 1 ? (keys.length ? byCurrency[keys[0]] : 0) : null, byCurrency };\n  };
   const reportableInvoices = invoices.filter((item: any) => String(item.status).toLowerCase() !== "cancelled" && !item.is_draft);
   const paidInvoices = reportableInvoices.filter((item: any) => String(item.status).toLowerCase() === "paid");
   const pendingInvoices = reportableInvoices.filter((item: any) => String(item.status).toLowerCase() === "pending");
   const invoiceSummary = {
     loadedRecords: invoices.length,
     reportableCount: reportableInvoices.length,
-    totalValue: money(reportableInvoices, "total"),
+    ...{ totalValue: currencyTotals(reportableInvoices, "total", "currency").total, totalValueByCurrency: currencyTotals(reportableInvoices, "total", "currency").byCurrency },
     paidCount: paidInvoices.length,
-    paidValue: money(paidInvoices, "total"),
+    paidValue: currencyTotals(paidInvoices, "total", "currency").total,\n    paidValueByCurrency: currencyTotals(paidInvoices, "total", "currency").byCurrency,
     pendingCount: pendingInvoices.length,
-    pendingValue: money(pendingInvoices, "total"),
+    pendingValue: currencyTotals(pendingInvoices, "total", "currency").total,\n    pendingValueByCurrency: currencyTotals(pendingInvoices, "total", "currency").byCurrency,
   };
   const businessAnalytics = buildAssistantBusinessAnalytics({ invoices, stock, stockMovements, asOfDate: indiaToday() });
   return {
@@ -96,7 +96,7 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
         loadedOrders: purchaseOrders.length,
         openOrders: purchaseOrders.filter((item: any) => !["received", "cancelled", "closed"].includes(String(item.status).toLowerCase())).length,
         pendingReceiptLines: purchaseOrderItems.filter((item: any) => number(item.quantity_ordered) > number(item.quantity_received)).length,
-        orderedValue: purchaseOrderItems.reduce((sum: number, item: any) => sum + number(item.quantity_ordered) * number(item.unit_cost), 0),
+        orderedValue: currencyTotals(purchaseOrderItems.map((item: any) => ({ ...item, line_value: number(item.quantity_ordered) * number(item.unit_cost) })), "line_value", "currency_code").total,\n        orderedValueByCurrency: moneyByCurrency(purchaseOrderItems.map((item: any) => ({ ...item, line_value: number(item.quantity_ordered) * number(item.unit_cost) })), "line_value", "currency_code"),
         receiptRecords: purchaseReceipts.length,
       },
     },
