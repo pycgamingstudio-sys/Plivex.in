@@ -47,7 +47,8 @@ test("Freelancer and Business profiles receive the right permanent dashboard car
   assert.match(helper, /\[\.\.\.PERMANENT_DASHBOARD_FEATURES, "stock", "team"\]/);
   assert.match(dashboard, /getPermanentDashboardFeatures\(user\?\.workspace_type\)/);
   assert.match(app, /useWorkspaceFeatures\(user\?\.workspace_id\)/);
-  assert.match(app, /workspaceFeatures\.includes\("stock"\)/);\n  assert.match(app, /workspaceFeatures\.includes\("team"\)/);
+  assert.match(app, /workspaceFeatures\.includes\("stock"\)/);
+  assert.match(app, /workspaceFeatures\.includes\("team"\)/);
   assert.match(app, /if \(t\.id === "warehouses"\) return workspaceFeatures\.includes\("inventoryWorkspace"\)/);
   assert.ok(dashboard.indexOf('id: "invoices"') < dashboard.indexOf('id: "quotations"'));
 });
@@ -93,7 +94,7 @@ test("optional Workspace modules stay gated when users open direct URLs", async 
   assert.match(app, /WorkspaceFeatureGate feature="expenses"/);
   assert.match(app, /WorkspaceFeatureGate feature="team"/);
   const dashboard = await read("../../pages/Dashboard.jsx");
-  assert.match(dashboard, /path === "\/team-management"\) return user\?\.workspace_type === "business" \\|\\| workspaceFeatures\.includes\("team"\)/);
+  assert.match(dashboard, /path === "\/team-management"\) return user\?\.workspace_type === "business" \|\| workspaceFeatures\.includes\("team"\)/);
 });
 
 
