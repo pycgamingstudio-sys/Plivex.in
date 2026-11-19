@@ -24,7 +24,7 @@ test("deduplicates equivalent actions independent of object key order", () => {
 test("rejects unsupported tools and rejects the entire batch", () => {
   const result = normalizeAssistantActionBatch([
     { type: "create_client", payload: { name: "A" } },
-    { type: "create_warehouse", payload: { name: "Main" } },
+    { type: "create_supplier", payload: { name: "Main" } },
   ], validator);
   assert.equal(result.error, "UNSUPPORTED_OR_INVALID_ACTION");
   assert.deepEqual(result.actions, []);
@@ -44,9 +44,9 @@ test("catalog distinguishes implemented actions from planned modules", () => {
   assert.equal(describeToolAvailability().length, Object.keys(BUSINESS_MODULE_CATALOG).length);
 });
 
-test("catalog marks the idempotent goods-receipt executor as implemented", () => {
+test("catalog marks the idempotent purchasing and warehouse executors as implemented", () => {
   assert.equal(BUSINESS_MODULE_CATALOG.warehouses.readContext, true);
-  assert.deepEqual(BUSINESS_MODULE_CATALOG.warehouses.writeTools, []);
+  assert.deepEqual(BUSINESS_MODULE_CATALOG.warehouses.writeTools, ["create_warehouse"]);
   assert.deepEqual(BUSINESS_MODULE_CATALOG.purchase_orders.writeTools, ["create_purchase_order"]);
   assert.equal(BUSINESS_MODULE_CATALOG.purchase_orders.planned, false);
   assert.deepEqual(BUSINESS_MODULE_CATALOG.purchase_receipts.writeTools, ["receive_purchase_order"]);
