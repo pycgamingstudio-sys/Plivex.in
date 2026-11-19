@@ -180,7 +180,7 @@ test("onboarding asks only Freelancer or Business and applies module defaults au
   const features = await read("../../lib/workspaceFeatures.js");
   assert.match(onboarding, /chooseWorkType\("freelancer"\)/);
   assert.match(onboarding, /chooseWorkType\("business"\)/);
-  assert.match(onboarding, /optionalFeatures: features/);
+  assert.match(onboarding, /optionalFeatures: getSuggestedWorkspaceFeatures\\(workTypes\\)/);
   assert.doesNotMatch(onboarding, /Choose your optional features|type="checkbox"|WORKSPACE_FEATURE_CATALOG|toggleFeature/);
   assert.match(onboarding, /available in More Features/);
   assert.match(features, /\["expenses", "crm", "leads", "reports", "stock", "team", "inventoryWorkspace"\]/);
