@@ -144,9 +144,12 @@ export default function AssistantWidget() {
       window.dispatchEvent(new CustomEvent("plivex-workspace-data-updated", { detail: { keys: affectedKeys } }));
       setMessages((current) => {
         const updated = current.map((message, index) => index === messageIndex
-          ? { ...message, pendingAction: null, pendingActions: null, actionStatus: "done" }
+          ? { ...message, pendingAction: null, pendingActions: null, actionStatus: data?.verified ? "done" : "unverified" }
           : message);
-        return [...updated, { role: "assistant", content: actions.some((action) => action?.type === "create_invoice") ? "Invoice draft saved. Open Invoice History → Drafts to find and download it." : (data?.reply || "The record was saved.") }];
+        const successMessage = data?.verified && actions.some((action) => action?.type === "create_invoice")
+          ? "Invoice draft saved and verified. Open Invoice History → Drafts to find and download it."
+          : (data?.reply || "The save operation status is unclear. Check the relevant module before retrying.");
+        return [...updated, { role: "assistant", content: successMessage }];
       });
     } catch (err) {
       setRetryAction({ actions, idempotencyKey, messageIndex });
