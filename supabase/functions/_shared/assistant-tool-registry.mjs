@@ -8,6 +8,7 @@
  */
 export const ASSISTANT_WRITE_TOOLS = Object.freeze({
   create_client: { module: "clients", approval: "user_confirmation", required: ["name"] },
+  create_global_client: { module: "global_clients", approval: "user_confirmation", required: ["name"] },
   create_expense: { module: "expenses", approval: "user_confirmation", required: ["amount"] },
   create_lead: { module: "leads", approval: "user_confirmation", required: ["name"] },
   create_stock: { module: "inventory", approval: "user_confirmation", required: ["name", "quantity", "price"] },
@@ -21,6 +22,7 @@ export const ASSISTANT_WRITE_TOOLS = Object.freeze({
 
 export const BUSINESS_MODULE_CATALOG = Object.freeze({
   clients: { readContext: true, writeTools: ["create_client"] },
+  global_clients: { readContext: true, writeTools: ["create_global_client"] },
   invoices: { readContext: true, writeTools: ["create_invoice"] },
   inventory: { readContext: true, writeTools: ["create_stock"], relatedTables: ["stock", "warehouses", "stock_movements", "inventory_batches", "stock_transfers", "stock_transfer_items"] },
   expenses: { readContext: true, writeTools: ["create_expense"] },
