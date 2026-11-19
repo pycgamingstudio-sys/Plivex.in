@@ -170,8 +170,8 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
                   const open = expanded === e.id;
                   const vendorLogs = expenses.filter((x) => x.vendor === e.vendor && x.id !== e.id);
                   return (
-                    <>
-                      <tr key={e.id} className="hover:bg-slate-50">
+                    <Fragment key={e.id}>
+                      <tr className="hover:bg-slate-50">
                         <td className="px-3 py-3">
                           <button onClick={() => setExpanded(open ? null : e.id)} className="rounded-md p-1 text-slate-400 hover:bg-slate-100" aria-label="Expand">
                             {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -228,7 +228,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>
