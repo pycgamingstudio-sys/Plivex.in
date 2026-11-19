@@ -3,6 +3,7 @@ import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.m
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
 import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
 import { validateWarehouseAction } from "../_shared/assistant-warehouse-validation.mjs";
+import { validateWarehouseAction } from "../_shared/assistant-warehouse-validation.mjs";
 
 const ALLOWED_ORIGINS = new Set([
   "https://plivex.in",
@@ -42,7 +43,7 @@ function validateAction(action: unknown) {
   if (type === "create_warehouse") {
     return validateWarehouseAction(action);
   }
-  if (type === "create_purchase_order") {
+  if (type === "create_warehouse") {\n    return validateWarehouseAction(action);\n  }\n  if (type === "create_purchase_order") {
     return validatePurchaseOrderAction(action);
   }
   if (type === "receive_purchase_order") {
@@ -153,6 +154,47 @@ Deno.serve(async (req: Request) => {
         verification: [{ type: "create_warehouse", id: warehouse.warehouse_id, verified }],
         duplicate: Boolean(warehouse.duplicate),
         warehouse: verified ? { code: warehouseRow.code, name: warehouseRow.name } : null,
+      }, 200, origin);
+    }
+    if (actions.some((action: any) => action.type === "create_warehouse")) {
+      if (actions.length !== 1) return json({ error: "Warehouse creation must be confirmed separately from other actions." }, 400, origin);
+      const payload = actions[0].payload;
+      const canonical = JSON.stringify(actions);
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+      const requestHash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const { data: warehouse, error: warehouseError } = await supabase.rpc("assistant_create_warehouse_idempotent", {
+        p_idempotency_key: idempotencyKey,
+        p_request_hash: requestHash,
+        p_name: payload.name,
+        p_code: payload.code || null,
+        p_address: payload.address || null,
+      });
+      if (warehouseError) {
+        console.error("Warehouse creation rejected", { code: warehouseError.code, userId: user.id });
+        const message = String(warehouseError.message || "");
+        if (message.includes("PERMISSION_DENIED")) return json({ error: "Only a workspace admin or manager can create a warehouse." }, 403, origin);
+        if (message.includes("IDEMPOTENCY_PAYLOAD_MISMATCH")) return json({ error: "This confirmation key was already used for different warehouse details. Prepare the action again." }, 409, origin);
+        return json({ error: "The warehouse could not be created. Check the warehouse name and code, then try again." }, 400, origin);
+      }
+      if (!warehouse?.ok || !warehouse?.warehouse_id) {
+        const message = warehouse?.reason === "warehouse_code_exists"
+          ? "That warehouse code already exists in this workspace. Choose a different code."
+          : "The warehouse details were rejected. Nothing was saved.";
+        return json({ error: message }, 400, origin);
+      }
+      const { data: savedWarehouse, error: verifyError } = await supabase.from("warehouses")
+        .select("id,code,name,is_active").eq("workspace_id", profile.workspace_id)
+        .eq("id", warehouse.warehouse_id).maybeSingle();
+      const verified = !verifyError && Boolean(savedWarehouse?.id) && savedWarehouse.is_active === true;
+      return json({
+        ok: true,
+        verified,
+        reply: verified
+          ? `Warehouse ${savedWarehouse.name} (${savedWarehouse.code}) created and verified. It is active and empty; no stock was moved.`
+          : "The warehouse was accepted, but Plivex could not verify it. Check Warehouses before retrying.",
+        created: [{ type: "create_warehouse", id: warehouse.warehouse_id }],
+        verification: [{ type: "create_warehouse", id: warehouse.warehouse_id, verified }],
+        duplicate: Boolean(warehouse.duplicate),
       }, 200, origin);
     }
     if (actions.some((action: any) => action.type === "create_purchase_order")) {
