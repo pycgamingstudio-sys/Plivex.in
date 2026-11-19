@@ -457,8 +457,37 @@ async function handleRequest(req: Request) {
     });
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return json({ error: "Your session expired. Please sign in again." }, 401);
-    const { data: profile, error: profileError } = await supabase.from("profiles").select("workspace_id,role,full_name").eq("id", user.id).maybeSingle();
-    if (profileError || !profile?.workspace_id) return json({ error: "Your Plivex workspace could not be found for this account." }, 403);
+    const [profileResult, globalAuthResult] = await Promise.all([
+      supabase.from("profiles").select("workspace_id,role,full_name").eq("id", user.id).maybeSingle(),
+      (async () => {
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const invocation = supabase.functions.invoke("global-auth-context", { body: {} })
+            .then(({ data, error }: any) => !error && data?.user?.workspace_id ? data.user : null)
+            .catch(() => null);
+          const timeout = new Promise<null>((resolve) => {
+            timeoutId = setTimeout(() => resolve(null), 2500);
+          });
+          return await Promise.race([invocation, timeout]);
+        } finally {
+          if (timeoutId !== undefined) clearTimeout(timeoutId);
+        }
+      })(),
+    ]);
+    const globalUser = globalAuthResult || null;
+    const workspaceId = globalUser?.workspace_id || profileResult.data?.workspace_id || null;
+    if (!workspaceId) return json({ error: "Your Plivex workspace could not be found for this account." }, 403);
+    const isGlobalWorkspace = Boolean(globalUser?.workspace_id);
+    const profile: any = {
+      ...(profileResult.data || {}),
+      workspace_id: workspaceId,
+      role: globalUser?.role || profileResult.data?.role || null,
+      country_code: globalUser?.country_code || "IN",
+      currency_code: globalUser?.currency_code || "INR",
+      name: globalUser?.workspace_name || "",
+      email: globalUser?.email || "",
+      full_name: globalUser?.full_name || profileResult.data?.full_name || "",
+    };
     const body = await req.json();
 
     const incoming = Array.isArray(body?.messages) ? body.messages : [];
@@ -483,15 +512,17 @@ async function handleRequest(req: Request) {
     // Image analysis and record creation do not need a 500-row workspace snapshot.
     const hasReadQueryIntent = /(due|balance|ledger|pending|kitna|kitne|baki|baaki|outstanding|total|report|dikha|bata|show|list|how many|how much)/i.test(String(latestUserText));
     const needsPurchasingContext = /purchase\s*order|purchase|receipt|receive|stock\s*receive|warehouse|godown|maal\s*(aaya|aa\s*gaya)/i.test(String(latestUserText));
-    const liveContextPromise: Promise<any> = image && !hasReadQueryIntent && !needsPurchasingContext
-      ? Promise.resolve({ business: null, summaries: {}, records: {}, limitNote: "Live workspace data was not needed for this receipt-only request." })
-      : loadLiveContext(supabase, profile.workspace_id);
+    const liveContextPromise: Promise<any> = isGlobalWorkspace
+      ? Promise.resolve({ business: null, summaries: {}, records: {}, unavailableModules: ["legacy_public_workspace_tables"], limitNote: "Global workspace mode is active. Public India tables are intentionally not used as a substitute for Global workspace data." })
+      : image && !hasReadQueryIntent && !needsPurchasingContext
+        ? Promise.resolve({ business: null, summaries: {}, records: {}, limitNote: "Live workspace data was not needed for this receipt-only request." })
+        : loadLiveContext(supabase, workspaceId);
     // Global workspaces use the isolated global schema and authenticated edge
     // functions, not the legacy public-table snapshot above. Reuse the user's
     // JWT through the Supabase client; the Global function re-checks membership.
     const needsGlobalFinanceContext = deterministicIntentHints.intents.includes("payment_incoming") || /invoice|bill|payment|paid|received|refund|reconcil|ledger|balance|outstanding|due|receivable|payable|paise|jama|bhugtan|पेमेंट|भुगतान|पैसे|रकम/i.test(String(latestUserText));
     const needsGlobalClientContext = /\\b(client|customer|grahak)\\b|ग्राहक|कस्टमर/i.test(String(latestUserText));
-    const globalContextPromise = needsGlobalFinanceContext || needsGlobalClientContext
+    const globalContextPromise = isGlobalWorkspace || needsGlobalFinanceContext || needsGlobalClientContext
       ? (async () => {
           let timeoutId: ReturnType<typeof setTimeout> | undefined;
           try {
@@ -564,7 +595,7 @@ async function handleRequest(req: Request) {
       "Only propose a creation when the user clearly asks to add/create/save a record. Never save anything directly during chat. IMAGE/RECEIPT UNDERSTANDING RULE: When an image is attached with an expense request, visually inspect the actual image before asking questions. Understand common Indian payment receipts (PhonePe, Google Pay, Paytm, UPI, bank transfer) and paper bills. For a successful OUTGOING payment, extract the recipient/payee as vendor, the amount paid as amount, transaction date as date (convert readable dates to YYYY-MM-DD), payment app/mode as method, and transaction ID/UTR plus purpose as notes when readable. The 'Paid to'/recipient amount is the expense amount; 'Debited from' is the payer/source account and is NOT the vendor. Do not confuse transaction ID, UTR, phone number, account balance, or payer details with amount/vendor. A successful incoming/received payment is NOT an expense; ask which record type they want instead. If receipt clearly shows a successful outgoing payment and user asked to add expense, create create_expense immediately with all readable fields, category Other if purpose/category is unknown, and leave genuinely unknown optional fields blank. Amount is required; ask only for amount if unreadable. Do not ask for vendor/amount if they are visible. Do not ask for item name, quantity or price for an expense; those belong to stock. Reply that extracted expense is ready for confirmation; never claim saved before confirmation. Do not expose full phone/account details in notes. For image requests explicitly mentioning stock/inventory, use create_stock instead. Follow the user's explicitly named module; never infer stock from words like name/quantity unless they explicitly ask for stock.",
       "If the user reports an app bug, technical problem, or something not working in Plivex, apologize briefly and direct them to support@plivex.in or +91 97584 55218. Do not claim that a support person has been contacted or promise a response time.",
       "CRITICAL ACTION RULE: Output JSON {reply, actions:[{type,payload}]} with every fully specified supported operation, up to 10. The frontend shows one combined confirmation; backend validates every action and permission. Include only explicit or unambiguously extracted fields. Never invent phone numbers, prices, quantities, dates or amounts. Do not create inventory unless product name and positive quantity are known. Do not create expense unless positive amount is known. Do not silently treat missing stock price as zero; ask for it if required. Preserve details from prior turns when the latest message supplies missing information.",
-      "GLOBAL CLIENT ACTION: When GLOBAL WORKSPACE CONTEXT contains a clients array, this is a Global workspace: create new customers only with create_global_client, not create_client. Check existing clients by normalized name first; if a matching client already exists, do not create a duplicate and ask whether the user meant to use that client. Map email, phone, tax_registration_number and notes only when explicitly supplied. In a non-Global workspace with no Global client context, use create_client. Never invent a company name or tax number.",
+      "GLOBAL WORKSPACE MODE: When GLOBAL WORKSPACE CONTEXT has global_workspace true, this is a Global country workspace. LIVE DATA JSON intentionally excludes legacy public India tables. Never use public-table records, create_client, create_expense, create_stock or India-only executors as a fallback for Global records. Use only Global context and explicit Global actions in the response schema. If the requested Global module is not connected, say so and do not create or claim any record.",\n      "GLOBAL CLIENT ACTION: When GLOBAL WORKSPACE CONTEXT contains a clients array, this is a Global workspace: create new customers only with create_global_client, not create_client. Check existing clients by normalized name first; if a matching client already exists, do not create a duplicate and ask whether the user meant to use that client. Map email, phone, tax_registration_number and notes only when explicitly supplied. In a non-Global workspace with no Global client context, use create_client. Never invent a company name or tax number.",
       "GLOBAL WORKSPACE AUTHORITY: When GLOBAL FINANCE CONTEXT is present, use its Global reconciliation records as the authoritative invoice/payment source for that workspace. Do not override Global balances with legacy public invoice summaries. When absent, do not infer Global invoice or payment data from public tables.",
       "GLOBAL PAYMENT ACTION: If the user explicitly asks to record a payment received against a Global invoice, use record_global_invoice_payment only when the exact invoice_id and currency_code exist in GLOBAL WORKSPACE CONTEXT, outstanding_minor is positive, and the user supplied the payment amount and date. amount is expressed in major currency units; never send minor units in amount. Do not use this for outgoing supplier payments, refunds, subscription payments or screenshots alone. Never mark an invoice paid manually; the Global ledger recalculates its balance. This action is one invoice at a time and requires confirmation. If the workspace has no Global reconciliation context, explain that this action is not connected for that workspace.",
       "GLOBAL WORKSPACE CONTEXT: When present, this is the authenticated Global workspace snapshot. The clients array is workspace-scoped and may be empty when no clients exist. The invoices array is the authenticated Global invoice reconciliation snapshot from the workspace's own country context. Match invoices by the visible invoice_number or client_name when the user refers to a customer; if multiple invoices match, ask which invoice. Use invoice_id only from these records when preparing a payment action. Amount fields ending in _minor are minor currency units, not major units; do not display them as whole currency amounts without the currency's correct exponent. Distinguish invoice total, gross payments, refunds, net received and outstanding. This context is read-only; payment/refund writes still require an explicitly supported action and confirmation. " + JSON.stringify(globalBusinessContext),
