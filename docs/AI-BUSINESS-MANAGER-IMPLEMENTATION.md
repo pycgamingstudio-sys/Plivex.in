@@ -65,5 +65,13 @@ The assistant live context now includes bounded workspace-scoped reads for activ
 - Production deployment and destructive schema changes require explicit approval.
 
 
+## Multi-provider model routing
+- The assistant keeps Gemini as the first-choice provider when its secret is configured.
+- Groq supports two GPT-OSS fallback models, but is deliberately gated behind the server-side secret `NOVA_ENABLE_GROQ=true` because the current Groq GPT-OSS endpoints are metered. Do not enable this without owner approval of billing/usage limits.
+- OpenRouter has three free-model fallback candidates. Each request sets `provider.data_collection = "deny"` and `provider.zdr = true`; if no eligible privacy-compatible endpoint is available, that candidate fails closed and the router tries the next configured provider.
+- Provider attempts share a bounded 25-second total budget. Only the model response is retried; no business write is executed by the router. Existing server-side validators, confirmation and idempotency boundaries remain authoritative.
+- Secrets are read only in the Edge Function: `GEMINI_API_KEY`, `GROQ_API_KEY`, and `OPENROUTER_API_KEY`. Model keys are not sent to the browser. Provider names/model IDs may be logged; prompts, credentials and business payloads must not be logged.
+- Free-tier model availability, rate limits and privacy-compatible endpoints can change. Fallback is best-effort, not a guarantee of free unlimited service or higher factual accuracy.
+
 ## Assistant identity
 The user-facing AI assistant is named **Plivex Nova** (short name: **Nova**). Use this name consistently in the assistant UI and system identity. Nova is an assistant within Plivex Intelligence; its capability claims must remain limited to connected, tested modules.
