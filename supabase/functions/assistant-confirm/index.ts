@@ -113,11 +113,25 @@ Deno.serve(async (req: Request) => {
 
     const [profileResult, globalAuthResult] = await Promise.all([
       supabase.from("profiles").select("workspace_id,role").eq("id", user.id).maybeSingle(),
-      supabase.functions.invoke("global-auth-context", { body: {} }).catch(() => ({ data: null, error: true })),
+      (async () => {
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const invocation = supabase.functions.invoke("global-auth-context", { body: {} })
+            .then((result: any) => ({ result, timedOut: false }))
+            .catch(() => ({ result: null, timedOut: false }));
+          const timeout = new Promise<{ result: null; timedOut: true }>((resolve) => {
+            timeoutId = setTimeout(() => resolve({ result: null, timedOut: true }), 2500);
+          });
+          return await Promise.race([invocation, timeout]);
+        } finally {
+          if (timeoutId !== undefined) clearTimeout(timeoutId);
+        }
+      })(),
     ]);
+    if (globalAuthResult?.timedOut) return json({ error: "Workspace country context is temporarily unavailable. No action was executed; please retry." }, 503, origin);
     const profile = profileResult.data || null;
-    const globalUser = !globalAuthResult.error && globalAuthResult.data?.user?.workspace_id
-      ? globalAuthResult.data.user
+    const globalUser = !globalAuthResult.result?.error && globalAuthResult.result?.data?.user?.workspace_id
+      ? globalAuthResult.result.data.user
       : null;
     const workspaceId = globalUser?.workspace_id || profile?.workspace_id || null;
     const isGlobalWorkspace = Boolean(globalUser?.workspace_id);
