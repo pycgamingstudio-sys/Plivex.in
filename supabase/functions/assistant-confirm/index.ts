@@ -117,10 +117,13 @@ Deno.serve(async (req: Request) => {
         let timeoutId: ReturnType<typeof setTimeout> | undefined;
         try {
           const invocation = supabase.functions.invoke("global-auth-context", { body: {} })
-            .then((result: any) => ({ result, timedOut: false }))
-            .catch(() => ({ result: null, timedOut: false }));
-          const timeout = new Promise<{ result: null; timedOut: true }>((resolve) => {
-            timeoutId = setTimeout(() => resolve({ result: null, timedOut: true }), 2500);
+            .then((result: any) => {
+              const status = Number(result.error?.context?.status || 0);
+              return { result, unavailable: Boolean(result.error && status !== 403), timedOut: false };
+            })
+            .catch(() => ({ result: null, unavailable: true, timedOut: false }));
+          const timeout = new Promise<{ result: null; unavailable: true; timedOut: true }>((resolve) => {
+            timeoutId = setTimeout(() => resolve({ result: null, unavailable: true, timedOut: true }), 2500);
           });
           return await Promise.race([invocation, timeout]);
         } finally {
@@ -128,7 +131,7 @@ Deno.serve(async (req: Request) => {
         }
       })(),
     ]);
-    if (globalAuthResult?.timedOut) return json({ error: "Workspace country context is temporarily unavailable. No action was executed; please retry." }, 503, origin);
+    if (globalAuthResult?.timedOut || globalAuthResult?.unavailable) return json({ error: "Workspace country context is temporarily unavailable. No action was executed; please retry." }, 503, origin);
     const profile = profileResult.data || null;
     const globalUser = !globalAuthResult.result?.error && globalAuthResult.result?.data?.user?.workspace_id
       ? globalAuthResult.result.data.user
