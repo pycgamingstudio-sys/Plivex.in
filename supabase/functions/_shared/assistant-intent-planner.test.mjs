@@ -66,3 +66,15 @@ test("rejects unsafe or non-finite amount values", () => {
   assert.equal(parseBusinessAmount("-500"), null);
   assert.equal(parseBusinessAmount("₹999999999999999999999"), null);
 });
+
+test("asks before choosing an inventory operation from quantity-only language", () => {
+  const hints = buildBusinessIntentHints("chini 50 kilo rate 50");
+  assert.deepEqual(hints.intents, []);
+  assert.equal(hints.ambiguities[0].field, "inventory_operation");
+  assert.match(hints.ambiguities[0].question, /new product.*purchase order.*stock received/i);
+});
+
+test("flags purchase and receipt as separate lifecycle events when both are requested", () => {
+  const hints = buildBusinessIntentHints("create purchase order and receive stock");
+  assert.ok(hints.ambiguities.some((item) => item.field === "purchase_lifecycle"));
+});
