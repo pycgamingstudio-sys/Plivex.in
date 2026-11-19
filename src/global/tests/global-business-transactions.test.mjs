@@ -98,3 +98,16 @@ test("Global invoice UI distinguishes no-tax commercial invoices from zero-rated
   assert.match(editor, /not a zero-rated or tax-exempt classification/);
   assert.match(editor, /Plivex does not decide whether your business or transaction legally qualifies/);
 });
+
+
+test("Global taxable invoice uses one accessible combined confirmation instead of three separate checkboxes", async () => {
+  const editor = await read("../../components/invoice/GlobalTaxEditor.jsx");
+  const source = await read("../tax/invoice-tax-integration.js");
+  const edge = await read("../../../supabase/functions/save-invoice/_shared/tax/invoice-tax-integration.js");
+  assert.match(editor, /global-tax-details-confirm/);
+  assert.match(editor, /min-h-11/);
+  assert.doesNotMatch(editor, /registrationConfirmed === true} onChange/);
+  assert.match(source, /TAX_DETAILS_CONFIRMATION_REQUIRED/);
+  assert.match(edge, /TAX_DETAILS_CONFIRMATION_REQUIRED/);
+  assert.doesNotMatch(source, /REGISTRATION_CONFIRMATION_REQUIRED/);
+});
