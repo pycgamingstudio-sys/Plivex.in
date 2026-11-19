@@ -153,7 +153,9 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
         </div>
       )}
 
-      </>\n      )}\n      <div className="mt-4 rounded-lg border p-3" aria-live="polite">
+      </>
+      )}
+      <div className="mt-4 rounded-lg border p-3" aria-live="polite">
         {result?.ok ? (
           <>
             <p className="flex items-center gap-2 text-xs font-bold text-emerald-700"><CheckCircle2 className="h-4 w-4" />{result.status === "not_applicable" ? "No tax charged · commercial invoice" : result.status === "manual_unverified" ? "Manual calculation · unverified" : "Standard-rate calculation"}</p>
