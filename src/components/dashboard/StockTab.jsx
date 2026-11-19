@@ -28,15 +28,22 @@ export default function StockTab() {
 
   const isLow = (p) => (Number(p.quantity) || 0) <= (p.lowStock === "" || p.lowStock === null || p.lowStock === undefined ? DEFAULT_LOW : Number(p.lowStock));
 
-  const remove = (id) => setItems((prev) => prev.filter((p) => p.id !== id));
+  const remove = (id) => { const product = items.find((item) => item.id === id); if (!product || !window.confirm("Delete product " + product.name + "? This cannot be undone.")) return; setItems((prev) => prev.filter((p) => p.id !== id)); };
   const save = (entry) => {
-    if (!entry.name.trim()) return;
+    if (!entry.name.trim()) { window.alert("Enter a product name."); return; }
+    const quantity = Number(entry.quantity);
+    const price = Number(entry.price || 0);
+    const lowStock = Number(entry.lowStock);
+    if (!Number.isFinite(quantity) || quantity < 0 || !Number.isFinite(price) || price < 0 || !Number.isFinite(lowStock) || lowStock < 0) { window.alert("Quantity, price and low-stock threshold must be valid non-negative numbers."); return; }
+    const normalizeCode = (value) => String(value || "").trim().toLowerCase();
+    const duplicate = items.find((item) => item.id !== (editTarget && editTarget.id) && ((normalizeCode(entry.sku) && normalizeCode(item.sku) === normalizeCode(entry.sku)) || (normalizeCode(entry.barcode) && normalizeCode(item.barcode) === normalizeCode(entry.barcode))));
+    if (duplicate) { window.alert("This SKU or barcode is already assigned to another product."); return; }
     if (!editTarget && Number.isFinite(remaining("stock")) && remaining("stock") <= 0) { openPaywall("Stock item limit reached for your current plan."); return; }
     if (editTarget) {
       setItems((prev) => prev.map((p) => (p.id === editTarget.id ? { ...editTarget, ...entry } : p)));
       setEditTarget(null);
     } else {
-      setItems((prev) => [{ ...entry, id: genId("stk"), quantity: Number(entry.quantity) || 0 }, ...prev]);
+      setItems((prev) => [{ ...entry, id: genId("stk"), quantity }, ...prev]);
     }
     setOpen(false);
   };
@@ -144,9 +151,9 @@ function ProductModal({ value, isEdit, items = [], currencyCode = "INR", onClose
             </select>
             {isCustomUnit && <input className={inputCls} value={form.unit} onChange={(e) => set("unit", e.target.value)} placeholder="Type unit, e.g. tray" autoFocus />}
           </label>
-          <label className="block text-[12px] font-semibold text-slate-500">Quantity<input type="number" className={inputCls} value={form.quantity} onChange={(e) => set("quantity", e.target.value)} placeholder="0" /></label>
-          <label className="block text-[12px] font-semibold text-slate-500">Low-stock at<input type="number" className={inputCls} value={form.lowStock} onChange={(e) => set("lowStock", e.target.value)} placeholder={String(DEFAULT_LOW)} /></label>
-          <label className="block text-[12px] font-semibold text-slate-500 sm:col-span-2">Price ({currencyCode})<input type="number" className={inputCls} value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="0" /></label>
+          <label className="block text-[12px] font-semibold text-slate-500">Quantity<input type="number" min="0" step="any" className={inputCls} value={form.quantity} onChange={(e) => set("quantity", e.target.value)} placeholder="0" /></label>
+          <label className="block text-[12px] font-semibold text-slate-500">Low-stock at<input type="number" min="0" step="any" className={inputCls} value={form.lowStock} onChange={(e) => set("lowStock", e.target.value)} placeholder={String(DEFAULT_LOW)} /></label>
+          <label className="block text-[12px] font-semibold text-slate-500 sm:col-span-2">Price ({currencyCode})<input type="number" min="0" step="any" className={inputCls} value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="0" /></label>
         </div></div>
         <div className="sticky bottom-0 z-10 flex shrink-0 justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"><button type="button" onClick={onClose} className={btnGhost}>Cancel</button><button type="button" onClick={() => onSave(form)} className={btnAccent}>Save product</button></div>
       </div>
