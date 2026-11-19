@@ -161,11 +161,13 @@ test("Lead Tracker modal keeps its save action visible on small screens", async 
 });
 
 
-test("unified dashboard paywall resolves billing from the canonical public workspace identity", async () => {
+test("unified dashboard paywall resolves billing from canonical public workspace settings", async () => {
   const paywall = await read("../../lib/paywall.jsx");
-  assert.match(paywall, /if \(isUnifiedBuild\) \{[\s\S]*user\.country_code[\s\S]*user\.currency_code[\s\S]*resolveWorkspaceBillingContext\(countryCode, currencyCode\)/);
-  assert.match(paywall, /A Global membership is not required to display verified regional pricing/);
   const unifiedBranch = paywall.slice(paywall.indexOf("if (isUnifiedBuild)"), paywall.indexOf("if (APP_EDITION === \"global\")"));
-  assert.doesNotMatch(unifiedBranch, /global-auth-context/);
+  assert.match(unifiedBranch, /from\("profiles"\)[\s\S]*select\("workspace_id"\)[\s\S]*eq\("id", user\.id\)/);
+  assert.match(unifiedBranch, /profile\.workspace_id !== user\.workspace_id/);
+  assert.match(unifiedBranch, /from\("workspace_settings"\)[\s\S]*select\("country_code, currency_code"\)[\s\S]*eq\("workspace_id", profile\.workspace_id\)/);
+  assert.match(unifiedBranch, /resolveWorkspaceBillingContext\(countryCode, currencyCode\)/);
+  assert.doesNotMatch(unifiedBranch, /global-auth-context|user\.country_code|user\.currency_code/);
   assert.match(paywall, /if \(APP_EDITION === "global"\) \{[\s\S]*global-auth-context/);
 });
