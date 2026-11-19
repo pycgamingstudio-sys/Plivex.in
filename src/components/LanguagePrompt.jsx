@@ -14,6 +14,7 @@ export default function LanguagePrompt() {
         <div className="mt-5 grid grid-cols-2 gap-3">
           <button onClick={() => setLang("hi")} className="rounded-xl bg-primary px-4 py-3 text-base font-semibold text-primary-foreground">हिंदी</button>
           <button onClick={() => setLang("en")} className="rounded-xl border border-border px-4 py-3 text-base font-semibold text-foreground hover:bg-muted">English</button>
+          <button onClick={() => setLang("en")} className="col-span-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">Skip · Continue in English</button>
         </div>
         <p className="mt-4 text-xs text-muted-foreground">आप इसे कभी भी Settings में बदल सकते हैं। · You can change this any time in Settings.</p>
       </div>
