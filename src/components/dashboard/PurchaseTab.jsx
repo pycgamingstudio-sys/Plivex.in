@@ -260,12 +260,12 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
 }
 
 function ExpenseModal({ currencyCode, onClose, onSave }) {
-  const [form, setForm] = useState(blank);
+  const [form, setForm] = useState(() => ({ ...blank, date: localDate() }));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
       <div role="dialog" aria-modal="true" aria-labelledby="expense-modal-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-[480px] overflow-y-auto overscroll-contain rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between"><h3 id="expense-modal-title" className="text-lg font-bold text-slate-900">Record a purchase</h3><button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
+        <div className="flex items-center justify-between"><h3 id="expense-modal-title" className="text-lg font-bold text-slate-900">Record a purchase</h3><button type="button" onClick={onClose} aria-label="Close purchase form" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
         <div className="mt-4 grid gap-3">
           <label className="block text-[12px] font-semibold text-slate-500">Vendor name<input className={inputCls} value={form.vendor} onChange={(e) => set("vendor", e.target.value)} placeholder="Vendor / supplier" /></label>
           <div className="grid grid-cols-2 gap-3">
