@@ -175,9 +175,17 @@ function parseClientConversation(incoming: any[]) {
   if (!explicitNow && !(hadClientCommand && awaitingName)) return null;
   let name = "";
   if (explicitNow) {
-    const m = latest.match(/(?:client|customer)(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)\s*$/i)
-      || latest.match(/(?:add|create|jod(?:o)?|bana(?:o)?|darj)\s+(?:a\s+)?(?:client|customer)\s+(?:named\s+)?(.+?)\s*$/i);
+    const m = latest.match(/(?:client|customer)(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:and|aur|expense|kharcha|invoice|bill)\\b|[,;\\n]|$)/i)
+      || latest.match(/(?:add|create|jod(?:o)?|bana(?:o)?|darj)\s+(?:a\s+)?(?:client|customer)\s+(?:named\\s+)?(.+?)(?=\\s+(?:and|aur|expense|kharcha|invoice|bill)\\b|[,;\\n]|$)/i);
     name = text(m?.[1], 120);
+    if (!name) {
+      const genericName = latest.match(/\\b(?:naam|name)\\s+(?:hai|is)\\s+([A-Za-z][A-Za-z .'-]{0,100}?)(?=\\s+(?:and|aur|expense|kharcha|invoice|bill)\\b|[,;\\n]|$)/i);
+      const hasExpenseRequest = /(?:expense|kharcha|kharch|खर्च)/i.test(latest);
+      if (genericName && hasExpenseRequest) {
+        return { pending: true, reply: genericName[1].trim() + " kis ka naam hai—client ka ya expense vendor/payee ka? Main galat record nahi banaunga." };
+      }
+      if (genericName) name = text(genericName[1], 120);
+    }
   }
   if (!name && awaitingName) name = text(latest, 120);
   name = name.replace(/^(?:naam|name)\s+(?:hai|is)\s+/i, "").replace(/[.,;:]+$/, "").trim();
@@ -464,6 +472,7 @@ async function handleRequest(req: Request) {
       "Answer briefly and directly in the user's language (Hindi/Hinglish or English), usually 1–4 short sentences. Use the LIVE DATA JSON below to answer questions about their invoices, clients, stock, expenses, quotations, leads, services, business profile, active warehouses, purchase orders, purchase-order lines, recent goods receipts, inventory batches and stock transfers.",
       "PROACTIVE BUSINESS INSIGHTS: Use businessAnalytics.insights to highlight overdue receivables, low stock, expired or soon-to-expire batches, and overdue purchase orders when relevant. These are operational indicators derived only from loaded rows, not guarantees or accounting balances. Never claim an issue is absent when its source module is unavailable.",
       "Do not invent facts or totals. Distinguish an empty result from an unavailable module: if unavailableModules lists a module, its empty records/default zero are NOT evidence that the workspace has no records or a zero balance. Tell the user that module could not be read and do not calculate or assert its totals. The lists are recent samples and summaries are calculated only from successfully loaded rows; disclose the stated limit when relevant.",
+      "IMAGE-ONLY REQUESTS: If the user attaches a photo without any instruction, do not assume it is an expense, payment or inventory request. Briefly identify what the image appears to show, extract useful visible business information with uncertainty clearly stated, and ask what the user wants to do next. Never create or propose a record from an image alone unless the user clearly asks for that action.",
       "RECEIPT / PAYMENT IMAGE UNDERSTANDING (MANDATORY): When an image is attached, inspect the image itself together with the user's text. For PhonePe, Google Pay, bank transfer, cash memo, bills and receipts, extract only visibly supported fields: amount, payee/merchant/vendor, transaction/receipt date, payment method, transaction/reference ID, and line-item descriptions when legible. Do not say the image is unreadable if these fields are visible. Distinguish a payment confirmation screenshot from a purchase invoice/receipt: a completed outgoing payment may support an expense; an incoming payment is not an expense; a mere QR code, balance screen, failed/pending transaction, or unclear direction is not proof of an expense. If user says 'expense add kar do' with a visible completed outgoing payment, propose create_expense using the visible amount/vendor/date/method and put reference ID plus concise image-derived context in notes. If the image is a purchase bill and user requests stock, extract item names, quantities, units and rates only when legible; do not assume all billed goods are inventory unless user asks to add stock. If the user asks to add both expense and stock, create separate actions only when the evidence and instruction support both. If a mandatory field is obscured or uncertain, ask one focused clarification and do not invent it. Never infer that the full account balance is the transaction amount. Currency amounts must be parsed exactly, including Indian comma grouping.",
       "FOLLOW-UP CONTEXT: Treat the last several user/assistant turns as one ongoing task. When user replies with only a number, price, vendor, date or payment method, attach it to the matching pending intent from the conversation. Update that pending action rather than creating a duplicate. If there are multiple plausible pending actions, ask which one the detail belongs to.",
       "CONVERSATION STATE TRACKING: Read conversation as user facts, corrections, clarifications, questions and confirmations. Track each pending task's intent, module, supplied fields, missing fields, ambiguity and save authorization. A correction replaces the earlier value for the same field. A new independent request starts a separate task. Do not confuse assistant examples with user facts or carry completed-task fields into unrelated tasks.",
@@ -608,40 +617,25 @@ async function handleRequest(req: Request) {
     const stockIntentActive = /(?:stock|inventory|स्टॉक)/i.test(currentUserText) && explicitWriteIntent || stockClarificationActive;
     const clientDraft = clientIntentActive ? parseClientConversation(incoming) : null;
     const invoiceDraft = invoiceIntentActive ? parseInvoiceConversation(incoming, liveContext.business) : null;
-    if (invoiceDraft) {
-      if (invoiceDraft.pending) {
+    const expenseDraft = expenseIntentActive ? parseExpenseConversation(incoming) : null;
+    // Keep independent deterministic drafts together. If any requested task is incomplete
+    // or ambiguous, ask for the missing information before preparing any part of the batch.
+    const deterministicDrafts = [clientDraft, invoiceDraft, expenseDraft].filter(Boolean);
+    if (deterministicDrafts.length) {
+      const pendingDrafts = deterministicDrafts.filter((draft: any) => draft.pending);
+      const deterministicTypes = new Set(["create_client", "create_invoice", "create_expense"]);
+      const existingActions = Array.isArray(parsed.actions) ? parsed.actions
+        : (parsed.action && parsed.action.type !== "none" ? [parsed.action] : []);
+      parsed.actions = existingActions.filter((item: any) => !deterministicTypes.has(String(item?.type || "")));
+      if (pendingDrafts.length) {
         parsed.actions = [];
         parsed.action = { type: "none", payload: {} };
-        parsed.reply = invoiceDraft.reply;
+        parsed.reply = pendingDrafts.map((draft: any) => draft.reply).filter(Boolean).join(" ");
       } else {
-        parsed.actions = [invoiceDraft.action];
-        parsed.action = invoiceDraft.action;
-        parsed.reply = invoiceDraft.reply;
-      }
-    }
-    if (clientDraft) {
-      if (clientDraft.pending) {
-        parsed.actions = [];
-        parsed.action = { type: "none", payload: {} };
-        parsed.reply = clientDraft.reply;
-      } else {
-        parsed.actions = [clientDraft.action];
-        parsed.action = clientDraft.action;
-        parsed.reply = clientDraft.reply;
-      }
-    }
-    if (!invoiceDraft && expenseIntentActive) {
-      const expenseDraft = parseExpenseConversation(incoming);
-      if (expenseDraft) {
-        if (expenseDraft.pending) {
-          parsed.actions = [];
-          parsed.action = { type: "none", payload: {} };
-          parsed.reply = expenseDraft.reply;
-        } else {
-          parsed.actions = [expenseDraft.action];
-          parsed.action = expenseDraft.action;
-          parsed.reply = expenseDraft.reply;
-        }
+        const readyActions = deterministicDrafts.map((draft: any) => draft.action).filter(Boolean);
+        parsed.actions = [...parsed.actions, ...readyActions];
+        parsed.action = readyActions.length === 1 ? readyActions[0] : { type: "none", payload: {} };
+        parsed.reply = deterministicDrafts.map((draft: any) => draft.reply).filter(Boolean).join(" ");
       }
     }
     // Deterministic expense amount recovery for short replies such as "100rs".
