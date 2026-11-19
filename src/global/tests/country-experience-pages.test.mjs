@@ -51,9 +51,11 @@ test("regional account activity and reports use workspace locale metadata", asyn
 });
 
 
-test("India-only tools are not rendered for Global workspaces, including missing country context", async () => {
+test("India-only tools are not rendered for non-India workspaces in Global and unified builds", async () => {
   const source = await read("../../App.jsx");
-  assert.match(source, /APP_EDITION === "global" && user\?\.country_code !== "IN"/);
+  assert.match(source, /APP_EDITION === "global" \|\| isUnifiedBuild/);
+  assert.match(source, /isUnifiedBuild && Boolean\(user\?\.country_code && user\.country_code !== "IN"\)/);
+  assert.match(source, /user\?\.country_code && user\.country_code !== "IN"/);
   for (const feature of ["Shared invoice links", "Usage reports", "Quick templates", "Payment logs", "Service catalog", "Team management"]) {
     assert.ok(source.includes(`feature="${feature}"`), `missing Global gate for ${feature}`);
   }
