@@ -33,8 +33,8 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
   useEffect(() => { if (intent === "new-expense") { setOpen(true); onConsumeIntent(); } }, [intent]);
 
   const now = new Date();
-  const cur = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthExpenses = expenses.filter((e) => new Date(e.date) >= cur);
+  const monthStart = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-01";
+  const monthExpenses = expenses.filter((e) => String(e.date || "").slice(0, 10) >= monthStart);
   const expensesByCurrency = new Map();
   monthExpenses.forEach((e) => {
     const currency = String(e.currencyCode || "").trim().toUpperCase();
@@ -48,7 +48,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
   const baseCurrencyExpenses = expensesByCurrency.get(currencyCode) || 0;
   const hasOtherCurrencyExpenses = [...expensesByCurrency.keys()].some((currency) => currency !== currencyCode);
   const hasUnknownCurrencyExpenses = monthExpenses.some((e) => !/^[A-Z]{3}$/.test(String(e.currencyCode || "").trim().toUpperCase()));
-  const monthInvoices = loadList(KEYS.history).filter((it) => { const d = new Date(it.createdDate || it.issueDate); return d >= cur; });
+  const monthInvoices = loadList(KEYS.history).filter((it) => String(it.issueDate || it.createdDate || "").slice(0, 10) >= monthStart);
   const salesByCurrency = new Map();
   monthInvoices.forEach((it) => {
     const currency = String(it.currency || "").trim().toUpperCase();
@@ -73,8 +73,8 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
   const filtered = useMemo(() => expenses.filter((e) => {
     const hay = `${e.vendor} ${e.category} ${e.notes}`.toLowerCase();
     if (q && !hay.includes(q.toLowerCase())) return false;
-    if (from && new Date(e.date) < new Date(from)) return false;
-    if (to && new Date(e.date) > new Date(to)) return false;
+    if (from && String(e.date || "").slice(0, 10) < from) return false;
+    if (to && String(e.date || "").slice(0, 10) > to) return false;
     if (cat !== "all" && e.category !== cat) return false;
     if (statusFilter !== "all" && expenseStatus(e) !== statusFilter) return false;
     return true;
