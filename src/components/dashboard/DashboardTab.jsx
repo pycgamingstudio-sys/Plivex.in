@@ -1,7 +1,7 @@
 import { formatMoney } from "@/lib/currency";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FileText, FilePlus2, ShoppingCart, Users, UserPlus, BarChart3, ArrowRight, Phone, Mail, HelpCircle, Package, UsersRound, AlertTriangle, Settings2, X, Check, BellRing, Send, Warehouse } from "lucide-react";
+import { FileText, FilePlus2, ShoppingCart, Users, UserPlus, BarChart3, ArrowRight, Phone, Mail, HelpCircle, Package, UsersRound, AlertTriangle, Settings2, X, Check, BellRing, ChevronUp, ChevronDown, Send, Warehouse } from "lucide-react";
 import { KEYS, useLocalState, loadList } from "@/lib/stores";
 import OwnerMasterControl from "@/components/dashboard/OwnerMasterControl";
 import OwnerTrackingWidgets from "@/components/dashboard/OwnerTrackingWidgets";
@@ -13,6 +13,8 @@ import { getPermanentDashboardFeatures, useWorkspaceFeatures } from "@/lib/works
 import FeatureLibraryModal from "@/components/dashboard/FeatureLibraryModal";
 
 const CARD_KEY = "invoicepulse:cardVisibility";
+const CARD_ORDER_KEY = "invoicepulse:dashboardCardOrder";
+const DEFAULT_CARD_ORDER = ["invoices", "quotations", "expenses", "crm", "leads", "reports", "stock", "team", "inventoryWorkspace"];
 const DEFAULT_VIS = { invoices: true, quotations: true, expenses: true, crm: true, leads: true, stock: true, team: true, inventoryWorkspace: true };
 
 // Strict per-role dashboard card visibility. A role can never see cards outside its allowlist.
@@ -27,11 +29,12 @@ const ROLE_CARD_ACCESS = {
 export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUnlocked }) {
   const isAdmin = role === "admin";
   const { user } = useAuth();
-  const { features, updateFeatures, saving: savingFeatures, error: featureError } = useWorkspaceFeatures(user?.workspace_id);
+  const { features, updateFeatures, saving: savingFeatures, error: featureError } = useWorkspaceFeatures(user?.workspace_id, user);
   const [featureOpen, setFeatureOpen] = useState(false);
   const { limits, usage } = usePaywall();
   const [profile] = useLocalState(KEYS.businessProfile, { name: "", address: "", gstin: "", email: "", phone: "", logo: "" });
   const [vis, setVis] = useLocalState(CARD_KEY, DEFAULT_VIS);
+  const [cardOrder, setCardOrder] = useLocalState(CARD_ORDER_KEY, DEFAULT_CARD_ORDER);
   const [visOpen, setVisOpen] = useState(false);
   const [reminderItems, setReminderItems] = useState([]);
   const [reminderLoading, setReminderLoading] = useState(false);
@@ -117,7 +120,17 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
 
   const roleCards = ROLE_CARD_ACCESS[role] || ROLE_CARD_ACCESS.employee;
   const permanentCards = getPermanentDashboardFeatures(user?.workspace_type);
-  const visibleCards = cards.filter((card) => roleCards.includes(card.id) && (permanentCards.includes(card.id) || (features.includes(card.id) && (isAdmin || vis[card.id] !== false))));
+  const normalizedOrder = [...new Set([...(Array.isArray(cardOrder) ? cardOrder : []), ...DEFAULT_CARD_ORDER])];
+  const orderedCards = [...cards].sort((a, b) => normalizedOrder.indexOf(a.id) - normalizedOrder.indexOf(b.id));
+  const moveCard = (id, direction) => setCardOrder((current) => {
+    const order = [...new Set([...(Array.isArray(current) ? current : []), ...DEFAULT_CARD_ORDER])];
+    const index = order.indexOf(id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= order.length) return order;
+    [order[index], order[target]] = [order[target], order[index]];
+    return order;
+  });
+  const visibleCards = orderedCards.filter((card) => roleCards.includes(card.id) && (permanentCards.includes(card.id) || (features.includes(card.id) && (isAdmin || vis[card.id] !== false))));
 
   return (
     <div className="plivex-dashboard-tab space-y-5 sm:space-y-6">
@@ -174,7 +187,7 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
 
       <div className="plivex-quick-actions-heading flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-[15px] font-bold text-slate-900">Quick actions</h2>
-        {isAdmin && <button onClick={() => setVisOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] px-3 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"><Settings2 className="h-3.5 w-3.5" />Manage card visibility</button>}
+        {isAdmin && <button onClick={() => setVisOpen(true)} className="flex min-h-10 max-w-full items-center gap-1.5 whitespace-normal rounded-lg border border-[#E5E7EB] px-3 py-2 text-left text-[11px] font-semibold leading-4 text-slate-600 hover:bg-slate-50"><Settings2 className="h-3.5 w-3.5" />Manage card visibility</button>}
       </div>
 
       <div className="plivex-action-cards grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
@@ -212,30 +225,37 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
         </div>
       </div>
 
-      {visOpen && <VisibilityModal cards={cards} vis={vis} setVis={setVis} onClose={() => setVisOpen(false)} />}
+      {visOpen && <VisibilityModal cards={orderedCards} vis={vis} setVis={setVis} onMove={moveCard} onClose={() => setVisOpen(false)} />}
       {featureOpen && <FeatureLibraryModal features={features} updateFeatures={updateFeatures} saving={savingFeatures} error={featureError} onClose={() => setFeatureOpen(false)} />}
     </div>
   );
 }
 
-function VisibilityModal({ cards, vis, setVis, onClose }) {
+function VisibilityModal({ cards, vis, setVis, onMove, onClose }) {
   const toggle = (id) => setVis((v) => ({ ...v, [id]: v[id] === false ? true : false }));
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-[440px] rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between"><div><h3 className="text-[16px] font-bold text-slate-900">Manage card visibility</h3><p className="text-[11px] text-slate-400">Control which cards team members see on their dashboard.</p></div><button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
+    <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/40 p-2 backdrop-blur-sm sm:grid sm:place-items-center sm:p-4" onClick={onClose}>
+      <section role="dialog" aria-modal="true" aria-labelledby="manage-card-visibility-title" className="mx-auto my-2 max-h-[calc(100dvh-1rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-[#E5E7EB] bg-white p-3 shadow-xl sm:my-0 sm:max-h-[min(88dvh,760px)] sm:p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0"><h3 id="manage-card-visibility-title" className="break-words text-[15px] font-bold leading-5 text-slate-900 sm:text-base">Manage card visibility</h3><p className="mt-1 text-[11px] leading-4 text-slate-500">Choose which cards appear and change their order.</p></div>
+          <button type="button" onClick={onClose} aria-label="Close card visibility settings" className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+        </div>
         <div className="mt-4 space-y-2">
-          {cards.map((c) => (
-            <label key={c.id} className="flex items-center gap-3 rounded-lg border border-[#E5E7EB] px-3 py-2.5 hover:bg-slate-50">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#6D28D9]/10 text-[#6D28D9]"><c.icon className="h-4 w-4" /></span>
-              <span className="flex-1 text-[12px] font-semibold text-slate-700">{c.title}</span>
-              <button type="button" onClick={() => toggle(c.id)} className={`relative h-6 w-11 rounded-full transition-colors ${vis[c.id] !== false ? "bg-[#6D28D9]" : "bg-slate-200"}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${vis[c.id] !== false ? "left-[22px]" : "left-0.5"}`} /></button>
-            </label>
+          {cards.map((c, index) => (
+            <div key={c.id} className="flex min-w-0 items-center gap-2 rounded-xl border border-[#E5E7EB] p-2 hover:bg-slate-50">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#6D28D9]/10 text-[#6D28D9]"><c.icon className="h-4 w-4" /></span>
+              <span className="min-w-0 flex-1 break-words text-[12px] font-semibold leading-4 text-slate-700">{c.title}</span>
+              <div className="flex shrink-0 items-center gap-1">
+                <button type="button" onClick={() => onMove(c.id, -1)} disabled={index === 0} aria-label={`Move ${c.title} up`} className="rounded-lg border border-slate-200 p-1.5 text-slate-600 disabled:cursor-not-allowed disabled:opacity-30"><ChevronUp className="h-4 w-4" /></button>
+                <button type="button" onClick={() => onMove(c.id, 1)} disabled={index === cards.length - 1} aria-label={`Move ${c.title} down`} className="rounded-lg border border-slate-200 p-1.5 text-slate-600 disabled:cursor-not-allowed disabled:opacity-30"><ChevronDown className="h-4 w-4" /></button>
+                <button type="button" onClick={() => toggle(c.id)} aria-label={`${vis[c.id] !== false ? "Hide" : "Show"} ${c.title}`} aria-pressed={vis[c.id] !== false} className={`relative ml-1 h-6 w-11 rounded-full transition-colors ${vis[c.id] !== false ? "bg-[#6D28D9]" : "bg-slate-200"}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${vis[c.id] !== false ? "left-[22px]" : "left-0.5"}`} /></button>
+              </div>
+            </div>
           ))}
         </div>
-        <p className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-400"><Check className="h-3.5 w-3.5 text-emerald-500" />As the boss, you always see every card.</p>
-        <div className="mt-4 flex justify-end"><button onClick={onClose} className="rounded-lg bg-[#6D28D9] px-4 py-2 text-[12px] font-bold text-white hover:bg-[#7C3AED]">Done</button></div>
-      </div>
+        <p className="mt-3 flex items-center gap-1.5 text-[11px] leading-4 text-slate-500"><Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" />As the workspace owner, you always see every card.</p>
+        <div className="mt-4 flex justify-end"><button onClick={onClose} className="min-h-10 rounded-lg bg-[#6D28D9] px-5 py-2 text-[12px] font-bold text-white hover:bg-[#7C3AED]">Done</button></div>
+      </section>
     </div>
   );
 }
