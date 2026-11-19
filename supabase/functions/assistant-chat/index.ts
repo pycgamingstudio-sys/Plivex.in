@@ -334,6 +334,22 @@ function validateAction(action: any) {
   if (!action || typeof action !== "object") return null;
   const type = text(action.type, 40);
   const p = action.payload && typeof action.payload === "object" ? action.payload : {};
+  if (type === "record_global_invoice_payment") {
+    const invoiceId = text(p.invoice_id, 36);
+    const amount = number(p.amount, -1);
+    const currencyCode = text(p.currency_code, 3).toUpperCase();
+    const paymentDate = text(p.payment_date, 10);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(invoiceId)
+      || !(amount > 0) || !/^[A-Z]{3}$/.test(currencyCode)
+      || !/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)
+      || Number.isNaN(Date.parse(paymentDate + "T00:00:00Z"))) return null;
+    return {
+      type,
+      payload: { invoice_id: invoiceId, amount, currency_code: currencyCode, payment_date: paymentDate,
+        method: text(p.method, 80), reference: text(p.reference, 160), notes: text(p.notes, 1000) },
+      summary: "Record " + currencyCode + " " + amount.toLocaleString() + " payment against Global invoice " + invoiceId + " on " + paymentDate + ". This records a payment ledger entry and requires invoice-balance verification.",
+    };
+  }
   if (type === "create_warehouse") {
     const validated = validateWarehouseAction(action);
     if (!validated) return null;
@@ -518,6 +534,7 @@ async function handleRequest(req: Request) {
       "Only propose a creation when the user clearly asks to add/create/save a record. Never save anything directly during chat. IMAGE/RECEIPT UNDERSTANDING RULE: When an image is attached with an expense request, visually inspect the actual image before asking questions. Understand common Indian payment receipts (PhonePe, Google Pay, Paytm, UPI, bank transfer) and paper bills. For a successful OUTGOING payment, extract the recipient/payee as vendor, the amount paid as amount, transaction date as date (convert readable dates to YYYY-MM-DD), payment app/mode as method, and transaction ID/UTR plus purpose as notes when readable. The 'Paid to'/recipient amount is the expense amount; 'Debited from' is the payer/source account and is NOT the vendor. Do not confuse transaction ID, UTR, phone number, account balance, or payer details with amount/vendor. A successful incoming/received payment is NOT an expense; ask which record type they want instead. If receipt clearly shows a successful outgoing payment and user asked to add expense, create create_expense immediately with all readable fields, category Other if purpose/category is unknown, and leave genuinely unknown optional fields blank. Amount is required; ask only for amount if unreadable. Do not ask for vendor/amount if they are visible. Do not ask for item name, quantity or price for an expense; those belong to stock. Reply that extracted expense is ready for confirmation; never claim saved before confirmation. Do not expose full phone/account details in notes. For image requests explicitly mentioning stock/inventory, use create_stock instead. Follow the user's explicitly named module; never infer stock from words like name/quantity unless they explicitly ask for stock.",
       "If the user reports an app bug, technical problem, or something not working in Plivex, apologize briefly and direct them to support@plivex.in or +91 97584 55218. Do not claim that a support person has been contacted or promise a response time.",
       "CRITICAL ACTION RULE: Output JSON {reply, actions:[{type,payload}]} with every fully specified supported operation, up to 10. The frontend shows one combined confirmation; backend validates every action and permission. Include only explicit or unambiguously extracted fields. Never invent phone numbers, prices, quantities, dates or amounts. Do not create inventory unless product name and positive quantity are known. Do not create expense unless positive amount is known. Do not silently treat missing stock price as zero; ask for it if required. Preserve details from prior turns when the latest message supplies missing information.",
+      "GLOBAL PAYMENT ACTION: If the user explicitly asks to record a payment received against a Global invoice, use record_global_invoice_payment only when the exact invoice_id and currency_code exist in GLOBAL FINANCE CONTEXT, outstanding_minor is positive, and the user supplied the payment amount and date. amount is expressed in major currency units; never send minor units in amount. Do not use this for outgoing supplier payments, refunds, subscription payments or screenshots alone. Never mark an invoice paid manually; the Global ledger recalculates its balance. This action is one invoice at a time and requires confirmation. If the workspace has no Global reconciliation context, explain that this action is not connected for that workspace.",
       "GLOBAL FINANCE CONTEXT: When present, this is the authenticated Global invoice reconciliation snapshot from the workspace's own country context. Use invoice_id only from these records. Amount fields ending in _minor are minor currency units, not major units; do not display them as whole currency amounts without the currency's correct exponent. Distinguish invoice total, gross payments, refunds, net received and outstanding. This context is read-only; payment/refund writes still require an explicitly supported action and confirmation. " + JSON.stringify(globalBusinessContext),
       "LIVE DATA JSON: " + JSON.stringify(liveContext),
     ].join("\n");
@@ -540,9 +557,9 @@ async function handleRequest(req: Request) {
                 items: {
                   type: "OBJECT",
                   properties: {
-                    type: { type: "STRING", enum: ["create_client", "create_expense", "create_lead", "create_stock", "create_quotation", "create_invoice", "create_purchase_order", "receive_purchase_order", "create_warehouse"] },
+                    type: { type: "STRING", enum: ["create_client", "create_expense", "create_lead", "create_stock", "create_quotation", "create_invoice", "create_purchase_order", "receive_purchase_order", "create_warehouse", "record_global_invoice_payment"] },
                     payload: { type: "OBJECT", properties: {
-                      name:{type:"STRING"}, company:{type:"STRING"}, email:{type:"STRING"}, phone:{type:"STRING"}, gstin:{type:"STRING"}, address:{type:"STRING"},
+                      name:{type:"STRING"}, company:{type:"STRING"}, email:{type:"STRING"}, phone:{type:"STRING"}, gstin:{type:"STRING"}, address:{type:"STRING"}, invoice_id:{type:"STRING"}, currency_code:{type:"STRING"}, payment_date:{type:"STRING"}, reference:{type:"STRING"},
                       vendor:{type:"STRING"}, category:{type:"STRING"}, amount:{type:"NUMBER"}, date:{type:"STRING"}, status:{type:"STRING"}, method:{type:"STRING"}, notes:{type:"STRING"},
                       requirement:{type:"STRING"}, value:{type:"NUMBER"}, stage:{type:"STRING"}, sku:{type:"STRING"}, quantity:{type:"NUMBER"}, unit:{type:"STRING"}, price:{type:"NUMBER"}, low_stock:{type:"NUMBER"},
                       purchase_order_id:{type:"STRING"}, warehouse_id:{type:"STRING"}, supplier_name:{type:"STRING"}, supplier_reference:{type:"STRING"}, expected_date:{type:"STRING"}, code:{type:"STRING"}, client_name:{type:"STRING"}, client_email:{type:"STRING"}, business_name:{type:"STRING"}, issue_date:{type:"STRING"}, due_date:{type:"STRING"}, currency:{type:"STRING"}, tax_mode:{type:"STRING"}, discount_type:{type:"STRING"}, discount:{type:"NUMBER"}, terms:{type:"STRING"}, is_draft:{type:"BOOLEAN"}, total:{type:"NUMBER"}, tax_rate:{type:"NUMBER"},
