@@ -287,7 +287,8 @@ function parseExpenseConversation(incoming: any[]) {
     return base * (/^(?:k|thousand)$/i.test(scale) ? 1000 : /^(?:lakh|lac)$/i.test(scale) ? 100000 : 1);
   };
   const amountMatch = combined.match(/(?:amount|price|total|cost|value|rakam|रकम|कीमत|दाम)\s*(?:hai|is|[:=])?\s*(?:₹|rs\.?\s*)?([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(k|thousand|lakh|lac)?/i)
-    || combined.match(/(?:₹|rs\.?\s*)([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(k|thousand|lakh|lac)?/i);
+    || combined.match(/(?:₹|rs\.?\s*)([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(k|thousand|lakh|lac)?/i)
+    || combined.match(/(?:expense|kharcha|kharch|खर्च)[^0-9₹]{0,50}(?:₹|rs\.?\s*)?([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(k|thousand|lakh|lac)?/i);
   let amount = amountMatch ? parseMoney(amountMatch[1], amountMatch[2] || "") : NaN;
   const latest = userTurns[userTurns.length - 1] || "";
   const latestNumber = latest.match(/^\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(k|thousand|lakh|lac)?\s*$/i);
