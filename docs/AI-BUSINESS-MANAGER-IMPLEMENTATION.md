@@ -8,6 +8,9 @@
 - Ask one focused clarification when a required field or the intended business operation is genuinely ambiguous.
 - Never claim a capability is live merely because its database table exists.
 
+## Model runtime
+The assistant uses the Gemini Developer API `gemini-3.8-flash` model ID with structured JSON output and medium thinking. The Edge Function allows up to 25 seconds for the provider request; the browser waits up to 30 seconds so the client does not cancel a valid reasoning response prematurely. Model output remains untrusted and is validated by the server allow-list before any confirmation can be shown.
+
 ## Current verified write surface
 The existing `execute_assistant_action_batch` RPC and `assistant-confirm` Edge Function currently support:
 `create_client`, `create_expense`, `create_lead`, `create_stock`, `create_quotation`, `create_invoice`.
