@@ -76,7 +76,7 @@ test("returns a grand total only when inventory quantities share one unit", () =
 });
 
 test("does not report a total when currency or unit is missing", () => {
-  const { groupNumericTotals } = requireAnalyticsHelpers;
+  
   const result = groupNumericTotals([{ total: 200 }], "total", "currency");
   assert.equal(result.total, null);
   assert.equal(result.mixedGroups, true);
