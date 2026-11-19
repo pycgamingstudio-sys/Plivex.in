@@ -393,9 +393,16 @@ export async function saveInvoiceToServer(inv) {
   const workspaceCountry = String(inv.workspaceCountryCode || "").trim().toUpperCase();
   const isGlobalWorkspaceInvoice = Boolean(workspaceCountry && workspaceCountry !== "IN");
   const workspaceCurrency = String(inv.workspaceCurrencyCode || "").trim().toUpperCase();
-  const currency = String(inv.currency || workspaceCurrency || (workspaceCountry === "IN" ? "INR" : "")).trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Workspace base currency could not be verified. Invoice PDF export is paused rather than defaulting to INR.");
-  if (workspaceCurrency && currency !== workspaceCurrency) throw new Error("Invoice currency must match the workspace base currency. Additional currencies require an enabled plan feature.");
+  const currency = String(inv.currency || "").trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(workspaceCountry) || !/^[A-Z]{3}$/.test(workspaceCurrency)) {
+    throw new Error("Workspace country and base currency could not be verified. Reload the workspace before exporting this invoice.");
+  }
+  if (!/^[A-Z]{3}$/.test(currency)) {
+    throw new Error("Invoice currency is missing or invalid. Select the verified workspace base currency.");
+  }
+  if (currency !== workspaceCurrency) {
+    throw new Error(`Invoice currency (${currency}) must match the workspace base currency (${workspaceCurrency}). Reload the invoice editor and try again.`);
+  }
   const already = _savedSignatures.get(sig);
   if (already) return already; // same invoice downloaded or shared again: do not create a duplicate
   const payload = {

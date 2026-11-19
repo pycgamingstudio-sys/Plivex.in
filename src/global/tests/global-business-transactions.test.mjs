@@ -44,7 +44,8 @@ test("PLIVEX ONE saves non-India invoices as canonical public drafts", async () 
   const saveInvoice = await read("../../../supabase/functions/save-invoice/index.ts");
   const shareHelper = await read("../../lib/invoiceShare.js");
   assert.match(stores, /is_draft: isGlobalWorkspaceInvoice/);
-  assert.match(stores, /Workspace base currency could not be verified/);
+  assert.match(stores, /Workspace country and base currency could not be verified/);
+  assert.match(stores, /currency !== workspaceCurrency/);
   assert.doesNotMatch(stores, /action: "create_draft"/);
   assert.match(saveInvoice, /body\?\.is_draft !== true/);
   assert.match(saveInvoice, /globalTaxCalculation/);

@@ -18,11 +18,13 @@ test("production build edition cannot be downgraded by a local .env value", asyn
 test("the actual View Plans modal uses the authenticated workspace country and never defaults to INR", async () => {
   const home = await read("../../pages/Home.jsx");
   const modal = home.slice(home.indexOf("function PricingModal("), home.indexOf("\nfunction Toast("));
-  assert.match(home, /countryCode=\{user\?\.country_code \|\| workspaceTaxProfile\?\.countryCode \|\| ""\}/);
-  assert.match(home, /currencyCode=\{user\?\.currency_code \|\| workspaceTaxProfile\?\.currencyCode/);
+  assert.match(home, /countryCode=\{workspaceTaxProfile\?\.countryCode \|\| ""\}/);
+  assert.match(home, /currencyCode=\{workspaceTaxProfile\?\.currencyCode \|\| ""\}/);
   assert.match(modal, /countryCode = "", currencyCode = ""/);
   assert.match(modal, /normalizedCountryCode === "IN"/);
   assert.match(modal, /No substitute pricing is shown/);
+  assert.match(modal, /normalizedCurrencyCode === "INR"/);
+  assert.match(modal, /normalizedCurrencyCode === billingConfig\.currency/);
   assert.doesNotMatch(modal, /countryCode = "IN", currencyCode = "INR"/);
 });
 
@@ -33,6 +35,8 @@ test("manually selected workspace country is authoritative over stale business-p
   assert.match(home, /const countryCode = String\(settings\?\.country_code/);
   assert.match(home, /const currencyCode = String\(settings\?\.currency_code/);
   assert.match(home, /resolveInvoiceCurrencyForWorkspace\(countryCode, currencyCode\)/);
+  assert.match(home, /activeWorkspaceCountry !== "IN" && effectiveWorkspaceTaxProfile\?\.currencyCode/);
+  assert.match(home, /<InvoiceEditor invoice=\{invoiceForPreview\}/);
   assert.doesNotMatch(home, /const countryCode = profileCountry \|\| recordCountry/);
 });
 

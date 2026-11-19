@@ -59,7 +59,8 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
   const consume = () => setIntent(null);
   const visibleTabs = TABS.filter((t) => {
     if (!canAccessTab(role, t.id)) return false;
-    if (user?.workspace_type === "freelancer" && ["stock", "team"].includes(t.id)) return false;
+    if (t.id === "stock") return user?.workspace_type === "business" || workspaceFeatures.includes("stock");
+    if (t.id === "team") return user?.workspace_type === "business" || workspaceFeatures.includes("team");
     if (t.id === "warehouses") return workspaceFeatures.includes("inventoryWorkspace");
     if (t.id === "purchase" || t.id === "reconciliation") return workspaceFeatures.includes("expenses");
     if (t.id === "reports") return workspaceFeatures.includes("reports");
@@ -77,7 +78,7 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
     if (path === "/inventory-procurement") return workspaceFeatures.includes("inventoryWorkspace");
     if (["/usage-reports", "/tax-summary", "/account-activity"].includes(path)) return workspaceFeatures.includes("reports");
     if (path === "/payment-logs") return workspaceFeatures.includes("expenses");
-    if (path === "/team-management") return user?.workspace_type === "business";
+    if (path === "/team-management") return user?.workspace_type === "business" || workspaceFeatures.includes("team");
     if (path === "/templates" || path === "/service-catalog") return workspaceFeatures.includes("quotations");
     return true;
   };

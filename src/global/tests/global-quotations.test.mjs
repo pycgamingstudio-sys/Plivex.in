@@ -34,7 +34,8 @@ test("Global quotations remain permanently visible outside More Features", async
   const app = await read("../../App.jsx");
   const global = await read("../GlobalApp.jsx");
   const panel = await read("../../components/global/GlobalQuotationsPanel.jsx");
-  assert.doesNotMatch(features, /id: "quotations"/);
+  assert.match(features, /PERMANENT_DASHBOARD_FEATURES = Object\.freeze\(\["invoices", "quotations"\]\)/);
+  assert.match(features, /id: "quotations", label: "Quotations".*core: true/);
   assert.match(layout, /to: "\/quotations", label: "Quotations"/);
   assert.match(layout, /if \(item\.to === "\/quotations"\) return true/);
   assert.match(app, /path="\/quotations".*GlobalApp section="quotations"/);

@@ -226,7 +226,7 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
       </div>
 
       {visOpen && <VisibilityModal cards={orderedCards} vis={vis} setVis={setVis} onMove={moveCard} onClose={() => setVisOpen(false)} />}
-      {featureOpen && <FeatureLibraryModal features={features} updateFeatures={updateFeatures} saving={savingFeatures} error={featureError} onClose={() => setFeatureOpen(false)} />}
+      {featureOpen && <FeatureLibraryModal features={features} permanentFeatures={permanentCards} updateFeatures={updateFeatures} saving={savingFeatures} error={featureError} onClose={() => setFeatureOpen(false)} />}
     </div>
   );
 }

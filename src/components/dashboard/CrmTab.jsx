@@ -246,21 +246,28 @@ function LeadModal({ currencyCode, onClose, onSave }) {
   const [form, setForm] = useState(blankLead);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-[440px] rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between"><h3 className="text-lg font-bold text-slate-900">Add new lead</h3><button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
-        <div className="mt-4 grid gap-3">
-          <label className="block text-[12px] font-semibold text-slate-500">Lead name<input className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Lead name" /></label>
-          <label className="block text-[12px] font-semibold text-slate-500">Company<input className={inputCls} value={form.company} onChange={(e) => set("company", e.target.value)} placeholder="Business name" /></label>
-          <label className="block text-[12px] font-semibold text-slate-500">Phone<input className={inputCls} value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+91" /></label>
-          <label className="block text-[12px] font-semibold text-slate-500">Email<input type="email" className={inputCls} value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="lead@example.com" /></label>
-          <label className="block text-[12px] font-semibold text-slate-500">Lead source<input className={inputCls} value={form.source} onChange={(e) => set("source", e.target.value)} placeholder="Referral, website, walk-in…" /></label>
-          <label className="block text-[12px] font-semibold text-slate-500">Requirement<input className={inputCls} value={form.requirement} onChange={(e) => set("requirement", e.target.value)} placeholder="What do they need?" /></label>
-          <label className="block text-[12px] font-semibold text-slate-500">Estimated value ({currencyCode})<input type="number" min="0" className={inputCls} value={form.value} onChange={(e) => set("value", e.target.value)} placeholder="0" /></label>
-          <label className="block text-[12px] font-semibold text-slate-500 sm:col-span-2">Next follow-up<input type="datetime-local" className={inputCls} value={form.nextFollowUpAt} onChange={(e) => set("nextFollowUpAt", e.target.value)} /></label>
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-950/45 p-2 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+      <section role="dialog" aria-modal="true" aria-labelledby="lead-modal-title" className="my-1 flex max-h-[calc(100dvh-0.5rem)] w-full max-w-[480px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:my-0 sm:max-h-[min(88dvh,760px)] sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 sm:px-5">
+          <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-700">Lead pipeline</p><h3 id="lead-modal-title" className="mt-0.5 text-lg font-bold text-slate-900">Add new lead</h3></div>
+          <button type="button" onClick={onClose} aria-label="Close add lead" className="shrink-0 rounded-xl p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+            <label className="block min-w-0 text-[12px] font-semibold text-slate-600 sm:col-span-2">Lead name<input className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Lead name" /></label>
+            <label className="block min-w-0 text-[12px] font-semibold text-slate-600">Company<input className={inputCls} value={form.company} onChange={(e) => set("company", e.target.value)} placeholder="Business name" /></label>
+            <label className="block min-w-0 text-[12px] font-semibold text-slate-600">Phone<input type="tel" className={inputCls} value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+1 555 0100" /></label>
+            <label className="block min-w-0 text-[12px] font-semibold text-slate-600">Email<input type="email" className={inputCls} value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="lead@example.com" /></label>
+            <label className="block min-w-0 text-[12px] font-semibold text-slate-600">Lead source<input className={inputCls} value={form.source} onChange={(e) => set("source", e.target.value)} placeholder="Referral, website, walk-in…" /></label>
+            <label className="block min-w-0 text-[12px] font-semibold text-slate-600 sm:col-span-2">Requirement<input className={inputCls} value={form.requirement} onChange={(e) => set("requirement", e.target.value)} placeholder="What do they need?" /></label>
+            <label className="block min-w-0 text-[12px] font-semibold text-slate-600">Estimated value ({currencyCode})<input type="number" inputMode="decimal" min="0" className={inputCls} value={form.value} onChange={(e) => set("value", e.target.value)} placeholder="0" /></label>
+            <label className="block min-w-0 text-[12px] font-semibold text-slate-600">Next follow-up<input type="datetime-local" className={inputCls} value={form.nextFollowUpAt} onChange={(e) => set("nextFollowUpAt", e.target.value)} /></label>
+          </div>
         </div>
-        <div className="mt-4 flex justify-end gap-2"><button onClick={onClose} className={btnGhost}>Cancel</button><button onClick={() => onSave(form)} className={btnAccent}>Save lead</button></div>
-      </div>
+        <footer className="flex shrink-0 justify-end gap-2 border-t border-slate-100 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
+          <button type="button" onClick={onClose} className={btnGhost}>Cancel</button><button type="button" onClick={() => onSave(form)} className={btnAccent}>Save lead</button>
+        </footer>
+      </section>
     </div>
   );
 }

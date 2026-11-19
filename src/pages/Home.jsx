@@ -15,7 +15,7 @@ import { DEFAULT_DESIGN_ID, InvoiceDesign, isPremiumDesign } from "@/components/
 import { SUPPORTED_CURRENCIES, formatMoney, amountInWords } from "@/lib/currency";
 import { backend, supabase } from "@/api/backendClient";
 import GlobalTaxEditor from "@/components/invoice/GlobalTaxEditor";
-import { calculateInvoiceGlobalTax, GLOBAL_COUNTRY_CURRENCIES, resolveInvoiceCurrencyForWorkspace } from "@/global/tax/invoice-tax-integration.js";
+import { calculateInvoiceGlobalTax, resolveInvoiceCurrencyForWorkspace } from "@/global/tax/invoice-tax-integration.js";
 import { getCountryByCode } from "@/global/countries/country-registry.js";
 import { getBillingForCountry, formatPlanPrice } from "@/global/billing/pricing.js";
 import { getCountryExperience } from "@/global/countries/country-experience.js";
@@ -462,9 +462,11 @@ function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEm
   const billingConfig = getBillingForCountry(normalizedCountryCode);
   const displayCurrency = billingConfig?.currency || normalizedCurrencyCode;
   const billingLocale = getCountryByCode(normalizedCountryCode)?.locales?.[0] || "en";
+  // Pricing is shown only when both the canonical workspace country and its
+  // exact base currency are verified. A blank currency is never treated as a match.
   const currencyMatches = isIndiaPricing
-    ? (!normalizedCurrencyCode || normalizedCurrencyCode === "INR")
-    : Boolean(billingConfig && (!normalizedCurrencyCode || normalizedCurrencyCode === billingConfig.currency));
+    ? normalizedCurrencyCode === "INR"
+    : Boolean(billingConfig && normalizedCurrencyCode === billingConfig.currency);
   const pricingVerified = isIndiaPricing ? currencyMatches : Boolean(isGlobalPricing && billingConfig && currencyMatches);
   const displayPlans = isIndiaPricing && pricingVerified
     ? PRICING_PLANS.map((plan) => isVirendraAccount && plan.id === "basic_monthly" ? { ...plan, price:25, amount:2500, badge:"SPECIAL PRICE" } : plan)
@@ -647,16 +649,9 @@ export default function Home() {
     loadWorkspaceTaxProfile();
     return () => { active = false; };
   }, [user?.workspace_id]);
-  const effectiveWorkspaceTaxProfile = workspaceTaxProfile || (user?.country_code ? {
-    countryCode: user.country_code,
-    currencyCode: user.currency_code || "",
-    localeCode: user.locale_code || "",
-    registrationNumber: "",
-    registrationType: "",
-    registrationStatus: "unregistered",
-    registrationEffectiveFrom: "",
-    registeredJurisdiction: "",
-  } : null);
+  // Canonical workspace_settings is the only source of country and base currency.
+  // Never let stale auth/profile metadata override a manually selected workspace country.
+  const effectiveWorkspaceTaxProfile = workspaceTaxProfile;
   const activeWorkspaceCountry = String(effectiveWorkspaceTaxProfile?.countryCode || "").trim().toUpperCase();
   const isGlobalWorkspace = Boolean(activeWorkspaceCountry && activeWorkspaceCountry !== "IN");
   const globalTaxCalculation = useMemo(() => {
@@ -665,14 +660,19 @@ export default function Home() {
   }, [invoice, effectiveWorkspaceTaxProfile, activeWorkspaceCountry]);
   const invoiceForPreview = useMemo(() => ({
     ...invoice,
+    // Non-India workspaces are single-base-currency until additional-currency
+    // support is explicitly enabled for that jurisdiction.
+    ...(activeWorkspaceCountry && activeWorkspaceCountry !== "IN" && effectiveWorkspaceTaxProfile?.currencyCode
+      ? { currency: effectiveWorkspaceTaxProfile.currencyCode }
+      : {}),
     workspaceCountryCode: activeWorkspaceCountry,
-    workspaceCurrencyCode: effectiveWorkspaceTaxProfile?.currencyCode || user?.currency_code || "",
+    workspaceCurrencyCode: effectiveWorkspaceTaxProfile?.currencyCode || "",
     ...(isGlobalWorkspace ? {
       globalTax: { ...(invoice.globalTax || {}), countryCode: activeWorkspaceCountry, mode: globalTaxCalculation?.mode || (["US", "CA"].includes(activeWorkspaceCountry) ? "manual" : (invoice.globalTax?.mode || "automatic")) },
       globalTaxCalculation,
       globalTaxProfileSnapshot: effectiveWorkspaceTaxProfile,
     } : {}),
-  }), [invoice, activeWorkspaceCountry, effectiveWorkspaceTaxProfile, isGlobalWorkspace, globalTaxCalculation, user?.currency_code]);
+  }), [invoice, activeWorkspaceCountry, effectiveWorkspaceTaxProfile, isGlobalWorkspace, globalTaxCalculation]);
   useEffect(() => { document.documentElement.classList.toggle("dark", isDark); }, [isDark]);
   useEffect(() => () => { if (toastTimer.current) window.clearTimeout(toastTimer.current); }, []);
   // Business profile is the single source of defaults for every invoice.
@@ -1091,13 +1091,13 @@ export default function Home() {
           <div className="mb-6 hidden items-end justify-between gap-4 md:flex fade-up"><div><p className="font-mono-ui text-[10px] uppercase tracking-[0.18em] text-primary">The fast billing desk</p><h2 className="mt-1 text-[29px] font-bold tracking-[-0.06em]">Make it official<span className="font-display ml-1 font-normal italic text-primary">.</span></h2><p className="mt-1 text-[12px] text-muted-foreground">Your next professional invoice is already taking shape.</p></div><div className="flex items-center gap-2 text-[11px] text-muted-foreground"><Zap className="h-3.5 w-3.5 text-accent-foreground" />Built for the two-minute window</div></div>
           <div className="mb-4 rounded-xl border bg-card p-3"><div className="flex items-center justify-between text-xs"><span className="font-semibold">Invoices this month</span><span className="font-bold">{Number(usage.invoices_monthly ?? usage.invoices ?? 0)}/{Number(limits.invoices_monthly ?? limits.invoices ?? 30)}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${Number(usage.invoices_monthly ?? usage.invoices ?? 0) >= Number(limits.invoices_monthly ?? limits.invoices ?? 30) ? "bg-rose-500" : Number(usage.invoices_monthly ?? usage.invoices ?? 0) / Number(limits.invoices_monthly ?? limits.invoices ?? 30) >= 0.8 ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${Math.min(100, Number(usage.invoices_monthly ?? usage.invoices ?? 0) / Number(limits.invoices_monthly ?? limits.invoices ?? 30) * 100)}%` }} /></div>{Number(usage.invoices_monthly ?? usage.invoices ?? 0) / Number(limits.invoices_monthly ?? limits.invoices ?? 30) >= 0.8 && <p className="mt-1.5 text-[11px] text-amber-600">{Number(usage.invoices_monthly ?? usage.invoices ?? 0) >= Number(limits.invoices_monthly ?? limits.invoices ?? 30) ? "Plan limit reached" : "Usage limit warning"}</p>}{Number(usage.invoices_monthly ?? usage.invoices ?? 0) >= Number(limits.invoices_monthly ?? limits.invoices ?? 30) && <button onClick={() => openPaywall("Invoice limit reached for your current plan.")} className="mt-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground">Upgrade</button>}</div><div className="mb-4 flex rounded-lg border bg-card p-1 xl:hidden"><button data-testid="tab-edit-mobile" onClick={() => setMobileTab("edit")} className={`flex-1 rounded-md py-2 text-xs font-bold transition-colors ${mobileTab === "edit" ? "bg-secondary text-primary" : "text-muted-foreground"}`}><FilePenLine className="mr-1.5 inline h-3.5 w-3.5" />Edit invoice</button><button data-testid="tab-preview-mobile" onClick={() => setMobileTab("preview")} className={`flex-1 rounded-md py-2 text-xs font-bold transition-colors ${mobileTab === "preview" ? "bg-secondary text-primary" : "text-muted-foreground"}`}><FileText className="mr-1.5 inline h-3.5 w-3.5" />Preview</button></div>
           <div className="grid items-start gap-6 xl:grid-cols-[minmax(360px,440px)_minmax(0,1fr)] xl:gap-8">
-            <div className={`${mobileTab === "preview" ? "hidden xl:block" : "block"} min-w-0 fade-up fade-up-delay-1`}><InvoiceEditor invoice={invoice} setInvoice={setInvoice} user={user} workspaceTaxProfile={effectiveWorkspaceTaxProfile} globalTaxCalculation={globalTaxCalculation} errors={errors} onClearError={(key) => setErrors((current) => { if (!current[key]) return current; const next = { ...current }; delete next[key]; return next; })} onToast={notify} onSignature={() => setSignatureOpen(true)} canAccess={canAccess} onLocked={() => setPricingOpen(true)} design={activeDesign} /></div>
+            <div className={`${mobileTab === "preview" ? "hidden xl:block" : "block"} min-w-0 fade-up fade-up-delay-1`}><InvoiceEditor invoice={invoiceForPreview} setInvoice={setInvoice} user={user} workspaceTaxProfile={effectiveWorkspaceTaxProfile} globalTaxCalculation={globalTaxCalculation} errors={errors} onClearError={(key) => setErrors((current) => { if (!current[key]) return current; const next = { ...current }; delete next[key]; return next; })} onToast={notify} onSignature={() => setSignatureOpen(true)} canAccess={canAccess} onLocked={() => setPricingOpen(true)} design={activeDesign} /></div>
             <div className={`${mobileTab === "edit" ? "hidden xl:block" : "block"} min-w-0 xl:sticky xl:top-[86px] fade-up fade-up-delay-2`}><div className="mb-3 flex items-center justify-between px-1"><div><p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Live preview</p><p className="mt-0.5 text-[12px] text-muted-foreground">A4 · print-ready · {invoice.currency}</p></div></div><div className="paper-grid min-w-0 rounded-xl border bg-[#e9e8f0] dark:bg-[#1e1d2a] xl:max-h-[calc(100dvh-170px)] xl:overflow-y-auto"><InvoicePreview invoice={invoiceForPreview} design={activeDesign} /></div></div>
           </div>
         </main>
       </div>
       {signatureOpen && <SignatureModal onClose={() => setSignatureOpen(false)} onSave={(data) => { setInvoice((old) => ({ ...old, signature: data })); notify("Signature saved"); }} />}
-      {pricingOpen && <PricingModal onClose={() => { setPricingOpen(false); setCheckoutNotice(""); }} onCheckout={checkout} checkoutNotice={checkoutNotice} userEmail={user?.email} countryCode={user?.country_code || workspaceTaxProfile?.countryCode || ""} currencyCode={user?.currency_code || workspaceTaxProfile?.currencyCode || GLOBAL_COUNTRY_CURRENCIES[user?.country_code] || ""} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} />}
+      {pricingOpen && <PricingModal onClose={() => { setPricingOpen(false); setCheckoutNotice(""); }} onCheckout={checkout} checkoutNotice={checkoutNotice} userEmail={user?.email} countryCode={workspaceTaxProfile?.countryCode || ""} currencyCode={workspaceTaxProfile?.currencyCode || ""} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} />}
       {whatsappOpen && <WhatsAppNumberModal value={whatsappNumber} onChange={setWhatsappNumber} onClose={() => setWhatsappOpen(false)} onSend={() => sendWhatsApp(whatsappNumber)} sending={whatsappSending} />}
       <PresenceBeacon />
       <Toast toast={toast} onClose={() => setToast(null)} />
