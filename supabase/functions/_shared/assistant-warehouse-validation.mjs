@@ -13,6 +13,6 @@ export function validateWarehouseAction(action) {
   if (code && !CODE_RE.test(code)) return null;
   return {
     type: "create_warehouse",
-    payload: { name, code: code || null, address: clean(raw.address, 500) },
+    payload: { name, code: code || null, address: rawAddress },
   };
 }
