@@ -130,9 +130,17 @@ Deno.serve(async (req: Request) => {
           : "The goods receipt details were rejected. Nothing was saved.";
         return json({ error: message }, reason === "forbidden" ? 403 : 400, origin);
       }
-      const { data: receiptRow, error: verifyError } = await supabase.from("purchase_receipts")
-        .select("id").eq("workspace_id", profile.workspace_id).eq("id", receipt.receipt_id).maybeSingle();
-      const verified = !verifyError && Boolean(receiptRow?.id);
+      const [receiptCheck, receiptItemsCheck, movementCheck] = await Promise.all([
+        supabase.from("purchase_receipts").select("id")
+          .eq("workspace_id", profile.workspace_id).eq("id", receipt.receipt_id).maybeSingle(),
+        supabase.from("purchase_receipt_items").select("stock_id,quantity")
+          .eq("workspace_id", profile.workspace_id).eq("receipt_id", receipt.receipt_id),
+        supabase.from("stock_movements").select("id")
+          .eq("workspace_id", profile.workspace_id).eq("reference_type", "purchase_receipt").eq("reference_id", receipt.receipt_id),
+      ]);
+      const verified = !receiptCheck.error && Boolean(receiptCheck.data?.id)
+        && !receiptItemsCheck.error && receiptItemsCheck.data?.length === payload.items.length
+        && !movementCheck.error && movementCheck.data?.length === payload.items.length;
       return json({
         ok: true,
         verified,
