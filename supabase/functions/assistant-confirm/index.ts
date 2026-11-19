@@ -132,13 +132,14 @@ Deno.serve(async (req: Request) => {
       })(),
     ]);
     if (globalAuthResult?.timedOut || globalAuthResult?.unavailable) return json({ error: "Workspace country context is temporarily unavailable. No action was executed; please retry." }, 503, origin);
-    const profile = profileResult.data || null;
+    const profileRow = profileResult.data || null;
     const globalUser = !globalAuthResult.result?.error && globalAuthResult.result?.data?.user?.workspace_id
       ? globalAuthResult.result.data.user
       : null;
-    const workspaceId = globalUser?.workspace_id || profile?.workspace_id || null;
+    const workspaceId = globalUser?.workspace_id || profileRow?.workspace_id || null;
     const isGlobalWorkspace = Boolean(globalUser?.workspace_id);
     if (!workspaceId) return json({ error: "Your Plivex workspace could not be found." }, 403, origin);
+    const profile: any = { ...(profileRow || {}), workspace_id: workspaceId };
 
     const body = await req.json().catch(() => null);
     const rawActions = Array.isArray(body?.actions) ? body.actions : [body?.action];
