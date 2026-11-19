@@ -96,15 +96,21 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
   if (issueDate < registrationEffectiveFrom) {
     return fail("REGISTRATION_NOT_EFFECTIVE", "Invoice date is before the saved tax registration effective date.");
   }
-  if (config.taxDetailsConfirmed !== true
-    && !(config.registrationConfirmed === true && config.placeOfSupplyConfirmed === true && config.taxCategoryConfirmed === true)) {
-    return fail("TAX_DETAILS_CONFIRMATION_REQUIRED", "Confirm the saved registration details, place of supply and tax category together.");
+  if (!config.placeOfSupplyConfirmed && config.taxDetailsConfirmed !== true) {
+    return fail("PLACE_OF_SUPPLY_REQUIRED", "Enter the place of supply for this invoice.");
   }
   if (!String(config.placeOfSupply || "").trim()) {
     return fail("PLACE_OF_SUPPLY_REQUIRED", "Enter the place of supply for this invoice.");
   }
   if (!String(config.taxCategory || "").trim()) {
     return fail("TAX_CATEGORY_REQUIRED", "Select the goods/services tax category.");
+  }
+  if (config.taxDetailsConfirmed !== true && config.registrationConfirmed !== true) {
+    return fail("REGISTRATION_CONFIRMATION_REQUIRED", "Confirm the saved registration details and invoice tax details together.");
+  }
+  if (config.taxDetailsConfirmed !== true
+    && !(config.registrationConfirmed === true && config.placeOfSupplyConfirmed === true && config.taxCategoryConfirmed === true)) {
+    return fail("TAX_DETAILS_CONFIRMATION_REQUIRED", "Confirm the saved registration details, place of supply and tax category together.");
   }
   const normalizedTreatment = normalizeManualTaxTreatment(config.taxCategory);
   if (normalizedTreatment !== "standard-rated" || (mode === "manual" && !isSupportedManualTaxTreatment(config.taxCategory))) {
