@@ -136,15 +136,20 @@ Deno.serve(async (req: Request) => {
         return json({ error: "Payment currency must match the selected invoice currency." }, 409, origin);
       }
       const outstandingMinor = Number(invoice.outstanding_minor);
-      if (!Number.isSafeInteger(outstandingMinor) || outstandingMinor <= 0) {
-        return json({ error: "This invoice has no outstanding balance to receive." }, 409, origin);
+      const totalMinor = Number(invoice.total_minor);
+      const previousGrossPayments = Number(invoice.gross_payments_minor);
+      const payableRemainingMinor = totalMinor - previousGrossPayments;
+      if (!Number.isSafeInteger(outstandingMinor) || outstandingMinor <= 0
+        || !Number.isSafeInteger(totalMinor) || !Number.isSafeInteger(previousGrossPayments)
+        || !Number.isSafeInteger(payableRemainingMinor) || payableRemainingMinor <= 0) {
+        return json({ error: "This invoice has no payable balance remaining." }, 409, origin);
       }
       const amountMinor = majorToMinorUnits(payload.amount, payload.currency_code);
       if (amountMinor === null) {
         return json({ error: "Payment amount has more decimal places than the invoice currency supports." }, 400, origin);
       }
-      if (amountMinor > outstandingMinor) {
-        return json({ error: "Payment exceeds this invoice's remaining balance. Nothing was recorded." }, 409, origin);
+      if (amountMinor > payableRemainingMinor) {
+        return json({ error: "Payment exceeds this invoice's payable balance. Nothing was recorded." }, 409, origin);
       }
       const { data: payment, error: paymentError } = await supabase.functions.invoke("global-invoices", {
         body: {
@@ -171,7 +176,6 @@ Deno.serve(async (req: Request) => {
       const updated = !afterError && after?.ok && Array.isArray(after.records)
         ? after.records.find((item: any) => item?.invoice_id === payload.invoice_id)
         : null;
-      const previousGrossPayments = Number(invoice.gross_payments_minor);
       const updatedGrossPayments = Number(updated?.gross_payments_minor);
       const updatedOutstanding = Number(updated?.outstanding_minor);
       const verified = Boolean(updated
