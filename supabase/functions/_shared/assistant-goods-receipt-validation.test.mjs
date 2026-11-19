@@ -55,3 +55,9 @@ test("rejects impossible calendar dates, not just malformed date strings", () =>
     { purchase_order_item_id: lineId, quantity: 1, expires_on: "2028-02-29" },
   ] })).payload.items[0].expires_on, "2028-02-29");
 });
+
+test("rejects overlong identifiers, expiry strings and unsafe receipt quantities", () => {
+  assert.equal(validateGoodsReceiptAction(action({ purchase_order_id: orderId + "x" })), null);
+  assert.equal(validateGoodsReceiptAction(action({ items: [{ purchase_order_item_id: lineId, quantity: 1e30 }] })), null);
+  assert.equal(validateGoodsReceiptAction(action({ items: [{ purchase_order_item_id: lineId, quantity: 1, expires_on: "2028-02-29-extra" }] })), null);
+});
