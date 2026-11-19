@@ -72,7 +72,7 @@ BEGIN
     SELECT 1 FROM public.warehouses
     WHERE workspace_id = v_workspace_id AND lower(code) = lower(v_code)
   ) THEN
-    v_result := jsonb_build_object('ok', false, 'reason', 'warehouse_code_exists');
+    v_result := jsonb_build_object('ok', false, 'reason', 'warehouse_code_conflict');
     UPDATE public.assistant_action_batches
     SET status = 'failed', result = v_result, completed_at = now()
     WHERE id = v_existing.id;
