@@ -258,6 +258,9 @@ begin
 end
 $preflight$;
 
+insert into private.legacy_global_import_transactions(transaction_id)
+values (txid_current()) on conflict do nothing;
+
 insert into global.workspaces(id,name,country_code,locale_code,currency_code,created_by)
 select global_workspace_id,workspace_name,country_code,locale_code,currency_code,owner_id
 from _legacy_global_workspace_map
