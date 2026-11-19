@@ -35,6 +35,8 @@ test("manually selected workspace country is authoritative over stale business-p
   assert.match(home, /const countryCode = String\(settings\?\.country_code/);
   assert.match(home, /const currencyCode = String\(settings\?\.currency_code/);
   assert.match(home, /resolveInvoiceCurrencyForWorkspace\(countryCode, currencyCode\)/);
+  assert.match(home, /activeWorkspaceCountry !== "IN" && effectiveWorkspaceTaxProfile\?\.currencyCode/);
+  assert.match(home, /<InvoiceEditor invoice=\{invoiceForPreview\}/);
   assert.doesNotMatch(home, /const countryCode = profileCountry \|\| recordCountry/);
 });
 
