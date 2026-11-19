@@ -54,10 +54,10 @@ export default function CrmTab({ intent, onConsumeIntent }) {
 
   const persistClients = (n) => { setClients(n); saveList(KEYS.clients, n); };
   const persistLeads = (n) => { setLeads(n); saveList(KEYS.leads, n); };
-  const saveClient = (entry) => { if (!entry.name.trim()) { window.alert("Enter a client name."); return; } if (entry.email && !(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(entry.email.trim()))) { window.alert("Enter a valid client email address."); return; } if (!requestAction()) return; const n = clientModal.id ? clients.map((c) => (c.id === clientModal.id ? { ...entry, id: clientModal.id } : c)) : [{ ...entry, id: genId("client") }, ...clients]; persistClients(n); setClientModal(null); };
+  const saveClient = (entry) => { if (!entry.name.trim()) { window.alert("Enter a client name."); return; } if (entry.email && !(/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(entry.email.trim()))) { window.alert("Enter a valid client email address."); return; } if (!requestAction()) return; const n = clientModal.id ? clients.map((c) => (c.id === clientModal.id ? { ...entry, id: clientModal.id } : c)) : [{ ...entry, id: genId("client") }, ...clients]; persistClients(n); setClientModal(null); };
   const saveLead = (entry) => {
     if (!entry.name.trim()) { window.alert("Enter a lead name."); return; }
-    if (entry.email && (!entry.email.includes("@") || !entry.email.split("@")[1]?.includes("."))) { window.alert("Enter a valid lead email address."); return; }
+    if (entry.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(entry.email.trim())) { window.alert("Enter a valid lead email address."); return; }
     if (entry.value !== "" && (!Number.isFinite(Number(entry.value)) || Number(entry.value) < 0)) { window.alert("Lead value must be a valid non-negative amount."); return; }
     if (entry.nextFollowUpAt && Number.isNaN(new Date(entry.nextFollowUpAt).getTime())) { window.alert("Choose a valid follow-up date and time."); return; }
     if (!requestAction()) return;
