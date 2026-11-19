@@ -95,6 +95,9 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
   };
   const save = (entry) => {
     const amount = Number(entry.amount);
+    const [year, month, day] = String(entry.date || "").split("-").map(Number);
+    const calendarDate = new Date(year, month - 1, day);
+    const validDate = /^\d{4}-\d{2}-\d{2}$/.test(entry.date) && calendarDate.getFullYear() === year && calendarDate.getMonth() === month - 1 && calendarDate.getDate() === day;
     if (!entry.vendor.trim()) { window.alert("Enter a vendor or payee name."); return; }
     if (!Number.isFinite(amount) || amount <= 0) { window.alert("Enter an amount greater than zero."); return; }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(entry.date) || Number.isNaN(new Date(entry.date + "T12:00:00").getTime())) { window.alert("Choose a valid expense date."); return; }
@@ -125,9 +128,9 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} className={`${inputCls} w-auto`} aria-label="From" />
+            <input type="date" value={from} max={to || undefined} onChange={(e) => { setFrom(e.target.value); setPage(1); }} className={`${inputCls} w-auto`} aria-label="From" />
             <span className="text-slate-300">–</span>
-            <input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} className={`${inputCls} w-auto`} aria-label="To" />
+            <input type="date" value={to} min={from || undefined} onChange={(e) => { setTo(e.target.value); setPage(1); }} className={`${inputCls} w-auto`} aria-label="To" />
             <select value={cat} onChange={(e) => { setCat(e.target.value); setPage(1); }} className={`${inputCls} w-auto`}>
               <option value="all">All categories</option>
               {CATS.map((c) => <option key={c} value={c}>{c}</option>)}
