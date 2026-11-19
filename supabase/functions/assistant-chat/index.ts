@@ -38,7 +38,7 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
     supabase.from("business_profile").select("name,email,phone,gstin,address,upi_id,logo_url,country_code,tax_registration_number,tax_registration_type,tax_registration_status,tax_registration_effective_from,tax_jurisdiction_code").eq("workspace_id", workspaceId).maybeSingle(),
     supabase.from("warehouses").select("id,name,code,address,is_default,is_active,created_at").eq("workspace_id", workspaceId).eq("is_active", true).order("created_at", { ascending: false }).limit(200),
     supabase.from("purchase_orders").select("id,supplier_name,supplier_reference,status,order_date,expected_date,currency_code,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(200),
-    supabase.from("purchase_order_items").select("purchase_order_id,quantity_ordered,quantity_received,unit_cost,currency_code").eq("workspace_id", workspaceId).limit(1000),
+    supabase.from("purchase_order_items").select("id,purchase_order_id,stock_id,quantity_ordered,quantity_received,unit_cost,currency_code").eq("workspace_id", workspaceId).limit(1000),
     supabase.from("purchase_receipts").select("purchase_order_id,warehouse_id,received_at").eq("workspace_id", workspaceId).order("received_at", { ascending: false }).limit(200),
     supabase.from("stock_movements").select("stock_id,warehouse_id,movement_type,quantity_delta,reference_type,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
   ]);
@@ -292,6 +292,24 @@ function validateAction(action: any) {
   if (!action || typeof action !== "object") return null;
   const type = text(action.type, 40);
   const p = action.payload && typeof action.payload === "object" ? action.payload : {};
+  if (type === "receive_purchase_order") {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const purchaseOrderId = text(p.purchase_order_id, 36);
+    const warehouseId = text(p.warehouse_id, 36);
+    if (!uuid.test(purchaseOrderId) || !uuid.test(warehouseId) || !Array.isArray(p.items) || p.items.length < 1 || p.items.length > 200) return null;
+    const items = p.items.map((item: any) => ({
+      purchase_order_item_id: text(item?.purchase_order_item_id, 36),
+      quantity: number(item?.quantity, -1),
+      batch_number: text(item?.batch_number, 120),
+      expires_on: /^\d{4}-\d{2}-\d{2}$/.test(text(item?.expires_on, 10)) ? text(item?.expires_on, 10) : null,
+    }));
+    if (items.some((item: any) => !uuid.test(item.purchase_order_item_id) || !(item.quantity > 0) || Math.round(item.quantity * 10000) !== item.quantity * 10000)) return null;
+    return {
+      type,
+      payload: { purchase_order_id: purchaseOrderId, warehouse_id: warehouseId, items },
+      summary: "Record goods received against purchase order " + purchaseOrderId + " at warehouse " + warehouseId + " — " + items.length + " line(s). The existing purchase-order receipt workflow will update stock and the stock ledger.",
+    };
+  }
   if (type === "create_invoice") {
     const validated = validateInvoiceAction(action);
     if (!validated) return null;
@@ -413,8 +431,8 @@ async function handleRequest(req: Request) {
       "CLARIFICATION POLICY: Ask only for genuinely missing required fields. If one field is missing, ask only for that field and retain all known fields. Merge the next answer into the pending task and revalidate. Repeated details must not create duplicate actions. Never ask generically for amount/quantity/price/name when the exact missing field is known.",
       "ACTION QUALITY GATE: Before any write action, check required fields, types, ranges, arithmetic, intent consistency, duplicate actions and explicit user intent. For invoices, estimate quantity × rate and GST/discount but treat server save_invoice as authoritative. For expenses, never substitute item unit price for expense total. If validation fails, return no write action and ask a precise clarification.",
       "MULTI-TASK ISOLATION: Keep invoice, expense, stock, client, lead and quotation tasks separate. A reply like 'Rohit 50000 salary' belongs to an expense only if that expense task is still the active unresolved intent. Never transform expense into stock or invoice because fields overlap. If two modules are explicitly requested, return two separately validated actions.",
-      "UNIVERSAL BUSINESS MODULE REASONING: Classify requests across clients/customers, products, inventory, stock receiving, warehouses, suppliers, purchase orders, purchase receipts, stock transfers, expenses, payments, invoices, quotations, staff, branches, analytics, documents and automation. These are intent categories, not proof that a live tool exists. For read-only answers, use only modules and records actually present in LIVE DATA JSON. For writes, use only the six supported actions in the response schema: create_client, create_expense, create_lead, create_stock, create_quotation, create_invoice. Never fabricate create_warehouse, create_supplier, purchase order, payment, transfer, staff or automation actions. If asked for an unsupported operation, explain that it is not yet connected to the assistant rather than pretending it is done.",
-      "INVENTORY SEMANTICS: Distinguish creating a product record from receiving stock into an existing product, adjusting stock, transferring stock between warehouses, creating a warehouse, and creating a purchase order. The current create_stock action creates a stock item; it is not a goods receipt, warehouse transfer or purchase order. If the wording could mean more than one operation, ask one focused clarification. Do not infer a supplier, warehouse or purchase price.",
+      "UNIVERSAL BUSINESS MODULE REASONING: Classify requests across clients/customers, products, inventory, stock receiving, warehouses, suppliers, purchase orders, purchase receipts, stock transfers, expenses, payments, invoices, quotations, staff, branches, analytics, documents and automation. These are intent categories, not proof that a live tool exists. For read-only answers, use only modules and records actually present in LIVE DATA JSON. For writes, use only the seven supported actions in the response schema: create_client, create_expense, create_lead, create_stock, create_quotation, create_invoice, receive_purchase_order. The receive_purchase_order action is only for receiving quantities against an existing purchase order and a selected active warehouse; it requires exact purchase_order_id, warehouse_id, purchase_order_item_id and quantity values from LIVE DATA. It is not purchase-order creation or a free-form stock adjustment. Never fabricate create_warehouse, create_supplier, purchase order creation, payment, transfer, staff or automation actions. If asked for an unsupported operation, explain that it is not yet connected to the assistant rather than pretending it is done.",
+      "INVENTORY SEMANTICS: Distinguish creating a product record from receiving stock into an existing product, adjusting stock, transferring stock between warehouses, creating a warehouse, and creating a purchase order. The create_stock action creates a stock item; it is not a goods receipt, warehouse transfer or purchase order. receive_purchase_order records goods only against an existing purchase order and active warehouse. If the wording could mean more than one operation, ask one focused clarification. Do not infer a supplier, warehouse or purchase price.",
       "MULTI-INTENT PLANNING: Extract every independently requested operation, preserve its entities and dependencies, and return all fully specified supported actions together. A read-only question may coexist with a draft action. If any requested write operation is unsupported or lacks a mandatory field, do not silently drop it or substitute another action; explain the limitation and ask only for the missing detail when a supported action can still be prepared safely.",
       "PAYMENT EVIDENCE: A screenshot is evidence of what is visible, not independent bank verification. Do not mark an invoice paid, reconcile a ledger, issue a refund or record an incoming payment using an expense action. Distinguish money received from money spent and request clarification when direction or transaction status is unclear.",
       "RESPONSE HONESTY: Distinguish prepared draft, awaiting confirmation, saved, failed and read-only answers. Never say a record is saved until the confirmation/save operation reports success. If unsupported, explain briefly and do not invent an action.",
