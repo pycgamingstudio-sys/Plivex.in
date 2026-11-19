@@ -22,11 +22,11 @@ test("unified signup authenticates first and collects country after sign-in", as
   assert.match(onboarding, /Please select your country again and choose Freelancer or Business/);
   assert.doesNotMatch(onboarding, /initial\.countryCode \|\| user\?\.country_code/);
   assert.doesNotMatch(onboarding, /user\?\.workspace_type \? \[user\.workspace_type\]/);
-  assert.match(onboarding, /optionalFeatures: getSuggestedWorkspaceFeatures\(workTypes\)/);
+  assert.ok(onboarding.includes("optionalFeatures: getSuggestedWorkspaceFeatures(workTypes)"));
   assert.match(onboarding, /phone: phone\.trim\(\) \|\| null/);
   assert.doesNotMatch(onboarding, /supabase\.auth\.updateUser/);
   assert.match(onboarding, /businessType: workTypes\[0\]/);
-  assert.match(onboarding, /optionalFeatures: getSuggestedWorkspaceFeatures\(workTypes\)/);
+  assert.ok(onboarding.includes("optionalFeatures: getSuggestedWorkspaceFeatures(workTypes)"));
 });
 
 test("new unified identities are held at onboarding before workspace provisioning", async () => {
@@ -88,7 +88,7 @@ test("onboarding asks only for Freelancer or Business and derives workspace modu
   const featureCatalog = await read("../../lib/workspaceFeatures.js");
   assert.match(onboarding, /chooseWorkType\("freelancer"\)/);
   assert.match(onboarding, /chooseWorkType\("business"\)/);
-  assert.match(onboarding, /optionalFeatures: getSuggestedWorkspaceFeatures\(workTypes\)/);
+  assert.ok(onboarding.includes("optionalFeatures: getSuggestedWorkspaceFeatures(workTypes)"));
   assert.doesNotMatch(onboarding, /WORKSPACE_FEATURE_CATALOG|type="checkbox"|toggleFeature/);
   assert.match(onboarding, /available in More Features/);
   assert.match(featureCatalog, /export const WORKSPACE_FEATURE_CATALOG/);
