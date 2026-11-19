@@ -34,8 +34,12 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
     supabase.from("leads").select("name,phone,requirement,value,stage,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("services").select("name,rate,gst_rate,description").eq("workspace_id", workspaceId).limit(500),
     supabase.from("business_profile").select("name,email,phone,gstin,address,upi_id,logo_url,country_code,tax_registration_number,tax_registration_type,tax_registration_status,tax_registration_effective_from,tax_jurisdiction_code").eq("workspace_id", workspaceId).maybeSingle(),
+    supabase.from("warehouses").select("id,name,code,address,is_default,is_active,created_at").eq("workspace_id", workspaceId).eq("is_active", true).order("created_at", { ascending: false }).limit(200),
+    supabase.from("purchase_orders").select("id,supplier_name,supplier_reference,status,order_date,expected_date,currency_code,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(200),
+    supabase.from("purchase_order_items").select("purchase_order_id,quantity_ordered,quantity_received,unit_cost,currency_code").eq("workspace_id", workspaceId).limit(1000),
+    supabase.from("purchase_receipts").select("purchase_order_id,warehouse_id,received_at").eq("workspace_id", workspaceId).order("received_at", { ascending: false }).limit(200),
   ]);
-  const names = ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile"];
+  const names = ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile", "warehouses", "purchase_orders", "purchase_order_items", "purchase_receipts"];
   const rows: Record<string, any> = Object.fromEntries(names.map((name, i) => [name, results[i].data ?? (name === "business_profile" ? null : [])]));
   const errors = names.filter((name, i) => results[i].error).map((name) => name);
   const invoices = rows.invoices || [];
@@ -44,6 +48,16 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
   const expenses = rows.expenses || [];
   const quotations = rows.quotations || [];
   const leads = rows.leads || [];
+  const warehouses = rows.warehouses || [];
+  const purchaseOrders = rows.purchase_orders || [];
+  const purchaseOrderItems = rows.purchase_order_items || [];
+  const purchaseReceipts = rows.purchase_receipts || [];
+  const purchaseItemsByOrder = new Map<string, any[]>();
+  for (const item of purchaseOrderItems) {
+    const current = purchaseItemsByOrder.get(item.purchase_order_id) || [];
+    current.push(item);
+    purchaseItemsByOrder.set(item.purchase_order_id, current);
+  }
   const money = (items: any[], field: string) => items.reduce((sum: number, item: any) => sum + number(item[field]), 0);
   const reportableInvoices = invoices.filter((item: any) => String(item.status).toLowerCase() !== "cancelled" && !item.is_draft);
   const paidInvoices = reportableInvoices.filter((item: any) => String(item.status).toLowerCase() === "paid");
@@ -68,6 +82,14 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
       quotations: { loadedRecords: quotations.length, totalValue: money(quotations, "total") },
       leads: { loadedRecords: leads.length, totalPotentialValue: money(leads, "value") },
       services: { loadedRecords: (rows.services || []).length },
+      warehouses: { activeCount: warehouses.length, defaultWarehouse: warehouses.find((item: any) => item.is_default)?.name || null },
+      purchasing: {
+        loadedOrders: purchaseOrders.length,
+        openOrders: purchaseOrders.filter((item: any) => !["received", "cancelled", "closed"].includes(String(item.status).toLowerCase())).length,
+        pendingReceiptLines: purchaseOrderItems.filter((item: any) => number(item.quantity_ordered) > number(item.quantity_received)).length,
+        orderedValue: purchaseOrderItems.reduce((sum: number, item: any) => sum + number(item.quantity_ordered) * number(item.unit_cost), 0),
+        receiptRecords: purchaseReceipts.length,
+      },
     },
     records: {
       invoices: invoices.slice(0, 25),
@@ -77,8 +99,14 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
       quotations: quotations.slice(0, 20),
       leads: leads.slice(0, 25),
       services: (rows.services || []).slice(0, 20),
+      warehouses: warehouses.slice(0, 30),
+      purchase_orders: purchaseOrders.slice(0, 40).map((order: any) => ({
+        ...order,
+        items: (purchaseItemsByOrder.get(order.id) || []).slice(0, 30),
+      })),
+      recent_purchase_receipts: purchaseReceipts.slice(0, 30),
     },
-    limitNote: "For each module, loaded records are capped at 500; the record lists shown to the assistant are recent samples. Summaries are calculated from the loaded rows.",
+    limitNote: "For each module, loaded records are capped (500 for core records, 200 for warehouses/orders/receipts, 1,000 purchase-order lines); record lists are recent samples. Summaries are calculated only from loaded rows. A missing module in this context is not proof that the workspace has no records.",
   };
 }
 
