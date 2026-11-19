@@ -306,7 +306,7 @@ function validateAction(action: any) {
     if (!validated) return null;
     return {
       ...validated,
-      summary: "Create purchase order for " + validated.payload.supplier_name + " with " + validated.payload.items.length + " line(s). This draft uses the workspace currency and requires admin/manager permission.",
+      summary: "Record purchase order for " + validated.payload.supplier_name + " with " + validated.payload.items.length + " line(s). This records the order in Plivex only; it does not contact the supplier. Workspace currency and admin/manager permission apply.",
     };
   }
   if (type === "receive_purchase_order") {
