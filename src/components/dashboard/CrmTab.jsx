@@ -41,6 +41,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
   const [clientModal, setClientModal] = useState(null);
   const [leadModal, setLeadModal] = useState(false);
   const [q, setQ] = useState("");
+  const [leadQuery, setLeadQuery] = useState("");
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState(null);
   const navigate = useNavigate();
@@ -185,10 +186,10 @@ export default function CrmTab({ intent, onConsumeIntent }) {
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="flex justify-end"><button onClick={() => setLeadModal(true)} className={btnAccent}><UserPlus className="h-3.5 w-3.5" />Add new lead</button></div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div className="relative min-w-0 flex-1 sm:max-w-sm"><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><input value={leadQuery} onChange={(event) => setLeadQuery(event.target.value)} placeholder="Search leads by name, company or contact…" aria-label="Search leads" className={inputCls + " pl-9"} /></div><button onClick={() => setLeadModal(true)} className={btnAccent}><UserPlus className="h-3.5 w-3.5" />Add new lead</button></div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {STAGES.map((stage) => {
-              const items = leads.filter((l) => l.stage === stage);
+              const items = leads.filter((l) => l.stage === stage && (!leadQuery || (l.name + " " + l.company + " " + l.phone + " " + l.email + " " + l.requirement).toLowerCase().includes(leadQuery.toLowerCase())));
               const stageValue = formatCurrencyTotals(items, currencyCode);
               return (
                 <div key={stage} className="rounded-2xl border border-[#E5E7EB] bg-white p-3 shadow-sm">
