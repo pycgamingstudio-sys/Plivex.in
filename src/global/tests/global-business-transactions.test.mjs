@@ -109,7 +109,7 @@ test("Global taxable invoice uses one accessible combined confirmation instead o
   assert.doesNotMatch(editor, /registrationConfirmed === true} onChange/);
   assert.match(source, /TAX_DETAILS_CONFIRMATION_REQUIRED/);
   assert.match(edge, /TAX_DETAILS_CONFIRMATION_REQUIRED/);
-  assert.doesNotMatch(source, /REGISTRATION_CONFIRMATION_REQUIRED/);
+  assert.match(source, /Confirm the saved registration details and invoice tax details together/);
 });
 
 
