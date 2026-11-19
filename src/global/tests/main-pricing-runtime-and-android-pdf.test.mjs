@@ -63,9 +63,9 @@ test("a verified non-India membership can switch runtime edition without trustin
 
 test("unified onboarding has a bounded mobile viewport and a genuinely scrollable country picker", async () => {
   const onboarding = await read("../../components/global/UnifiedWorkspaceOnboarding.jsx");
-  assert.match(onboarding, /h-\[100dvh\] min-h-0 .*overflow-hidden/);
-  assert.match(onboarding, /h-\[calc\(100dvh-2\.5rem\)\] min-h-0/);
-  assert.match(onboarding, /min-h-0 flex-1 overflow-y-auto overscroll-y-contain touch-pan-y/);
+  assert.match(onboarding, /min-h-\[100dvh\].*overflow-y-auto/);
+  assert.match(onboarding, /h-auto min-h-\[calc\(100dvh-1\.5rem\)\]/);
+  assert.match(onboarding, /overflow-visible.*sm:overflow-y-auto/);
   assert.match(onboarding, /filteredCountries\.map/);
   assert.match(onboarding, /Choose your country/);
 });
