@@ -8,21 +8,23 @@ const labelClass = "block text-xs font-semibold text-foreground";
 export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile, calculation }) {
   const countryCode = workspaceProfile?.countryCode || "";
   const format = getTaxInvoiceFormat(countryCode);
-  const config = invoice.globalTax || {
-    countryCode,
-    mode: ["US", "CA"].includes(countryCode) ? "manual" : "automatic",
-    taxMode: "taxable",
-    noTaxConfirmed: false,
-    taxDetailsConfirmed: false,
-    priceMode: "exclusive",
-    placeOfSupply: "",
-    placeOfSupplyConfirmed: false,
-    taxCategory: "",
-    taxCategoryConfirmed: false,
-    registrationConfirmed: false,
-    collectionObligationAttested: false,
-    destinationJurisdiction: { state: "", county: "", city: "", province: "" },
-    components: [{ id: "manual-tax-1", name: "", rateBps: 0 }],
+  const config = {
+    ...(invoice.globalTax || {
+      countryCode,
+      mode: ["US", "CA"].includes(countryCode) ? "manual" : "automatic",
+      taxMode: "taxable",
+      noTaxConfirmed: false,
+      priceMode: "exclusive",
+      placeOfSupply: "",
+      placeOfSupplyConfirmed: false,
+      taxCategory: "",
+      taxCategoryConfirmed: false,
+      registrationConfirmed: false,
+      collectionObligationAttested: false,
+      destinationJurisdiction: { state: "", county: "", city: "", province: "" },
+      components: [{ id: "manual-tax-1", name: "", rateBps: 0 }],
+    }),
+    taxDetailsConfirmed: invoice.globalTax?.taxDetailsConfirmed === true,
   };
   const selectedMode = ["US", "CA"].includes(countryCode) ? "manual" : (config.mode || "automatic");
   const update = (patch) => setInvoice((old) => ({
