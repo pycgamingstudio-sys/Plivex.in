@@ -647,16 +647,9 @@ export default function Home() {
     loadWorkspaceTaxProfile();
     return () => { active = false; };
   }, [user?.workspace_id]);
-  const effectiveWorkspaceTaxProfile = workspaceTaxProfile || (user?.country_code ? {
-    countryCode: user.country_code,
-    currencyCode: user.currency_code || "",
-    localeCode: user.locale_code || "",
-    registrationNumber: "",
-    registrationType: "",
-    registrationStatus: "unregistered",
-    registrationEffectiveFrom: "",
-    registeredJurisdiction: "",
-  } : null);
+  // Canonical workspace_settings is the only source of country and base currency.
+  // Never let stale auth/profile metadata override a manually selected workspace country.
+  const effectiveWorkspaceTaxProfile = workspaceTaxProfile;
   const activeWorkspaceCountry = String(effectiveWorkspaceTaxProfile?.countryCode || "").trim().toUpperCase();
   const isGlobalWorkspace = Boolean(activeWorkspaceCountry && activeWorkspaceCountry !== "IN");
   const globalTaxCalculation = useMemo(() => {
@@ -666,13 +659,13 @@ export default function Home() {
   const invoiceForPreview = useMemo(() => ({
     ...invoice,
     workspaceCountryCode: activeWorkspaceCountry,
-    workspaceCurrencyCode: effectiveWorkspaceTaxProfile?.currencyCode || user?.currency_code || "",
+    workspaceCurrencyCode: effectiveWorkspaceTaxProfile?.currencyCode || "",
     ...(isGlobalWorkspace ? {
       globalTax: { ...(invoice.globalTax || {}), countryCode: activeWorkspaceCountry, mode: globalTaxCalculation?.mode || (["US", "CA"].includes(activeWorkspaceCountry) ? "manual" : (invoice.globalTax?.mode || "automatic")) },
       globalTaxCalculation,
       globalTaxProfileSnapshot: effectiveWorkspaceTaxProfile,
     } : {}),
-  }), [invoice, activeWorkspaceCountry, effectiveWorkspaceTaxProfile, isGlobalWorkspace, globalTaxCalculation, user?.currency_code]);
+  }), [invoice, activeWorkspaceCountry, effectiveWorkspaceTaxProfile, isGlobalWorkspace, globalTaxCalculation]);
   useEffect(() => { document.documentElement.classList.toggle("dark", isDark); }, [isDark]);
   useEffect(() => () => { if (toastTimer.current) window.clearTimeout(toastTimer.current); }, []);
   // Business profile is the single source of defaults for every invoice.
@@ -1097,7 +1090,7 @@ export default function Home() {
         </main>
       </div>
       {signatureOpen && <SignatureModal onClose={() => setSignatureOpen(false)} onSave={(data) => { setInvoice((old) => ({ ...old, signature: data })); notify("Signature saved"); }} />}
-      {pricingOpen && <PricingModal onClose={() => { setPricingOpen(false); setCheckoutNotice(""); }} onCheckout={checkout} checkoutNotice={checkoutNotice} userEmail={user?.email} countryCode={user?.country_code || workspaceTaxProfile?.countryCode || ""} currencyCode={user?.currency_code || workspaceTaxProfile?.currencyCode || GLOBAL_COUNTRY_CURRENCIES[user?.country_code] || ""} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} />}
+      {pricingOpen && <PricingModal onClose={() => { setPricingOpen(false); setCheckoutNotice(""); }} onCheckout={checkout} checkoutNotice={checkoutNotice} userEmail={user?.email} countryCode={workspaceTaxProfile?.countryCode || ""} currencyCode={workspaceTaxProfile?.currencyCode || ""} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} />}
       {whatsappOpen && <WhatsAppNumberModal value={whatsappNumber} onChange={setWhatsappNumber} onClose={() => setWhatsappOpen(false)} onSend={() => sendWhatsApp(whatsappNumber)} sending={whatsappSending} />}
       <PresenceBeacon />
       <Toast toast={toast} onClose={() => setToast(null)} />
