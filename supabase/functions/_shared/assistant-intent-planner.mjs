@@ -62,13 +62,30 @@ export function classifyBusinessIntents(value) {
 }
 
 export function buildBusinessIntentHints(value) {
-  const intents = classifyBusinessIntents(value);
-  const quantity = parseBusinessQuantity(value);
-  const amount = parseBusinessAmount(value);
+  const source = String(value ?? "").normalize("NFKC").trim();
+  const intents = classifyBusinessIntents(source);
+  const quantity = parseBusinessQuantity(source);
+  const amount = parseBusinessAmount(source);
+  const ambiguities = [];
+  if (quantity && !intents.some((intent) => ["create_stock", "create_purchase_order", "receive_stock", "stock_transfer"].includes(intent))) {
+    ambiguities.push({
+      field: "inventory_operation",
+      question: "Is this a new product, a purchase order, or stock received for an existing product?",
+      reason: "A quantity alone does not identify the intended inventory operation.",
+    });
+  }
+  if (intents.includes("create_purchase_order") && intents.includes("receive_stock")) {
+    ambiguities.push({
+      field: "purchase_lifecycle",
+      question: "Do you want to create a purchase order, record goods already received, or both in that order?",
+      reason: "Ordering and receiving are separate business events.",
+    });
+  }
   return {
     intents,
     quantity,
     amount,
+    ambiguities,
     policy: "Advisory only: hints do not authorize or validate any write. Ask when the operation is ambiguous; use only server-allow-listed tools and require the normal confirmation flow.",
   };
 }
