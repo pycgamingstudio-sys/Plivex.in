@@ -464,9 +464,29 @@ async function handleRequest(req: Request) {
     // Image analysis and record creation do not need a 500-row workspace snapshot.
     const hasReadQueryIntent = /(due|balance|ledger|pending|kitna|kitne|baki|baaki|outstanding|total|report|dikha|bata|show|list|how many|how much)/i.test(String(latestUserText));
     const needsPurchasingContext = /purchase\s*order|purchase|receipt|receive|stock\s*receive|warehouse|godown|maal\s*(aaya|aa\s*gaya)/i.test(String(latestUserText));
-    const liveContext: any = image && !hasReadQueryIntent && !needsPurchasingContext
-      ? { business: null, summaries: {}, records: {}, limitNote: "Live workspace data was not needed for this receipt-only request." }
-      : await loadLiveContext(supabase, profile.workspace_id);
+    const liveContextPromise = image && !hasReadQueryIntent && !needsPurchasingContext
+      ? Promise.resolve({ business: null, summaries: {}, records: {}, limitNote: "Live workspace data was not needed for this receipt-only request." })
+      : loadLiveContext(supabase, profile.workspace_id);
+    // Global workspaces use the isolated global schema and authenticated edge
+    // functions, not the legacy public-table snapshot above. Reuse the user's
+    // JWT through the Supabase client; the Global function re-checks membership.
+    const needsGlobalFinanceContext = !image && /invoice|bill|payment|paid|received|refund|reconcil|ledger|balance|outstanding|due|receivable|payable/i.test(String(latestUserText));
+    const globalContextPromise = needsGlobalFinanceContext
+      ? supabase.functions.invoke("global-invoices", {
+          body: { action: "list_reconciliation", workspace_id: profile.workspace_id, limit: 100 },
+        }).then(({ data, error }: any) => {
+          if (error || !data?.ok) return null;
+          return {
+            country_code: data.country_code || null,
+            invoices: Array.isArray(data.records) ? data.records.slice(0, 100) : [],
+            source: "authenticated Global invoice reconciliation",
+          };
+        }).catch((error: any) => {
+          console.warn("Global assistant context unavailable", { message: String(error?.message || "request_failed").slice(0, 120) });
+          return null;
+        })
+      : Promise.resolve(null);
+    const [liveContext, globalBusinessContext] = await Promise.all([liveContextPromise, globalContextPromise]);
     const systemInstruction = [
       "You are Plivex AI, a business assistant for the signed-in user's own workspace.",
       "DETERMINISTIC USER-INTENT HINTS (ADVISORY ONLY): " + JSON.stringify(deterministicIntentHints) + ". These hints are fallible and never authorize a write; follow the user's actual meaning, ask when ambiguous, and use only server-validated tools.",
@@ -498,6 +518,7 @@ async function handleRequest(req: Request) {
       "Only propose a creation when the user clearly asks to add/create/save a record. Never save anything directly during chat. IMAGE/RECEIPT UNDERSTANDING RULE: When an image is attached with an expense request, visually inspect the actual image before asking questions. Understand common Indian payment receipts (PhonePe, Google Pay, Paytm, UPI, bank transfer) and paper bills. For a successful OUTGOING payment, extract the recipient/payee as vendor, the amount paid as amount, transaction date as date (convert readable dates to YYYY-MM-DD), payment app/mode as method, and transaction ID/UTR plus purpose as notes when readable. The 'Paid to'/recipient amount is the expense amount; 'Debited from' is the payer/source account and is NOT the vendor. Do not confuse transaction ID, UTR, phone number, account balance, or payer details with amount/vendor. A successful incoming/received payment is NOT an expense; ask which record type they want instead. If receipt clearly shows a successful outgoing payment and user asked to add expense, create create_expense immediately with all readable fields, category Other if purpose/category is unknown, and leave genuinely unknown optional fields blank. Amount is required; ask only for amount if unreadable. Do not ask for vendor/amount if they are visible. Do not ask for item name, quantity or price for an expense; those belong to stock. Reply that extracted expense is ready for confirmation; never claim saved before confirmation. Do not expose full phone/account details in notes. For image requests explicitly mentioning stock/inventory, use create_stock instead. Follow the user's explicitly named module; never infer stock from words like name/quantity unless they explicitly ask for stock.",
       "If the user reports an app bug, technical problem, or something not working in Plivex, apologize briefly and direct them to support@plivex.in or +91 97584 55218. Do not claim that a support person has been contacted or promise a response time.",
       "CRITICAL ACTION RULE: Output JSON {reply, actions:[{type,payload}]} with every fully specified supported operation, up to 10. The frontend shows one combined confirmation; backend validates every action and permission. Include only explicit or unambiguously extracted fields. Never invent phone numbers, prices, quantities, dates or amounts. Do not create inventory unless product name and positive quantity are known. Do not create expense unless positive amount is known. Do not silently treat missing stock price as zero; ask for it if required. Preserve details from prior turns when the latest message supplies missing information.",
+      "GLOBAL FINANCE CONTEXT: When present, this is the authenticated Global invoice reconciliation snapshot from the workspace's own country context. Use invoice_id only from these records. Amount fields ending in _minor are minor currency units, not major units; do not display them as whole currency amounts without the currency's correct exponent. Distinguish invoice total, gross payments, refunds, net received and outstanding. This context is read-only; payment/refund writes still require an explicitly supported action and confirmation. " + JSON.stringify(globalBusinessContext),
       "LIVE DATA JSON: " + JSON.stringify(liveContext),
     ].join("\n");
     const requestOptions = {
