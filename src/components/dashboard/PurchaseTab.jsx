@@ -10,7 +10,8 @@ import { useRole } from "@/lib/roles";
 import SummaryCard from "@/components/dashboard/SummaryCard";
 
 const CATS = ["Rent", "Raw Materials", "Utilities", "Salary", "Logistics", "Software", "Marketing", "Other"];
-const blank = { vendor: "", category: "Raw Materials", amount: "", date: new Date().toISOString().slice(0, 10), status: "Unpaid", method: "Bank Transfer", notes: "" };
+const localDate = () => { const now = new Date(); return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0"); };
+const blank = { vendor: "", category: "Raw Materials", amount: "", date: localDate(), status: "Unpaid", method: "Bank Transfer", notes: "" };
 
 export default function PurchaseTab({ intent, onConsumeIntent }) {
   const { requestAction, limits, usage, openPaywall } = usePaywall();
@@ -83,17 +84,22 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
   const rows = paginate(filtered, page);
   const pages = totalPages(filtered);
 
-  const remove = (id) => { setExpenses(removeItem(KEYS.expenses, id)); setExpanded(null); };
+  const remove = (id) => { const expense = expenses.find((item) => item.id === id); if (!expense || !window.confirm("Delete expense for " + expense.vendor + "? This cannot be undone.")) return; setExpenses(removeItem(KEYS.expenses, id)); setExpanded(null); };
   // Status changes (Pending → Received / Paid / Cancelled) persist to the store and refresh the UI immediately.
   const setStatus = (id, status) => {
+    const expense = expenses.find((item) => item.id === id);
+    if (!expense || !window.confirm("Change expense status from " + expenseStatus(expense) + " to " + status + "?")) return;
     const updated = expenses.map((x) => (x.id === id ? { ...x, status } : x));
     setExpenses(updated);
     saveList(KEYS.expenses, updated);
   };
   const save = (entry) => {
-    if (!entry.vendor.trim() || !entry.amount) return;
+    const amount = Number(entry.amount);
+    if (!entry.vendor.trim()) { window.alert("Enter a vendor or payee name."); return; }
+    if (!Number.isFinite(amount) || amount <= 0) { window.alert("Enter an amount greater than zero."); return; }
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(entry.date) || Number.isNaN(new Date(entry.date + "T12:00:00").getTime())) { window.alert("Choose a valid expense date."); return; }
     if (!requestAction()) return;
-    const next = [{ ...entry, currencyCode, id: genId("exp"), amount: Number(entry.amount) || 0 }, ...expenses];
+    const next = [{ ...entry, currencyCode, id: genId("exp"), amount }, ...expenses];
     setExpenses(next); saveList(KEYS.expenses, next); setOpen(false);
   };
   const resetFilters = () => { setQ(""); setFrom(""); setTo(""); setCat("all"); setStatusFilter("all"); setPage(1); };
