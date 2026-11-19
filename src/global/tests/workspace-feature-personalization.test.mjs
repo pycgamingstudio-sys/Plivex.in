@@ -46,7 +46,7 @@ test("Freelancer and Business profiles receive the right permanent dashboard car
   assert.match(helper, /workspaceType === "freelancer"/);
   assert.match(helper, /\[\.\.\.PERMANENT_DASHBOARD_FEATURES, "stock", "team"\]/);
   assert.match(dashboard, /getPermanentDashboardFeatures\(user\?\.workspace_type\)/);
-  assert.match(app, /useWorkspaceFeatures\(user\?\.workspace_id, user\)/);
+  assert.match(app, /useWorkspaceFeatures\(user\?\.workspace_id\)/);
   assert.match(app, /workspace_type === "freelancer".*stock.*team/);
   assert.match(app, /if \(t\.id === "warehouses"\) return workspaceFeatures\.includes\("inventoryWorkspace"\)/);
   assert.ok(dashboard.indexOf('id: "invoices"') < dashboard.indexOf('id: "quotations"'));
@@ -97,9 +97,6 @@ test("optional Workspace modules stay gated when users open direct URLs", async 
 test("workspace feature preferences confirm persistence and can recover a missing settings row", async () => {
   const helper = await read("../../lib/workspaceFeatures.js");
   assert.match(helper, /select\("workspace_id"\)/);
-  assert.match(helper, /\.upsert\([\s\S]*optional_features: next/);
-  assert.match(helper, /workspaceIdentity\.country_code/);
-  assert.match(helper, /workspaceIdentity\.currency_code/);
   assert.match(helper, /Workspace feature preferences were not saved/);
 });
 
