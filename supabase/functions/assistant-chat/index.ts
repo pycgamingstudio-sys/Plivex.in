@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
+import { validateGlobalInvoicePaymentAction } from "../_shared/assistant-global-payment-validation.mjs";
 import { normalizeAssistantActionBatch } from "../_shared/assistant-tool-registry.mjs";
 import { buildBusinessIntentHints } from "../_shared/assistant-intent-planner.mjs";
 import { buildAssistantBusinessAnalytics, groupNumericTotals } from "../_shared/assistant-business-analytics.mjs";
@@ -335,19 +336,12 @@ function validateAction(action: any) {
   const type = text(action.type, 40);
   const p = action.payload && typeof action.payload === "object" ? action.payload : {};
   if (type === "record_global_invoice_payment") {
-    const invoiceId = text(p.invoice_id, 36);
-    const amount = number(p.amount, -1);
-    const currencyCode = text(p.currency_code, 3).toUpperCase();
-    const paymentDate = text(p.payment_date, 10);
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(invoiceId)
-      || !(amount > 0) || !/^[A-Z]{3}$/.test(currencyCode)
-      || !/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)
-      || Number.isNaN(Date.parse(paymentDate + "T00:00:00Z"))) return null;
+    const validated = validateGlobalInvoicePaymentAction(action);
+    if (!validated) return null;
+    const payload = validated.payload;
     return {
-      type,
-      payload: { invoice_id: invoiceId, amount, currency_code: currencyCode, payment_date: paymentDate,
-        method: text(p.method, 80), reference: text(p.reference, 160), notes: text(p.notes, 1000) },
-      summary: "Record " + currencyCode + " " + amount.toLocaleString() + " payment against Global invoice " + invoiceId + " on " + paymentDate + ". This records a payment ledger entry and requires invoice-balance verification.",
+      ...validated,
+      summary: "Record " + payload.currency_code + " " + payload.amount.toLocaleString() + " payment against Global invoice " + payload.invoice_id + " on " + payload.payment_date + ". This records a payment ledger entry and requires invoice-balance verification.",
     };
   }
   if (type === "create_warehouse") {
