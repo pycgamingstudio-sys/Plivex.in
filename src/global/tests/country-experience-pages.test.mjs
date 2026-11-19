@@ -84,3 +84,12 @@ test("public legal copy describes country-dependent tax workflows rather than GS
   assert.doesNotMatch(privacy, /automated GST calculation/);
   assert.doesNotMatch(terms, /accurate GSTIN/);
 });
+
+
+test("Unified Global dashboard is rendered through HomeGate and remains behind TrialGate", async () => {
+  const gate = await read("../../components/HomeGate.jsx");
+  const app = await read("../../App.jsx");
+  assert.match(gate, /isUnifiedBuild && Boolean\(user\?\.country_code && user\.country_code !== "IN"\)/);
+  assert.match(gate, /<TrialGate><AppLayout><GlobalApp section="overview" \/><\/AppLayout><\/TrialGate>/);
+  assert.match(app, /path="\/dashboard" element=\{<HomeGate \/>\}/);
+});
