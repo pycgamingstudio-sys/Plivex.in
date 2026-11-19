@@ -601,63 +601,66 @@ export default function Home() {
   }, []);
   useEffect(() => {
     let active = true;
-    async function loadWorkspaceTaxProfile() {
-      if (!user?.workspace_id) { if (active) { setWorkspaceTaxProfile(null); setWorkspaceTaxProfileLoading(false); } return; }
-      if (active) setWorkspaceTaxProfileLoading(true);
-      try {
-        // Resolve canonical workspace country/currency independently. Optional tax-profile
-        // metadata must never make a valid workspace billing configuration disappear.
-        const { data: settings, error: settingsError } = await supabase.from("workspace_settings")
-          .select("country_code,currency_code,locale_code")
-          .eq("workspace_id", user.workspace_id)
-          .maybeSingle();
-        if (settingsError) throw settingsError;
-        let record = {};
-        try {
-          const response = await backend.functions.invoke("workspaceRecords", { table: "business_profile", action: "get" });
-          if (!response?.error) record = response?.data?.record || {};
-        } catch {
-          // Registration details are optional for pricing and base-currency resolution.
-        }
-        if (!active) return;
-        // Canonical Workspace settings are the source of truth. Profile metadata and
-        // business_profile may be stale after country onboarding and must not override it.
-        const countryCode = String(settings?.country_code || "").trim().toUpperCase();
-        const currencyCode = String(settings?.currency_code || "").trim().toUpperCase();
-        const setLocale = String(settings?.locale_code || "").trim();
-        if (!countryCode || !/^[A-Z]{3}$/.test(currencyCode)) {
-          throw new Error("Workspace country and base currency are not configured.");
-        }
-        setWorkspaceTaxProfile({
+    if (!user?.workspace_id) {
+      setWorkspaceTaxProfile(null);
+      setWorkspaceTaxProfileLoading(false);
+      return undefined;
+    }
+
+    // AuthContext.db.auth.me() already hydrates these fields from the canonical
+    // workspace_settings row. Re-querying workspace_settings here created a second
+    // pricing gate and could leave pricing blank even after auth had resolved it.
+    const countryCode = String(user?.country_code || "").trim().toUpperCase();
+    const currencyCode = String(user?.currency_code || "").trim().toUpperCase();
+    const localeCode = String(user?.locale_code || "").trim();
+    const regionalProfile = countryCode && /^[A-Z]{3}$/.test(currencyCode)
+      ? {
           countryCode,
           currencyCode,
-          localeCode: setLocale || getCountryExperience(countryCode)?.defaultLocale || getCountryByCode(countryCode)?.locales?.[0] || "",
-          registrationNumber: record.tax_registration_number || "",
-          registrationType: record.tax_registration_type || "",
-          registrationStatus: record.tax_registration_status || "unregistered",
-          registrationEffectiveFrom: record.tax_registration_effective_from || "",
-          registeredJurisdiction: record.tax_jurisdiction_code || "",
-        });
-        setInvoice((old) => ({
-          ...old,
-          currency: resolveInvoiceCurrencyForWorkspace(countryCode, currencyCode),
-        }));
-      } catch {
-        if (active) {
-          setWorkspaceTaxProfile({
-            countryCode: "",
-            currencyCode: "",
-            localeCode: "",
-            loadError: true,
-          });
+          localeCode: localeCode || getCountryExperience(countryCode)?.defaultLocale || getCountryByCode(countryCode)?.locales?.[0] || "",
+          registrationNumber: "",
+          registrationType: "",
+          registrationStatus: "unregistered",
+          registrationEffectiveFrom: "",
+          registeredJurisdiction: "",
         }
-      } finally {
-        if (active) setWorkspaceTaxProfileLoading(false);
-      }
+      : { countryCode: "", currencyCode: "", localeCode: "", loadError: true };
+
+    // Country pricing is immediately driven by the selected Workspace country.
+    setWorkspaceTaxProfile(regionalProfile);
+    setWorkspaceTaxProfileLoading(false);
+    if (countryCode && /^[A-Z]{3}$/.test(currencyCode)) {
+      setInvoice((old) => ({
+        ...old,
+        currency: resolveInvoiceCurrencyForWorkspace(countryCode, currencyCode),
+      }));
     }
-    loadWorkspaceTaxProfile();
+
+    // Tax-registration details are optional and load independently; they can
+    // never delay or invalidate the country-based pricing display.
+    (async () => {
+      try {
+        const response = await backend.functions.invoke("workspaceRecords", { table: "business_profile", action: "get" });
+        if (!active || response?.error || !response?.data?.record) return;
+        const record = response.data.record;
+        setWorkspaceTaxProfile((current) => {
+          if (!current || current.countryCode !== countryCode || current.currencyCode !== currencyCode) return current;
+          return {
+            ...current,
+            registrationNumber: record.tax_registration_number || "",
+            registrationType: record.tax_registration_type || "",
+            registrationStatus: record.tax_registration_status || "unregistered",
+            registrationEffectiveFrom: record.tax_registration_effective_from || "",
+            registeredJurisdiction: record.tax_jurisdiction_code || "",
+          };
+        });
+      } catch {
+        // Optional tax metadata never blocks pricing or base-currency resolution.
+      }
+    })();
+
     return () => { active = false; };
-  }, [user?.workspace_id]);
+  }, [user?.workspace_id, user?.country_code, user?.currency_code, user?.locale_code]);
   // Canonical workspace_settings is the only source of country and base currency.
   // Never let stale auth/profile metadata override a manually selected workspace country.
   const effectiveWorkspaceTaxProfile = workspaceTaxProfile;
