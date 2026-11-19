@@ -131,9 +131,21 @@ export default function AssistantWidget() {
     setRetryAction(null);
     setBusy(true);
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke("assistant-confirm", {
-        body: { actions, idempotencyKey },
-      });
+      // Bound confirmation latency in the browser. If the request is aborted after
+      // the server has started, retryAction retains the same idempotency key so a
+      // retry cannot create a second record.
+      const controller = new AbortController();
+      const confirmationTimeout = window.setTimeout(() => controller.abort(), 45000);
+      let confirmation;
+      try {
+        confirmation = await supabase.functions.invoke("assistant-confirm", {
+          body: { actions, idempotencyKey },
+          signal: controller.signal,
+        });
+      } finally {
+        window.clearTimeout(confirmationTimeout);
+      }
+      const { data, error: invokeError } = confirmation;
       if (invokeError) throw invokeError;
       if (!data?.ok) throw new Error(data?.error || data?.reply || "Plivex did not confirm that these records were saved. Check the module before retrying.");
       setRetryAction(null);
