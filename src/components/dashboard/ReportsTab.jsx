@@ -37,7 +37,7 @@ export default function ReportsTab() {
   const invoices = loadList(KEYS.history);
   const expenses = loadList(KEYS.expenses);
   const paylog = loadList(KEYS.paymentLogs);
-  const paidNos = new Set(paylog.filter((entry) => entry.status === "paid").map((entry) => entry.invoiceNumber));
+  const paidNos = new Set(paylog.filter((entry) => String(entry.status || "").toLowerCase() === "paid").map((entry) => entry.invoiceNumber));
   const inRange = (record, key) => {
     const raw = String(record?.[key] || "").slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return !from && !to;
@@ -45,9 +45,7 @@ export default function ReportsTab() {
   };
   const filteredInvoices = invoices.filter((item) => inRange(item, "issueDate"));
   const filteredExpenses = expenses.filter((item) => inRange(item, "date"));
-  const statusOf = (item) => item.status === "Paid" || item.status === "Pending"
-    ? item.status
-    : paidNos.has(item.number) ? "Paid" : "Pending";
+  const statusOf = (item) => item.status === "Paid" || paidNos.has(item.number) ? "Paid" : "Pending";
   const revenueByCurrency = groupedTotals(filteredInvoices, "total", "currency");
   const paidByCurrency = groupedTotals(filteredInvoices.filter((item) => statusOf(item) === "Paid"), "total", "currency");
   const pendingByCurrency = groupedTotals(filteredInvoices.filter((item) => statusOf(item) !== "Paid"), "total", "currency");
