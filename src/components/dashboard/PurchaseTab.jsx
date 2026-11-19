@@ -236,12 +236,12 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
         </div>
       </div>
 
-      {open && <ExpenseModal onClose={() => setOpen(false)} onSave={save} />}
+      {open && <ExpenseModal currencyCode={currencyCode} onClose={() => setOpen(false)} onSave={save} />}
     </div>
   );
 }
 
-function ExpenseModal({ onClose, onSave }) {
+function ExpenseModal({ currencyCode, onClose, onSave }) {
   const [form, setForm] = useState(blank);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   return (
