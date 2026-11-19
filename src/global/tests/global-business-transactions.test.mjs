@@ -111,3 +111,18 @@ test("Global taxable invoice uses one accessible combined confirmation instead o
   assert.match(edge, /TAX_DETAILS_CONFIRMATION_REQUIRED/);
   assert.doesNotMatch(source, /REGISTRATION_CONFIRMATION_REQUIRED/);
 });
+
+
+test("Global commercial invoice creation has one atomic server-side finalization action", async () => {
+  const handler = await read("../../../supabase/functions/global-invoices/index.ts");
+  const panel = await read("../../components/global/GlobalInvoicesPanel.jsx");
+  const migration = await read("../../../supabase/migrations/20261119100000_global_atomic_commercial_invoice_issue.sql");
+  assert.match(handler, /create_final_commercial/);
+  assert.match(handler, /global_create_and_issue_commercial_invoice/);
+  assert.match(panel, /action:"create_final_commercial"/);
+  assert.match(panel, /data\?\.invoice\?\.status !== "issued"/);
+  assert.match(panel, /await downloadPdf\(data\.invoice\)/);
+  assert.match(migration, /global_create_invoice_draft/);
+  assert.match(migration, /global_issue_commercial_invoice/);
+  assert.match(migration, /delete from global\.invoices/);
+});
