@@ -453,7 +453,7 @@ const PRICING_PLANS = [
     locked: [] },
 ];
 
-function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEmail, countryCode = "", currencyCode = "" }) {
+function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEmail, countryCode = "", currencyCode = "", profileLoading = false }) {
   const normalizedCountryCode = String(countryCode || "").trim().toUpperCase();
   const normalizedCurrencyCode = String(currencyCode || "").trim().toUpperCase();
   const isIndiaPricing = normalizedCountryCode === "IN";
@@ -467,7 +467,7 @@ function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEm
   const currencyMatches = isIndiaPricing
     ? normalizedCurrencyCode === "INR"
     : Boolean(billingConfig && normalizedCurrencyCode === billingConfig.currency);
-  const pricingVerified = isIndiaPricing ? currencyMatches : Boolean(isGlobalPricing && billingConfig && currencyMatches);
+  const pricingVerified = !profileLoading && (isIndiaPricing ? currencyMatches : Boolean(isGlobalPricing && billingConfig && currencyMatches));
   const displayPlans = isIndiaPricing && pricingVerified
     ? PRICING_PLANS.map((plan) => isVirendraAccount && plan.id === "basic_monthly" ? { ...plan, price:25, amount:2500, badge:"SPECIAL PRICE" } : plan)
     : isGlobalPricing && pricingVerified ? [
@@ -502,10 +502,11 @@ function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEm
           {currentPlan?.active && (
             <CurrentPlanCard planName={currentPlan.planName} benefits={activePlan?.included || []} startedAt={currentPlan.startedAt} expiresAt={currentPlan.expiresAt} />
           )}
-          {isGlobalPricing && pricingVerified && <p className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-950">Prices are displayed for your verified workspace country and currency. International subscription checkout is not active yet; invoice base-currency downloads remain separate from additional-currency access.</p>}
-          {!normalizedCountryCode && <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Your workspace country is still being verified. Plivex will not substitute Indian pricing. Your saved invoice data remains available.</p>}
-          {normalizedCountryCode && !pricingVerified && <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Workspace country and currency do not match a verified pricing configuration. No substitute pricing is shown.</p>}
-          {isGlobalPricing && !pricingVerified && <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Subscription pricing for this workspace country is not available or could not be verified. Plivex has not substituted Indian pricing. Your workspace base-currency invoices and PDF downloads remain available.</p>}
+          {profileLoading && <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Loading your verified Workspace country and currency…</p>}
+          {!profileLoading && isGlobalPricing && pricingVerified && <p className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-950">Prices are displayed for your verified workspace country and currency. International subscription checkout is not active yet; invoice base-currency downloads remain separate from additional-currency access.</p>}
+          {!profileLoading && !normalizedCountryCode && <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Your workspace country is still being verified. Plivex will not substitute Indian pricing. Your saved invoice data remains available.</p>}
+          {!profileLoading && normalizedCountryCode && !pricingVerified && <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Workspace country and currency do not match a verified pricing configuration. No substitute pricing is shown.</p>}
+          {!profileLoading && isGlobalPricing && !pricingVerified && <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Subscription pricing for this workspace country is not available or could not be verified. Plivex has not substituted Indian pricing. Your workspace base-currency invoices and PDF downloads remain available.</p>}
           <div className="grid gap-3 sm:grid-cols-2">
             {displayPlans.map((plan) => (
               <div key={plan.id} className={`relative flex flex-col rounded-2xl border p-4 ${plan.accent ? "border-primary bg-primary/[.05]" : "border-border bg-background/40"}`}>
@@ -561,6 +562,7 @@ export default function Home() {
   const { canAccess, isPremium, planName, planId, planStartedAt, planExpiresAt, limits, usage, remaining, openPaywall, refreshAccessStatus } = usePaywall();
   const [invoice, setInvoice] = useStored("invoicepulse-draft", initialInvoice, "invoicepulse-empty-draft-v1");
   const [workspaceTaxProfile, setWorkspaceTaxProfile] = useState(null);
+  const [workspaceTaxProfileLoading, setWorkspaceTaxProfileLoading] = useState(true);
   const [isDark, setIsDark] = useStored("invoicepulse-dark", false);
   const [mobileTab, setMobileTab] = useState("edit");
   const [pricingOpen, setPricingOpen] = useState(false);
@@ -600,7 +602,8 @@ export default function Home() {
   useEffect(() => {
     let active = true;
     async function loadWorkspaceTaxProfile() {
-      if (!user?.workspace_id) { if (active) setWorkspaceTaxProfile(null); return; }
+      if (!user?.workspace_id) { if (active) { setWorkspaceTaxProfile(null); setWorkspaceTaxProfileLoading(false); } return; }
+      if (active) setWorkspaceTaxProfileLoading(true);
       try {
         const [{ data: settings, error: settingsError }, response] = await Promise.all([
           supabase.from("workspace_settings")
@@ -644,6 +647,8 @@ export default function Home() {
             loadError: true,
           });
         }
+      } finally {
+        if (active) setWorkspaceTaxProfileLoading(false);
       }
     }
     loadWorkspaceTaxProfile();
@@ -707,6 +712,10 @@ export default function Home() {
   const validate = ({ allowGlobalDraftExport = false } = {}) => {
     const next = {};
     if (!activeWorkspaceCountry) next.workspaceCountry = "Your workspace country is not verified. Complete Workspace setup before creating an invoice.";
+    const workspaceCurrency = String(effectiveWorkspaceTaxProfile?.currencyCode || "").trim().toUpperCase();
+    if (!SUPPORTED_CURRENCIES.some((entry) => entry.code === workspaceCurrency) || resolveInvoiceCurrencyForWorkspace(activeWorkspaceCountry, workspaceCurrency) !== workspaceCurrency) {
+      next.workspaceCurrency = "Your Workspace base currency is still loading or does not match the selected country. Please retry after Workspace settings finish loading.";
+    }
     if (!invoice.business.name.trim()) next.businessName = "This field is required";
     if (!invoice.client.name.trim()) next.clientName = "This field is required";
     invoice.items.forEach((item) => {
@@ -722,12 +731,13 @@ export default function Home() {
     if (globalTaxError) next.globalTax = globalTaxError;
     if (!invoice.items.length) next.items = "Add at least one item";
     setErrors(next);
-    return Object.keys(next).length === 0;
+    return next;
   };
   const requireValid = (options = {}) => {
-    const valid = validate(options);
+    const validationErrors = validate(options);
+    const valid = Object.keys(validationErrors).length === 0;
     if (!valid) {
-      notify("Please fill all required fields before generating the invoice.", "error");
+      notify(Object.values(validationErrors)[0] || "Please complete the required invoice details.", "error");
       setMobileTab("edit");
     }
     return valid;
@@ -923,10 +933,7 @@ export default function Home() {
   const handleWhatsApp = () => {
     if (!canAccess("whatsapp_share")) { openPaywall("WhatsApp sharing is available on Pro."); return; }
     if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
-    if (!requireValid()) {
-      notify("Please complete all required invoice details before sharing on WhatsApp", "error");
-      return;
-    }
+    if (!requireValid({ allowGlobalDraftExport: isGlobalWorkspace })) return;
     const existing = normalizePhone(invoice.client.phone);
     if (existing) {
       sendWhatsApp(existing);
@@ -938,7 +945,7 @@ export default function Home() {
   const sendWhatsApp = async (phone) => {
     if (!canAccess("whatsapp_share")) { openPaywall("WhatsApp sharing is available on Pro."); return; }
     if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
-    if (!requireValid()) { notify("Please complete all required invoice details before sharing on WhatsApp", "error"); return; }
+    if (!requireValid({ allowGlobalDraftExport: isGlobalWorkspace })) return;
     const digits = normalizePhone(phone);
     if (!digits) { notify("Please enter a valid WhatsApp number with its country code.", "error"); return; }
     // Open the WhatsApp window synchronously (within the user gesture) to avoid
@@ -951,7 +958,7 @@ export default function Home() {
       // exactly once. This prevents WhatsApp sharing from creating an unsaved invoice.
       const savedInvoice = await recordInvoice();
       if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
-      const shareLink = await createInvoiceShareLink(savedInvoice.id, user?.workspace_id, false);
+      const shareLink = await createInvoiceShareLink(savedInvoice.id, user?.workspace_id, isGlobalWorkspace);
       if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
         setInvoice((current) => ({ ...current, number: savedInvoice.number }));
         // Let React update the visible invoice preview before rasterizing it.
@@ -964,7 +971,7 @@ export default function Home() {
       const blob = pdf.output("blob");
       const file = new File([blob], safeFilename, { type: "application/pdf" });
       const clientName = invoice.client.name || "there";
-      const totalAmt = money(computeTotal(invoiceForPreview), invoice.currency);
+      const totalAmt = money(computeTotal(invoiceForPreview), invoiceForPreview.currency);
       const due = invoice.dueDate ? dateLabel(invoice.dueDate, workspaceTaxProfile?.localeCode || "en-IN") : "—";
       const upi = (invoice.upiId || "").trim();
       const bizName = invoice.business.name || "Plivex";
@@ -1022,7 +1029,7 @@ export default function Home() {
     if (!canAccess("whatsapp_share")) { openPaywall("Gmail and SMS invoice sharing are available on Pro."); return; }
     if (manualShareBusy || whatsappSending || pdfDownloading) return;
     if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
-    if (!requireValid()) { notify("Please complete all required invoice details before sharing.", "error"); return; }
+    if (!requireValid({ allowGlobalDraftExport: isGlobalWorkspace })) return;
 
     const email = String(invoice.client.email || "").trim();
     const phone = normalizePhone(invoice.client.phone);
@@ -1052,7 +1059,7 @@ export default function Home() {
       downloadPdfBlob(pdf, safeFilename);
 
       const clientName = invoice.client.name || "there";
-      const totalAmt = money(computeTotal(invoiceForPreview), invoice.currency);
+      const totalAmt = money(computeTotal(invoiceForPreview), invoiceForPreview.currency);
       const due = invoice.dueDate ? dateLabel(invoice.dueDate, workspaceTaxProfile?.localeCode || "en-IN") : "—";
       const upi = (invoice.upiId || "").trim();
       const bizName = invoice.business.name || "Plivex";
@@ -1092,12 +1099,12 @@ export default function Home() {
           <div className="mb-4 rounded-xl border bg-card p-3"><div className="flex items-center justify-between text-xs"><span className="font-semibold">Invoices this month</span><span className="font-bold">{Number(usage.invoices_monthly ?? usage.invoices ?? 0)}/{Number(limits.invoices_monthly ?? limits.invoices ?? 30)}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${Number(usage.invoices_monthly ?? usage.invoices ?? 0) >= Number(limits.invoices_monthly ?? limits.invoices ?? 30) ? "bg-rose-500" : Number(usage.invoices_monthly ?? usage.invoices ?? 0) / Number(limits.invoices_monthly ?? limits.invoices ?? 30) >= 0.8 ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${Math.min(100, Number(usage.invoices_monthly ?? usage.invoices ?? 0) / Number(limits.invoices_monthly ?? limits.invoices ?? 30) * 100)}%` }} /></div>{Number(usage.invoices_monthly ?? usage.invoices ?? 0) / Number(limits.invoices_monthly ?? limits.invoices ?? 30) >= 0.8 && <p className="mt-1.5 text-[11px] text-amber-600">{Number(usage.invoices_monthly ?? usage.invoices ?? 0) >= Number(limits.invoices_monthly ?? limits.invoices ?? 30) ? "Plan limit reached" : "Usage limit warning"}</p>}{Number(usage.invoices_monthly ?? usage.invoices ?? 0) >= Number(limits.invoices_monthly ?? limits.invoices ?? 30) && <button onClick={() => openPaywall("Invoice limit reached for your current plan.")} className="mt-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground">Upgrade</button>}</div><div className="mb-4 flex rounded-lg border bg-card p-1 xl:hidden"><button data-testid="tab-edit-mobile" onClick={() => setMobileTab("edit")} className={`flex-1 rounded-md py-2 text-xs font-bold transition-colors ${mobileTab === "edit" ? "bg-secondary text-primary" : "text-muted-foreground"}`}><FilePenLine className="mr-1.5 inline h-3.5 w-3.5" />Edit invoice</button><button data-testid="tab-preview-mobile" onClick={() => setMobileTab("preview")} className={`flex-1 rounded-md py-2 text-xs font-bold transition-colors ${mobileTab === "preview" ? "bg-secondary text-primary" : "text-muted-foreground"}`}><FileText className="mr-1.5 inline h-3.5 w-3.5" />Preview</button></div>
           <div className="grid items-start gap-6 xl:grid-cols-[minmax(360px,440px)_minmax(0,1fr)] xl:gap-8">
             <div className={`${mobileTab === "preview" ? "hidden xl:block" : "block"} min-w-0 fade-up fade-up-delay-1`}><InvoiceEditor invoice={invoiceForPreview} setInvoice={setInvoice} user={user} workspaceTaxProfile={effectiveWorkspaceTaxProfile} globalTaxCalculation={globalTaxCalculation} errors={errors} onClearError={(key) => setErrors((current) => { if (!current[key]) return current; const next = { ...current }; delete next[key]; return next; })} onToast={notify} onSignature={() => setSignatureOpen(true)} canAccess={canAccess} onLocked={() => setPricingOpen(true)} design={activeDesign} /></div>
-            <div className={`${mobileTab === "edit" ? "hidden xl:block" : "block"} min-w-0 xl:sticky xl:top-[86px] fade-up fade-up-delay-2`}><div className="mb-3 flex items-center justify-between px-1"><div><p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Live preview</p><p className="mt-0.5 text-[12px] text-muted-foreground">A4 · print-ready · {invoice.currency}</p></div></div><div className="paper-grid min-w-0 rounded-xl border bg-[#e9e8f0] dark:bg-[#1e1d2a] xl:max-h-[calc(100dvh-170px)] xl:overflow-y-auto"><InvoicePreview invoice={invoiceForPreview} design={activeDesign} /></div></div>
+            <div className={`${mobileTab === "edit" ? "hidden xl:block" : "block"} min-w-0 xl:sticky xl:top-[86px] fade-up fade-up-delay-2`}><div className="mb-3 flex items-center justify-between px-1"><div><p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Live preview</p><p className="mt-0.5 text-[12px] text-muted-foreground">A4 · print-ready · {invoice.currency}</p></div></div><div className="paper-grid min-w-0 rounded-xl border bg-[#e9e8f0] dark:bg-[#1e1d2a] xl:max-h-[calc(100dvh-170px)] xl:overflow-y-auto">{workspaceTaxProfileLoading ? <div className="p-8 text-center text-sm text-muted-foreground">Loading verified Workspace currency…</div> : activeWorkspaceCountry && SUPPORTED_CURRENCIES.some((entry) => entry.code === effectiveWorkspaceTaxProfile?.currencyCode) ? <InvoicePreview invoice={invoiceForPreview} design={activeDesign} /> : <div role="status" className="p-8 text-center text-sm text-muted-foreground">Workspace country or base currency could not be verified. Your saved invoice data is preserved. Refresh Workspace settings before exporting.</div>}</div></div>
           </div>
         </main>
       </div>
       {signatureOpen && <SignatureModal onClose={() => setSignatureOpen(false)} onSave={(data) => { setInvoice((old) => ({ ...old, signature: data })); notify("Signature saved"); }} />}
-      {pricingOpen && <PricingModal onClose={() => { setPricingOpen(false); setCheckoutNotice(""); }} onCheckout={checkout} checkoutNotice={checkoutNotice} userEmail={user?.email} countryCode={workspaceTaxProfile?.countryCode || ""} currencyCode={workspaceTaxProfile?.currencyCode || ""} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} />}
+      {pricingOpen && <PricingModal onClose={() => { setPricingOpen(false); setCheckoutNotice(""); }} onCheckout={checkout} checkoutNotice={checkoutNotice} profileLoading={workspaceTaxProfileLoading} userEmail={user?.email} countryCode={workspaceTaxProfile?.countryCode || ""} currencyCode={workspaceTaxProfile?.currencyCode || ""} currentPlan={{ active: isPremium, planId, planName, startedAt: planStartedAt, expiresAt: planExpiresAt }} />}
       {whatsappOpen && <WhatsAppNumberModal value={whatsappNumber} onChange={setWhatsappNumber} onClose={() => setWhatsappOpen(false)} onSend={() => sendWhatsApp(whatsappNumber)} sending={whatsappSending} />}
       <PresenceBeacon />
       <Toast toast={toast} onClose={() => setToast(null)} />
