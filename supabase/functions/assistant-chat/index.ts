@@ -71,7 +71,8 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
   const invoiceSummary = {
     loadedRecords: invoices.length,
     reportableCount: reportableInvoices.length,
-    totalValue: currencyTotals(reportableInvoices, "total", "currency").total,\n    totalValueByCurrency: currencyTotals(reportableInvoices, "total", "currency").byGroup,
+    totalValue: currencyTotals(reportableInvoices, "total", "currency").total,
+    totalValueByCurrency: currencyTotals(reportableInvoices, "total", "currency").byGroup,
     paidCount: paidInvoices.length,
     paidValue: currencyTotals(paidInvoices, "total", "currency").total,
     paidValueByCurrency: currencyTotals(paidInvoices, "total", "currency").byGroup,
@@ -79,7 +80,8 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
     pendingValue: currencyTotals(pendingInvoices, "total", "currency").total,
     pendingValueByCurrency: currencyTotals(pendingInvoices, "total", "currency").byGroup,
   };
-  const stockQuantityTotals = groupNumericTotals(stock, "quantity", "unit");\n  const businessAnalytics = buildAssistantBusinessAnalytics({ invoices, stock, stockMovements, asOfDate: indiaToday() });
+  const stockQuantityTotals = groupNumericTotals(stock, "quantity", "unit");
+  const businessAnalytics = buildAssistantBusinessAnalytics({ invoices, stock, stockMovements, asOfDate: indiaToday() });
   return {
     businessAnalytics,
     warning: errors.length ? "Some tables were unavailable due to permissions or query errors: " + errors.join(", ") : undefined,
