@@ -106,6 +106,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
           {filteredClients.length === 0 ? (
             <Empty label="No clients match your search. Add a client to invoice them in one click." />
           ) : (
+            <>
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[640px] text-left text-[12px]">
                 <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -184,6 +185,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
                 </article>;
               })}
             </div>
+            </>
           )}
 
           <div className="flex items-center justify-between border-t border-[#E5E7EB] px-4 py-3 text-[11px] text-slate-500">
