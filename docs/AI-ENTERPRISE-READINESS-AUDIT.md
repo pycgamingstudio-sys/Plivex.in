@@ -66,3 +66,7 @@ The health advisor returned no lints at the time of this audit.
 - Merge, production migrations, Edge Function deployment and production configuration changes remain approval-gated.
 
 **Conclusion:** The codebase has a substantial AI foundation and green automated workflows. Enterprise readiness remains unproven until the live integration, authenticated E2E, complete security review, failure testing and performance gates above pass.
+
+
+## Product naming update
+The user confirmed the assistant's name as **Plivex Nova** (short name: **Nova**). The assistant system identity and user-facing widget labels have been updated on the development branch. This is branding only; it does not imply additional connected capabilities.
