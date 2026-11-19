@@ -243,8 +243,8 @@ function ClientModal({ value, onClose, onSave }) {
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-[440px] rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between"><h3 className="text-lg font-bold text-slate-900">{value.id ? "Edit client" : "Add client"}</h3><button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
+      <div role="dialog" aria-modal="true" aria-labelledby="client-modal-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-[440px] overflow-y-auto overscroll-contain rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between"><h3 id="client-modal-title" className="text-lg font-bold text-slate-900">{value.id ? "Edit client" : "Add client"}</h3><button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="block text-[12px] font-semibold text-slate-500">Name<input className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Client name" /></label>
           <label className="block text-[12px] font-semibold text-slate-500">Company<input className={inputCls} value={form.company} onChange={(e) => set("company", e.target.value)} placeholder="Company" /></label>
