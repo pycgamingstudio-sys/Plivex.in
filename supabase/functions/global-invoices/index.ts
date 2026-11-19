@@ -172,7 +172,12 @@ Deno.serve(async (req: Request) => {
       const commercialProbe = await auth.admin.rpc("global_issue_commercial_invoice", {
         p_user_id:null, p_workspace_id:null, p_invoice_id:null, p_idempotency_key:null,
       });
-      const commercialFunctionReady = !commercialProbe.error && commercialProbe.data?.reason === "invalid_request";
+      const atomicCommercialProbe = await auth.admin.rpc("global_create_and_issue_commercial_invoice", {
+        p_user_id:null, p_workspace_id:null, p_client_id:null, p_currency_code:null,
+        p_issue_date:null, p_due_date:null, p_notes:null, p_items:null, p_idempotency_key:null,
+      });
+      const commercialFunctionReady = !commercialProbe.error && commercialProbe.data?.reason === "invalid_request"
+        && !atomicCommercialProbe.error && atomicCommercialProbe.data?.reason === "invalid_request";
       const commercialCountries = ["US","GB","AE","CA","AU","SG"];
       return globalJson({
         ok: true,
