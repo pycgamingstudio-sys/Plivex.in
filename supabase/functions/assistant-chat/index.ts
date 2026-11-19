@@ -180,14 +180,11 @@ function parseClientConversation(incoming: any[]) {
   if (!explicitNow && !(hadClientCommand && awaitingName)) return null;
   let name = "";
   if (explicitNow) {
-    const m = latest.match(/(?:client|customer)(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:and|aur|expense|kharcha|invoice|bill)\b|[,;
-]|$)/i)
-      || latest.match(/(?:add|create|jod(?:o)?|bana(?:o)?|darj)\s+(?:a\s+)?(?:client|customer)\s+(?:named\s+)?(.+?)(?=\s+(?:and|aur|expense|kharcha|invoice|bill)\b|[,;
-]|$)/i);
+    const m = latest.match(/(?:client|customer)(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:and|aur|expense|kharcha|invoice|bill)\b|[,;\n]|$)/i)
+      || latest.match(/(?:add|create|jod(?:o)?|bana(?:o)?|darj)\s+(?:a\s+)?(?:client|customer)\s+(?:named\s+)?(.+?)(?=\s+(?:and|aur|expense|kharcha|invoice|bill)\b|[,;\n]|$)/i);
     name = text(m?.[1], 120);
     if (!name) {
-      const genericName = latest.match(/\b(?:naam|name)\s+(?:hai|is)\s+([A-Za-z][A-Za-z .'-]{0,100}?)(?=\s+(?:and|aur|expense|kharcha|invoice|bill)\b|[,;
-]|$)/i);
+      const genericName = latest.match(/\b(?:naam|name)\s+(?:hai|is)\s+([A-Za-z][A-Za-z .'-]{0,100}?)(?=\s+(?:and|aur|expense|kharcha|invoice|bill)\b|[,;\n]|$)/i);
       const hasExpenseRequest = /(?:expense|kharcha|kharch|खर्च)/i.test(latest);
       if (genericName && hasExpenseRequest) {
         return { pending: true, reply: genericName[1].trim() + " kis ka naam hai—client ka ya expense vendor/payee ka? Main galat record nahi banaunga." };
@@ -214,12 +211,9 @@ function parseInvoiceConversation(incoming: any[], businessProfile: any = null) 
   const workspaceCountryCode = text(businessProfile?.country_code || "IN", 2).toUpperCase();
   const countryCurrency: Record<string, string> = { IN: "INR", US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD" };
   const currency = currencyMatch ? currencyMatch[1].toUpperCase() : (countryCurrency[workspaceCountryCode] || "INR");
-  const client = captureField(combined, /client(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:mera|my|issue|due|date|item|product|price|rate|quantity|qty)\b|[,;
-]|$)/i);
-  const business = captureField(combined, /(?:mera|my)\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:issue|due|date|item|product|price|rate|quantity|qty)\b|[,;
-]|$)/i);
-  const item = captureField(combined, /(?:item|product)\s+(?:hai|is)\s+(.+?)(?=\s+(?:quantity|qty|price|rate|ki|ka|ke|and|aur)\b|[,;
-]|$)/i);
+  const client = captureField(combined, /client(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:mera|my|issue|due|date|item|product|price|rate|quantity|qty)\b|[,;\n]|$)/i);
+  const business = captureField(combined, /(?:mera|my)\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:issue|due|date|item|product|price|rate|quantity|qty)\b|[,;\n]|$)/i);
+  const item = captureField(combined, /(?:item|product)\s+(?:hai|is)\s+(.+?)(?=\s+(?:quantity|qty|price|rate|ki|ka|ke|and|aur)\b|[,;\n]|$)/i);
   const priceMatch = combined.match(/(?:price|rate|daam|keemat|कीमत|दाम)\s*(?:hai|is|[:=])?\s*(?:₹|rs\.?\s*)?([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
   const quantityMatch = combined.match(/(?:quantity|qty|matra|मात्रा)\s*(?:hai|is|[:=])?\s*([0-9][0-9,]*(?:\.[0-9]+)?)/i);
   let quantity = quantityMatch ? Number(quantityMatch[1].replace(/,/g, "")) : NaN;
@@ -312,13 +306,11 @@ function parseExpenseConversation(incoming: any[]) {
   if (!(amount > 0) && latestNumber && /(?:amount|price|total|kitna|kitne|how much|रकम)/i.test(String(lastAssistant))) {
     amount = parseMoney(latestNumber[1], latestNumber[2] || "");
   }
-  const namedVendor = combined.match(/(?:vendor|payee|supplier|name|naam|नाम)\s*(?:hai|is|[:=])?\s*([A-Za-z][A-Za-z .'-]{0,80}?)(?=\s+(?:amount|price|total|cost|value|description|purpose|reason|note|category|date|payment|method)\b|[,;
-]|$)/i);
+  const namedVendor = combined.match(/(?:vendor|payee|supplier|name|naam|नाम)\s*(?:hai|is|[:=])?\s*([A-Za-z][A-Za-z .'-]{0,80}?)(?=\s+(?:amount|price|total|cost|value|description|purpose|reason|note|category|date|payment|method)\b|[,;\n]|$)/i);
   const leadingVendor = combined.match(/(?:^|
 )\s*([A-Za-z][A-Za-z .'-]{1,50}?)\s+(?=(?:amount|price|total|description|purpose)\b)/i);
   const vendor = text(namedVendor?.[1] || leadingVendor?.[1], 120).replace(/[.,;:]+$/, "").trim();
-  const descriptionMatch = combined.match(/(?:description|purpose|reason|note)\s*(?:hai|is|[:=])?\s*([A-Za-z][A-Za-z0-9 /&().'-]{0,120}?)(?=\s+(?:amount|price|total|cost|value|vendor|payee|supplier|name|naam|category|date|payment|method)\b|[,;
-]|$)/i);
+  const descriptionMatch = combined.match(/(?:description|purpose|reason|note)\s*(?:hai|is|[:=])?\s*([A-Za-z][A-Za-z0-9 /&().'-]{0,120}?)(?=\s+(?:amount|price|total|cost|value|vendor|payee|supplier|name|naam|category|date|payment|method)\b|[,;\n]|$)/i);
   const notes = text(descriptionMatch?.[1], 500).replace(/[.,;:]+$/, "").trim();
   // Newest-turn corrections override older draft values.
   const correctionText = latest;
@@ -331,8 +323,7 @@ function parseExpenseConversation(incoming: any[]) {
   }
   const correctionVendor = correctionText.match(/(?:vendor|payee|supplier|name|naam)\s*(?:is|hai|[:=])?\s*([A-Za-z][A-Za-z .'-]{0,70})/i);
   const correctionNotes = correctionText.match(/(?:description|purpose|reason|note)\s*(?:is|hai|[:=])?\s*([A-Za-z][A-Za-z0-9 /&().'-]{0,100})/i);
-  const explicitCategory = combined.match(/category\s*(?:hai|is|[:=])?\s*([A-Za-z ]{2,40}?)(?=\s+(?:amount|price|description|date)\b|[,;
-]|$)/i);
+  const explicitCategory = combined.match(/category\s*(?:hai|is|[:=])?\s*([A-Za-z ]{2,40}?)(?=\s+(?:amount|price|description|date)\b|[,;\n]|$)/i);
   const lowerNotes = notes.toLowerCase();
   const categoryText = text(explicitCategory?.[1], 50).toLowerCase();
   const effectiveVendor = text(correctionVendor?.[1] || vendor, 120).replace(/[.,;:]+$/, "").trim();
