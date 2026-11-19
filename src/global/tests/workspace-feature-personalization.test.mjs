@@ -110,3 +110,24 @@ test("dashboard card order is persisted and mobile visibility controls expose ac
   assert.match(dashboard, /max-h-\[calc\(100dvh-1rem\)\]/);
   assert.match(dashboard, /overflow-y-auto bg-black\/40 p-2/);
 });
+
+
+test("expense and lead entry modals receive the active workspace currency explicitly", async () => {
+  const expenses = await read("../../components/dashboard/PurchaseTab.jsx");
+  const crm = await read("../../components/dashboard/CrmTab.jsx");
+  assert.match(expenses, /<ExpenseModal currencyCode=\{currencyCode\}/);
+  assert.match(expenses, /function ExpenseModal\(\{ currencyCode, onClose, onSave \}\)/);
+  assert.match(crm, /<LeadModal currencyCode=\{currencyCode\}/);
+  assert.match(crm, /function LeadModal\(\{ currencyCode, onClose, onSave \}\)/);
+  assert.match(crm, /\{ \.\.\.entry, currencyCode, nextFollowUpAt/);
+});
+
+test("invoice editor uses canonical workspace_settings currency rather than stale profile currency", async () => {
+  const home = await read("../../pages/Home.jsx");
+  assert.match(home, /supabase\.from\("workspace_settings"\)/);
+  assert.match(home, /select\("country_code,currency_code,locale_code"\)/);
+  assert.match(home, /const countryCode = String\(settings\?\.country_code/);
+  assert.match(home, /const currencyCode = String\(settings\?\.currency_code/);
+  assert.match(home, /workspaceTaxProfile\?\.currencyCode \|\| user\?\.currency_code/);
+  assert.doesNotMatch(home, /if \(!user\?\.country_code \|\| !user\?\.currency_code\) return;/);
+});
