@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
+import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
 
 const ALLOWED_ORIGINS = new Set([
   "https://plivex.in",
@@ -37,18 +38,7 @@ function validateAction(action: unknown) {
   const type = text(candidate.type, 40);
   const raw = candidate.payload && typeof candidate.payload === "object" ? candidate.payload as Record<string, unknown> : {};
   if (type === "receive_purchase_order") {
-    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    const purchaseOrderId = text(raw.purchase_order_id, 36);
-    const warehouseId = text(raw.warehouse_id, 36);
-    if (!uuid.test(purchaseOrderId) || !uuid.test(warehouseId) || !Array.isArray(raw.items) || raw.items.length < 1 || raw.items.length > 200) return null;
-    const items = raw.items.map((item: any) => ({
-      purchase_order_item_id: text(item?.purchase_order_item_id, 36),
-      quantity: number(item?.quantity),
-      batch_number: text(item?.batch_number, 120),
-      expires_on: text(item?.expires_on, 10),
-    }));
-    if (items.some((item: any) => !uuid.test(item.purchase_order_item_id) || !(item.quantity > 0) || Math.round(item.quantity * 10000) !== item.quantity * 10000 || (item.expires_on && !/^\d{4}-\d{2}-\d{2}$/.test(item.expires_on)))) return null;
-    return { type, payload: { purchase_order_id: purchaseOrderId, warehouse_id: warehouseId, items } };
+    return validateGoodsReceiptAction(action);
   }
   if (type === "create_invoice") {
     return validateInvoiceAction(action);
