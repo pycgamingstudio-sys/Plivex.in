@@ -29,7 +29,7 @@ test("freelancer and business are mutually exclusive primary workspace profiles"
   assert.match(features, /inventoryWorkspace/);
   assert.match(features, /getSuggestedWorkspaceFeatures\(workTypes = \[\]\)/);
   assert.match(features, /return WORKSPACE_FEATURE_CATALOG/);
-  assert.doesNotMatch(features, /id: "quotations"/);
+  assert.match(features, /id: "quotations"/);
   const layout = await read("../../components/AppLayout.jsx");
   const globalApp = await read("../../global/GlobalApp.jsx");
   assert.match(layout, /if \(item\.to === "\/quotations"\) return true/);
@@ -58,7 +58,7 @@ test("unified auth keeps one public workspace identity regardless of country", a
   assert.ok(auth.indexOf("if (isUnifiedBuild)") < auth.indexOf("const shouldResolveGlobal = APP_EDITION === \"global\" || isUnifiedBuild"));
 });
 
-test("More Features lists optional tools and supports adding or removing them", async () => {
+test("More Features exposes every dashboard module and supports adding optional tools for freelancers too", async () => {
   const library = await read("../../components/dashboard/FeatureLibraryModal.jsx");
   const dashboard = await read("../../components/dashboard/DashboardTab.jsx");
   const nav = await read("../../pages/Dashboard.jsx");
@@ -66,7 +66,7 @@ test("More Features lists optional tools and supports adding or removing them", 
   assert.match(dashboard, /More Features/);
   assert.match(library, /getAvailableWorkspaceFeatureCatalog\(APP_EDITION\)\.map\(\(item\) =>/);
   assert.match(library, /Remove from dashboard/);
-  assert.match(library, /In your workspace/);
+  assert.match(library, /Always included/);\n  assert.match(library, /Stock and Team Members can be added by Freelancer workspaces too/);\n  for (const id of ["invoices", "quotations", "expenses", "crm", "leads", "reports", "stock", "team", "inventoryWorkspace"]) assert.ok(library.includes(id) || (await read("../../lib/workspaceFeatures.js")).includes(`id: "${id}"`), "Missing module: " + id);
   assert.match(nav, /workspaceFeatures.includes\("inventoryWorkspace"\)/);
   assert.match(nav, /workspaceFeatures.includes\("reports"\)/);
   for (const label of ["Dashboard", "Sales", "Purchase", "Reports", "Client CRM", "Stock", "Team", "Warehouse"]) assert.ok(layout.includes(`label: "${label}"`), "Missing Global navigation area: " + label);
@@ -130,4 +130,20 @@ test("invoice editor uses canonical workspace_settings currency rather than stal
   assert.match(home, /const currencyCode = String\(settings\?\.currency_code/);
   assert.match(home, /workspaceTaxProfile\?\.currencyCode \|\| user\?\.currency_code/);
   assert.doesNotMatch(home, /if \(!user\?\.country_code \|\| !user\?\.currency_code\) return;/);
+});
+
+
+test("invoice saving rejects missing or mismatched canonical workspace currency", async () => {
+  const stores = await read("../../lib/stores.js");
+  assert.match(stores, /Workspace country and base currency could not be verified/);
+  assert.match(stores, /currency !== workspaceCurrency/);
+  assert.match(stores, /must match the workspace base currency/);
+});
+
+test("Lead Tracker modal keeps its save action visible on small screens", async () => {
+  const crm = await read("../../components/dashboard/CrmTab.jsx");
+  assert.match(crm, /max-h-\[calc\(100dvh-0\.5rem\)\]/);
+  assert.match(crm, /min-h-0 flex-1 overflow-y-auto overscroll-contain/);
+  assert.match(crm, /shrink-0 justify-end gap-2 border-t/);
+  assert.match(crm, /pb-\[max\(0\.75rem,env\(safe-area-inset-bottom\)\)\]/);
 });
