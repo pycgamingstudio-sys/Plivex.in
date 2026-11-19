@@ -9,6 +9,7 @@ const isRealDate = (value) => {
 };
 
 const cleanText = (value, max) => String(value ?? "").trim().slice(0, max);
+const precision4 = (value) => Number.isSafeInteger(Math.round(value * 10000)) && Math.abs(value * 10000 - Math.round(value * 10000)) < 1e-7;
 const finiteNumber = (value) => {
   const number = Number(value);
   return Number.isFinite(number) ? number : NaN;
@@ -19,13 +20,14 @@ export function validateGoodsReceiptAction(action) {
   const type = cleanText(action.type, 40);
   if (type !== "receive_purchase_order") return null;
   const payload = action.payload && typeof action.payload === "object" ? action.payload : {};
-  const purchaseOrderId = cleanText(payload.purchase_order_id, 36);
-  const warehouseId = cleanText(payload.warehouse_id, 36);
+  const purchaseOrderId = String(payload.purchase_order_id ?? "").trim();
+  const warehouseId = String(payload.warehouse_id ?? "").trim();
   if (!UUID_RE.test(purchaseOrderId) || !UUID_RE.test(warehouseId)) return null;
   if (!Array.isArray(payload.items) || payload.items.length < 1 || payload.items.length > 200) return null;
+  if (payload.items.some((item) => String(item?.purchase_order_item_id ?? "").trim().length !== 36 || String(item?.batch_number ?? "").trim().length > 120 || String(item?.expires_on ?? "").trim().length > 10)) return null;
 
   const items = payload.items.map((item) => {
-    const purchaseOrderItemId = cleanText(item?.purchase_order_item_id, 36);
+    const purchaseOrderItemId = String(item?.purchase_order_item_id ?? "").trim();
     const quantity = finiteNumber(item?.quantity);
     const batchNumber = cleanText(item?.batch_number, 120);
     const expiresOn = cleanText(item?.expires_on, 10);
@@ -35,7 +37,7 @@ export function validateGoodsReceiptAction(action) {
   if (items.some((item) =>
     !UUID_RE.test(item.purchase_order_item_id)
     || !(item.quantity > 0)
-    || !Number.isSafeInteger(Math.round(item.quantity * 10000)) || Math.round(item.quantity * 10000) !== item.quantity * 10000
+    || !precision4(item.quantity)
     || (item.expires_on && !isRealDate(item.expires_on))
   )) return null;
 
