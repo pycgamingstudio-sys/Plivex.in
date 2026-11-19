@@ -12,7 +12,8 @@
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview",
     "test:global": "node --test src/global/tests/*.test.mjs",
-    "verify:build-env": "node scripts/verify-build-env.mjs"
+    "verify:build-env": "node scripts/verify-build-env.mjs",
+    "test:assistant": "node --test supabase/functions/_shared/assistant-tool-registry.test.mjs supabase/functions/_shared/assistant-intent-planner.test.mjs supabase/functions/_shared/assistant-business-analytics.test.mjs supabase/functions/_shared/assistant-goods-receipt-validation.test.mjs supabase/functions/_shared/assistant-goods-receipt-context.test.mjs supabase/functions/_shared/assistant-purchase-order-validation.test.mjs supabase/functions/_shared/assistant-purchase-order-context.test.mjs supabase/functions/_shared/assistant-warehouse-validation.test.mjs supabase/functions/_shared/assistant-purchasing-write-intent.test.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^17.0.0",
