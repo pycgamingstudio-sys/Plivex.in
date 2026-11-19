@@ -122,7 +122,7 @@ export async function generateWithFallback({
       } else {
         result = await callOpenAiProvider({ ...attempt, key: attempt.provider === "groq" ? groqKey : openRouterKey, body, fetchImpl, deadline });
       }
-      return { ok: true, provider: attempt.provider, model: attempt.model, result };
+      assertJsonModelResult(result);\n      return { ok: true, provider: attempt.provider, model: attempt.model, result };
     } catch (error) {
       lastStatus = Number(error?.status) || (error?.name === "TimeoutError" || error?.name === "AbortError" ? 504 : 503);
       console.warn("Nova provider attempt failed", {
