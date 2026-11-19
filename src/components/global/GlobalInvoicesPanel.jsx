@@ -141,9 +141,12 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
     try {
       if (!workspaceContext.ok) throw new Error("Your workspace country and base currency could not be verified. No fallback currency has been applied.");
+      if (!backendCapabilities.commercialIssuanceReady || !sellerProfileReady) {
+        throw new Error("Complete the seller legal name and business address, then wait for the server issuance service before creating a final invoice.");
+      }
       const { data, error: invokeError } = await supabase.functions.invoke("global-invoices", {
         body:{
-          action:"create_draft", workspace_id:account.workspace_id,
+          action:"create_final_commercial", workspace_id:account.workspace_id,
           client_id:form.clientId || null, currency_code:currency,
           issue_date:form.issueDate, due_date:form.dueDate || null,
           notes:null, idempotency_key:newId(),
@@ -154,12 +157,15 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
         },
       });
       if (invokeError) throw invokeError;
-      if (!data?.ok) throw new Error(data?.error || "Could not create draft invoice.");
+      if (!data?.ok || data?.invoice?.status !== "issued" || !data?.invoice?.invoice_number) {
+        throw new Error(data?.error || "The server did not confirm final invoice issuance. No final PDF was created.");
+      }
       setSelectedId(data.invoice.id);
       setShowCreate(false);
-      setNotice("Draft saved. It is not an issued invoice and cannot yet be used to request payment.");
+      setNotice("Final commercial invoice " + data.invoice.invoice_number + " issued by the server. Preparing its official PDF…");
       await refresh();
-    } catch (e) { setError(e.message || "Could not create draft invoice."); }
+      await downloadPdf(data.invoice);
+    } catch (e) { setError(e.message || "Could not create the final invoice."); }
     finally { setBusy(false); }
   };
 
@@ -419,7 +425,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     <section className="mt-6 space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div><h1 className="text-2xl font-bold">Global invoices</h1><p className="mt-1 text-sm text-slate-500">Create and issue commercial invoices in your verified {currency || "workspace"} base currency. Tax invoices are separately enabled only where country rules and seller evidence are verified.</p></div>
-        <button className={button} onClick={() => { setShowCreate((v)=>!v); setError(""); setNotice(""); }}> {showCreate ? "Close" : "Create draft"} </button>
+        <button className={button} onClick={() => { setShowCreate((v)=>!v); setError(""); setNotice(""); }}> {showCreate ? "Close" : "Create invoice"} </button>
       </div>
       {notice && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
@@ -445,7 +451,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
 
       {showCreate && (
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="font-semibold">New draft invoice</h2>
+          <h2 className="font-semibold">New final invoice</h2>
           <form onSubmit={createDraft} className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="text-xs font-semibold text-slate-600">Customer<select className={field+" mt-1"} value={form.clientId} onChange={(e)=>setForm((v)=>({...v,clientId:e.target.value}))}><option value="">No customer selected</option>{clients.map((c)=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
             <label className="text-xs font-semibold text-slate-600">Issue date<input required type="date" className={field+" mt-1"} value={form.issueDate} onChange={(e)=>setForm((v)=>({...v,issueDate:e.target.value}))}/></label>
@@ -458,7 +464,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
                 <input required min="0" step="0.01" type="number" className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm outline-none" value={form.unitPrice} onChange={(e)=>setForm((v)=>({...v,unitPrice:e.target.value}))}/>
               </span>
             </label>
-            <div className="sm:col-span-2 flex items-center justify-between gap-3"><span className="text-sm text-slate-500">Draft amount: {money(minor(Number(form.quantity||0)*Number(form.unitPrice||0),currency),currency)}</span><button disabled={busy} className={button}>Save draft</button></div>
+            <div className="sm:col-span-2 flex items-center justify-between gap-3"><span className="text-sm text-slate-500">Draft amount: {money(minor(Number(form.quantity||0)*Number(form.unitPrice||0),currency),currency)}</span><button disabled={busy} className={button}>Create final invoice</button></div>
           </form>
         </div>
       )}
@@ -466,7 +472,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <div className="border-b border-slate-100 px-4 py-3 font-semibold">Invoices</div>
-          {invoices.length===0 ? <p className="p-8 text-center text-sm text-slate-500">No Global invoices yet. Create a draft first; then select it here to download its PDF.</p> : <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-3">Invoice</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Total</th></tr></thead><tbody className="divide-y divide-slate-100">{invoices.map((invoice)=><tr key={invoice.id} className={selectedId===invoice.id?"bg-violet-50":""}><td className="px-3 py-3"><button className="font-semibold text-violet-700" onClick={()=>setSelectedId(invoice.id)}>{invoice.invoice_number}</button><div className="text-xs text-slate-500">{invoice.issue_date}</div></td><td className="px-3 py-3">{invoice.status}</td><td className="px-3 py-3">{money(invoice.total_minor,invoice.currency_code)}</td></tr>)}</tbody></table></div>}
+          {invoices.length===0 ? <p className="p-8 text-center text-sm text-slate-500">No Global invoices yet. Create a final invoice to issue its server-generated number and download the official PDF.</p> : <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-3">Invoice</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Total</th></tr></thead><tbody className="divide-y divide-slate-100">{invoices.map((invoice)=><tr key={invoice.id} className={selectedId===invoice.id?"bg-violet-50":""}><td className="px-3 py-3"><button className="font-semibold text-violet-700" onClick={()=>setSelectedId(invoice.id)}>{invoice.invoice_number}</button><div className="text-xs text-slate-500">{invoice.issue_date}</div></td><td className="px-3 py-3">{invoice.status}</td><td className="px-3 py-3">{money(invoice.total_minor,invoice.currency_code)}</td></tr>)}</tbody></table></div>}
         </div>
         <div className="space-y-4">
           {selected ? <>
