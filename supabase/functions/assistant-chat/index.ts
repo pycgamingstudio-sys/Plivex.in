@@ -475,7 +475,7 @@ async function handleRequest(req: Request) {
                 items: {
                   type: "OBJECT",
                   properties: {
-                    type: { type: "STRING", enum: ["create_client", "create_expense", "create_lead", "create_stock", "create_quotation", "create_invoice", "create_purchase_order", "receive_purchase_order] },
+                    type: { type: "STRING", enum: ["create_client", "create_expense", "create_lead", "create_stock", "create_quotation", "create_invoice", "create_purchase_order", "receive_purchase_order"] },
                     payload: { type: "OBJECT", properties: {
                       name:{type:"STRING"}, company:{type:"STRING"}, email:{type:"STRING"}, phone:{type:"STRING"}, gstin:{type:"STRING"}, address:{type:"STRING"},
                       vendor:{type:"STRING"}, category:{type:"STRING"}, amount:{type:"NUMBER"}, date:{type:"STRING"}, status:{type:"STRING"}, method:{type:"STRING"}, notes:{type:"STRING"},
