@@ -73,9 +73,11 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
     reportableCount: reportableInvoices.length,
     ...{ totalValue: currencyTotals(reportableInvoices, "total", "currency").total, totalValueByCurrency: currencyTotals(reportableInvoices, "total", "currency").byCurrency },
     paidCount: paidInvoices.length,
-    paidValue: currencyTotals(paidInvoices, "total", "currency").total,\n    paidValueByCurrency: currencyTotals(paidInvoices, "total", "currency").byCurrency,
+    paidValue: currencyTotals(paidInvoices, "total", "currency").total,
+    paidValueByCurrency: currencyTotals(paidInvoices, "total", "currency").byCurrency,
     pendingCount: pendingInvoices.length,
-    pendingValue: currencyTotals(pendingInvoices, "total", "currency").total,\n    pendingValueByCurrency: currencyTotals(pendingInvoices, "total", "currency").byCurrency,
+    pendingValue: currencyTotals(pendingInvoices, "total", "currency").total,
+    pendingValueByCurrency: currencyTotals(pendingInvoices, "total", "currency").byCurrency,
   };
   const businessAnalytics = buildAssistantBusinessAnalytics({ invoices, stock, stockMovements, asOfDate: indiaToday() });
   return {
@@ -97,7 +99,8 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
         loadedOrders: purchaseOrders.length,
         openOrders: purchaseOrders.filter((item: any) => !["received", "cancelled", "closed"].includes(String(item.status).toLowerCase())).length,
         pendingReceiptLines: purchaseOrderItems.filter((item: any) => number(item.quantity_ordered) > number(item.quantity_received)).length,
-        orderedValue: currencyTotals(purchaseOrderItems.map((item: any) => ({ ...item, line_value: number(item.quantity_ordered) * number(item.unit_cost) })), "line_value", "currency_code").total,\n        orderedValueByCurrency: moneyByCurrency(purchaseOrderItems.map((item: any) => ({ ...item, line_value: number(item.quantity_ordered) * number(item.unit_cost) })), "line_value", "currency_code"),
+        orderedValue: currencyTotals(purchaseOrderItems.map((item: any) => ({ ...item, line_value: number(item.quantity_ordered) * number(item.unit_cost) })), "line_value", "currency_code").total,
+        orderedValueByCurrency: moneyByCurrency(purchaseOrderItems.map((item: any) => ({ ...item, line_value: number(item.quantity_ordered) * number(item.unit_cost) })), "line_value", "currency_code"),
         receiptRecords: purchaseReceipts.length,
       },
     },
@@ -407,7 +410,8 @@ async function handleRequest(req: Request) {
     const isRecordCreationRequest = /\b(add|create|save|record|jod(?:o)?|bana(?:o|na)?|darj)\b/i.test(String(latestUserText));
     // Image analysis and record creation do not need a 500-row workspace snapshot.
     const hasReadQueryIntent = /(due|balance|ledger|pending|kitna|kitne|baki|baaki|outstanding|total|report|dikha|bata|show|list|how many|how much)/i.test(String(latestUserText));
-    const needsPurchasingContext = /purchase\\s*order|purchase|receipt|receive|stock\\s*receive|warehouse|godown|maal\\s*(aaya|aa\\s*gaya)/i.test(String(latestUserText));\n    const liveContext: any = image && !hasReadQueryIntent && !needsPurchasingContext
+    const needsPurchasingContext = /purchase\s*order|purchase|receipt|receive|stock\s*receive|warehouse|godown|maal\s*(aaya|aa\s*gaya)/i.test(String(latestUserText));
+    const liveContext: any = image && !hasReadQueryIntent && !needsPurchasingContext
       ? { business: null, summaries: {}, records: {}, limitNote: "Live workspace data was not needed for this receipt-only request." }
       : await loadLiveContext(supabase, profile.workspace_id);
     const systemInstruction = [
