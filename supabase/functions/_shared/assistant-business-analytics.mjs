@@ -84,12 +84,49 @@ export function buildAssistantBusinessAnalytics(input = {}) {
     const daysUntilExpiry = daysBetween(expiry, asOfDate);
     return daysUntilExpiry !== null && daysUntilExpiry >= 0 && daysUntilExpiry <= 30;
   }) : [];
+  const insights = [];
+  if (overdue.length) insights.push({
+    type: "overdue_receivables",
+    severity: "medium",
+    count: overdue.length,
+    title: "Overdue invoices need review",
+    recommendation: "Review the overdue invoice list and follow up through the normal customer process.",
+  });
+  if (lowStock.length) insights.push({
+    type: "low_stock",
+    severity: "medium",
+    count: lowStock.length,
+    title: "Some stock items are at or below their reorder threshold",
+    recommendation: "Review low-stock items and plan replenishment using verified supplier and purchase-order details.",
+  });
+  if (expiredBatches.length) insights.push({
+    type: "expired_inventory",
+    severity: "high",
+    count: expiredBatches.length,
+    title: "Positive-quantity inventory batches are past their expiry date",
+    recommendation: "Review and isolate expired batches according to the workspace's inventory policy before any sale or use.",
+  });
+  if (expiringBatches.length) insights.push({
+    type: "expiring_inventory",
+    severity: "medium",
+    count: expiringBatches.length,
+    title: "Inventory batches expire within 30 days",
+    recommendation: "Review expiry dates and stock rotation plans.",
+  });
+  if (overduePurchaseOrders.length) insights.push({
+    type: "overdue_purchase_orders",
+    severity: "medium",
+    count: overduePurchaseOrders.length,
+    title: "Purchase orders are past their expected date",
+    recommendation: "Review outstanding purchase orders and confirm delivery status with the supplier.",
+  });
   const movementTypes = stockMovements.reduce((counts, item) => {
     const type = String(item?.movement_type || "unknown").slice(0, 40);
     counts[type] = (counts[type] || 0) + 1;
     return counts;
   }, {});
   return {
+    insights,
     receivables: {
       openInvoiceCount: openInvoices.length,
       overdueInvoiceCount: overdue.length,
