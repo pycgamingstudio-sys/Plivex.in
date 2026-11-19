@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
 import { normalizeAssistantActionBatch } from "../_shared/assistant-tool-registry.mjs";
 import { buildBusinessIntentHints } from "../_shared/assistant-intent-planner.mjs";
-import { buildAssistantBusinessAnalytics } from "../_shared/assistant-business-analytics.mjs";
+import { buildAssistantBusinessAnalytics, groupNumericTotals } from "../_shared/assistant-business-analytics.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
 import { validateGoodsReceiptAgainstContext } from "../_shared/assistant-goods-receipt-context.mjs";
 
@@ -64,22 +64,22 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
     const stockItem = stockById.get(item.stock_id);\n    current.push({ ...item, stock_name: stockItem?.name || null, stock_sku: stockItem?.sku || null, stock_unit: stockItem?.unit || null });
     purchaseItemsByOrder.set(item.purchase_order_id, current);
   }
-  const money = (items: any[], field: string) => items.reduce((sum: number, item: any) => sum + number(item[field]), 0);\n  const moneyByCurrency = (items: any[], field: string, currencyField: string) => items.reduce((totals: Record<string, number>, item: any) => {\n    const currency = String(item?.[currencyField] || "UNKNOWN").toUpperCase();\n    totals[currency] = (totals[currency] || 0) + number(item?.[field]);\n    return totals;\n  }, {});\n  const currencyTotals = (items: any[], field: string, currencyField: string) => {\n    const byCurrency = moneyByCurrency(items, field, currencyField);\n    const keys = Object.keys(byCurrency);\n    return { total: keys.length <= 1 ? (keys.length ? byCurrency[keys[0]] : 0) : null, byCurrency };\n  };
+  const money = (items: any[], field: string) => items.reduce((sum: number, item: any) => sum + number(item[field]), 0);\n  const currencyTotals = (items: any[], field: string, currencyField: string) => groupNumericTotals(items, field, currencyField);
   const reportableInvoices = invoices.filter((item: any) => String(item.status).toLowerCase() !== "cancelled" && !item.is_draft);
   const paidInvoices = reportableInvoices.filter((item: any) => String(item.status).toLowerCase() === "paid");
   const pendingInvoices = reportableInvoices.filter((item: any) => String(item.status).toLowerCase() === "pending");
   const invoiceSummary = {
     loadedRecords: invoices.length,
     reportableCount: reportableInvoices.length,
-    ...{ totalValue: currencyTotals(reportableInvoices, "total", "currency").total, totalValueByCurrency: currencyTotals(reportableInvoices, "total", "currency").byCurrency },
+    totalValue: currencyTotals(reportableInvoices, "total", "currency").total,\n    totalValueByCurrency: currencyTotals(reportableInvoices, "total", "currency").byGroup,
     paidCount: paidInvoices.length,
     paidValue: currencyTotals(paidInvoices, "total", "currency").total,
-    paidValueByCurrency: currencyTotals(paidInvoices, "total", "currency").byCurrency,
+    paidValueByCurrency: currencyTotals(paidInvoices, "total", "currency").byGroup,
     pendingCount: pendingInvoices.length,
     pendingValue: currencyTotals(pendingInvoices, "total", "currency").total,
-    pendingValueByCurrency: currencyTotals(pendingInvoices, "total", "currency").byCurrency,
+    pendingValueByCurrency: currencyTotals(pendingInvoices, "total", "currency").byGroup,
   };
-  const businessAnalytics = buildAssistantBusinessAnalytics({ invoices, stock, stockMovements, asOfDate: indiaToday() });
+  const stockQuantityTotals = groupNumericTotals(stock, "quantity", "unit");\n  const businessAnalytics = buildAssistantBusinessAnalytics({ invoices, stock, stockMovements, asOfDate: indiaToday() });
   return {
     businessAnalytics,
     warning: errors.length ? "Some tables were unavailable due to permissions or query errors: " + errors.join(", ") : undefined,
@@ -88,7 +88,7 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
     summaries: {
       invoices: invoiceSummary,
       clients: { loadedRecords: clients.length },
-      stock: { loadedRecords: stock.length, lowStockCount: stock.filter((item: any) => number(item.quantity) <= number(item.low_stock, 5)).length, totalUnits: money(stock, "quantity") },
+      stock: { loadedRecords: stock.length, lowStockCount: stock.filter((item: any) => number(item.quantity) <= number(item.low_stock, 5)).length, totalUnits: stockQuantityTotals.total, quantityByUnit: stockQuantityTotals.byGroup },
       expenses: { loadedRecords: expenses.length, totalAmount: money(expenses, "amount") },
       quotations: { loadedRecords: quotations.length, totalValue: money(quotations, "total") },
       leads: { loadedRecords: leads.length, totalPotentialValue: money(leads, "value") },
@@ -100,7 +100,7 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
         openOrders: purchaseOrders.filter((item: any) => !["received", "cancelled", "closed"].includes(String(item.status).toLowerCase())).length,
         pendingReceiptLines: purchaseOrderItems.filter((item: any) => number(item.quantity_ordered) > number(item.quantity_received)).length,
         orderedValue: currencyTotals(purchaseOrderItems.map((item: any) => ({ ...item, line_value: number(item.quantity_ordered) * number(item.unit_cost) })), "line_value", "currency_code").total,
-        orderedValueByCurrency: moneyByCurrency(purchaseOrderItems.map((item: any) => ({ ...item, line_value: number(item.quantity_ordered) * number(item.unit_cost) })), "line_value", "currency_code"),
+        orderedValueByCurrency: groupNumericTotals(purchaseOrderItems.map((item: any) => ({ ...item, line_value: number(item.quantity_ordered) * number(item.unit_cost) })), "line_value", "currency_code").byGroup,
         receiptRecords: purchaseReceipts.length,
       },
     },
