@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";\nimport { generateWithFallback } from "../_shared/assistant-model-router.mjs";
+import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
+import { generateWithFallback } from "../_shared/assistant-model-router.mjs";
 import { validateGlobalInvoicePaymentAction } from "../_shared/assistant-global-payment-validation.mjs";
 import { validateGlobalClientAction } from "../_shared/assistant-global-client-validation.mjs";
 import { validateGlobalExpenseAction } from "../_shared/assistant-global-expense-validation.mjs";
@@ -179,11 +180,14 @@ function parseClientConversation(incoming: any[]) {
   if (!explicitNow && !(hadClientCommand && awaitingName)) return null;
   let name = "";
   if (explicitNow) {
-    const m = latest.match(/(?:client|customer)(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:and|aur|expense|kharcha|invoice|bill)\b|[,;\n]|$)/i)
-      || latest.match(/(?:add|create|jod(?:o)?|bana(?:o)?|darj)\s+(?:a\s+)?(?:client|customer)\s+(?:named\s+)?(.+?)(?=\s+(?:and|aur|expense|kharcha|invoice|bill)\b|[,;\n]|$)/i);
+    const m = latest.match(/(?:client|customer)(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:and|aur|expense|kharcha|invoice|bill)\b|[,;
+]|$)/i)
+      || latest.match(/(?:add|create|jod(?:o)?|bana(?:o)?|darj)\s+(?:a\s+)?(?:client|customer)\s+(?:named\s+)?(.+?)(?=\s+(?:and|aur|expense|kharcha|invoice|bill)\b|[,;
+]|$)/i);
     name = text(m?.[1], 120);
     if (!name) {
-      const genericName = latest.match(/\b(?:naam|name)\s+(?:hai|is)\s+([A-Za-z][A-Za-z .'-]{0,100}?)(?=\s+(?:and|aur|expense|kharcha|invoice|bill)\b|[,;\n]|$)/i);
+      const genericName = latest.match(/\b(?:naam|name)\s+(?:hai|is)\s+([A-Za-z][A-Za-z .'-]{0,100}?)(?=\s+(?:and|aur|expense|kharcha|invoice|bill)\b|[,;
+]|$)/i);
       const hasExpenseRequest = /(?:expense|kharcha|kharch|खर्च)/i.test(latest);
       if (genericName && hasExpenseRequest) {
         return { pending: true, reply: genericName[1].trim() + " kis ka naam hai—client ka ya expense vendor/payee ka? Main galat record nahi banaunga." };
@@ -202,16 +206,20 @@ function parseClientConversation(incoming: any[]) {
 function parseInvoiceConversation(incoming: any[], businessProfile: any = null) {
   const history = incoming.slice(-16);
   const userTurns = history.filter((item) => item?.role !== "assistant").map((item) => text(item?.content, 1200)).filter(Boolean);
-  const combined = userTurns.join("\n");
+  const combined = userTurns.join("
+");
   if (!/(?:invoice|inv[o]?ice|bill|billing|इ invoice|इनवॉइस|बिल)/i.test(combined) ||
       !/(?:bnao|banao|banana|banado|create|make|generate|prepare|बनाओ|बना दो)/i.test(combined)) return null;
   const currencyMatch = combined.match(/\b(INR|USD|EUR|GBP|AED|CAD|AUD|SGD)\b/i);
   const workspaceCountryCode = text(businessProfile?.country_code || "IN", 2).toUpperCase();
   const countryCurrency: Record<string, string> = { IN: "INR", US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD" };
   const currency = currencyMatch ? currencyMatch[1].toUpperCase() : (countryCurrency[workspaceCountryCode] || "INR");
-  const client = captureField(combined, /client(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:mera|my|issue|due|date|item|product|price|rate|quantity|qty)\b|[,;\n]|$)/i);
-  const business = captureField(combined, /(?:mera|my)\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:issue|due|date|item|product|price|rate|quantity|qty)\b|[,;\n]|$)/i);
-  const item = captureField(combined, /(?:item|product)\s+(?:hai|is)\s+(.+?)(?=\s+(?:quantity|qty|price|rate|ki|ka|ke|and|aur)\b|[,;\n]|$)/i);
+  const client = captureField(combined, /client(?:\s+ka)?\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:mera|my|issue|due|date|item|product|price|rate|quantity|qty)\b|[,;
+]|$)/i);
+  const business = captureField(combined, /(?:mera|my)\s+(?:naam|name)\s+(?:hai|is)\s+(.+?)(?=\s+(?:issue|due|date|item|product|price|rate|quantity|qty)\b|[,;
+]|$)/i);
+  const item = captureField(combined, /(?:item|product)\s+(?:hai|is)\s+(.+?)(?=\s+(?:quantity|qty|price|rate|ki|ka|ke|and|aur)\b|[,;
+]|$)/i);
   const priceMatch = combined.match(/(?:price|rate|daam|keemat|कीमत|दाम)\s*(?:hai|is|[:=])?\s*(?:₹|rs\.?\s*)?([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
   const quantityMatch = combined.match(/(?:quantity|qty|matra|मात्रा)\s*(?:hai|is|[:=])?\s*([0-9][0-9,]*(?:\.[0-9]+)?)/i);
   let quantity = quantityMatch ? Number(quantityMatch[1].replace(/,/g, "")) : NaN;
@@ -223,8 +231,11 @@ function parseInvoiceConversation(incoming: any[], businessProfile: any = null) 
   }
   const price = priceMatch ? Number(priceMatch[1].replace(/,/g, "")) : NaN;
   const asksToday = /(?:aaj|today|आज)/i.test(combined);
-  const issueDate = /(?:issue\s*date|issued\s*on)[^\n]{0,60}(?:aaj|today|आज)/i.test(combined) ? indiaToday() : "";
-  const dueDate = /(?:due\s*date|due\s*भी|due)[^\n]{0,60}(?:aaj|today|आज)/i.test(combined) || (asksToday && /issue[^\n]{0,80}due/i.test(combined)) ? indiaToday() : "";
+  const issueDate = /(?:issue\s*date|issued\s*on)[^
+]{0,60}(?:aaj|today|आज)/i.test(combined) ? indiaToday() : "";
+  const dueDate = /(?:due\s*date|due\s*भी|due)[^
+]{0,60}(?:aaj|today|आज)/i.test(combined) || (asksToday && /issue[^
+]{0,80}due/i.test(combined)) ? indiaToday() : "";
   const missing = [];
   if (!client) missing.push("client name");
   if (!item) missing.push("item name");
@@ -282,7 +293,8 @@ function parseInvoiceConversation(incoming: any[], businessProfile: any = null) 
 function parseExpenseConversation(incoming: any[]) {
   const history = incoming.slice(-16);
   const userTurns = history.filter((item) => item?.role !== "assistant").map((item) => text(item?.content, 1200)).filter(Boolean);
-  const combined = userTurns.join("\n");
+  const combined = userTurns.join("
+");
   if (!/(?:expense|kharcha|kharch|खर्च)/i.test(combined) ||
       !/(?:add|create|save|record|jod(?:o|na)?|bnao|banao|बनाओ|जोड़ो)/i.test(combined)) return null;
   const parseMoney = (raw: string, scale = "") => {
@@ -300,10 +312,13 @@ function parseExpenseConversation(incoming: any[]) {
   if (!(amount > 0) && latestNumber && /(?:amount|price|total|kitna|kitne|how much|रकम)/i.test(String(lastAssistant))) {
     amount = parseMoney(latestNumber[1], latestNumber[2] || "");
   }
-  const namedVendor = combined.match(/(?:vendor|payee|supplier|name|naam|नाम)\s*(?:hai|is|[:=])?\s*([A-Za-z][A-Za-z .'-]{0,80}?)(?=\s+(?:amount|price|total|cost|value|description|purpose|reason|note|category|date|payment|method)\b|[,;\n]|$)/i);
-  const leadingVendor = combined.match(/(?:^|\n)\s*([A-Za-z][A-Za-z .'-]{1,50}?)\s+(?=(?:amount|price|total|description|purpose)\b)/i);
+  const namedVendor = combined.match(/(?:vendor|payee|supplier|name|naam|नाम)\s*(?:hai|is|[:=])?\s*([A-Za-z][A-Za-z .'-]{0,80}?)(?=\s+(?:amount|price|total|cost|value|description|purpose|reason|note|category|date|payment|method)\b|[,;
+]|$)/i);
+  const leadingVendor = combined.match(/(?:^|
+)\s*([A-Za-z][A-Za-z .'-]{1,50}?)\s+(?=(?:amount|price|total|description|purpose)\b)/i);
   const vendor = text(namedVendor?.[1] || leadingVendor?.[1], 120).replace(/[.,;:]+$/, "").trim();
-  const descriptionMatch = combined.match(/(?:description|purpose|reason|note)\s*(?:hai|is|[:=])?\s*([A-Za-z][A-Za-z0-9 /&().'-]{0,120}?)(?=\s+(?:amount|price|total|cost|value|vendor|payee|supplier|name|naam|category|date|payment|method)\b|[,;\n]|$)/i);
+  const descriptionMatch = combined.match(/(?:description|purpose|reason|note)\s*(?:hai|is|[:=])?\s*([A-Za-z][A-Za-z0-9 /&().'-]{0,120}?)(?=\s+(?:amount|price|total|cost|value|vendor|payee|supplier|name|naam|category|date|payment|method)\b|[,;
+]|$)/i);
   const notes = text(descriptionMatch?.[1], 500).replace(/[.,;:]+$/, "").trim();
   // Newest-turn corrections override older draft values.
   const correctionText = latest;
@@ -316,7 +331,8 @@ function parseExpenseConversation(incoming: any[]) {
   }
   const correctionVendor = correctionText.match(/(?:vendor|payee|supplier|name|naam)\s*(?:is|hai|[:=])?\s*([A-Za-z][A-Za-z .'-]{0,70})/i);
   const correctionNotes = correctionText.match(/(?:description|purpose|reason|note)\s*(?:is|hai|[:=])?\s*([A-Za-z][A-Za-z0-9 /&().'-]{0,100})/i);
-  const explicitCategory = combined.match(/category\s*(?:hai|is|[:=])?\s*([A-Za-z ]{2,40}?)(?=\s+(?:amount|price|description|date)\b|[,;\n]|$)/i);
+  const explicitCategory = combined.match(/category\s*(?:hai|is|[:=])?\s*([A-Za-z ]{2,40}?)(?=\s+(?:amount|price|description|date)\b|[,;
+]|$)/i);
   const lowerNotes = notes.toLowerCase();
   const categoryText = text(explicitCategory?.[1], 50).toLowerCase();
   const effectiveVendor = text(correctionVendor?.[1] || vendor, 120).replace(/[.,;:]+$/, "").trim();
@@ -465,7 +481,10 @@ async function handleRequest(req: Request) {
   if (!authorization?.startsWith("Bearer ")) return json({ error: "Please sign in to use the assistant." }, 401);
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-  const geminiKey = Deno.env.get("GEMINI_API_KEY");\n  const groqKey = Deno.env.get("GROQ_API_KEY");\n  const openRouterKey = Deno.env.get("OPENROUTER_API_KEY");\n  const enableGroq = Deno.env.get("NOVA_ENABLE_GROQ") === "true";
+  const geminiKey = Deno.env.get("GEMINI_API_KEY");
+  const groqKey = Deno.env.get("GROQ_API_KEY");
+  const openRouterKey = Deno.env.get("OPENROUTER_API_KEY");
+  const enableGroq = Deno.env.get("NOVA_ENABLE_GROQ") === "true";
   if (!supabaseUrl || !anonKey || (!geminiKey && !openRouterKey && !(groqKey && enableGroq))) {
     console.error("Assistant configuration missing", { supabaseUrl: !!supabaseUrl, anonKey: !!anonKey, geminiKey: !!geminiKey, groqKey: !!groqKey, openRouterKey: !!openRouterKey });
     return json({ error: "AI assistant is not configured yet. Please contact support." }, 503);
@@ -667,7 +686,8 @@ async function handleRequest(req: Request) {
       "GLOBAL PAYMENT ACTION: If the user explicitly asks to record a payment received against a Global invoice, use record_global_invoice_payment only when the exact invoice_id and currency_code exist in GLOBAL WORKSPACE CONTEXT, outstanding_minor is positive, and the user supplied the payment amount and date. amount is expressed in major currency units; never send minor units in amount. Do not use this for outgoing supplier payments, refunds, subscription payments or screenshots alone. Never mark an invoice paid manually; the Global ledger recalculates its balance. This action is one invoice at a time and requires confirmation. If the workspace has no Global reconciliation context, explain that this action is not connected for that workspace.",
       "GLOBAL WORKSPACE CONTEXT: When present, this is the authenticated Global workspace snapshot. The clients array contains a capped Global client list. The expenses array is the recent Global expense ledger snapshot. The products array is the Global product catalog and stock_levels is a read-only current quantity snapshot keyed by product_id; join those records by exact IDs. The invoices array is the authenticated Global invoice reconciliation snapshot from the workspace's own country context. Match invoices by the visible invoice_number or client_name when the user refers to a customer; if multiple invoices match, ask which invoice. Use invoice_id only from these records when preparing a payment action. Amount fields ending in _minor are minor currency units, not major units; do not display them as whole currency amounts without the currency's correct exponent. Distinguish invoice total, gross payments, refunds, net received and outstanding. This context is read-only; payment/refund writes still require an explicitly supported action and confirmation. " + JSON.stringify(globalBusinessContext),
       "LIVE DATA JSON: " + JSON.stringify(liveContext),
-    ].join("\n");
+    ].join("
+");
     const requestOptions = {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
