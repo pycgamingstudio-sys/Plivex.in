@@ -111,3 +111,21 @@ test("flags expired and soon-to-expire positive inventory batches", () => {
   assert.equal(result.inventory.expiringWithin30DaysCount, 1);
   assert.equal(result.inventory.batchRecordCount, 5);
 });
+
+test("produces bounded operational insights without inventing financial amounts", () => {
+  const result = buildAssistantBusinessAnalytics({
+    asOfDate: "2026-11-19",
+    invoices: [{ number: "INV-1", status: "pending", due_date: "2026-11-01" }],
+    stock: [{ name: "Sugar", quantity: 1, low_stock: 5, unit: "kg" }],
+    inventoryBatches: [{ batch_number: "OLD", quantity: 2, expires_on: "2026-11-01" }],
+    purchaseOrders: [{ supplier_name: "A", status: "ordered", expected_date: "2026-11-01" }],
+  });
+  assert.deepEqual(result.insights.map((item) => item.type), [
+    "overdue_receivables",
+    "low_stock",
+    "expired_inventory",
+    "overdue_purchase_orders",
+  ]);
+  assert.equal(result.insights.find((item) => item.type === "expired_inventory").severity, "high");
+  assert.equal(result.insights.some((item) => "amount" in item || "total" in item), false);
+});
