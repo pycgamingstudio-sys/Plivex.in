@@ -6,7 +6,11 @@ const AMOUNT_RE = /^\\s*(?:₹|rs\\.?\\s*|inr\\s*)?([0-9][0-9,]*(?:\\.[0-9]+)?)\
 const MULTIPLIERS = Object.freeze({ k: 1000, thousand: 1000, lakh: 100000, lac: 100000, cr: 10000000, crore: 10000000 });
 
 export function parseBusinessAmount(value) {
-  const match = String(value ?? "").trim().match(AMOUNT_RE);
+  const source = String(value ?? "").trim();
+  const match = source.match(AMOUNT_RE)
+    || source.match(/(?:₹|rs\\.?\\s*|inr\\s*)([0-9][0-9,]*(?:\\.[0-9]+)?)\\s*(k|thousand|lakh|lac|cr|crore)?/i)
+    || source.match(/(?:rate|price|amount|total|rakam|keemat|kimat|daam)\\s*(?:is|hai|[:=])?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)\\s*(k|thousand|lakh|lac|cr|crore)?/i)
+    || source.match(/([0-9][0-9,]*(?:\\.[0-9]+)?)\\s*(k|thousand|lakh|lac|cr|crore)\\b/i);
   if (!match) return null;
   const base = Number(match[1].replace(/,/g, ""));
   if (!Number.isFinite(base) || base < 0) return null;
