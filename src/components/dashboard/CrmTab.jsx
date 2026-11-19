@@ -52,9 +52,12 @@ export default function CrmTab({ intent, onConsumeIntent }) {
 
   const persistClients = (n) => { setClients(n); saveList(KEYS.clients, n); };
   const persistLeads = (n) => { setLeads(n); saveList(KEYS.leads, n); };
-  const saveClient = (entry) => { if (!entry.name.trim()) return; if (!requestAction()) return; const n = clientModal.id ? clients.map((c) => (c.id === clientModal.id ? { ...entry, id: clientModal.id } : c)) : [{ ...entry, id: genId("client") }, ...clients]; persistClients(n); setClientModal(null); };
+  const saveClient = (entry) => { if (!entry.name.trim()) { window.alert("Enter a client name."); return; } if (entry.email && (!entry.email.includes("@") || !entry.email.split("@")[1]?.includes("."))) { window.alert("Enter a valid client email address."); return; } if (!requestAction()) return; const n = clientModal.id ? clients.map((c) => (c.id === clientModal.id ? { ...entry, id: clientModal.id } : c)) : [{ ...entry, id: genId("client") }, ...clients]; persistClients(n); setClientModal(null); };
   const saveLead = (entry) => {
-    if (!entry.name.trim()) return;
+    if (!entry.name.trim()) { window.alert("Enter a lead name."); return; }
+    if (entry.email && (!entry.email.includes("@") || !entry.email.split("@")[1]?.includes("."))) { window.alert("Enter a valid lead email address."); return; }
+    if (entry.value !== "" && (!Number.isFinite(Number(entry.value)) || Number(entry.value) < 0)) { window.alert("Lead value must be a valid non-negative amount."); return; }
+    if (entry.nextFollowUpAt && Number.isNaN(new Date(entry.nextFollowUpAt).getTime())) { window.alert("Choose a valid follow-up date and time."); return; }
     if (!requestAction()) return;
     const score = Math.min(100, (entry.email.trim() ? 15 : 0) + (entry.phone.trim() ? 20 : 0)
       + (entry.company.trim() ? 15 : 0) + (entry.requirement.trim() ? 20 : 0)
@@ -137,7 +140,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
                             <div className="flex items-center justify-end gap-1.5">
                               <button onClick={() => invoiceFor(c)} className="inline-flex items-center gap-1 rounded-lg bg-[#6D28D9] px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-[#7C3AED]"><ArrowRight className="h-3 w-3" />Invoice</button>
                               <button onClick={() => setClientModal({ ...c })} className="rounded-lg border border-[#E5E7EB] p-1.5 text-slate-500 hover:bg-slate-50" aria-label="Edit"><Pencil className="h-3.5 w-3.5" /></button>
-                              <button onClick={() => persistClients(removeItem(KEYS.clients, c.id))} className="rounded-lg border border-[#E5E7EB] p-1.5 text-red-500 hover:bg-red-50" aria-label="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
+                              <button onClick={() => { if (window.confirm("Delete client " + c.name + "? This cannot be undone.")) persistClients(removeItem(KEYS.clients, c.id)); }} className="rounded-lg border border-[#E5E7EB] p-1.5 text-red-500 hover:bg-red-50" aria-label="Delete client"><Trash2 className="h-3.5 w-3.5" /></button>
                             </div>
                           </td>
                         </tr>
@@ -202,7 +205,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
                         <p className="mt-1 text-[12px] font-bold text-[#6D28D9]">{recordedLeadAmount(l)}</p>
                         <div className="mt-2 flex flex-wrap gap-1">
                           {STAGES.filter((s) => s !== stage).map((s) => <button key={s} onClick={() => moveLead(l.id, s)} className="rounded-md bg-slate-100 px-2 py-1 text-[9px] font-semibold text-slate-600 hover:bg-slate-200">→ {s}</button>)}
-                          <button onClick={() => persistLeads(removeItem(KEYS.leads, l.id))} className="rounded-md bg-red-50 px-2 py-1 text-[9px] font-semibold text-red-500 hover:bg-red-100">del</button>
+                          <button onClick={() => { if (window.confirm("Delete lead " + l.name + "? This cannot be undone.")) persistLeads(removeItem(KEYS.leads, l.id)); }} className="rounded-md bg-red-50 px-2 py-1 text-[9px] font-semibold text-red-500 hover:bg-red-100" aria-label={"Delete lead " + l.name}>Delete</button>
                         </div>
                       </div>
                     ))}
