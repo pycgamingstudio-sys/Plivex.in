@@ -39,7 +39,7 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
     supabase.from("purchase_orders").select("id,supplier_name,supplier_reference,status,order_date,expected_date,currency_code,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(200),
     supabase.from("purchase_order_items").select("purchase_order_id,quantity_ordered,quantity_received,unit_cost,currency_code").eq("workspace_id", workspaceId).limit(1000),
     supabase.from("purchase_receipts").select("purchase_order_id,warehouse_id,received_at").eq("workspace_id", workspaceId).order("received_at", { ascending: false }).limit(200),
-    supabase.from("stock_movements").select("stock_id,warehouse_id,movement_type,quantity_delta,reference_type,created_at,notes").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
+    supabase.from("stock_movements").select("stock_id,warehouse_id,movement_type,quantity_delta,reference_type,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
   ]);
   const names = ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile", "warehouses", "purchase_orders", "purchase_order_items", "purchase_receipts", "stock_movements"];
   const rows: Record<string, any> = Object.fromEntries(names.map((name, i) => [name, results[i].data ?? (name === "business_profile" ? null : [])]));
