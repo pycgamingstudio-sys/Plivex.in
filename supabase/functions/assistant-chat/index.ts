@@ -224,11 +224,8 @@ function parseInvoiceConversation(incoming: any[], businessProfile: any = null) 
   }
   const price = priceMatch ? Number(priceMatch[1].replace(/,/g, "")) : NaN;
   const asksToday = /(?:aaj|today|आज)/i.test(combined);
-  const issueDate = /(?:issue\s*date|issued\s*on)[^
-]{0,60}(?:aaj|today|आज)/i.test(combined) ? indiaToday() : "";
-  const dueDate = /(?:due\s*date|due\s*भी|due)[^
-]{0,60}(?:aaj|today|आज)/i.test(combined) || (asksToday && /issue[^
-]{0,80}due/i.test(combined)) ? indiaToday() : "";
+  const issueDate = /(?:issue\s*date|issued\s*on)[^\n]{0,60}(?:aaj|today|आज)/i.test(combined) ? indiaToday() : "";
+  const dueDate = /(?:due\s*date|due\s*भी|due)[^\n]{0,60}(?:aaj|today|आज)/i.test(combined) || (asksToday && /issue[^\n]{0,80}due/i.test(combined)) ? indiaToday() : "";
   const missing = [];
   if (!client) missing.push("client name");
   if (!item) missing.push("item name");
