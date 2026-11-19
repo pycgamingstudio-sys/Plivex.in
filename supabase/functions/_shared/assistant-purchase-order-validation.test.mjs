@@ -49,3 +49,10 @@ test("rejects duplicate stock lines and impossible expected dates", () => {
 test("does not accept a different action type", () => {
   assert.equal(validatePurchaseOrderAction({ type: "create_stock", payload: {} }), null);
 });
+
+test("rejects oversized numeric values and trailing ID characters", () => {
+  assert.equal(validatePurchaseOrderAction(valid({ items: [{ stock_id: stockA + "x", quantity_ordered: 1, unit_cost: 1 }] })), null);
+  assert.equal(validatePurchaseOrderAction(valid({ items: [{ stock_id: stockA, quantity_ordered: 1e30, unit_cost: 1 }] })), null);
+  assert.equal(validatePurchaseOrderAction(valid({ expected_date: "2026-12-01-extra" })), null);
+  assert.equal(validatePurchaseOrderAction(valid({ supplier_name: "S".repeat(201) })), null);
+});
