@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
 import { normalizeAssistantActionBatch } from "../_shared/assistant-tool-registry.mjs";
 import { buildBusinessIntentHints } from "../_shared/assistant-intent-planner.mjs";
+import { buildAssistantBusinessAnalytics } from "../_shared/assistant-business-analytics.mjs";
 
 const ALLOWED_ORIGINS = new Set([
   "https://plivex.in",
@@ -74,7 +75,9 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
     pendingCount: pendingInvoices.length,
     pendingValue: money(pendingInvoices, "total"),
   };
+  const businessAnalytics = buildAssistantBusinessAnalytics({ invoices, stock, stockMovements, asOfDate: indiaToday() });
   return {
+    businessAnalytics,
     warning: errors.length ? "Some tables were unavailable due to permissions or query errors: " + errors.join(", ") : undefined,
     unavailableModules: errors,
     business: rows.business_profile,
@@ -756,6 +759,7 @@ async function handleRequest(req: Request) {
       pendingAction: pendingActions.length === 1 ? { ...pendingActions[0], idempotencyKey } : null,
       pendingActions: pendingActions.length > 1 ? pendingActions : null,
       idempotencyKey,
+      businessAnalytics: liveContext.businessAnalytics,
       liveData: { modules: ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile", "warehouses", "purchase_orders", "purchase_order_items", "purchase_receipts", "stock_movements"], unavailableModules: liveContext.unavailableModules || [], warning: liveContext.warning || null },
     });
   } catch (error) {
