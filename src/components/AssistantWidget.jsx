@@ -86,7 +86,7 @@ export default function AssistantWidget() {
     const content = String(raw || "").trim().slice(0, 1000);
     if ((!content && !attachment) || busy) return;
     const sentAttachment = attachment;
-    const next = [...messages, { role: "user", content: content || (sentAttachment ? "Please add this receipt as an expense and prepare the extracted details for confirmation." : ""), imageDataUrl: sentAttachment || null }];
+    const next = [...messages, { role: "user", content: content || (sentAttachment ? "Please inspect this image, describe what it shows, and extract any relevant business details. Do not create a record unless I ask." : ""), imageDataUrl: sentAttachment || null }];
     setMessages(next);
     setAttachment(null);
     setDraft("");
