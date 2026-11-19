@@ -72,7 +72,7 @@ export default function StockTab() {
         {filtered.length === 0 ? (
           <Empty label="No products in stock yet. Add your first product to enable auto-deduction on invoices." />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[640px] text-left text-[12px]">
               <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 <tr>
@@ -111,6 +111,25 @@ export default function StockTab() {
                 })}
               </tbody>
             </table>
+          </div>
+          <div className="space-y-2.5 p-3 md:hidden">
+            {filtered.map((product) => {
+              const low = isLow(product);
+              return <article key={product.id} className="rounded-xl border border-slate-200 bg-white p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0"><p className="break-words text-[13px] font-bold text-slate-900">{product.name}</p><p className="mt-0.5 break-all text-[10px] text-slate-500">{product.sku || "No SKU"}{product.barcode ? " · " + product.barcode : ""}</p></div>
+                  <span className={low ? "shrink-0 rounded-full bg-rose-100 px-2 py-1 text-[9px] font-bold text-rose-700" : "shrink-0 rounded-full bg-emerald-100 px-2 py-1 text-[9px] font-bold text-emerald-700"}>{low ? "Low stock" : "In stock"}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-2.5">
+                  <div><p className="text-[9px] font-semibold uppercase text-slate-400">Quantity</p><p className="mt-0.5 text-[12px] font-bold text-slate-800">{Number(product.quantity) || 0} {product.unit}</p></div>
+                  <div><p className="text-[9px] font-semibold uppercase text-slate-400">Low-stock threshold</p><p className="mt-0.5 text-[12px] font-bold text-slate-800">{product.lowStock === "" || product.lowStock == null ? DEFAULT_LOW : Number(product.lowStock)}</p></div>
+                </div>
+                <div className="mt-3 flex justify-end gap-2 border-t border-slate-100 pt-3">
+                  <button type="button" onClick={() => { setEditTarget(product); setOpen(true); }} className="min-h-9 rounded-lg border border-slate-200 px-3 text-[11px] font-semibold text-slate-700">Edit</button>
+                  <button type="button" onClick={() => remove(product.id)} className="min-h-9 rounded-lg border border-rose-100 px-3 text-[11px] font-semibold text-rose-700">Delete</button>
+                </div>
+              </article>;
+            })}
           </div>
         )}
       </div>
