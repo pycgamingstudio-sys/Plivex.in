@@ -135,6 +135,7 @@ export default function AssistantWidget() {
         body: { actions, idempotencyKey },
       });
       if (invokeError) throw invokeError;
+      if (!data?.ok) throw new Error(data?.error || data?.reply || "Plivex did not confirm that these records were saved. Check the module before retrying.");
       setRetryAction(null);
       const affectedKeys = [...new Set(actions.map((action) => ({
         create_invoice: "history", create_expense: "expenses", create_stock: "stock",
@@ -229,7 +230,8 @@ export default function AssistantWidget() {
                     <button disabled={busy} onClick={() => cancelAction(i)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 disabled:opacity-50">Cancel</button>
                   </div>
                 </div>}
-                {m.actionStatus === "done" && <p className="mt-2 flex items-center gap-1 text-[11px] text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" /> Saved to Plivex</p>}
+                {m.actionStatus === "done" && <p className="mt-2 flex items-center gap-1 text-[11px] text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" /> Saved and verified in Plivex</p>}
+                {m.actionStatus === "unverified" && <p role="status" className="mt-2 text-[11px] text-amber-700">Save was accepted, but verification is incomplete. Check the relevant Plivex module before retrying.</p>}
                 {m.actionStatus === "cancelled" && <p className="mt-2 text-[11px] text-slate-500">Addition cancelled; nothing was saved.</p>}
               </div>
             </div>)}
