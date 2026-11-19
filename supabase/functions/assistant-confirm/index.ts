@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
+import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
 
 const ALLOWED_ORIGINS = new Set([
   "https://plivex.in",
@@ -37,6 +38,9 @@ function validateAction(action: unknown) {
   const candidate = action as Record<string, unknown>;
   const type = text(candidate.type, 40);
   const raw = candidate.payload && typeof candidate.payload === "object" ? candidate.payload as Record<string, unknown> : {};
+  if (type === "create_purchase_order") {
+    return validatePurchaseOrderAction(action);
+  }
   if (type === "receive_purchase_order") {
     return validateGoodsReceiptAction(action);
   }
@@ -106,6 +110,52 @@ Deno.serve(async (req: Request) => {
     if (actions.some((action: unknown) => !action)) return json({ error: "Some action details are missing or invalid. Nothing was saved." }, 400, origin);
     const idempotencyKey = text(body?.idempotencyKey,160);
     if (idempotencyKey.length < 16) return json({ error: "Confirmation key is missing. Please refresh the pending action and try again." }, 400, origin);
+    if (actions.some((action: any) => action.type === "create_purchase_order")) {
+      if (actions.length !== 1) return json({ error: "Purchase-order creation must be confirmed separately from other actions." }, 400, origin);
+      const payload = actions[0].payload;
+      const canonical = JSON.stringify(actions);
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+      const requestHash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const { data: order, error: orderError } = await supabase.rpc("assistant_create_purchase_order_idempotent", {
+        p_idempotency_key: idempotencyKey,
+        p_request_hash: requestHash,
+        p_supplier_name: payload.supplier_name,
+        p_items: payload.items,
+        p_supplier_reference: payload.supplier_reference || null,
+        p_expected_date: payload.expected_date || null,
+        p_notes: payload.notes || null,
+      });
+      if (orderError) {
+        console.error("Purchase order creation rejected", { code: orderError.code, userId: user.id });
+        const message = String(orderError.message || "");
+        if (message.includes("PERMISSION_DENIED")) return json({ error: "Only a workspace admin or manager can create a purchase order." }, 403, origin);
+        if (message.includes("IDEMPOTENCY_PAYLOAD_MISMATCH")) return json({ error: "This confirmation key was already used for different purchase-order details. Prepare the order again." }, 409, origin);
+        return json({ error: "The purchase order could not be created. Check supplier, stock items and workspace currency, then try again." }, 400, origin);
+      }
+      if (!order?.ok || !order?.purchase_order_id) {
+        const reason = String(order?.reason || "");
+        const message = reason === "forbidden" ? "Only a workspace admin or manager can create a purchase order."
+          : reason === "workspace_currency_unconfigured" ? "Set the workspace currency before creating a purchase order."
+          : reason === "stock_item_not_found" ? "One of the selected stock items no longer exists in this workspace."
+          : "The purchase-order details were rejected. Nothing was saved.";
+        return json({ error: message }, reason === "forbidden" ? 403 : 400, origin);
+      }
+      const [orderCheck, linesCheck] = await Promise.all([
+        supabase.from("purchase_orders").select("id").eq("workspace_id", profile.workspace_id).eq("id", order.purchase_order_id).maybeSingle(),
+        supabase.from("purchase_order_items").select("id").eq("workspace_id", profile.workspace_id).eq("purchase_order_id", order.purchase_order_id),
+      ]);
+      const verified = !orderCheck.error && Boolean(orderCheck.data?.id)
+        && !linesCheck.error && linesCheck.data?.length === payload.items.length;
+      return json({
+        ok: true,
+        verified,
+        reply: verified ? "Purchase order created and verified. It is saved as an order in your Plivex workspace." : "The purchase order was accepted, but Plivex could not verify every line. Check Purchase Orders before retrying.",
+        created: [{ type: "create_purchase_order", id: order.purchase_order_id }],
+        verification: [{ type: "create_purchase_order", id: order.purchase_order_id, verified }],
+        duplicate: Boolean(order.duplicate),
+        currency: order.currency_code || null,
+      }, 200, origin);
+    }
     if (actions.some((action: any) => action.type === "receive_purchase_order")) {
       if (actions.length !== 1) return json({ error: "Goods receipt must be confirmed separately from other actions so inventory changes remain atomic." }, 400, origin);
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) return json({ error: "The goods receipt confirmation key is invalid. Please prepare the action again." }, 400, origin);
