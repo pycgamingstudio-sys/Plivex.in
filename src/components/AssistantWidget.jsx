@@ -217,7 +217,7 @@ export default function AssistantWidget() {
           <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 px-3 py-4">
             {messages.length === 0 && <div className="rounded-xl bg-white p-3 text-sm text-slate-600 shadow-sm">
               <p className="font-semibold text-slate-800">Namaste! I can check live data in your Plivex workspace.</p>
-              <p className="mt-1 text-xs">I can understand requests across your Plivex business modules. I can currently prepare client, expense, lead, stock-item, quotation, invoice and purchase-order drafts, and goods receipts against existing purchase orders. You review every proposed change before confirming. I never mark an invoice as paid or treat a payment screenshot as bank verification.</p>
+              <p className="mt-1 text-xs">I can understand requests across your Plivex business modules. I can currently prepare client, expense, lead, stock-item, quotation and invoice drafts, create purchase orders, receive goods against existing purchase orders, and create warehouses. Purchase orders, goods receipts and warehouse creation are confirmed separately. You review every proposed change before confirming. I never mark an invoice as paid or treat a payment screenshot as bank verification.</p>
               <div className="mt-3 flex flex-wrap gap-2">{STARTERS.map((q) => <button key={q} onClick={() => send(q)} className="rounded-full border border-purple-200 bg-purple-50 px-3 py-2 text-left text-xs text-purple-800">{q}</button>)}</div>
             </div>}
             {messages.map((m, i) => <div key={m.id || i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
