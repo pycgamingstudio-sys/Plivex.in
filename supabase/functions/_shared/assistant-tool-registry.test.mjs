@@ -43,3 +43,11 @@ test("catalog distinguishes implemented actions from planned modules", () => {
   assert.equal(BUSINESS_MODULE_CATALOG.inventory.writeTools.includes("create_stock"), true);
   assert.equal(describeToolAvailability().length, Object.keys(BUSINESS_MODULE_CATALOG).length);
 });
+
+test("catalog marks purchasing and warehouse reads as live while writes remain unavailable", () => {
+  for (const module of ["warehouses", "purchase_orders", "purchase_receipts"]) {
+    assert.equal(BUSINESS_MODULE_CATALOG[module].readContext, true);
+    assert.deepEqual(BUSINESS_MODULE_CATALOG[module].writeTools, []);
+    assert.equal(BUSINESS_MODULE_CATALOG[module].planned, true);
+  }
+});
