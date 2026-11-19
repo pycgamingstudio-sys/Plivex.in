@@ -129,3 +129,19 @@ test("produces bounded operational insights without inventing financial amounts"
   assert.equal(result.insights.find((item) => item.type === "expired_inventory").severity, "high");
   assert.equal(result.insights.some((item) => "amount" in item || "total" in item), false);
 });
+
+test("treats null financial values as missing and applies the documented stock threshold fallback", () => {
+  const totals = groupNumericTotals([
+    { total: null, currency: "INR" },
+    { total: 50, currency: "INR" },
+  ], "total", "currency");
+  assert.deepEqual(totals.byGroup, { INR: 50 });
+  const result = buildAssistantBusinessAnalytics({
+    stock: [
+      { name: "Missing threshold", quantity: 4, low_stock: null },
+      { name: "Missing quantity", quantity: null, low_stock: 5 },
+    ],
+  });
+  assert.equal(result.inventory.lowStockCount, 1);
+  assert.equal(result.inventory.lowStockItems[0].threshold, 5);
+});
