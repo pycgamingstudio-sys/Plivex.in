@@ -100,7 +100,7 @@ const AuthenticatedApp = () => {
   if (APP_EDITION === "global" && isAuthenticated && user && !user.workspace_id && !getPendingInviteCode()) return <GlobalCountryOnboarding />;
 
   // Both editions resolve core business destinations through this shared React Router tree.
-  const isGlobalWorkspace = APP_EDITION === "global";
+  const isGlobalWorkspace = APP_EDITION === "global" || (isUnifiedBuild && Boolean(user?.country_code && user.country_code !== "IN"));
 
   // Render the shared application routes
   return (
@@ -170,7 +170,7 @@ function WorkspaceFeatureGate({ children, feature, anyOf = [], businessOnly = fa
 
 function GlobalFeatureGate({ children, feature }) {
   const { user } = useAuth();
-  if (APP_EDITION === "global" && user?.country_code !== "IN") {
+  if ((APP_EDITION === "global" || isUnifiedBuild) && user?.country_code && user.country_code !== "IN") {
     return (
       <main className="mx-auto max-w-xl rounded-2xl border bg-card p-6 text-center">
         <p className="text-xs font-bold uppercase tracking-wider text-primary">Global workspace</p>
