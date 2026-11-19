@@ -24,7 +24,13 @@ export default function StockTab() {
 
   const filtered = useMemo(() => items.filter((p) => `${p.name} ${p.sku || ""} ${p.barcode || ""}`.toLowerCase().includes(q.toLowerCase())), [items, q]);
   const lowCount = items.filter((p) => (Number(p.quantity) || 0) <= (p.lowStock === "" || p.lowStock === null || p.lowStock === undefined ? DEFAULT_LOW : Number(p.lowStock))).length;
-  const totalUnits = items.reduce((s, p) => s + (Number(p.quantity) || 0), 0);
+  const stockByUnit = new Map();
+  items.forEach((product) => {
+    const unit = String(product.unit || "units").trim() || "units";
+    const quantity = Number(product.quantity);
+    if (Number.isFinite(quantity)) stockByUnit.set(unit, (stockByUnit.get(unit) || 0) + quantity);
+  });
+  const totalUnits = [...stockByUnit.entries()].map(([unit, quantity]) => `${quantity} ${unit}`).join(" · ") || "0";
 
   const isLow = (p) => (Number(p.quantity) || 0) <= (p.lowStock === "" || p.lowStock === null || p.lowStock === undefined ? DEFAULT_LOW : Number(p.lowStock));
 
@@ -53,7 +59,7 @@ export default function StockTab() {
       <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-xs"><div className="flex justify-between"><span className="font-semibold">Stock items used</span><span className="font-bold">{Number(usage.stock ?? items.length)}/{Number(limits.stock ?? 20)}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${Number(usage.stock ?? items.length) / Number(limits.stock ?? 20) >= 1 ? "bg-rose-500" : Number(usage.stock ?? items.length) / Number(limits.stock ?? 20) >= 0.8 ? "bg-amber-500" : "bg-[#6D28D9]"}`} style={{ width: `${Math.min(100, Number(usage.stock ?? items.length) / Number(limits.stock ?? 20) * 100)}%` }} /></div>{Number(usage.stock ?? items.length) / Number(limits.stock ?? 20) >= 0.8 && <p className="mt-1 text-amber-600">{Number(usage.stock ?? items.length) >= Number(limits.stock ?? 20) ? "Plan limit reached" : "Usage limit warning"}</p>}</div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <SummaryCard label="Total Products" value={String(items.length)} gradient="bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" icon={Boxes} badge="SKUs" />
-        <SummaryCard label="Units in Stock" value={String(totalUnits)} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={Package} badge="quantity" />
+        <SummaryCard label="Quantity by Unit" value={String(totalUnits)} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={Package} badge="quantity" />
         <SummaryCard label="Low Stock Alerts" value={String(lowCount)} gradient={lowCount > 0 ? "bg-gradient-to-br from-[#E11D48] to-[#F43F5E]" : "bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]"} icon={AlertTriangle} badge={lowCount > 0 ? "restock soon" : "all good"} />
       </div>
 
@@ -93,7 +99,7 @@ export default function StockTab() {
                       <td className="px-4 py-3 font-bold text-slate-900">{p.name}</td>
                       <td className="px-4 py-3 text-slate-500">{p.sku || "—"}{p.barcode ? <span className="block text-[10px] text-slate-400">{p.barcode}</span> : null}</td>
                       <td className="px-4 py-3 text-right font-bold text-slate-900">{Number(p.quantity) || 0} <span className="font-normal text-slate-400">{p.unit}</span></td>
-                      <td className="px-4 py-3 text-right text-slate-500">{Number(p.lowStock) || DEFAULT_LOW}</td>
+                      <td className="px-4 py-3 text-right text-slate-500">{p.lowStock === "" || p.lowStock === null || p.lowStock === undefined ? DEFAULT_LOW : Number(p.lowStock)}</td>
                       <td className="px-4 py-3">
                         {low ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-[10px] font-bold uppercase text-rose-700"><AlertTriangle className="h-3 w-3" />Low Stock Alert</span>
