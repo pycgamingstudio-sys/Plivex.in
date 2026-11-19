@@ -783,8 +783,6 @@ async function handleRequest(req: Request) {
       }
       action.summary = receiptCheck.summary;
     }
-      return json({ reply: "I understood your request, but one or more actions are unsupported or missing required details. Nothing has been prepared yet. Please clarify the exact missing detail." });
-    }
     const idempotencyKey = proposedActions.length ? crypto.randomUUID() : null;
     const pendingActions = proposedActions.map((item: any) => ({ type: item.type, payload: item.payload, summary: item.summary }));
     return json({
