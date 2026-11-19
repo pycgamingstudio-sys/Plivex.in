@@ -82,7 +82,7 @@ test("feature preference changes do not mutate or delete business records", asyn
   assert.match(helper, /plivex_workspace_features/);
   assert.match(helper, /plivex:workspace-features-updated/);
   assert.match(helper, /window.dispatchEvent/);
-  assert.match(library, /never delete business records/);
+  assert.match(library, /never deletes invoices, customers, expenses, stock or other saved records/);
 });
 
 test("optional Workspace modules stay gated when users open direct URLs", async () => {
