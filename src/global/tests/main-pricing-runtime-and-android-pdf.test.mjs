@@ -23,6 +23,8 @@ test("the actual View Plans modal uses the authenticated workspace country and n
   assert.match(modal, /countryCode = "", currencyCode = ""/);
   assert.match(modal, /normalizedCountryCode === "IN"/);
   assert.match(modal, /No substitute pricing is shown/);
+  assert.match(modal, /normalizedCurrencyCode === "INR"/);
+  assert.match(modal, /normalizedCurrencyCode === billingConfig\.currency/);
   assert.doesNotMatch(modal, /countryCode = "IN", currencyCode = "INR"/);
 });
 
