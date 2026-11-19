@@ -7,12 +7,18 @@ export function getPermanentDashboardFeatures(workspaceType = "business") {
     ? [...PERMANENT_DASHBOARD_FEATURES]
     : [...PERMANENT_DASHBOARD_FEATURES, "stock", "team"];
 }
+// The feature library is the complete dashboard module catalogue for every workspace type.
+// Freelancer/business selection changes suggested defaults, never removes a tool from discovery.
 export const WORKSPACE_FEATURE_CATALOG = Object.freeze([
+  { id: "invoices", label: "Invoices", description: "Create, manage and export customer invoices.", core: true },
+  { id: "quotations", label: "Quotations", description: "Prepare estimates and convert accepted quotations into invoices.", core: true },
   { id: "expenses", label: "Expenses", description: "Record business expenses and purchase costs." },
   { id: "crm", label: "Client CRM", description: "Keep client details and communication organized." },
-  { id: "leads", label: "Lead Tracker", description: "Track prospects and follow-ups." },
+  { id: "leads", label: "Lead Tracker", description: "Track prospects, pipeline stages and follow-ups." },
+  { id: "reports", label: "Reports", description: "Review sales, expenses and business performance." },
+  { id: "stock", label: "Stock Inventory", description: "Manage products, quantities, low-stock alerts and invoice stock deduction." },
+  { id: "team", label: "Team Members", description: "Invite staff and manage roles and workspace access." },
   { id: "inventoryWorkspace", label: "Warehouse & Operations", description: "Manage locations, transfers, purchase orders and goods receipts." },
-  { id: "reports", label: "Reports", description: "Review business performance and operational reports." },
 ]);
 
 export function getAvailableWorkspaceFeatureCatalog() {
