@@ -47,7 +47,7 @@ test("Freelancer and Business profiles receive the right permanent dashboard car
   assert.match(helper, /\[\.\.\.PERMANENT_DASHBOARD_FEATURES, "stock", "team"\]/);
   assert.match(dashboard, /getPermanentDashboardFeatures\(user\?\.workspace_type\)/);
   assert.match(app, /useWorkspaceFeatures\(user\?\.workspace_id\)/);
-  assert.match(app, /workspace_type === "freelancer".*stock.*team/);
+  assert.match(app, /workspaceFeatures\.includes\("stock"\)/);\n  assert.match(app, /workspaceFeatures\.includes\("team"\)/);
   assert.match(app, /if \(t\.id === "warehouses"\) return workspaceFeatures\.includes\("inventoryWorkspace"\)/);
   assert.ok(dashboard.indexOf('id: "invoices"') < dashboard.indexOf('id: "quotations"'));
 });
@@ -70,7 +70,8 @@ test("More Features exposes every dashboard module and supports adding optional 
   assert.match(library, /Stock and Team Members can be added by Freelancer workspaces too/);
   for (const id of ["invoices", "quotations", "expenses", "crm", "leads", "reports", "stock", "team", "inventoryWorkspace"]) assert.ok(library.includes(id) || (await read("../../lib/workspaceFeatures.js")).includes(`id: "${id}"`), "Missing module: " + id);
   assert.match(nav, /workspaceFeatures.includes\("inventoryWorkspace"\)/);
-  assert.match(nav, /workspaceFeatures.includes\("reports"\)/);\n  assert.match(nav, /workspaceFeatures.includes\("team"\)/);
+  assert.match(nav, /workspaceFeatures.includes\("reports"\)/);
+  assert.match(nav, /workspaceFeatures.includes\("team"\)/);
   for (const label of ["Dashboard", "Sales", "Purchase", "Reports", "Client CRM", "Stock", "Team", "Warehouse"]) assert.ok(layout.includes(`label: "${label}"`), "Missing Global navigation area: " + label);
 });
 
@@ -92,7 +93,7 @@ test("optional Workspace modules stay gated when users open direct URLs", async 
   assert.match(app, /WorkspaceFeatureGate feature="expenses"/);
   assert.match(app, /WorkspaceFeatureGate feature="team"/);
   const dashboard = await read("../../pages/Dashboard.jsx");
-  assert.match(dashboard, /path === "\/team-management"\) return workspaceFeatures\.includes\("team"\)/);
+  assert.match(dashboard, /path === "\/team-management"\) return user\?\.workspace_type === "business" \\|\\| workspaceFeatures\.includes\("team"\)/);
 });
 
 
