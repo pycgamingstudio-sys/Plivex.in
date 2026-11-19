@@ -14,6 +14,7 @@ export const ASSISTANT_WRITE_TOOLS = Object.freeze({
   create_quotation: { module: "quotations", approval: "user_confirmation", required: ["client_name", "total"] },
   create_invoice: { module: "invoices", approval: "user_confirmation", required: ["client_name", "items"] },
   receive_purchase_order: { module: "purchase_receipts", approval: "user_confirmation", required: ["purchase_order_id", "warehouse_id", "items"] },
+  create_purchase_order: { module: "purchase_orders", approval: "user_confirmation", required: ["supplier_name", "items"] },
 });
 
 export const BUSINESS_MODULE_CATALOG = Object.freeze({
@@ -25,7 +26,7 @@ export const BUSINESS_MODULE_CATALOG = Object.freeze({
   leads: { readContext: true, writeTools: ["create_lead"] },
   services: { readContext: true, writeTools: [] },
   suppliers: { readContext: false, writeTools: [], planned: true },
-  purchase_orders: { readContext: true, writeTools: [], planned: true },
+  purchase_orders: { readContext: true, writeTools: ["create_purchase_order"], planned: false },
   purchase_receipts: { readContext: true, writeTools: ["receive_purchase_order"], planned: false },
   warehouses: { readContext: true, writeTools: [], planned: true },
   stock_transfers: { readContext: false, writeTools: [], planned: true },
