@@ -72,6 +72,7 @@ export default function StockTab() {
         {filtered.length === 0 ? (
           <Empty label="No products in stock yet. Add your first product to enable auto-deduction on invoices." />
         ) : (
+          <>
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[640px] text-left text-[12px]">
               <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -131,6 +132,7 @@ export default function StockTab() {
               </article>;
             })}
           </div>
+          </>
         )}
       </div>
 
