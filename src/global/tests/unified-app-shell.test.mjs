@@ -6,8 +6,8 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
 test("Global workspace shell is not loaded through a route-time dynamic chunk", () => {
   const app = read("../../App.jsx");
-  assert.match(app, /import GlobalApp from "@\\/global\\/GlobalApp";/);
-  assert.doesNotMatch(app, /const GlobalApp = lazy\\(\\(\\) => import\\("@\\/global\\/GlobalApp"\\)\\)/);
+  assert.ok(app.includes('import GlobalApp from "@/global/GlobalApp";'));
+  assert.doesNotMatch(app, /const GlobalApp = lazy/);
 });
 
 test("payment callback routing preserves unconditional hook order", () => {
