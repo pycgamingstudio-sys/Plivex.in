@@ -286,11 +286,25 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
         return;
       }
 
-      // In the unified build, the Global auth RPC is the source of truth even
-      // when the legacy profile still contains India metadata. A Global
-      // membership wins; India is selected only after the server says no
-      // Global workspace exists for an explicitly India account.
-      if (isUnifiedBuild || APP_EDITION === "global") {
+      // Plivex One has one canonical public workspace identity for every country.
+      // Use the same authenticated workspace country/currency as Invoice Desk.
+      // A Global membership is not required to display verified regional pricing.
+      if (isUnifiedBuild) {
+        const countryCode = String(user.country_code || "").trim().toUpperCase();
+        const currencyCode = String(user.currency_code || "").trim().toUpperCase();
+        const billing = resolveWorkspaceBillingContext(countryCode, currencyCode);
+        if (active) setResolvedBillingContext({
+          loading: false,
+          countryCode: billing.ok ? countryCode : "",
+          currencyCode: billing.ok ? billing.currencyCode : "",
+          edition: billing.ok && countryCode !== "IN" ? "global" : billing.ok ? "india" : "",
+          error: !billing.ok,
+        });
+        return;
+      }
+
+      // The standalone Global edition still uses its isolated Global auth RPC.
+      if (APP_EDITION === "global") {
         const { data, error } = await supabase.functions.invoke("global-auth-context", { body: {} });
         const globalUser = data?.user;
         if (!error && globalUser?.id === user.id && globalUser?.workspace_id) {
@@ -300,11 +314,6 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
             loading: false, countryCode, currencyCode,
             edition: countryCode && countryCode !== "IN" ? "global" : "india", error: false,
           });
-          return;
-        }
-        const profileCountry = String(user.country_code || "").trim().toUpperCase();
-        if (profileCountry === "IN" && APP_EDITION !== "global") {
-          if (active) setResolvedBillingContext({ loading: false, countryCode: "IN", currencyCode: "INR", edition: "india", error: false });
           return;
         }
         if (active) setResolvedBillingContext({ loading: false, countryCode: "", currencyCode: "", edition: "", error: true });
