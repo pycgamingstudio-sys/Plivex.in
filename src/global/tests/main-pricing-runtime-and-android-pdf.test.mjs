@@ -103,3 +103,15 @@ test("new invoice inserts set workspace base currency before the existing curren
   assert.match(migration, /BEFORE INSERT ON public\.invoices/);
   assert.match(migration, /a_set_invoice_workspace_base_currency/);
 });
+
+test("every Global workspace can use its verified base currency without a paid multi-currency feature", async () => {
+  const home = await read("../../pages/Home.jsx");
+  const editor = home.slice(home.indexOf("function InvoiceEditor("), home.indexOf("\\nfunction ", home.indexOf("function InvoiceEditor(") + 20));
+  assert.match(editor, /const baseCurrencyCode = workspaceTaxProfile\?\.currencyCode \|\| user\?\.currency_code/);
+  assert.match(editor, /isGlobalWorkspace \? <Field label=\{\x60Workspace base currency/);
+  assert.match(editor, /data-testid="workspace-base-currency"/);
+  assert.match(editor, /Included on every plan/);
+  assert.match(editor, /canUseMultiCurrency = activeWorkspaceCountry === "IN" && canAccess\("multi_currency"\)/);
+  assert.match(editor, /disabled=\{!canUseMultiCurrency\}/);
+  assert.match(editor, /Unlock additional currencies/);
+});
