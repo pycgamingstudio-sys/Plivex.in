@@ -67,7 +67,7 @@ BEGIN
     RAISE EXCEPTION 'INVALID_IDEMPOTENCY_STATE';
   END IF;
 
-  v_code := coalesce(nullif(trim(p_code), ''), 'WH-' || upper(substr(gen_random_uuid()::text, 1, 8)));
+  v_code := upper(coalesce(nullif(trim(p_code), ''), 'WH-' || substr(gen_random_uuid()::text, 1, 8)));
   IF EXISTS (
     SELECT 1 FROM public.warehouses
     WHERE workspace_id = v_workspace_id AND lower(code) = lower(v_code)
@@ -79,9 +79,17 @@ BEGIN
     RETURN v_result;
   END IF;
 
-  INSERT INTO public.warehouses(workspace_id, code, name, address, is_default, is_active)
-  VALUES (v_workspace_id, v_code, trim(p_name), nullif(trim(p_address), ''), false, true)
-  RETURNING id INTO v_warehouse_id;
+  BEGIN
+    INSERT INTO public.warehouses(workspace_id, code, name, address, is_default, is_active)
+    VALUES (v_workspace_id, v_code, trim(p_name), nullif(trim(p_address), ''), false, true)
+    RETURNING id INTO v_warehouse_id;
+  EXCEPTION WHEN unique_violation THEN
+    v_result := jsonb_build_object('ok', false, 'reason', 'warehouse_code_conflict');
+    UPDATE public.assistant_action_batches
+    SET status = 'failed', result = v_result, completed_at = now()
+    WHERE id = v_existing.id;
+    RETURN v_result;
+  END;
 
   v_result := jsonb_build_object(
     'ok', true,
