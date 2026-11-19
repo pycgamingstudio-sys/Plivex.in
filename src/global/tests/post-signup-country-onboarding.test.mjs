@@ -197,3 +197,10 @@ test("invited non-owner members wait for owner setup instead of entering owner o
   assert.match(app, /Your workspace owner needs to complete the mandatory Workspace review/);
   assert.match(app, /onClick=\{\(\) => logout\(\)\}/);
 });
+
+
+test("existing workspace owners cannot bypass mandatory onboarding with a stale invite token", async () => {
+  const app = await read("../../App.jsx");
+  assert.match(app, /user\\.legacy_review_required\\) && \\(!getPendingInviteCode\\(\\) \\|\\| Boolean\\(user\\.workspace_id\\)\\)/);
+  assert.match(app, /const canProvisionWorkspace = !user\\.workspace_id \\|\\| !user\\.role \\|\\| user\\.role === "admin" \\|\\| user\\.role === "user"/);
+});
