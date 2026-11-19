@@ -60,7 +60,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
       + (entry.company.trim() ? 15 : 0) + (entry.requirement.trim() ? 20 : 0)
       + (Number(entry.value) > 0 ? 20 : 0) + (entry.nextFollowUpAt ? 10 : 0));
     const nextFollowUpAt = entry.nextFollowUpAt ? new Date(entry.nextFollowUpAt).toISOString() : null;
-    persistLeads([{ ...entry, nextFollowUpAt, score, id: genId("lead"), stage: "New Lead", value: Number(entry.value) || 0 }, ...leads]);
+    persistLeads([{ ...entry, currencyCode, nextFollowUpAt, score, id: genId("lead"), stage: "New Lead", value: Number(entry.value) || 0 }, ...leads]);
     setLeadModal(false);
   };
   const moveLead = (id, stage) => persistLeads(leads.map((l) => (l.id === id ? { ...l, stage } : l)));
@@ -216,7 +216,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
       )}
 
       {clientModal && <ClientModal value={clientModal} onClose={() => setClientModal(null)} onSave={saveClient} />}
-      {leadModal && <LeadModal onClose={() => setLeadModal(false)} onSave={saveLead} />}
+      {leadModal && <LeadModal currencyCode={currencyCode} onClose={() => setLeadModal(false)} onSave={saveLead} />}
     </div>
   );
 }
@@ -242,7 +242,7 @@ function ClientModal({ value, onClose, onSave }) {
   );
 }
 
-function LeadModal({ onClose, onSave }) {
+function LeadModal({ currencyCode, onClose, onSave }) {
   const [form, setForm] = useState(blankLead);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   return (
