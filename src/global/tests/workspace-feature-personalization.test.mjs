@@ -94,10 +94,10 @@ test("optional Workspace modules stay gated when users open direct URLs", async 
 });
 
 
-test("workspace feature preferences confirm persistence and can recover a missing settings row", async () => {
+test("workspace feature preferences confirm that a canonical settings row was actually updated", async () => {
   const helper = await read("../../lib/workspaceFeatures.js");
   assert.match(helper, /select\("workspace_id"\)/);
-  assert.match(helper, /Workspace feature preferences were not saved/);
+  assert.match(helper, /Workspace settings were not found, so feature changes could not be saved/);
 });
 
 test("dashboard card order is persisted and mobile visibility controls expose accessible reorder actions", async () => {
