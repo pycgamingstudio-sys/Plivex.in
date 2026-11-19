@@ -38,3 +38,20 @@ test("rejects invalid quantities and malformed expiry dates", () => {
 test("does not accept another action type", () => {
   assert.equal(validateGoodsReceiptAction({ type: "create_stock", payload: {} }), null);
 });
+
+test("rejects duplicate purchase-order line IDs to avoid ambiguous double receipt lines", () => {
+  const duplicate = action({ items: [
+    { purchase_order_item_id: lineId, quantity: 1 },
+    { purchase_order_item_id: lineId, quantity: 2 },
+  ] });
+  assert.equal(validateGoodsReceiptAction(duplicate), null);
+});
+
+test("rejects impossible calendar dates, not just malformed date strings", () => {
+  assert.equal(validateGoodsReceiptAction(action({ items: [
+    { purchase_order_item_id: lineId, quantity: 1, expires_on: "2027-02-29" },
+  ] })), null);
+  assert.equal(validateGoodsReceiptAction(action({ items: [
+    { purchase_order_item_id: lineId, quantity: 1, expires_on: "2028-02-29" },
+  ] })).payload.items[0].expires_on, "2028-02-29");
+});
