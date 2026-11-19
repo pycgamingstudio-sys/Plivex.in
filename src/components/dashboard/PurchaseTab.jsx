@@ -119,6 +119,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
       </div>
       {(hasOtherCurrencySales || hasOtherCurrencyExpenses || hasUnknownCurrencyExpenses || hasUnknownCurrencySales) && <p className="text-[11px] text-muted-foreground">Sales and expenses are grouped by their recorded currency. Operating difference uses only base-currency sales and expenses; records without a recorded currency are excluded. No FX conversion is performed.</p>}
       <p className="text-[11px] leading-relaxed text-muted-foreground">Operating difference is sales minus recorded expenses, not a complete accounting profit. It excludes cost of goods, taxes and other unrecorded adjustments.</p>
+      {/* Net profit uses only base-currency sales and expenses; records without a recorded currency are excluded. The metric is labeled Operating Difference because it is not a complete accounting profit. */}
 
       <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-[#E5E7EB] p-4 lg:flex-row lg:items-center lg:justify-between">
