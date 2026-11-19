@@ -163,7 +163,10 @@ test("Lead Tracker modal keeps its save action visible on small screens", async 
 
 test("unified dashboard paywall resolves billing from canonical public workspace settings", async () => {
   const paywall = await read("../../lib/paywall.jsx");
-  const unifiedBranch = paywall.slice(paywall.indexOf("if (isUnifiedBuild)"), paywall.indexOf("if (APP_EDITION === \"global\")"));
+  const unifiedStart = paywall.indexOf("if (isUnifiedBuild)", paywall.indexOf("function PaywallModal"));
+  const globalStart = paywall.indexOf("if (APP_EDITION === \"global\")", unifiedStart);
+  const unifiedBranch = paywall.slice(unifiedStart, globalStart);
+  assert.ok(unifiedStart >= 0 && globalStart > unifiedStart);
   assert.match(unifiedBranch, /from\("profiles"\)[\s\S]*select\("workspace_id"\)[\s\S]*eq\("id", user\.id\)/);
   assert.match(unifiedBranch, /profile\.workspace_id !== user\.workspace_id/);
   assert.match(unifiedBranch, /from\("workspace_settings"\)[\s\S]*select\("country_code, currency_code"\)[\s\S]*eq\("workspace_id", profile\.workspace_id\)/);
