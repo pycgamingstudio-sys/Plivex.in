@@ -109,10 +109,22 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
         </label>
       </div>
 
-      <div className="mt-3 grid gap-2 rounded-lg bg-muted/40 p-3 text-xs">
-        <label className="flex items-start gap-2"><input type="checkbox" checked={config.registrationConfirmed === true} onChange={(e) => update({ registrationConfirmed: e.target.checked })} /><span>I confirm the saved registration number, status and effective date are accurate and active for this invoice.</span></label>
-        <label className="flex items-start gap-2"><input type="checkbox" checked={config.placeOfSupplyConfirmed === true} onChange={(e) => update({ placeOfSupplyConfirmed: e.target.checked })} /><span>I confirm the place of supply entered above.</span></label>
-        <label className="flex items-start gap-2"><input type="checkbox" checked={config.taxCategoryConfirmed === true} onChange={(e) => update({ taxCategoryConfirmed: e.target.checked })} /><span>I confirm the goods/services tax category entered above.</span></label>
+      <div className="mt-3 rounded-lg bg-muted/40 p-3 text-xs">
+        <label className="flex min-h-11 cursor-pointer items-start gap-3">
+          <input
+            data-testid="global-tax-details-confirm"
+            className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-primary"
+            type="checkbox"
+            checked={config.taxDetailsConfirmed === true}
+            onChange={(e) => update({
+              taxDetailsConfirmed: e.target.checked,
+              registrationConfirmed: e.target.checked,
+              placeOfSupplyConfirmed: e.target.checked,
+              taxCategoryConfirmed: e.target.checked,
+            })}
+          />
+          <span className="leading-relaxed">I confirm the saved registration details and the invoice's place of supply and tax category are accurate for this transaction.</span>
+        </label>
       </div>
 
       {(isUS || isCA) && (
