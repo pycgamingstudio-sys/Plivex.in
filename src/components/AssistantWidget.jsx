@@ -95,7 +95,7 @@ export default function AssistantWidget() {
     setBusy(true);
     try {
       const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 30000);
+      const timeout = window.setTimeout(() => controller.abort(), 60000);
       let response;
       try {
         response = await supabase.functions.invoke("assistant-chat", {
@@ -118,6 +118,10 @@ export default function AssistantWidget() {
         actionStatus: (data.pendingAction || data.pendingActions?.length) ? "pending" : null,
       }]);
     } catch (err) {
+      // Keep the user's request (and attachment) available after provider/network
+      // failures so they can retry without reconstructing the business instruction.
+      setDraft(content);
+      if (sentAttachment) setAttachment(sentAttachment);
       setRetryAction(null);
       setError(await readableError(err));
     } finally {
