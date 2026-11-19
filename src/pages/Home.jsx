@@ -15,7 +15,7 @@ import { DEFAULT_DESIGN_ID, InvoiceDesign, isPremiumDesign } from "@/components/
 import { SUPPORTED_CURRENCIES, formatMoney, amountInWords } from "@/lib/currency";
 import { backend, supabase } from "@/api/backendClient";
 import GlobalTaxEditor from "@/components/invoice/GlobalTaxEditor";
-import { calculateInvoiceGlobalTax, GLOBAL_COUNTRY_CURRENCIES, resolveInvoiceCurrencyForWorkspace } from "@/global/tax/invoice-tax-integration.js";
+import { calculateInvoiceGlobalTax, resolveInvoiceCurrencyForWorkspace } from "@/global/tax/invoice-tax-integration.js";
 import { getCountryByCode } from "@/global/countries/country-registry.js";
 import { getBillingForCountry, formatPlanPrice } from "@/global/billing/pricing.js";
 import { getCountryExperience } from "@/global/countries/country-experience.js";
