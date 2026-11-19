@@ -28,16 +28,18 @@ test("the actual View Plans modal uses the authenticated workspace country and n
   assert.doesNotMatch(modal, /countryCode = "IN", currencyCode = "INR"/);
 });
 
-test("manually selected workspace country is authoritative over stale business-profile metadata", async () => {
+test("pricing and regional invoice currency use the authenticated canonical workspace country without a second settings request", async () => {
   const home = await read("../../pages/Home.jsx");
-  assert.match(home, /supabase\.from\("workspace_settings"\)/);
-  assert.match(home, /select\("country_code,currency_code,locale_code"\)/);
-  assert.match(home, /const countryCode = String\(settings\?\.country_code/);
-  assert.match(home, /const currencyCode = String\(settings\?\.currency_code/);
-  assert.match(home, /resolveInvoiceCurrencyForWorkspace\(countryCode, currencyCode\)/);
+  const loader = home.slice(home.indexOf("useEffect(() => {", home.indexOf("const [workspaceTaxProfileLoading")), home.indexOf("// Canonical workspace_settings is the only source"));
+  assert.match(loader, /user\?\.country_code/);
+  assert.match(loader, /user\?\.currency_code/);
+  assert.match(loader, /resolveInvoiceCurrencyForWorkspace\(countryCode, currencyCode\)/);
+  assert.match(loader, /setWorkspaceTaxProfileLoading\(false\)/);
+  assert.match(loader, /Tax-registration details are optional/);
+  assert.doesNotMatch(loader, /supabase\.from\("workspace_settings"\)/);
+  assert.doesNotMatch(loader, /setWorkspaceTaxProfileLoading\(true\)/);
   assert.match(home, /activeWorkspaceCountry !== "IN" && effectiveWorkspaceTaxProfile\?\.currencyCode/);
   assert.match(home, /<InvoiceEditor invoice=\{invoiceForPreview\}/);
-  assert.doesNotMatch(home, /const countryCode = profileCountry \|\| recordCountry/);
 });
 
 test("invoice PDF export waits for the preview and downloads a non-empty PDF blob", async () => {
@@ -79,13 +81,17 @@ test("non-India invoice drafts are rebound to verified workspace base currency w
   assert.match(stores, /currency !== workspaceCurrency/);
 });
 
-test("pricing resolves canonical workspace currency even when optional business-profile lookup fails", async () => {
+test("pricing display does not depend on optional tax-registration profile requests", async () => {
   const home = await read("../../pages/Home.jsx");
-  const loader = home.slice(home.indexOf("async function loadWorkspaceTaxProfile()"), home.indexOf("// Canonical workspace_settings is the only source"));
-  assert.match(loader, /supabase\.from\("workspace_settings"\)/);
-  assert.match(loader, /let record = \{\};[\s\S]*?try \{[\s\S]*?workspaceRecords/);
-  assert.match(loader, /catch \{[\s\S]*?Registration details are optional/);
-  assert.doesNotMatch(loader, /Promise\.all/);
+  const loaderStart = home.indexOf("const countryCode = String(user?.country_code");
+  const loaderEnd = home.indexOf("// Canonical workspace_settings is the only source");
+  const loader = home.slice(loaderStart, loaderEnd);
+  assert.match(loader, /setWorkspaceTaxProfile\(regionalProfile\)/);
+  assert.match(loader, /setWorkspaceTaxProfileLoading\(false\)/);
+  assert.match(loader, /workspaceRecords/);
+  assert.match(loader, /Optional tax metadata never blocks pricing/);
+  assert.doesNotMatch(loader, /await supabase\.from\("workspace_settings"\)/);
+  assert.doesNotMatch(loader, /setWorkspaceTaxProfileLoading\(true\)/);
 });
 
 test("new invoice inserts set workspace base currency before the existing currency guard", async () => {
