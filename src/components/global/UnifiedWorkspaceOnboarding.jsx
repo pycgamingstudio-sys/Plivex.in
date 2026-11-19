@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { backend as db, supabase, setRuntimeEdition } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
 import { COUNTRY_REGISTRY, getCountryByCode, getCountryFlag } from "@/global/countries/country-registry.js";
-import { getSuggestedWorkspaceFeatures, WORKSPACE_FEATURE_CATALOG } from "@/lib/workspaceFeatures";
+import { getSuggestedWorkspaceFeatures } from "@/lib/workspaceFeatures";
 import { Check, ChevronLeft, ChevronRight, Globe2, MapPin, Search, Sparkles, Store, UserRound, Building2, ShieldCheck } from "lucide-react";
 
 const DRAFT_KEY = "plivex:workspace-onboarding:draft";
@@ -42,12 +42,6 @@ export default function UnifiedWorkspaceOnboarding() {
     const next = [type];
     setWorkTypes(next);
     setFeatures(getSuggestedWorkspaceFeatures(next, countryCode));
-  };
-
-  const toggleFeature = (featureId) => {
-    setFeatures((current) => current.includes(featureId)
-      ? current.filter((id) => id !== featureId)
-      : [...current, featureId]);
   };
 
   const next = () => {
@@ -105,11 +99,6 @@ export default function UnifiedWorkspaceOnboarding() {
       setLoading(false);
     }
   };
-
-  const selectedFeatureLabels = features.map((id) => ({
-    quotations: "Quotations", expenses: "Expenses", crm: "Client CRM",
-    leads: "Lead Tracker", inventoryWorkspace: "Warehouse & Operations", reports: "Reports",
-  }[id] || id));
 
   return (
     <main className="flex h-[100dvh] min-h-0 w-full items-start justify-center overflow-y-auto overscroll-y-contain bg-[#F8F7FC] px-3 py-3 text-slate-900 sm:h-[100dvh] sm:min-h-0 sm:overflow-hidden sm:py-10 sm:grid sm:place-items-center sm:px-5">
@@ -177,22 +166,12 @@ export default function UnifiedWorkspaceOnboarding() {
           {step === 3 && <>
             <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><Sparkles className="h-6 w-6" /></div>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">What's your work based on?</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Choose one primary profile. You can add optional tools later through More Features.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Choose one primary profile. Plivex will arrange your Workspace cards automatically; you can add more tools later through More Features.</p>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <button type="button" onClick={() => chooseWorkType("freelancer")} aria-pressed={workTypes.includes("freelancer")} className={`rounded-2xl border p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${workTypes.includes("freelancer") ? "border-violet-500 bg-violet-50 ring-2 ring-violet-100" : "border-slate-200 hover:border-violet-200"}`}><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-100 text-violet-700"><UserRound className="h-5 w-5" /></span><span className="mt-4 block text-base font-bold">Freelancer</span><span className="mt-1 block text-xs leading-5 text-slate-500">For independent professionals and service providers managing clients, quotations, expenses and follow-ups.</span>{workTypes.includes("freelancer") && <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-violet-700"><Check className="h-4 w-4" />Selected</span>}</button>
               <button type="button" onClick={() => chooseWorkType("business")} aria-pressed={workTypes.includes("business")} className={`rounded-2xl border p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${workTypes.includes("business") ? "border-violet-500 bg-violet-50 ring-2 ring-violet-100" : "border-slate-200 hover:border-violet-200"}`}><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><Building2 className="h-5 w-5" /></span><span className="mt-4 block text-base font-bold">Business</span><span className="mt-1 block text-xs leading-5 text-slate-500">For shops and growing teams that manage sales, purchases, stock, warehouses and operations.</span>{workTypes.includes("business") && <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-violet-700"><Check className="h-4 w-4" />Selected</span>}</button>
             </div>
-            <p className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">Your dashboard recommendations will follow this choice. You can add or remove optional features at any time. Invoices and Quotations are available in every workspace. Business profiles also include Stock Inventory and Team Members. You can add or remove optional tools later.</p>
-            <p className="mt-3 text-xs font-medium text-violet-700">Suggested tools: {features.length ? selectedFeatureLabels.join(" · ") : "Choose a work type to see recommendations."}</p>
-            <div className="mt-5 rounded-2xl border border-slate-200 p-4">
-              <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-bold text-slate-900">Choose your optional features</h2><p className="mt-1 text-xs leading-5 text-slate-500">Select the tools you want in your Workspace. You can change these later in More Features.</p></div><span className="shrink-0 rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700">{features.length} selected</span></div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {WORKSPACE_FEATURE_CATALOG.map((feature) => <label key={feature.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${features.includes(feature.id) ? "border-violet-300 bg-violet-50/60" : "border-slate-200 hover:border-violet-200"}`}>
-                  <input type="checkbox" checked={features.includes(feature.id)} onChange={() => toggleFeature(feature.id)} className="mt-0.5 h-4 w-4 accent-violet-700" />
-                  <span className="min-w-0"><span className="block text-sm font-semibold text-slate-800">{feature.label}</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">{feature.description}</span></span>
-                </label>)}
-              </div>
-            </div>
+            <p className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">Freelancer keeps the dashboard focused on client work, invoices and everyday tools. Stock Inventory, Team Members and other modules remain available in More Features. Business shows the complete workspace dashboard with all modules enabled.</p>
           </>}
 
           {step === 4 && <>
@@ -203,7 +182,7 @@ export default function UnifiedWorkspaceOnboarding() {
               {[
                 ["Workspace", businessName], ["Country", country ? `${getCountryFlag(country.code)} ${country.name}` : "Not selected"],
                 ["Base currency", country?.currencyCode || "—"], ["Work type", workTypes.map((type) => type === "freelancer" ? "Freelancer" : "Business").join(" + ")],
-                ["Mobile", phone.trim() || "Skipped"], ["Optional features", selectedFeatureLabels.join(", ") || "None selected"],
+                ["Mobile", phone.trim() || "Skipped"],
                 ["Tax registration", taxType || taxNumber ? [taxType, taxNumber].filter(Boolean).join(" · ") : "Not provided"],
               ].map(([label, value]) => <div key={label} className="flex justify-between gap-4 py-3 text-sm"><dt className="text-slate-500">{label}</dt><dd className="max-w-[62%] break-words text-right font-semibold text-slate-900">{value}</dd></div>)}
             </dl>
