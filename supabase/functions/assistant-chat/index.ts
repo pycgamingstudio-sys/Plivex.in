@@ -3,6 +3,7 @@ import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.m
 import { normalizeAssistantActionBatch } from "../_shared/assistant-tool-registry.mjs";
 import { buildBusinessIntentHints } from "../_shared/assistant-intent-planner.mjs";
 import { buildAssistantBusinessAnalytics } from "../_shared/assistant-business-analytics.mjs";
+import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
 
 const ALLOWED_ORIGINS = new Set([
   "https://plivex.in",
@@ -293,21 +294,12 @@ function validateAction(action: any) {
   const type = text(action.type, 40);
   const p = action.payload && typeof action.payload === "object" ? action.payload : {};
   if (type === "receive_purchase_order") {
-    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    const purchaseOrderId = text(p.purchase_order_id, 36);
-    const warehouseId = text(p.warehouse_id, 36);
-    if (!uuid.test(purchaseOrderId) || !uuid.test(warehouseId) || !Array.isArray(p.items) || p.items.length < 1 || p.items.length > 200) return null;
-    const items = p.items.map((item: any) => ({
-      purchase_order_item_id: text(item?.purchase_order_item_id, 36),
-      quantity: number(item?.quantity, -1),
-      batch_number: text(item?.batch_number, 120),
-      expires_on: /^\d{4}-\d{2}-\d{2}$/.test(text(item?.expires_on, 10)) ? text(item?.expires_on, 10) : null,
-    }));
-    if (items.some((item: any) => !uuid.test(item.purchase_order_item_id) || !(item.quantity > 0) || Math.round(item.quantity * 10000) !== item.quantity * 10000 || (item.expires_on && !/^\\d{4}-\\d{2}-\\d{2}$/.test(item.expires_on)))) return null;
+    const validated = validateGoodsReceiptAction(action);
+    if (!validated) return null;
+    const payload = validated.payload;
     return {
-      type,
-      payload: { purchase_order_id: purchaseOrderId, warehouse_id: warehouseId, items },
-      summary: "Record goods received against purchase order " + purchaseOrderId + " at warehouse " + warehouseId + " — " + items.length + " line(s). The existing purchase-order receipt workflow will update stock and the stock ledger.",
+      ...validated,
+      summary: "Record goods received against purchase order " + payload.purchase_order_id + " at warehouse " + payload.warehouse_id + " — " + payload.items.length + " line(s). The existing purchase-order receipt workflow will update stock and the stock ledger.",
     };
   }
   if (type === "create_invoice") {
