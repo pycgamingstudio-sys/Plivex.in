@@ -171,9 +171,17 @@ Deno.serve(async (req: Request) => {
       const updated = !afterError && after?.ok && Array.isArray(after.records)
         ? after.records.find((item: any) => item?.invoice_id === payload.invoice_id)
         : null;
+      const previousGrossPayments = Number(invoice.gross_payments_minor);
+      const updatedGrossPayments = Number(updated?.gross_payments_minor);
+      const updatedOutstanding = Number(updated?.outstanding_minor);
       const verified = Boolean(updated
-        && Number(updated.outstanding_minor) <= outstandingMinor
+        && Number.isSafeInteger(previousGrossPayments) && Number.isSafeInteger(updatedGrossPayments)
+        && Number.isSafeInteger(updatedOutstanding)
         && String(updated.currency_code || "").toUpperCase() === payload.currency_code
+        && (payment.duplicate
+          ? updatedGrossPayments >= previousGrossPayments && updatedOutstanding <= outstandingMinor
+          : updatedGrossPayments >= previousGrossPayments + amountMinor
+            && updatedOutstanding <= outstandingMinor - amountMinor)
         && Number(payment.invoice?.amount_paid_minor) >= amountMinor);
       return json({
         ok: true, verified, duplicate: Boolean(payment.duplicate),
