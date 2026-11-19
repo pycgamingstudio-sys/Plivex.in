@@ -462,9 +462,11 @@ function PricingModal({ onClose, onCheckout, checkoutNotice, currentPlan, userEm
   const billingConfig = getBillingForCountry(normalizedCountryCode);
   const displayCurrency = billingConfig?.currency || normalizedCurrencyCode;
   const billingLocale = getCountryByCode(normalizedCountryCode)?.locales?.[0] || "en";
+  // Pricing is shown only when both the canonical workspace country and its
+  // exact base currency are verified. A blank currency is never treated as a match.
   const currencyMatches = isIndiaPricing
-    ? (!normalizedCurrencyCode || normalizedCurrencyCode === "INR")
-    : Boolean(billingConfig && (!normalizedCurrencyCode || normalizedCurrencyCode === billingConfig.currency));
+    ? normalizedCurrencyCode === "INR"
+    : Boolean(billingConfig && normalizedCurrencyCode === billingConfig.currency);
   const pricingVerified = isIndiaPricing ? currencyMatches : Boolean(isGlobalPricing && billingConfig && currencyMatches);
   const displayPlans = isIndiaPricing && pricingVerified
     ? PRICING_PLANS.map((plan) => isVirendraAccount && plan.id === "basic_monthly" ? { ...plan, price:25, amount:2500, badge:"SPECIAL PRICE" } : plan)
