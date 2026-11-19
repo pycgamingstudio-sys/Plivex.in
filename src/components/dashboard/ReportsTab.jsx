@@ -7,11 +7,7 @@ import { usePaywall } from "@/lib/paywall";
 
 const tone = { emerald: "bg-emerald-100 text-emerald-600", amber: "bg-amber-100 text-amber-600", rose: "bg-rose-100 text-rose-600", violet: "bg-violet-100 text-violet-600" };
 const validCurrency = (value) => /^[A-Z]{3}$/.test(String(value || "").trim().toUpperCase());
-const dateValue = (value) => {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
+
 const groupedTotals = (records, amountKey, currencyKey) => {
   const totals = new Map();
   let unknownCurrencyCount = 0;
@@ -43,11 +39,9 @@ export default function ReportsTab() {
   const paylog = loadList(KEYS.paymentLogs);
   const paidNos = new Set(paylog.filter((entry) => entry.status === "paid").map((entry) => entry.invoiceNumber));
   const inRange = (record, key) => {
-    const date = dateValue(record?.[key]);
-    if (!date) return !from && !to;
-    const start = from ? new Date(`${from}T00:00:00`) : null;
-    const end = to ? new Date(`${to}T23:59:59.999`) : null;
-    return (!start || date >= start) && (!end || date <= end);
+    const raw = String(record?.[key] || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return !from && !to;
+    return (!from || raw >= from) && (!to || raw <= to);
   };
   const filteredInvoices = invoices.filter((item) => inRange(item, "issueDate"));
   const filteredExpenses = expenses.filter((item) => inRange(item, "date"));
