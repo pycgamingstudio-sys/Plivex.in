@@ -50,7 +50,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   const [taxContext, setTaxContext] = useState({
     countryCode, mode:"automatic", priceMode:"exclusive", placeOfSupply:"",
     placeOfSupplyConfirmed:false, taxCategory:"standard-rated", taxCategoryConfirmed:true,
-    registrationConfirmed:false, collectionObligationAttested:false, components:[],
+    registrationConfirmed:false, taxDetailsConfirmed:false, collectionObligationAttested:false, components:[],
   });
   const [profileForm, setProfileForm] = useState({});
   const [paymentForm, setPaymentForm] = useState({ amount:"", date:today(), method:"bank_transfer", reference:"" });
@@ -98,7 +98,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     setTaxContext({
       countryCode, mode:"automatic", priceMode:"exclusive", placeOfSupply:"",
       placeOfSupplyConfirmed:false, taxCategory:"standard-rated", taxCategoryConfirmed:false,
-      registrationConfirmed:false, collectionObligationAttested:false, components:[],
+      registrationConfirmed:false, taxDetailsConfirmed:false, collectionObligationAttested:false, components:[],
     });
   }, [countryCode, selectedId]);
 
