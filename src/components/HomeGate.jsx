@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
+import { APP_EDITION, isUnifiedBuild } from "@/api/backendClient";
+import AppLayout from "@/components/AppLayout";
 import { lazy } from "react";
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const GlobalApp = lazy(() => import("@/global/GlobalApp"));
 const GuestDashboard = lazy(() => import("@/pages/GuestDashboard"));
 import TrialGate from "@/components/TrialGate";
 
@@ -10,7 +13,7 @@ import TrialGate from "@/components/TrialGate";
 // authenticated users land on their real workspace. Pending guest intents
 // (stored before sign-in) are resumed automatically.
 export default function HomeGate() {
-  const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings } = useAuth();
+  const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings, user } = useAuth();
   const location = useLocation();
   const [pending, setPending] = useState(null);
 
@@ -32,8 +35,10 @@ export default function HomeGate() {
   }
 
   if (!isAuthenticated) return <GuestDashboard />;
+  const isGlobalWorkspace = APP_EDITION === "global" || (isUnifiedBuild && Boolean(user?.country_code && user.country_code !== "IN"));
 
   if (pending === "create-invoice") return <Navigate to="/invoice-builder" replace />;
+  if (isGlobalWorkspace) return <TrialGate><AppLayout><GlobalApp section="overview" /></AppLayout></TrialGate>;
   if (pending === "settings") return <Navigate to="/settings" replace />;
   // The workspace dashboard is an internal screen, so it sits behind the same
   // Apply the same plan-limit recovery banner as other internal routes; expired subscriptions fall back to Free.

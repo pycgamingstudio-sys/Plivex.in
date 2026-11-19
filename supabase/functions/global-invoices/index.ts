@@ -42,7 +42,7 @@ Deno.serve(async (req: Request) => {
       return globalJson({ error: "A valid Global workspace_id is required." }, 400, origin);
     }
 
-    if (body.action === "create_draft") {
+    if (body.action === "create_draft" || body.action === "create_final_commercial" || body.action === "create_final_tax") {
       if (body.client_id !== null && body.client_id !== undefined && (typeof body.client_id !== "string" || !UUID.test(body.client_id))) {
         return globalJson({ error: "Choose a valid client." }, 400, origin);
       }
@@ -78,7 +78,25 @@ Deno.serve(async (req: Request) => {
           product_id: item.product_id || null,
         });
       }
-      const { data, error } = await auth.admin.rpc("global_create_invoice_draft", {
+      if (body.action === "create_final_tax") {
+        const tax = body.tax_context;
+        if (!isObject(tax)
+          || typeof tax.registration_confirmed !== "boolean"
+          || typeof tax.place_of_supply_confirmed !== "boolean"
+          || typeof tax.tax_category_confirmed !== "boolean"
+          || typeof tax.tax_category !== "string"
+          || typeof tax.mode !== "string"
+          || typeof tax.price_mode !== "string"
+          || typeof tax.place_of_supply !== "string") {
+          return globalJson({ error: "Required tax evidence is incomplete." }, 400, origin);
+        }
+      }
+      const rpcName = body.action === "create_final_commercial"
+        ? "global_create_and_issue_commercial_invoice"
+        : body.action === "create_final_tax"
+          ? "global_create_and_issue_tax_invoice"
+          : "global_create_invoice_draft";
+      const rpcArgs: Record<string, unknown> = {
         p_user_id: auth.user.id,
         p_workspace_id: workspaceId,
         p_client_id: body.client_id || null,
@@ -88,10 +106,12 @@ Deno.serve(async (req: Request) => {
         p_notes: typeof body.notes === "string" ? body.notes.trim() || null : null,
         p_items: items,
         p_idempotency_key: body.idempotency_key,
-      });
+      };
+      if (body.action === "create_final_tax") rpcArgs.p_tax_context = body.tax_context;
+      const { data, error } = await auth.admin.rpc(rpcName, rpcArgs);
       if (error) {
-        console.error("Global draft invoice RPC failed", { code: error.code });
-        return globalJson({ error: "Draft invoice service is not ready. Please try again later." }, 503, origin);
+        console.error("Global invoice creation RPC failed", { code: error.code, action: body.action });
+        return globalJson({ error: "Invoice creation service is not ready. Please try again later." }, 503, origin);
       }
       if (!data?.ok) {
         const reason = String(data?.reason || "request_failed");
@@ -108,7 +128,7 @@ Deno.serve(async (req: Request) => {
           client_not_found: "The selected client is not active in this workspace.",
           product_not_found: "The selected product is not active in this workspace.",
         };
-        return globalJson({ error: messages[reason] || "Could not create the draft invoice.", reason }, statusFor(reason), origin);
+        return globalJson({ error: messages[reason] || (body.action === "create_final_tax" ? "Could not issue the tax invoice." : body.action === "create_final_commercial" ? "Could not issue the commercial invoice." : "Could not create the draft invoice."), reason }, statusFor(reason), origin);
       }
       return globalJson(data, 201, origin);
     }
@@ -169,12 +189,22 @@ Deno.serve(async (req: Request) => {
       const commercialProbe = await auth.admin.rpc("global_issue_commercial_invoice", {
         p_user_id:null, p_workspace_id:null, p_invoice_id:null, p_idempotency_key:null,
       });
-      const commercialFunctionReady = !commercialProbe.error && commercialProbe.data?.reason === "invalid_request";
+      const atomicCommercialProbe = await auth.admin.rpc("global_create_and_issue_commercial_invoice", {
+        p_user_id:null, p_workspace_id:null, p_client_id:null, p_currency_code:null,
+        p_issue_date:null, p_due_date:null, p_notes:null, p_items:null, p_idempotency_key:null,
+      });
+      const atomicTaxProbe = await auth.admin.rpc("global_create_and_issue_tax_invoice", {
+        p_user_id:null, p_workspace_id:null, p_client_id:null, p_currency_code:null,
+        p_issue_date:null, p_due_date:null, p_notes:null, p_items:null, p_tax_context:null, p_idempotency_key:null,
+      });
+      const commercialFunctionReady = !commercialProbe.error && commercialProbe.data?.reason === "invalid_request"
+        && !atomicCommercialProbe.error && atomicCommercialProbe.data?.reason === "invalid_request";
+      const taxFunctionReady = !atomicTaxProbe.error && atomicTaxProbe.data?.reason === "invalid_request";
       const commercialCountries = ["US","GB","AE","CA","AU","SG"];
       return globalJson({
         ok: true,
         ledger_ready: ledgerReady,
-        issuance_ready: ledgerReady && data?.country_code === "GB",
+        issuance_ready: ledgerReady && taxFunctionReady && data?.country_code === "GB",
         issuance_countries: ["GB"],
         commercial_issuance_ready: ledgerReady && commercialFunctionReady && commercialCountries.includes(data?.country_code),
         commercial_issuance_countries: commercialCountries,

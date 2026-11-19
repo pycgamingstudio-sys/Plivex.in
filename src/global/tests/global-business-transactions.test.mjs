@@ -98,3 +98,51 @@ test("Global invoice UI distinguishes no-tax commercial invoices from zero-rated
   assert.match(editor, /not a zero-rated or tax-exempt classification/);
   assert.match(editor, /Plivex does not decide whether your business or transaction legally qualifies/);
 });
+
+
+test("Global taxable invoice uses one accessible combined confirmation instead of three separate checkboxes", async () => {
+  const editor = await read("../../components/invoice/GlobalTaxEditor.jsx");
+  const source = await read("../tax/invoice-tax-integration.js");
+  const edge = await read("../../../supabase/functions/save-invoice/_shared/tax/invoice-tax-integration.js");
+  assert.match(editor, /global-tax-details-confirm/);
+  assert.match(editor, /allowNoTax = true/);
+  assert.match(editor, /min-h-11/);
+  assert.doesNotMatch(editor, /registrationConfirmed === true} onChange/);
+  assert.match(source, /TAX_DETAILS_CONFIRMATION_REQUIRED/);
+  assert.match(edge, /TAX_DETAILS_CONFIRMATION_REQUIRED/);
+  assert.match(source, /Confirm the saved registration details and invoice tax details together/);
+});
+
+
+test("Global commercial invoice creation has one atomic server-side finalization action", async () => {
+  const handler = await read("../../../supabase/functions/global-invoices/index.ts");
+  const panel = await read("../../components/global/GlobalInvoicesPanel.jsx");
+  const migration = await read("../../../supabase/migrations/20261119100000_global_atomic_commercial_invoice_issue.sql");
+  assert.match(handler, /create_final_commercial/);
+  assert.match(handler, /global_create_and_issue_commercial_invoice/);
+  assert.match(handler, /atomicCommercialProbe/);
+  assert.match(handler, /create_final_tax/);
+  assert.match(handler, /global_create_and_issue_tax_invoice/);
+  assert.match(handler, /atomicTaxProbe/);
+  assert.match(panel, /action:isTaxInvoice \? "create_final_tax" : "create_final_commercial"/);
+  assert.match(panel, /UK VAT tax invoice · calculate VAT/);
+  assert.match(panel, /allowNoTax=\{false\}/);
+  assert.match(panel, /data\?\.invoice\?\.status !== "issued"/);
+  assert.match(panel, /await downloadPdf\(data\.invoice\)/);
+  assert.match(migration, /global_create_invoice_draft/);
+  assert.match(migration, /global_issue_commercial_invoice/);
+  assert.match(migration, /global_issue_invoice/);
+  assert.match(migration, /global_create_and_issue_tax_invoice/);
+  assert.match(migration, /delete from global\.invoices/);
+});
+
+
+test("Unified non-India workspaces use the Global invoice desk and its plan-independent base currency", async () => {
+  const app = await read("../../App.jsx");
+  const panel = await read("../../components/global/GlobalInvoicesPanel.jsx");
+  assert.match(app, /isUnifiedBuild && Boolean\(user\?\.country_code && user\.country_code !== "IN"\)/);
+  assert.match(app, /isGlobalWorkspace \? <AppLayout><GlobalApp section="invoices" \/><\/AppLayout> : <Home \/>/);
+  assert.match(panel, /resolveGlobalInvoiceContext\(account\)/);
+  assert.doesNotMatch(panel, /multi_currency|canAccess\(/);
+  assert.match(panel, /currency_code:currency/);
+});

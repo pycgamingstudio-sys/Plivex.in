@@ -5,23 +5,26 @@ import { getTaxInvoiceFormat } from "@/global/tax/tax-invoice-formats.js";
 const fieldClass = "mt-1 w-full rounded-lg border bg-background px-3 py-2.5 text-sm";
 const labelClass = "block text-xs font-semibold text-foreground";
 
-export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile, calculation }) {
+export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile, calculation, allowNoTax = true }) {
   const countryCode = workspaceProfile?.countryCode || "";
   const format = getTaxInvoiceFormat(countryCode);
-  const config = invoice.globalTax || {
-    countryCode,
-    mode: ["US", "CA"].includes(countryCode) ? "manual" : "automatic",
-    taxMode: "taxable",
-    noTaxConfirmed: false,
-    priceMode: "exclusive",
-    placeOfSupply: "",
-    placeOfSupplyConfirmed: false,
-    taxCategory: "",
-    taxCategoryConfirmed: false,
-    registrationConfirmed: false,
-    collectionObligationAttested: false,
-    destinationJurisdiction: { state: "", county: "", city: "", province: "" },
-    components: [{ id: "manual-tax-1", name: "", rateBps: 0 }],
+  const config = {
+    ...(invoice.globalTax || {
+      countryCode,
+      mode: ["US", "CA"].includes(countryCode) ? "manual" : "automatic",
+      taxMode: "taxable",
+      noTaxConfirmed: false,
+      priceMode: "exclusive",
+      placeOfSupply: "",
+      placeOfSupplyConfirmed: false,
+      taxCategory: "",
+      taxCategoryConfirmed: false,
+      registrationConfirmed: false,
+      collectionObligationAttested: false,
+      destinationJurisdiction: { state: "", county: "", city: "", province: "" },
+      components: [{ id: "manual-tax-1", name: "", rateBps: 0 }],
+    }),
+    taxDetailsConfirmed: invoice.globalTax?.taxDetailsConfirmed === true,
   };
   const selectedMode = ["US", "CA"].includes(countryCode) ? "manual" : (config.mode || "automatic");
   const update = (patch) => setInvoice((old) => ({
@@ -46,7 +49,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
   const isCA = countryCode === "CA";
   const currency = invoice.currency || workspaceProfile?.currencyCode || "";
   const manual = selectedMode === "manual" && config.taxMode !== "no_tax";
-  const noTax = config.taxMode === "no_tax";
+  const noTax = allowNoTax && config.taxMode === "no_tax";
 
   return (
     <section className="rounded-xl border bg-card p-4 sm:p-5" data-testid="global-tax-editor">
@@ -61,9 +64,9 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
 
       <div className="mt-3 rounded-lg bg-muted/40 p-3 text-[11px] text-muted-foreground"><strong>Tax treatment:</strong> Plivex records the choice you make here. It does not independently verify registration, tax obligations or exemptions.</div>
       <label className={labelClass + " mt-4"}>How should tax be handled?
-        <select data-testid="global-tax-mode" className={fieldClass} value={config.taxMode || "taxable"} onChange={(e) => update({ taxMode: e.target.value, noTaxConfirmed: false })}>
+        <select data-testid="global-tax-mode" className={fieldClass} value={noTax ? "no_tax" : "taxable"} onChange={(e) => update({ taxMode: e.target.value, noTaxConfirmed: false })}>
           <option value="taxable">Tax applies · calculate tax</option>
-          <option value="no_tax">No tax charged · commercial invoice</option>
+          {allowNoTax && <option value="no_tax">No tax charged · commercial invoice</option>}
         </select>
       </label>
       {noTax ? (
@@ -109,10 +112,22 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
         </label>
       </div>
 
-      <div className="mt-3 grid gap-2 rounded-lg bg-muted/40 p-3 text-xs">
-        <label className="flex items-start gap-2"><input type="checkbox" checked={config.registrationConfirmed === true} onChange={(e) => update({ registrationConfirmed: e.target.checked })} /><span>I confirm the saved registration number, status and effective date are accurate and active for this invoice.</span></label>
-        <label className="flex items-start gap-2"><input type="checkbox" checked={config.placeOfSupplyConfirmed === true} onChange={(e) => update({ placeOfSupplyConfirmed: e.target.checked })} /><span>I confirm the place of supply entered above.</span></label>
-        <label className="flex items-start gap-2"><input type="checkbox" checked={config.taxCategoryConfirmed === true} onChange={(e) => update({ taxCategoryConfirmed: e.target.checked })} /><span>I confirm the goods/services tax category entered above.</span></label>
+      <div className="mt-3 rounded-lg bg-muted/40 p-3 text-xs">
+        <label className="flex min-h-11 cursor-pointer items-start gap-3">
+          <input
+            data-testid="global-tax-details-confirm"
+            className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-primary"
+            type="checkbox"
+            checked={config.taxDetailsConfirmed === true}
+            onChange={(e) => update({
+              taxDetailsConfirmed: e.target.checked,
+              registrationConfirmed: e.target.checked,
+              placeOfSupplyConfirmed: e.target.checked,
+              taxCategoryConfirmed: e.target.checked,
+            })}
+          />
+          <span className="leading-relaxed">I confirm the saved registration details and the invoice's place of supply and tax category are accurate for this transaction.</span>
+        </label>
       </div>
 
       {(isUS || isCA) && (
