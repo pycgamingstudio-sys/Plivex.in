@@ -15,8 +15,12 @@ const realDate = (value) => {
 export function validatePurchaseOrderAction(action) {
   if (!action || typeof action !== "object" || clean(action.type, 40) !== "create_purchase_order") return null;
   const raw = action.payload && typeof action.payload === "object" ? action.payload : {};
-  const supplierName = clean(raw.supplier_name, 200);
-  if (!supplierName || !Array.isArray(raw.items) || raw.items.length < 1 || raw.items.length > 200) return null;
+  const rawSupplierName = String(raw.supplier_name ?? "").trim();
+  const rawReference = String(raw.supplier_reference ?? "").trim();
+  const rawNotes = String(raw.notes ?? "").trim();
+  if (!rawSupplierName || rawSupplierName.length > 200 || rawReference.length > 120 || rawNotes.length > 500) return null;
+  const supplierName = clean(rawSupplierName, 200);
+  if (!Array.isArray(raw.items) || raw.items.length < 1 || raw.items.length > 200) return null;
   const items = raw.items.map((item) => ({
     stock_id: clean(item?.stock_id, 36),
     quantity_ordered: finite(item?.quantity_ordered),
@@ -26,9 +30,9 @@ export function validatePurchaseOrderAction(action) {
   if (items.some((item) =>
     !UUID_RE.test(item.stock_id)
     || !(item.quantity_ordered > 0)
-    || Math.round(item.quantity_ordered * 10000) !== item.quantity_ordered * 10000
+    || !Number.isSafeInteger(Math.round(item.quantity_ordered * 10000)) || Math.round(item.quantity_ordered * 10000) !== item.quantity_ordered * 10000
     || !(item.unit_cost >= 0)
-    || Math.round(item.unit_cost * 10000) !== item.unit_cost * 10000
+    || !Number.isSafeInteger(Math.round(item.unit_cost * 10000)) || Math.round(item.unit_cost * 10000) !== item.unit_cost * 10000
   )) return null;
   const expectedDate = clean(raw.expected_date, 10);
   if (expectedDate && !realDate(expectedDate)) return null;
@@ -36,9 +40,9 @@ export function validatePurchaseOrderAction(action) {
     type: "create_purchase_order",
     payload: {
       supplier_name: supplierName,
-      supplier_reference: clean(raw.supplier_reference, 120),
+      supplier_reference: clean(rawReference, 120),
       expected_date: expectedDate || null,
-      notes: clean(raw.notes, 500),
+      notes: clean(rawNotes, 500),
       items,
     },
   };
