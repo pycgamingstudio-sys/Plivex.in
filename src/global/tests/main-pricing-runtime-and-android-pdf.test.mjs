@@ -112,6 +112,6 @@ test("every Global workspace can use its verified base currency without a paid m
   assert.match(editor, /data-testid="workspace-base-currency"/);
   assert.match(editor, /Included on every plan/);
   assert.match(editor, /canUseMultiCurrency = activeWorkspaceCountry === "IN" && canAccess\("multi_currency"\)/);
-  assert.match(editor, /disabled=\{!canUseMultiCurrency\}/);
+  assert.match(editor, /!isGlobalWorkspace && <button type="button" onClick=\{onLocked\}/);
   assert.match(editor, /Unlock additional currencies/);
 });
