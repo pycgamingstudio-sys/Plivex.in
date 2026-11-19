@@ -21,7 +21,7 @@ export const ASSISTANT_WRITE_TOOLS = Object.freeze({
 export const BUSINESS_MODULE_CATALOG = Object.freeze({
   clients: { readContext: true, writeTools: ["create_client"] },
   invoices: { readContext: true, writeTools: ["create_invoice"] },
-  inventory: { readContext: true, writeTools: ["create_stock"], relatedTables: ["stock", "warehouses", "stock_movements", "inventory_batches"] },
+  inventory: { readContext: true, writeTools: ["create_stock"], relatedTables: ["stock", "warehouses", "stock_movements", "inventory_batches", "stock_transfers", "stock_transfer_items"] },
   expenses: { readContext: true, writeTools: ["create_expense"] },
   quotations: { readContext: true, writeTools: ["create_quotation"] },
   leads: { readContext: true, writeTools: ["create_lead"] },
@@ -30,7 +30,7 @@ export const BUSINESS_MODULE_CATALOG = Object.freeze({
   purchase_orders: { readContext: true, writeTools: ["create_purchase_order"], planned: false },
   purchase_receipts: { readContext: true, writeTools: ["receive_purchase_order"], planned: false },
   warehouses: { readContext: true, writeTools: ["create_warehouse"], planned: false },
-  stock_transfers: { readContext: false, writeTools: [], planned: true },
+  stock_transfers: { readContext: true, writeTools: [], planned: true },
   payments: { readContext: false, writeTools: [], planned: true },
   staff: { readContext: false, writeTools: [], planned: true },
   branches: { readContext: false, writeTools: [], planned: true },
