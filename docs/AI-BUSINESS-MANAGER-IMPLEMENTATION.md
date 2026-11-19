@@ -15,7 +15,7 @@ All six require the existing user confirmation flow. The RPC enforces workspace 
 
 ## Module coverage and honest capability status
 The registry catalogs clients, invoices, inventory, expenses, quotations, leads, services, suppliers, purchase orders, purchase receipts, warehouses, stock transfers, payments, staff, branches, analytics and automation.
-Only modules with a verified read context or an implemented executor are marked available. Warehouse/procurement/payment/staff/branch/automation writes must not be invented by the model; they remain planned until each has a permission-checked server tool and end-to-end tests.
+The assistant live context now includes bounded workspace-scoped reads for active warehouses, purchase orders, purchase-order lines and recent goods receipts, alongside the existing client, invoice, stock, expense, quotation, lead and service context. These purchasing/warehouse reads are informational only; purchase-order creation, goods receipt, stock transfer, supplier management, payment, staff, branch and automation writes must not be invented by the model. They remain unavailable until each has a permission-checked server executor and end-to-end tests.
 
 ## Required execution pipeline
 1. Parse the message and attachments; identify all intents and entities.
