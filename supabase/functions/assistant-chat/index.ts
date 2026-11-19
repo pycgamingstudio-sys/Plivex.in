@@ -303,7 +303,7 @@ function validateAction(action: any) {
       batch_number: text(item?.batch_number, 120),
       expires_on: /^\d{4}-\d{2}-\d{2}$/.test(text(item?.expires_on, 10)) ? text(item?.expires_on, 10) : null,
     }));
-    if (items.some((item: any) => !uuid.test(item.purchase_order_item_id) || !(item.quantity > 0) || Math.round(item.quantity * 10000) !== item.quantity * 10000)) return null;
+    if (items.some((item: any) => !uuid.test(item.purchase_order_item_id) || !(item.quantity > 0) || Math.round(item.quantity * 10000) !== item.quantity * 10000 || (item.expires_on && !/^\\d{4}-\\d{2}-\\d{2}$/.test(item.expires_on)))) return null;
     return {
       type,
       payload: { purchase_order_id: purchaseOrderId, warehouse_id: warehouseId, items },
@@ -767,6 +767,9 @@ async function handleRequest(req: Request) {
     const uniqueRawActions = [...new Map(rawActions.map((item: any) => [JSON.stringify(item), item])).values()];
     const normalizedBatch = normalizeAssistantActionBatch(uniqueRawActions, validateAction);
     const proposedActions = normalizedBatch.actions;
+    if (proposedActions.some((item: any) => item.type === "receive_purchase_order") && proposedActions.length > 1) {
+      return json({ reply: "Goods receipt changes inventory and must be confirmed separately. I can prepare the receipt first; please handle the other requested action in a separate message. Nothing has been saved." });
+    }
     if (normalizedBatch.error || (rawActions.length && proposedActions.length !== uniqueRawActions.length)) {
       return json({ reply: "I understood your request, but one or more actions are unsupported or missing required details. Nothing has been prepared yet. Please clarify the exact missing detail." });
     }
