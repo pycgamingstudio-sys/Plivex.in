@@ -81,3 +81,17 @@ test("does not report a total when currency or unit is missing", () => {
   assert.equal(result.total, null);
   assert.equal(result.mixedGroups, true);
 });
+
+test("identifies overdue open purchase orders without treating completed orders as late", () => {
+  const result = buildAssistantBusinessAnalytics({
+    asOfDate: "2026-11-19",
+    purchaseOrders: [
+      { supplier_name: "A", supplier_reference: "PO-1", status: "ordered", expected_date: "2026-11-10" },
+      { supplier_name: "B", status: "received", expected_date: "2026-11-01" },
+      { supplier_name: "C", status: "ordered", expected_date: "2026-11-25" },
+    ],
+  });
+  assert.equal(result.purchasing.openOrderCount, 2);
+  assert.equal(result.purchasing.overdueExpectedOrderCount, 1);
+  assert.equal(result.purchasing.overdueOrders[0].daysOverdue, 9);
+});
