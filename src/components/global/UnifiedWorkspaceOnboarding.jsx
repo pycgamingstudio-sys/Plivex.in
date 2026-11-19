@@ -21,7 +21,6 @@ export default function UnifiedWorkspaceOnboarding() {
   const [taxType, setTaxType] = useState(() => initial.taxType || "");
   const [taxNumber, setTaxNumber] = useState(() => initial.taxNumber || "");
   const [workTypes, setWorkTypes] = useState(() => Array.isArray(initial.workTypes) ? initial.workTypes : []);
-  const [features, setFeatures] = useState(() => Array.isArray(initial.features) ? initial.features : (Array.isArray(user?.optional_features) ? user.optional_features : []));
   const [countrySearch, setCountrySearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -33,15 +32,14 @@ export default function UnifiedWorkspaceOnboarding() {
   ), [countrySearch]);
 
   useEffect(() => {
-    try { sessionStorage.setItem(draftKey, JSON.stringify({ step, businessName, countryCode, localeCode, phone, taxType, taxNumber, workTypes, features })); }
+    try { sessionStorage.setItem(draftKey, JSON.stringify({ step, businessName, countryCode, localeCode, phone, taxType, taxNumber, workTypes })); }
     catch { /* Setup remains usable when browser storage is unavailable. */ }
-  }, [draftKey, step, businessName, countryCode, localeCode, phone, taxType, taxNumber, workTypes, features]);
+  }, [draftKey, step, businessName, countryCode, localeCode, phone, taxType, taxNumber, workTypes]);
 
   // One primary workspace profile: Freelancer OR Business. Optional modules remain configurable later.
   const chooseWorkType = (type) => {
     const next = [type];
     setWorkTypes(next);
-    setFeatures(getSuggestedWorkspaceFeatures(next, countryCode));
   };
 
   const next = () => {
@@ -68,7 +66,7 @@ export default function UnifiedWorkspaceOnboarding() {
         localeCode: selectedLocale,
         businessName: businessName.trim(),
         businessType: workTypes[0],
-        optionalFeatures: features,
+        optionalFeatures: getSuggestedWorkspaceFeatures(workTypes),
         phone: phone.trim() || null,
       });
       if (!result?.data?.ok) throw new Error(result?.data?.error || "Your workspace could not be created.");
