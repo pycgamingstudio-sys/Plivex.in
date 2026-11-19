@@ -77,13 +77,16 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
     current.push({ ...item, stock_name: stockById.get(item.source_stock_id)?.name || stockById.get(item.destination_stock_id)?.name || null, unit: stockById.get(item.source_stock_id)?.unit || stockById.get(item.destination_stock_id)?.unit || null });
     transferItemsById.set(item.transfer_id, current);
   }
-  const transfersWithDetails = stockTransfers.slice(0, 30).map((transfer: any) => ({ ...transfer, from_warehouse_name: warehouseById.get(transfer.from_warehouse_id)?.name || null, to_warehouse_name: warehouseById.get(transfer.to_warehouse_id)?.name || null, items: transferItemsById.get(transfer.id) || [] }));\n  const purchaseItemsByOrder = new Map<string, any[]>();
+  const transfersWithDetails = stockTransfers.slice(0, 30).map((transfer: any) => ({ ...transfer, from_warehouse_name: warehouseById.get(transfer.from_warehouse_id)?.name || null, to_warehouse_name: warehouseById.get(transfer.to_warehouse_id)?.name || null, items: transferItemsById.get(transfer.id) || [] }));
+  const purchaseItemsByOrder = new Map<string, any[]>();
   for (const item of purchaseOrderItems) {
     const current = purchaseItemsByOrder.get(item.purchase_order_id) || [];
-    const stockItem = stockById.get(item.stock_id);\n    current.push({ ...item, stock_name: stockItem?.name || null, stock_sku: stockItem?.sku || null, stock_unit: stockItem?.unit || null });
+    const stockItem = stockById.get(item.stock_id);
+    current.push({ ...item, stock_name: stockItem?.name || null, stock_sku: stockItem?.sku || null, stock_unit: stockItem?.unit || null });
     purchaseItemsByOrder.set(item.purchase_order_id, current);
   }
-  const money = (items: any[], field: string) => items.reduce((sum: number, item: any) => sum + number(item[field]), 0);\n  const currencyTotals = (items: any[], field: string, currencyField: string) => groupNumericTotals(items, field, currencyField);
+  const money = (items: any[], field: string) => items.reduce((sum: number, item: any) => sum + number(item[field]), 0);
+  const currencyTotals = (items: any[], field: string, currencyField: string) => groupNumericTotals(items, field, currencyField);
   const reportableInvoices = invoices.filter((item: any) => String(item.status).toLowerCase() !== "cancelled" && !item.is_draft);
   const paidInvoices = reportableInvoices.filter((item: any) => String(item.status).toLowerCase() === "paid");
   const pendingInvoices = reportableInvoices.filter((item: any) => String(item.status).toLowerCase() === "pending");
