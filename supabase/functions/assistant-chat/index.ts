@@ -426,7 +426,7 @@ async function handleRequest(req: Request) {
         system_instruction: { parts: [{ text: systemInstruction }] },
         contents: messages,
         generationConfig: {
-          maxOutputTokens: 1400,
+          maxOutputTokens: 2200,
           thinkingConfig: { thinkingLevel: "medium" },
           responseMimeType: "application/json",
           responseSchema: {
@@ -480,7 +480,7 @@ async function handleRequest(req: Request) {
       // One fast Flash request only: no serial model fallback or retry delays.
       response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent", {
         ...requestOptions,
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(25000),
       });
     } catch (networkError) {
       const timedOut = networkError instanceof Error && (networkError.name === "TimeoutError" || networkError.name === "AbortError");
