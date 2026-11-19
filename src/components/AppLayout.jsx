@@ -6,15 +6,15 @@ import { useRole } from "@/lib/roles";
 import { usePaywall } from "@/lib/paywall";
 import { useAuth } from "@/lib/AuthContext";
 import { APP_EDITION } from "@/api/backendClient";
-import { getCountryByCode } from "@/global/countries/country-registry.js";
+import { getCountryByCode, getCountryFlag } from "@/global/countries/country-registry.js";
 import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
-import { LayoutDashboard, Users, Package, Receipt, FileText, Handshake, Warehouse, Calculator } from "lucide-react";
+import { LayoutDashboard, Users, Package, Receipt, FileText, Handshake, Warehouse, Calculator, ShoppingCart } from "lucide-react";
 
 const GLOBAL_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/invoice-history", label: "Sales", icon: FileText },
+  { to: "/invoice-history", label: "Sales", icon: Receipt },
   { to: "/quotations", label: "Quotations", icon: FileText },
-  { to: "/expenses", label: "Purchase", icon: Receipt },
+  { to: "/expenses", label: "Purchase", icon: ShoppingCart },
   { to: "/accounting", label: "Reports", icon: Calculator },
   { to: "/crm", label: "Client CRM", icon: Handshake },
   { to: "/products", label: "Stock", icon: Package },
@@ -64,6 +64,11 @@ export default function AppLayout({ children }) {
           ) : (
             <NavLink to="/" className="rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition-colors hover:bg-secondary">← Invoice desk</NavLink>
           )}
+        </div>
+        <div data-testid="compact-workspace-identity" className="mx-auto flex min-w-0 max-w-6xl items-center gap-2 px-4 pb-2 sm:hidden">
+          <span aria-hidden="true" className="shrink-0 text-base">{getCountryFlag(user?.country_code) || "🌐"}</span>
+          <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground">{user?.workspace_name || "Workspace"}</span>
+          <span className="shrink-0 text-[10px] text-muted-foreground">{getCountryByCode(user?.country_code)?.name || "Country not set"}{user?.currency_code ? ` · ${user.currency_code}` : ""}</span>
         </div>
         <nav className="mx-auto flex max-w-6xl snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain px-4 pb-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Workspace">
           {isGlobal ? GLOBAL_NAV.filter((item) => {
