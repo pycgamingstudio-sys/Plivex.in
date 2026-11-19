@@ -622,6 +622,7 @@ async function handleRequest(req: Request) {
     // Keep independent deterministic drafts together. If any requested task is incomplete
     // or ambiguous, ask for the missing information before preparing any part of the batch.
     const deterministicDrafts = [clientDraft, invoiceDraft, expenseDraft].filter(Boolean);
+    let deterministicDraftsPending = false;
     if (deterministicDrafts.length) {
       const pendingDrafts = deterministicDrafts.filter((draft: any) => draft.pending);
       const deterministicTypes = new Set(["create_client", "create_invoice", "create_expense"]);
@@ -629,6 +630,7 @@ async function handleRequest(req: Request) {
         : (parsed.action && parsed.action.type !== "none" ? [parsed.action] : []);
       parsed.actions = existingActions.filter((item: any) => !deterministicTypes.has(String(item?.type || "")));
       if (pendingDrafts.length) {
+        deterministicDraftsPending = true;
         parsed.actions = [];
         parsed.action = { type: "none", payload: {} };
         parsed.reply = pendingDrafts.map((draft: any) => draft.reply).filter(Boolean).join(" ");
@@ -656,7 +658,7 @@ async function handleRequest(req: Request) {
     }
     const amountMatch = latestText.match(/(?:₹|rs\.?\s*)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)|\b([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(?:rs\.?|rupees?)/i)
       || (expenseFlow && /^\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?\s*$/.test(latestText) ? [latestText, latestText.trim()] : null);
-    if (expenseFlow && amountMatch) {
+    if (expenseFlow && amountMatch && !deterministicDraftsPending) {
       const typedAmount = Number(String(amountMatch[1] || amountMatch[2]).replace(/,/g, ""));
       if (Number.isFinite(typedAmount) && typedAmount > 0) {
         const actions = Array.isArray(parsed.actions) ? parsed.actions : [];
@@ -677,7 +679,7 @@ async function handleRequest(req: Request) {
     const stockText = String(latestText || "").trim();
     const stockMatch = stockText.match(stockCommandRe);
     const stockPriceMatch = stockText.match(/(?:kimat|keemat|price|daam|rate|कीमत|दाम)\s*(?:hai|is|:|=)?\s*(?:₹|rs\.?\s*)?([0-9][0-9,]*(?:\.[0-9]{1,2})?)|(?:₹|rs\.?\s*)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
-    if (stockIntentActive && stockMatch) {
+    if (stockIntentActive && stockMatch && !deterministicDraftsPending) {
       const rawUnit = stockMatch[2].toLowerCase();
       const unit = ["kg", "kgs", "kilo", "kilos", "kilogram"].includes(rawUnit) ? "kg"
         : ["gram", "g"].includes(rawUnit) ? "g"
@@ -701,7 +703,7 @@ async function handleRequest(req: Request) {
     // If the user supplies the price in a separate message, attach it to the recent stock request.
     const stockFollowupSource = recentUserTexts.slice(0, -1).reverse().find((value: string) => stockCommandRe.test(value.trim()));
     const stockPriceFollowup = latestText.match(/(?:kimat|keemat|price|daam|rate|कीमत|दाम)\s*(?:hai|is|:|=)?\s*(?:₹|rs\.?\s*)?([0-9][0-9,]*(?:\.[0-9]{1,2})?)|(?:₹|rs\.?\s*)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)|^\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*$/i);
-    if (stockIntentActive && !stockMatch && stockFollowupSource && stockPriceFollowup) {
+    if (stockIntentActive && !stockMatch && stockFollowupSource && stockPriceFollowup && !deterministicDraftsPending) {
       const previousStock = stockFollowupSource.trim().match(stockCommandRe);
       const priceText = stockPriceFollowup[1] || stockPriceFollowup[2] || stockPriceFollowup[3];
       const price = Number(priceText.replace(/,/g, ""));
