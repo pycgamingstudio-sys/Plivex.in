@@ -4,6 +4,12 @@ import { readFileSync } from "node:fs";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
+test("Global workspace shell is not loaded through a route-time dynamic chunk", () => {
+  const app = read("../../App.jsx");
+  assert.ok(app.includes('import GlobalApp from "@/global/GlobalApp";'));
+  assert.doesNotMatch(app, /const GlobalApp = lazy/);
+});
+
 test("payment callback routing preserves unconditional hook order", () => {
   const app = read("../../App.jsx");
   const component = app.slice(app.indexOf("const AuthenticatedApp ="), app.indexOf("// Shows a message"));

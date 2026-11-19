@@ -17,12 +17,14 @@ import AppLayout from './components/AppLayout';
 import WorkspaceTeamProvider from '@/components/team/WorkspaceTeamProvider';
 import TrialGate from './components/TrialGate';
 import { getPendingInviteCode } from "@/components/auth/workspaceInvite";
+// Keep the authenticated Global workspace entry in the initial application graph.
+// This avoids a route-time dynamic chunk fetch after sign-in on Global workspaces.
+import GlobalApp from "@/global/GlobalApp";
 // Route-level lazy loading keeps the initial mobile bundle small.
 const PageNotFound = lazy(() => import("./lib/PageNotFound"));
 const UserNotRegisteredError = lazy(() => import("@/components/UserNotRegisteredError"));
 const GlobalCountryOnboarding = lazy(() => import("@/components/global/GlobalCountryOnboarding"));
 const UnifiedWorkspaceOnboarding = lazy(() => import("@/components/global/UnifiedWorkspaceOnboarding"));
-const GlobalApp = lazy(() => import("@/global/GlobalApp"));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
