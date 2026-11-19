@@ -480,7 +480,7 @@ async function handleRequest(req: Request) {
     // Global workspaces use the isolated global schema and authenticated edge
     // functions, not the legacy public-table snapshot above. Reuse the user's
     // JWT through the Supabase client; the Global function re-checks membership.
-    const needsGlobalFinanceContext = /invoice|bill|payment|paid|received|refund|reconcil|ledger|balance|outstanding|due|receivable|payable|paise|jama|bhugtan|पेमेंट|भुगतान|पैसे|रकम/i.test(String(latestUserText));
+    const needsGlobalFinanceContext = deterministicIntentHints.intents.includes("payment_incoming") || /invoice|bill|payment|paid|received|refund|reconcil|ledger|balance|outstanding|due|receivable|payable|paise|jama|bhugtan|पेमेंट|भुगतान|पैसे|रकम/i.test(String(latestUserText));
     const globalContextPromise = needsGlobalFinanceContext
       ? (async () => {
           let timeoutId: ReturnType<typeof setTimeout> | undefined;
