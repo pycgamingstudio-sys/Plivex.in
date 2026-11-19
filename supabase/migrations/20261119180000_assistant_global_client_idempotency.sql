@@ -136,4 +136,4 @@ END;
 $function$;
 
 REVOKE ALL ON FUNCTION public.assistant_create_global_client_idempotent(uuid, text, text, jsonb) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.assistant_create_global_client_idempotent(text, text, jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.assistant_create_global_client_idempotent(uuid, text, text, jsonb) TO authenticated;
