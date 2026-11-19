@@ -147,6 +147,15 @@ begin
   end if;
 
   if exists (
+    select 1 from public.warehouses wh
+    join _legacy_global_workspace_map m on m.legacy_workspace_id=wh.workspace_id
+    join global.warehouses existing on existing.id=wh.id
+    where existing.workspace_id<>m.global_workspace_id
+  ) then
+    raise exception 'Legacy Global recovery stopped: a legacy warehouse ID is already assigned to another Global workspace';
+  end if;
+
+  if exists (
     select 1 from _legacy_global_workspace_map m
     join global.workspaces w on w.id=m.global_workspace_id
     where w.created_by <> m.owner_id or w.country_code <> m.country_code
@@ -292,6 +301,10 @@ select
   wh.is_default,wh.is_active,m.owner_id,wh.created_at,wh.updated_at
 from public.warehouses wh
 join _legacy_global_workspace_map m on m.legacy_workspace_id=wh.workspace_id
+where not exists (
+  select 1 from global.warehouses existing
+  where existing.workspace_id=m.global_workspace_id and existing.code=wh.code
+)
 on conflict (id) do nothing;
 
 insert into global.clients(id,workspace_id,name,email,phone,tax_registration_number,billing_address,shipping_address,notes,created_by,created_at,updated_at)
