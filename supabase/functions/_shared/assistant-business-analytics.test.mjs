@@ -95,3 +95,19 @@ test("identifies overdue open purchase orders without treating completed orders 
   assert.equal(result.purchasing.overdueExpectedOrderCount, 1);
   assert.equal(result.purchasing.overdueOrders[0].daysOverdue, 9);
 });
+
+test("flags expired and soon-to-expire positive inventory batches", () => {
+  const result = buildAssistantBusinessAnalytics({
+    asOfDate: "2026-11-19",
+    inventoryBatches: [
+      { batch_number: "OLD", quantity: 4, expires_on: "2026-11-01" },
+      { batch_number: "SOON", quantity: 2, expires_on: "2026-12-01" },
+      { batch_number: "FAR", quantity: 5, expires_on: "2027-02-01" },
+      { batch_number: "EMPTY", quantity: 0, expires_on: "2026-11-01" },
+      { batch_number: "NO-DATE", quantity: 3, expires_on: null },
+    ],
+  });
+  assert.equal(result.inventory.expiredBatchCount, 1);
+  assert.equal(result.inventory.expiringWithin30DaysCount, 1);
+  assert.equal(result.inventory.batchRecordCount, 5);
+});
