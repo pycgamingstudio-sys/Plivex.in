@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Eye, Trash2, MessageCircle, ArrowRight, X, Search, ChevronDown, ChevronRight, Paperclip, PenLine, FileText, CheckCircle2, Clock, Receipt as ReceiptIcon, RotateCcw, Bell } from "lucide-react";
 import { KEYS, loadList, saveList, removeItem, genId, loadState, saveState } from "@/lib/stores";
 import { inputCls, btnGhost } from "@/lib/ui";
-import { money2, dateLabel, btnAccent, subPill, statusBadge, Empty } from "@/lib/dashboardData";
+import { money2, dateLabel, btnAccent, subPill, statusBadge } from "@/lib/dashboardData";
 import { paginate, totalPages } from "@/lib/paging";
 import { usePaywall } from "@/lib/paywall";
 import { useRole } from "@/lib/roles";
