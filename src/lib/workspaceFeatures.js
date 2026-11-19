@@ -39,7 +39,7 @@ export function getSuggestedWorkspaceFeatures(workTypes = []) {
 /** Workspace feature preferences are stored on the canonical workspace.
  * The retired Global build keeps its compatibility metadata path until that worker is decommissioned.
  */
-export function useWorkspaceFeatures(workspaceId, workspaceIdentity = {}) {
+export function useWorkspaceFeatures(workspaceId) {
   const [features, setFeatures] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
