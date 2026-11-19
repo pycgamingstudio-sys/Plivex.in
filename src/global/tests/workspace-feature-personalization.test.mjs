@@ -65,7 +65,8 @@ test("More Features exposes every dashboard module and supports adding optional 
   const nav = await read("../../pages/Dashboard.jsx");
   const layout = await read("../../components/AppLayout.jsx");
   assert.match(dashboard, /More Features/);
-  assert.match(library, /const catalog = getAvailableWorkspaceFeatureCatalog\(APP_EDITION\)/);\n  assert.match(library, /catalog\.map\(\(item\) =>/);
+  assert.match(library, /const catalog = getAvailableWorkspaceFeatureCatalog\(APP_EDITION\)/);
+  assert.match(library, /catalog\.map\(\(item\) =>/);
   assert.match(library, /Remove from dashboard/);
   assert.match(library, /Always included/);
   assert.match(library, /Stock and Team Members can be added by Freelancer workspaces too/);
