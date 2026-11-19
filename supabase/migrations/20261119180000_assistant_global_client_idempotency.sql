@@ -52,6 +52,11 @@ BEGIN
     v_workspace_id::text || ':global-client:' ||
     lower(regexp_replace(btrim(p_values->>'name'), '\s+', ' ', 'g')), 0
   ));
+  IF nullif(btrim(p_values->>'email'), '') IS NOT NULL THEN
+    PERFORM pg_advisory_xact_lock(hashtextextended(
+      v_workspace_id::text || ':global-client-email:' || lower(btrim(p_values->>'email')), 0
+    ));
+  END IF;
 
   INSERT INTO public.assistant_action_batches(workspace_id, user_id, idempotency_key, request_hash)
   VALUES (v_workspace_id::text, v_user_id, p_idempotency_key, p_request_hash)
