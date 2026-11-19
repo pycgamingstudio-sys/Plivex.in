@@ -7,6 +7,7 @@ import { validateGlobalProductAction } from "../_shared/assistant-global-product
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
 import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
 import { validateWarehouseAction } from "../_shared/assistant-warehouse-validation.mjs";
+import { isGlobalOnlyAssistantAction } from "../_shared/assistant-workspace-action-guard.mjs";
 
 const ALLOWED_ORIGINS = new Set([
   "https://plivex.in",
@@ -155,7 +156,7 @@ Deno.serve(async (req: Request) => {
     if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_client", "create_global_expense", "create_global_product", "record_global_invoice_payment"].includes(String(action?.type || "")))) {
       return json({ error: "This Global workspace action is not connected yet. No legacy India-table write was attempted." }, 403, origin);
     }
-    if (!isGlobalWorkspace && rawActions.some((action: any) => ["create_global_client", "create_global_expense", "record_global_invoice_payment"].includes(String(action?.type || "")))) {
+    if (!isGlobalWorkspace && rawActions.some((action: any) => isGlobalOnlyAssistantAction(action?.type))) {
       return json({ error: "This Global-only action is not available in the current workspace." }, 403, origin);
     }
     const actions = rawActions.map(validateAction);
