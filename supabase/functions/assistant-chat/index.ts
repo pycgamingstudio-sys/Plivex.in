@@ -4,6 +4,7 @@ import { normalizeAssistantActionBatch } from "../_shared/assistant-tool-registr
 import { buildBusinessIntentHints } from "../_shared/assistant-intent-planner.mjs";
 import { buildAssistantBusinessAnalytics } from "../_shared/assistant-business-analytics.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
+import { validateGoodsReceiptAgainstContext } from "../_shared/assistant-goods-receipt-context.mjs";
 
 const ALLOWED_ORIGINS = new Set([
   "https://plivex.in",
@@ -406,7 +407,7 @@ async function handleRequest(req: Request) {
     const isRecordCreationRequest = /\b(add|create|save|record|jod(?:o)?|bana(?:o|na)?|darj)\b/i.test(String(latestUserText));
     // Image analysis and record creation do not need a 500-row workspace snapshot.
     const hasReadQueryIntent = /(due|balance|ledger|pending|kitna|kitne|baki|baaki|outstanding|total|report|dikha|bata|show|list|how many|how much)/i.test(String(latestUserText));
-    const liveContext: any = image && !hasReadQueryIntent
+    const needsPurchasingContext = /purchase\\s*order|purchase|receipt|receive|stock\\s*receive|warehouse|godown|maal\\s*(aaya|aa\\s*gaya)/i.test(String(latestUserText));\n    const liveContext: any = image && !hasReadQueryIntent && !needsPurchasingContext
       ? { business: null, summaries: {}, records: {}, limitNote: "Live workspace data was not needed for this receipt-only request." }
       : await loadLiveContext(supabase, profile.workspace_id);
     const systemInstruction = [
@@ -763,6 +764,21 @@ async function handleRequest(req: Request) {
       return json({ reply: "Goods receipt changes inventory and must be confirmed separately. I can prepare the receipt first; please handle the other requested action in a separate message. Nothing has been saved." });
     }
     if (normalizedBatch.error || (rawActions.length && proposedActions.length !== uniqueRawActions.length)) {
+      return json({ reply: "I understood your request, but one or more actions are unsupported or missing required details. Nothing has been prepared yet. Please clarify the exact missing detail." });
+    }
+    for (const action of proposedActions) {
+      if (action.type !== "receive_purchase_order") continue;
+      const receiptCheck = validateGoodsReceiptAgainstContext(action, liveContext);
+      if (!receiptCheck.ok) {
+        const explanation = receiptCheck.reason === "context_unavailable"
+          ? "I cannot verify the purchase order or warehouse because one or more required inventory modules are unavailable right now."
+          : receiptCheck.reason === "quantity_exceeds_loaded_outstanding"
+          ? "The requested quantity is more than the outstanding quantity on that purchase-order line."
+          : "I could not match that purchase order, line item or active warehouse to the loaded workspace records.";
+        return json({ reply: explanation + " Nothing has been prepared or saved. Please check the purchase order and try again." });
+      }
+      action.summary = receiptCheck.summary;
+    }
       return json({ reply: "I understood your request, but one or more actions are unsupported or missing required details. Nothing has been prepared yet. Please clarify the exact missing detail." });
     }
     const idempotencyKey = proposedActions.length ? crypto.randomUUID() : null;
