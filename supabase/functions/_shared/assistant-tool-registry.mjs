@@ -13,7 +13,7 @@ export const ASSISTANT_WRITE_TOOLS = Object.freeze({
   create_stock: { module: "inventory", approval: "user_confirmation", required: ["name", "quantity", "price"] },
   create_quotation: { module: "quotations", approval: "user_confirmation", required: ["client_name", "total"] },
   create_invoice: { module: "invoices", approval: "user_confirmation", required: ["client_name", "items"] },
-  receive_purchase_order: { module: "purchase_receipts", approval: "user_confirmation", required: ["purchase_order_id", "warehouse_id", "items", "idempotencyKey"] },
+  receive_purchase_order: { module: "purchase_receipts", approval: "user_confirmation", required: ["purchase_order_id", "warehouse_id", "items"] },
 });
 
 export const BUSINESS_MODULE_CATALOG = Object.freeze({
