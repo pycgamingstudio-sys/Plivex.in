@@ -933,10 +933,7 @@ export default function Home() {
   const handleWhatsApp = () => {
     if (!canAccess("whatsapp_share")) { openPaywall("WhatsApp sharing is available on Pro."); return; }
     if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
-    if (!requireValid({ allowGlobalDraftExport: isGlobalWorkspace })) {
-      notify("Please complete all required invoice details before sharing on WhatsApp", "error");
-      return;
-    }
+    if (!requireValid({ allowGlobalDraftExport: isGlobalWorkspace })) return;
     const existing = normalizePhone(invoice.client.phone);
     if (existing) {
       sendWhatsApp(existing);
@@ -948,7 +945,7 @@ export default function Home() {
   const sendWhatsApp = async (phone) => {
     if (!canAccess("whatsapp_share")) { openPaywall("WhatsApp sharing is available on Pro."); return; }
     if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
-    if (!requireValid({ allowGlobalDraftExport: isGlobalWorkspace })) { notify("Please complete all required invoice details before sharing on WhatsApp", "error"); return; }
+    if (!requireValid({ allowGlobalDraftExport: isGlobalWorkspace })) return;
     const digits = normalizePhone(phone);
     if (!digits) { notify("Please enter a valid WhatsApp number with its country code.", "error"); return; }
     // Open the WhatsApp window synchronously (within the user gesture) to avoid
@@ -1032,7 +1029,7 @@ export default function Home() {
     if (!canAccess("whatsapp_share")) { openPaywall("Gmail and SMS invoice sharing are available on Pro."); return; }
     if (manualShareBusy || whatsappSending || pdfDownloading) return;
     if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
-    if (!requireValid({ allowGlobalDraftExport: isGlobalWorkspace })) { notify("Please complete all required invoice details before sharing.", "error"); return; }
+    if (!requireValid({ allowGlobalDraftExport: isGlobalWorkspace })) return;
 
     const email = String(invoice.client.email || "").trim();
     const phone = normalizePhone(invoice.client.phone);
