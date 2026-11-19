@@ -111,13 +111,27 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return json({ error: "Your session expired. Please sign in again." }, 401, origin);
 
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles").select("workspace_id,role").eq("id", user.id).maybeSingle();
-    if (profileError || !profile?.workspace_id) return json({ error: "Your Plivex workspace could not be found." }, 403, origin);
+    const [profileResult, globalAuthResult] = await Promise.all([
+      supabase.from("profiles").select("workspace_id,role").eq("id", user.id).maybeSingle(),
+      supabase.functions.invoke("global-auth-context", { body: {} }).catch(() => ({ data: null, error: true })),
+    ]);
+    const profile = profileResult.data || null;
+    const globalUser = !globalAuthResult.error && globalAuthResult.data?.user?.workspace_id
+      ? globalAuthResult.data.user
+      : null;
+    const workspaceId = globalUser?.workspace_id || profile?.workspace_id || null;
+    const isGlobalWorkspace = Boolean(globalUser?.workspace_id);
+    if (!workspaceId) return json({ error: "Your Plivex workspace could not be found." }, 403, origin);
 
     const body = await req.json().catch(() => null);
     const rawActions = Array.isArray(body?.actions) ? body.actions : [body?.action];
     if (!rawActions.length || rawActions.length > 10) return json({ error: "Please confirm between 1 and 10 valid actions." }, 400, origin);
+    if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_client", "record_global_invoice_payment"].includes(String(action?.type || "")))) {
+      return json({ error: "This Global workspace action is not connected yet. No legacy India-table write was attempted." }, 403, origin);
+    }
+    if (!isGlobalWorkspace && rawActions.some((action: any) => ["create_global_client", "record_global_invoice_payment"].includes(String(action?.type || "")))) {
+      return json({ error: "This Global-only action is not available in the current workspace." }, 403, origin);
+    }
     const actions = rawActions.map(validateAction);
     if (actions.some((action: unknown) => !action)) return json({ error: "Some action details are missing or invalid. Nothing was saved." }, 400, origin);
     const idempotencyKey = text(body?.idempotencyKey,160);
@@ -132,6 +146,7 @@ Deno.serve(async (req: Request) => {
         p_idempotency_key: idempotencyKey,
         p_request_hash: requestHash,
         p_values: payload,
+        p_workspace_id: workspaceId,
       });
       if (clientError) {
         console.error("Global client creation rejected", { code: clientError.code, userId: user.id });
@@ -148,7 +163,7 @@ Deno.serve(async (req: Request) => {
         return json({ error: message }, reason === "forbidden" || reason === "access_denied" ? 403 : 400, origin);
       }
       const { data: clients, error: verifyError } = await supabase.functions.invoke("global-business-records", {
-        body: { action: "list", table: "clients", workspace_id: profile.workspace_id, limit: 100 },
+        body: { action: "list", table: "clients", workspace_id: workspaceId, limit: 100 },
       });
       const verifiedClient = !verifyError && clients?.ok && Array.isArray(clients.records)
         ? clients.records.find((item: any) => item?.id === client.client_id && item?.name === payload.name)
@@ -171,7 +186,7 @@ Deno.serve(async (req: Request) => {
       }
       const payload = actions[0].payload;
       const { data: before, error: beforeError } = await supabase.functions.invoke("global-invoices", {
-        body: { action: "list_reconciliation", workspace_id: profile.workspace_id, limit: 200 },
+        body: { action: "list_reconciliation", workspace_id: workspaceId, limit: 200 },
       });
       if (beforeError || !before?.ok || !Array.isArray(before.records)) {
         return json({ error: "Global invoice balances could not be verified. No payment was recorded." }, 503, origin);
@@ -199,7 +214,7 @@ Deno.serve(async (req: Request) => {
       }
       const { data: payment, error: paymentError } = await supabase.functions.invoke("global-invoices", {
         body: {
-          action: "record_payment", workspace_id: profile.workspace_id,
+          action: "record_payment", workspace_id: workspaceId,
           invoice_id: payload.invoice_id, amount_minor: amountMinor,
           currency_code: payload.currency_code, payment_date: payload.payment_date,
           method: payload.method || null, reference: payload.reference || null,
