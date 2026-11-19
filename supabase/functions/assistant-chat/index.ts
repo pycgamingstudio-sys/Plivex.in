@@ -302,8 +302,7 @@ function parseExpenseConversation(incoming: any[]) {
     amount = parseMoney(latestNumber[1], latestNumber[2] || "");
   }
   const namedVendor = combined.match(/(?:vendor|payee|supplier|name|naam|नाम)\s*(?:hai|is|[:=])?\s*([A-Za-z][A-Za-z .'-]{0,80}?)(?=\s+(?:amount|price|total|cost|value|description|purpose|reason|note|category|date|payment|method)\b|[,;\n]|$)/i);
-  const leadingVendor = combined.match(/(?:^|
-)\s*([A-Za-z][A-Za-z .'-]{1,50}?)\s+(?=(?:amount|price|total|description|purpose)\b)/i);
+  const leadingVendor = combined.match(/(?:^|\n)\s*([A-Za-z][A-Za-z .'-]{1,50}?)\s+(?=(?:amount|price|total|description|purpose)\b)/i);
   const vendor = text(namedVendor?.[1] || leadingVendor?.[1], 120).replace(/[.,;:]+$/, "").trim();
   const descriptionMatch = combined.match(/(?:description|purpose|reason|note)\s*(?:hai|is|[:=])?\s*([A-Za-z][A-Za-z0-9 /&().'-]{0,120}?)(?=\s+(?:amount|price|total|cost|value|vendor|payee|supplier|name|naam|category|date|payment|method)\b|[,;\n]|$)/i);
   const notes = text(descriptionMatch?.[1], 500).replace(/[.,;:]+$/, "").trim();
