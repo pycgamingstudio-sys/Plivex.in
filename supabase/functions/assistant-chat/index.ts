@@ -81,7 +81,7 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
     pendingValueByCurrency: currencyTotals(pendingInvoices, "total", "currency").byGroup,
   };
   const stockQuantityTotals = groupNumericTotals(stock, "quantity", "unit");
-  const businessAnalytics = buildAssistantBusinessAnalytics({ invoices, stock, stockMovements, asOfDate: indiaToday() });
+  const businessAnalytics = buildAssistantBusinessAnalytics({ invoices, stock, stockMovements, purchaseOrders, asOfDate: indiaToday() });
   return {
     businessAnalytics,
     warning: errors.length ? "Some tables were unavailable due to permissions or query errors: " + errors.join(", ") : undefined,
