@@ -22,7 +22,7 @@ import AccountProfileModal from "@/components/AccountProfileModal";
 import PresenceBeacon from "@/components/PresenceBeacon";
 import { processDueReminders } from "@/lib/reminders";
 import { APP_EDITION } from "@/api/backendClient";
-import { getCountryByCode } from "@/global/countries/country-registry.js";
+import { getCountryByCode, getCountryFlag } from "@/global/countries/country-registry.js";
 import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
 
 const TABS = [
@@ -158,6 +158,11 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
               <button onClick={() => setMoreOpen(true)} className="flex h-9 items-center gap-1 rounded-lg border border-[#E5E7EB] px-2 text-[11px] font-bold text-slate-600 hover:bg-slate-50 md:hidden"><LayoutGrid className="h-4 w-4" /><span>More</span></button>
             </div>
           </div>
+          <div data-testid="mobile-workspace-identity" className="flex min-w-0 items-center gap-2 border-t border-slate-100 px-3 py-2 sm:px-6 md:hidden">
+            <span aria-hidden="true" className="shrink-0 text-base">{getCountryFlag(user?.country_code) || "🌐"}</span>
+            <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-700">{user?.workspace_name || "Workspace"}</span>
+            <span className="shrink-0 text-[10px] text-slate-500">{getCountryByCode(user?.country_code)?.name || "Country not set"}{user?.currency_code ? ` · ${user.currency_code}` : ""}</span>
+          </div>
         </header>
         <main className="plivex-dashboard-main p-4 pb-24 sm:p-6 md:pb-6">
           {tab === "dashboard" && <DashboardTab onNavigate={go} onCreateInvoice={createInvoice} role={role} teamUnlocked={canAccess("team_management")} />}
@@ -174,14 +179,14 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
 
       <nav aria-label="Primary and workspace navigation" className="plivex-bottom-nav fixed inset-x-0 bottom-0 z-30 flex overflow-x-auto overscroll-x-contain border-t border-[#E5E7EB] bg-white md:hidden">
         {visibleTabs.map((t) => (
-          <button key={t.id} onClick={() => go(t.id)} aria-current={tab === t.id ? "page" : undefined} className={`flex min-w-[72px] shrink-0 flex-col items-center gap-1 px-2.5 py-2.5 text-[10px] font-semibold transition-colors ${tab === t.id ? "text-[#6D28D9]" : "text-slate-400"}`}><t.icon className="h-5 w-5" />{t.label}{t.id === "team" && !teamUnlocked && <span className="rounded bg-amber-100 px-1 text-[8px] font-extrabold text-amber-800">PRO</span>}</button>
+          <button key={t.id} onClick={() => go(t.id)} aria-current={tab === t.id ? "page" : undefined} className={`flex min-w-[68px] shrink-0 flex-col items-center gap-1 px-2 py-2.5 text-[10px] font-semibold transition-colors ${tab === t.id ? "text-[#6D28D9]" : "text-slate-400"}`}><t.icon className="h-5 w-5" />{t.label}{t.id === "team" && !teamUnlocked && <span className="rounded bg-amber-100 px-1 text-[8px] font-extrabold text-amber-800">PRO</span>}</button>
         ))}
         {morePages.map((p) => (
-          <NavLink key={p.to} to={p.to} className={({ isActive }) => `flex min-w-[72px] shrink-0 flex-col items-center gap-1 px-2.5 py-2.5 text-[10px] font-semibold transition-colors ${isActive ? "text-[#6D28D9]" : "text-slate-400"}`}>
+          <NavLink key={p.to} to={p.to} className={({ isActive }) => `flex min-w-[68px] shrink-0 flex-col items-center gap-1 px-2 py-2.5 text-[10px] font-semibold transition-colors ${isActive ? "text-[#6D28D9]" : "text-slate-400"}`}>
             <p.icon className="h-5 w-5" />{p.label}
           </NavLink>
         ))}
-        <button onClick={() => setMoreOpen(true)} className="flex min-w-[72px] shrink-0 flex-col items-center gap-1 px-2.5 py-2.5 text-[10px] font-bold text-[#6D28D9]"><LayoutGrid className="h-5 w-5" />More</button>
+        <button onClick={() => setMoreOpen(true)} className="flex min-w-[68px] shrink-0 flex-col items-center gap-1 px-2 py-2.5 text-[10px] font-bold text-[#6D28D9]"><LayoutGrid className="h-5 w-5" />More</button>
       </nav>
 
       {accountOpen && <AccountProfileModal onClose={() => setAccountOpen(false)} />}
