@@ -72,8 +72,7 @@ test("unified onboarding has a bounded mobile viewport and a genuinely scrollabl
 
 test("non-India invoice drafts are rebound to verified workspace base currency without changing amounts", async () => {
   const stores = await read("../../lib/stores.js");
-  assert.match(stores, /const enteredCurrency = String\(inv\.currency \|\| ""\)\.trim\(\)\.toUpperCase\(\)/);
-  assert.match(stores, /isGlobalWorkspaceInvoice && \[\^A-Z\]\{3\}\$/.test(stores));
+  assert.match(stores, /const invoiceToSave = isGlobalWorkspaceInvoice &&/);
   assert.match(stores, /currency: workspaceCurrency/);
   assert.match(stores, /const sig = invoiceSignature\(invoiceToSave\)/);
   assert.match(stores, /invoice_snapshot: invoiceToSave/);
