@@ -204,3 +204,10 @@ test("existing workspace owners cannot bypass mandatory onboarding with a stale 
   assert.ok(app.includes('user.legacy_review_required) && (!getPendingInviteCode() || Boolean(user.workspace_id))'));
   assert.ok(app.includes('const canProvisionWorkspace = !user.workspace_id || !user.role || user.role === "admin" || user.role === "user"'));
 });
+
+test("mobile onboarding keeps long steps in the page scroll flow while desktop keeps its inner scroller", async () => {
+  const onboarding = await read("../../components/global/UnifiedWorkspaceOnboarding.jsx");
+  assert.match(onboarding, /<main className="[^"]*h-\[100dvh\][^"]*overflow-y-auto/);
+  assert.match(onboarding, /<section className="[^"]*overflow-visible[^"]*sm:overflow-hidden/);
+  assert.match(onboarding, /className="min-h-0 flex-none overflow-visible[^"]*sm:min-h-0 sm:flex-1 sm:overflow-y-auto/);
+});
