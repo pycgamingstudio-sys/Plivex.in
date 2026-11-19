@@ -8,7 +8,7 @@ const validator = (action) => action && ASSISTANT_WRITE_TOOLS[action.type] && ac
 
 test("allows only the explicitly implemented confirmation actions", () => {
   assert.deepEqual(Object.keys(ASSISTANT_WRITE_TOOLS).sort(), [
-    "create_client", "create_expense", "create_invoice", "create_lead", "create_quotation", "create_stock", "receive_purchase_order"
+    "create_client", "create_expense", "create_invoice", "create_lead", "create_quotation", "create_stock", "create_purchase_order", "receive_purchase_order"
   ]);
 });
 
@@ -47,7 +47,8 @@ test("catalog distinguishes implemented actions from planned modules", () => {
 test("catalog marks the idempotent goods-receipt executor as implemented", () => {
   assert.equal(BUSINESS_MODULE_CATALOG.warehouses.readContext, true);
   assert.deepEqual(BUSINESS_MODULE_CATALOG.warehouses.writeTools, []);
-  assert.equal(BUSINESS_MODULE_CATALOG.purchase_orders.planned, true);
+  assert.deepEqual(BUSINESS_MODULE_CATALOG.purchase_orders.writeTools, ["create_purchase_order"]);
+  assert.equal(BUSINESS_MODULE_CATALOG.purchase_orders.planned, false);
   assert.deepEqual(BUSINESS_MODULE_CATALOG.purchase_receipts.writeTools, ["receive_purchase_order"]);
   assert.equal(BUSINESS_MODULE_CATALOG.purchase_receipts.planned, false);
 });
