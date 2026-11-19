@@ -58,3 +58,43 @@ test("PLIVEX ONE saves non-India invoices as canonical public drafts", async () 
   assert.match(shareHelper, /invoice-share/);
   assert.match(home, /This is not an issued tax invoice; payment-provider collection is not connected yet/);
 });
+
+
+test("Global invoices can explicitly select no-tax commercial treatment without registration data", async () => {
+  const { calculateInvoiceGlobalTax } = await import("../tax/invoice-tax-integration.js");
+  const invoice = {
+    currency: "GBP",
+    issueDate: "2026-11-19",
+    discount: 0,
+    discountType: "percent",
+    items: [{ quantity: 2, rate: 125, gstRate: 0 }],
+    globalTax: { countryCode: "GB", mode: "automatic", taxMode: "no_tax", noTaxConfirmed: true },
+  };
+  const result = calculateInvoiceGlobalTax(invoice, { countryCode: "GB", currencyCode: "GBP" });
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "not_applicable");
+  assert.equal(result.taxMinor, 0);
+  assert.equal(result.totalMinor, 25000);
+  assert.equal(result.taxSnapshot, null);
+  assert.match(result.disclosure, /not been independently verified/);
+});
+
+test("Global no-tax commercial treatment requires explicit user confirmation", async () => {
+  const { calculateInvoiceGlobalTax } = await import("../tax/invoice-tax-integration.js");
+  const result = calculateInvoiceGlobalTax({
+    currency: "GBP",
+    issueDate: "2026-11-19",
+    items: [{ quantity: 1, rate: 100 }],
+    globalTax: { countryCode: "GB", taxMode: "no_tax", noTaxConfirmed: false },
+  }, { countryCode: "GB", currencyCode: "GBP" });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "NO_TAX_CONFIRMATION_REQUIRED");
+});
+
+test("Global invoice UI distinguishes no-tax commercial invoices from zero-rated and exempt supplies", async () => {
+  const editor = await read("../../components/invoice/GlobalTaxEditor.jsx");
+  assert.match(editor, /global-tax-mode/);
+  assert.match(editor, /No tax charged · commercial invoice/);
+  assert.match(editor, /not a zero-rated or tax-exempt classification/);
+  assert.match(editor, /Plivex does not decide whether your business or transaction legally qualifies/);
+});

@@ -11,6 +11,8 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
   const config = invoice.globalTax || {
     countryCode,
     mode: ["US", "CA"].includes(countryCode) ? "manual" : "automatic",
+    taxMode: "taxable",
+    noTaxConfirmed: false,
     priceMode: "exclusive",
     placeOfSupply: "",
     placeOfSupplyConfirmed: false,
@@ -43,7 +45,8 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
   const isUS = countryCode === "US";
   const isCA = countryCode === "CA";
   const currency = invoice.currency || workspaceProfile?.currencyCode || "";
-  const manual = selectedMode === "manual";
+  const manual = selectedMode === "manual" && config.taxMode !== "no_tax";
+  const noTax = config.taxMode === "no_tax";
 
   return (
     <section className="rounded-xl border bg-card p-4 sm:p-5" data-testid="global-tax-editor">
@@ -56,7 +59,21 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
         <span className="rounded-full bg-muted px-2 py-1 text-[10px] font-semibold">{currency}</span>
       </div>
 
-      <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-[11px] text-amber-950"><strong>Preview:</strong> this is a tax estimate until the server validates and issues the invoice. Issued invoice tax snapshots are locked and are not silently recalculated.</div>\n      <div className="mt-3 rounded-lg bg-muted/40 p-3 text-[11px] text-muted-foreground">
+      <div className="mt-3 rounded-lg bg-muted/40 p-3 text-[11px] text-muted-foreground"><strong>Tax treatment:</strong> Plivex records the choice you make here. It does not independently verify registration, tax obligations or exemptions.</div>
+      <label className={labelClass + " mt-4"}>How should tax be handled?
+        <select data-testid="global-tax-mode" className={fieldClass} value={config.taxMode || "taxable"} onChange={(e) => update({ taxMode: e.target.value, noTaxConfirmed: false })}>
+          <option value="taxable">Tax applies · calculate tax</option>
+          <option value="no_tax">No tax charged · commercial invoice</option>
+        </select>
+      </label>
+      {noTax ? (
+        <div className="mt-3 rounded-lg border p-3 text-xs">
+          <label className="flex items-start gap-2"><input data-testid="global-no-tax-confirm" type="checkbox" checked={config.noTaxConfirmed === true} onChange={(e) => update({ noTaxConfirmed: e.target.checked })} /><span>I confirm that I have checked the rules for this business and transaction and am not required to charge this tax. I understand this is not a zero-rated or tax-exempt classification.</span></label>
+          <p className="mt-2 text-[11px] text-muted-foreground">The invoice will show no tax added. Plivex does not decide whether your business or transaction legally qualifies.</p>
+        </div>
+      ) : (
+      <>
+      <div className="mt-3 rounded-lg bg-muted/40 p-3 text-[11px] text-muted-foreground">
         <p><strong>Saved registration:</strong> {workspaceProfile?.registrationNumber || "Not provided"} · {workspaceProfile?.registrationStatus || "unregistered"}</p>
         <p className="mt-1">Effective from: {workspaceProfile?.registrationEffectiveFrom || "Not provided"} · Registered jurisdiction: {workspaceProfile?.registeredJurisdiction || "Not provided"}</p>
       </div>
@@ -136,12 +153,14 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
         </div>
       )}
 
+      </>
+      )}
       <div className="mt-4 rounded-lg border p-3" aria-live="polite">
         {result?.ok ? (
           <>
-            <p className="flex items-center gap-2 text-xs font-bold text-emerald-700"><CheckCircle2 className="h-4 w-4" />{result.status === "manual_unverified" ? "Manual calculation · unverified" : "Standard-rate calculation"}</p>
+            <p className="flex items-center gap-2 text-xs font-bold text-emerald-700"><CheckCircle2 className="h-4 w-4" />{result.status === "not_applicable" ? "No tax charged · commercial invoice" : result.status === "manual_unverified" ? "Manual calculation · unverified" : "Standard-rate calculation"}</p>
             <p className="mt-2 text-sm font-semibold">Tax: {(result.taxMinor / 100).toFixed(2)} {currency} · Total: {(result.totalMinor / 100).toFixed(2)} {currency}</p>
-            {result.warning && <p className="mt-2 text-[11px] leading-relaxed text-amber-800">{result.warning}</p>}
+            {(result.warning || result.disclosure) && <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{result.warning || result.disclosure}</p>}
             {result.ruleSnapshot?.source && <a className="mt-2 inline-block text-[11px] text-primary underline" href={result.ruleSnapshot.source} target="_blank" rel="noreferrer">View tax rule source</a>}
           </>
         ) : (

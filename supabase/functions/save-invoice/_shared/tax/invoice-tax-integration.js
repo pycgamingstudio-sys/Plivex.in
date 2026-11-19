@@ -62,6 +62,32 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
   const issueDate = String(invoice?.issueDate || "");
   if (!validDate(issueDate)) return fail("INVOICE_DATE_REQUIRED", "A valid invoice date is required for tax effective-date checks.");
 
+  // A commercial invoice with no tax charged is distinct from zero-rated or exempt
+  // tax treatment. It requires an explicit business attestation and never creates
+  // a tax calculation/snapshot or claims that Plivex verified legal tax status.
+  if (config.taxMode === "no_tax") {
+    if (config.noTaxConfirmed !== true) {
+      return fail("NO_TAX_CONFIRMATION_REQUIRED", "Confirm that you have checked and are not required to charge this tax on this transaction.");
+    }
+    const amount = amountMinor(invoice);
+    if (!Number.isSafeInteger(amount) || amount < 0) return fail("INVALID_AMOUNT", "Invoice amount is outside supported calculation limits.");
+    return {
+      ok: true,
+      status: "not_applicable",
+      mode: "no_tax",
+      countryCode,
+      currencyCode,
+      invoiceDate: issueDate,
+      taxableMinor: amount,
+      taxMinor: 0,
+      totalMinor: amount,
+      components: [],
+      taxSnapshot: null,
+      warning: null,
+      disclosure: "No tax charged — commercial invoice. Tax status is based on the business's confirmation and has not been independently verified by Plivex.",
+    };
+  }
+
   const registrationNumber = String(workspaceProfile?.registrationNumber || "").trim();
   const registrationStatus = String(workspaceProfile?.registrationStatus || "unregistered");
   const registrationEffectiveFrom = String(workspaceProfile?.registrationEffectiveFrom || "");
