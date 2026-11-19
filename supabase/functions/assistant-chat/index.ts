@@ -474,7 +474,7 @@ async function handleRequest(req: Request) {
     // Image analysis and record creation do not need a 500-row workspace snapshot.
     const hasReadQueryIntent = /(due|balance|ledger|pending|kitna|kitne|baki|baaki|outstanding|total|report|dikha|bata|show|list|how many|how much)/i.test(String(latestUserText));
     const needsPurchasingContext = /purchase\s*order|purchase|receipt|receive|stock\s*receive|warehouse|godown|maal\s*(aaya|aa\s*gaya)/i.test(String(latestUserText));
-    const liveContextPromise = image && !hasReadQueryIntent && !needsPurchasingContext
+    const liveContextPromise: Promise<any> = image && !hasReadQueryIntent && !needsPurchasingContext
       ? Promise.resolve({ business: null, summaries: {}, records: {}, limitNote: "Live workspace data was not needed for this receipt-only request." })
       : loadLiveContext(supabase, profile.workspace_id);
     // Global workspaces use the isolated global schema and authenticated edge
