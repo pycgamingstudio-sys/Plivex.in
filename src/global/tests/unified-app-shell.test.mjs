@@ -47,7 +47,10 @@ test("unified authentication resolves workspace country before selecting regiona
   assert.match(unifiedResolver, /globalUser\.workspace_id/);
   assert.match(unifiedResolver, /setRuntimeEdition\("global", \{ verifiedGlobal: true \}\)/);
   assert.match(unifiedResolver, /globalUser\.id !== currentUser\?\.id/);
-  assert.match(unifiedResolver, /countryCode === "IN"/);
+  assert.match(unifiedResolver, /profileCountry === "IN"/);
+  assert.match(unifiedResolver, /Always resolve the server-owned Global membership/);
+  assert.ok(unifiedResolver.indexOf('supabase.functions.invoke("global-auth-context"') < unifiedResolver.indexOf('profileCountry === "IN"'));
+  assert.doesNotMatch(unifiedResolver, /if \(!countryCode \|\| countryCode === "IN"\)/);
   assert.match(auth, /const wasGlobalWorkspace = APP_EDITION === 'global'/);
   assert.match(auth, /migrateLegacy: !wasGlobalWorkspace/);
   assert.match(backend, /export let APP_EDITION/);
