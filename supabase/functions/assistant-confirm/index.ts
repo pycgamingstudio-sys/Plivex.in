@@ -39,6 +39,20 @@ function validateAction(action: unknown) {
   const candidate = action as Record<string, unknown>;
   const type = text(candidate.type, 40);
   const raw = candidate.payload && typeof candidate.payload === "object" ? candidate.payload as Record<string, unknown> : {};
+  if (type === "record_global_invoice_payment") {
+    const invoiceId = text(raw.invoice_id, 36);
+    const amount = number(raw.amount);
+    const currencyCode = text(raw.currency_code, 3).toUpperCase();
+    const paymentDate = text(raw.payment_date, 10);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(invoiceId)
+      || !(amount > 0) || !/^[A-Z]{3}$/.test(currencyCode)
+      || !/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)
+      || Number.isNaN(Date.parse(paymentDate + "T00:00:00Z"))) return null;
+    return { type, payload: {
+      invoice_id: invoiceId, amount, currency_code: currencyCode, payment_date: paymentDate,
+      method: text(raw.method, 80), reference: text(raw.reference, 160), notes: text(raw.notes, 1000),
+    } };
+  }
   if (type === "create_warehouse") {
     return validateWarehouseAction(action);
   }
@@ -114,6 +128,76 @@ Deno.serve(async (req: Request) => {
     if (actions.some((action: unknown) => !action)) return json({ error: "Some action details are missing or invalid. Nothing was saved." }, 400, origin);
     const idempotencyKey = text(body?.idempotencyKey,160);
     if (idempotencyKey.length < 16) return json({ error: "Confirmation key is missing. Please refresh the pending action and try again." }, 400, origin);
+    if (actions.some((action: any) => action.type === "record_global_invoice_payment")) {
+      if (actions.length !== 1) return json({ error: "A Global invoice payment must be confirmed separately so its ledger entry remains atomic." }, 400, origin);
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) {
+        return json({ error: "The payment confirmation key is invalid. Please prepare the action again." }, 400, origin);
+      }
+      const payload = actions[0].payload;
+      const { data: before, error: beforeError } = await supabase.functions.invoke("global-invoices", {
+        body: { action: "list_reconciliation", workspace_id: profile.workspace_id, limit: 200 },
+      });
+      if (beforeError || !before?.ok || !Array.isArray(before.records)) {
+        return json({ error: "Global invoice balances could not be verified. No payment was recorded." }, 503, origin);
+      }
+      const invoice = before.records.find((item: any) => item?.invoice_id === payload.invoice_id);
+      if (!invoice) return json({ error: "That invoice is not available in this Global workspace." }, 404, origin);
+      if (String(invoice.currency_code || "").toUpperCase() !== payload.currency_code) {
+        return json({ error: "Payment currency must match the selected invoice currency." }, 409, origin);
+      }
+      const outstandingMinor = Number(invoice.outstanding_minor);
+      if (!Number.isSafeInteger(outstandingMinor) || outstandingMinor <= 0) {
+        return json({ error: "This invoice has no outstanding balance to receive." }, 409, origin);
+      }
+      const fractionDigits = new Intl.NumberFormat("en", { style: "currency", currency: payload.currency_code }).resolvedOptions().maximumFractionDigits;
+      const scale = 10 ** fractionDigits;
+      const scaledAmount = payload.amount * scale;
+      const amountMinor = Math.round(scaledAmount);
+      if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0 || Math.abs(scaledAmount - amountMinor) > 1e-7) {
+        return json({ error: "Payment amount has more decimal places than the invoice currency supports." }, 400, origin);
+      }
+      if (amountMinor > outstandingMinor) {
+        return json({ error: "Payment exceeds this invoice's remaining balance. Nothing was recorded." }, 409, origin);
+      }
+      const { data: payment, error: paymentError } = await supabase.functions.invoke("global-invoices", {
+        body: {
+          action: "record_payment", workspace_id: profile.workspace_id,
+          invoice_id: payload.invoice_id, amount_minor: amountMinor,
+          currency_code: payload.currency_code, payment_date: payload.payment_date,
+          method: payload.method || null, reference: payload.reference || null,
+          notes: payload.notes || null, idempotency_key: idempotencyKey,
+        },
+      });
+      if (paymentError || !payment?.ok || !payment?.payment?.id) {
+        const reason = String(payment?.reason || "");
+        const message = reason === "forbidden" ? "Your Global workspace role cannot record invoice payments."
+          : reason === "overpayment" ? "The payment exceeds the invoice's remaining balance."
+          : reason === "invoice_not_payable" ? "This invoice is not in a payable status."
+          : reason === "invalid_currency" ? "Payment currency does not match the invoice."
+          : reason === "idempotency_conflict" ? "This confirmation was already used for different payment details."
+          : "The Global payment ledger rejected this request. No success has been reported.";
+        return json({ error: message }, reason === "forbidden" ? 403 : 409, origin);
+      }
+      const { data: after, error: afterError } = await supabase.functions.invoke("global-invoices", {
+        body: { action: "list_reconciliation", workspace_id: profile.workspace_id, limit: 200 },
+      });
+      const updated = !afterError && after?.ok && Array.isArray(after.records)
+        ? after.records.find((item: any) => item?.invoice_id === payload.invoice_id)
+        : null;
+      const verified = Boolean(updated
+        && Number(updated.outstanding_minor) <= outstandingMinor
+        && String(updated.currency_code || "").toUpperCase() === payload.currency_code
+        && Number(payment.invoice?.amount_paid_minor) >= amountMinor);
+      return json({
+        ok: true, verified, duplicate: Boolean(payment.duplicate),
+        reply: verified
+          ? "Payment recorded and verified in the Global invoice ledger. The invoice balance has been recalculated."
+          : "The payment service accepted the request, but Plivex could not verify the updated invoice balance. Check the invoice before retrying.",
+        created: [{ type: "record_global_invoice_payment", id: payment.payment.id, invoice_id: payload.invoice_id }],
+        verification: [{ type: "record_global_invoice_payment", id: payment.payment.id, verified }],
+        payment: verified ? { amount: payload.amount, currency_code: payload.currency_code, payment_date: payload.payment_date } : null,
+      }, 200, origin);
+    }
     if (actions.some((action: any) => action.type === "create_warehouse")) {
       if (actions.length !== 1) return json({ error: "Warehouse creation must be confirmed separately from other actions." }, 400, origin);
       const payload = actions[0].payload;
