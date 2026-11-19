@@ -1,5 +1,5 @@
 import { useAuth } from "@/lib/AuthContext";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Plus, Trash2, X, Search, ChevronDown, ChevronRight, RotateCcw, Wallet, TrendingUp, PiggyBank } from "lucide-react";
 import { KEYS, loadList, saveList, removeItem, genId } from "@/lib/stores";
 import { inputCls, btnGhost } from "@/lib/ui";
@@ -10,7 +10,8 @@ import { useRole } from "@/lib/roles";
 import SummaryCard from "@/components/dashboard/SummaryCard";
 
 const CATS = ["Rent", "Raw Materials", "Utilities", "Salary", "Logistics", "Software", "Marketing", "Other"];
-const blank = { vendor: "", category: "Raw Materials", amount: "", date: new Date().toISOString().slice(0, 10), status: "Unpaid", method: "Bank Transfer", notes: "" };
+const localDate = (offsetDays = 0) => { const now = new Date(); now.setDate(now.getDate() + offsetDays); return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0"); };
+const blank = { vendor: "", category: "Raw Materials", amount: "", date: localDate(), status: "Unpaid", method: "Bank Transfer", notes: "" };
 
 export default function PurchaseTab({ intent, onConsumeIntent }) {
   const { requestAction, limits, usage, openPaywall } = usePaywall();
@@ -32,8 +33,8 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
   useEffect(() => { if (intent === "new-expense") { setOpen(true); onConsumeIntent(); } }, [intent]);
 
   const now = new Date();
-  const cur = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthExpenses = expenses.filter((e) => new Date(e.date) >= cur);
+  const monthStart = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-01";
+  const monthExpenses = expenses.filter((e) => String(e.date || "").slice(0, 10) >= monthStart);
   const expensesByCurrency = new Map();
   monthExpenses.forEach((e) => {
     const currency = String(e.currencyCode || "").trim().toUpperCase();
@@ -47,7 +48,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
   const baseCurrencyExpenses = expensesByCurrency.get(currencyCode) || 0;
   const hasOtherCurrencyExpenses = [...expensesByCurrency.keys()].some((currency) => currency !== currencyCode);
   const hasUnknownCurrencyExpenses = monthExpenses.some((e) => !/^[A-Z]{3}$/.test(String(e.currencyCode || "").trim().toUpperCase()));
-  const monthInvoices = loadList(KEYS.history).filter((it) => { const d = new Date(it.createdDate || it.issueDate); return d >= cur; });
+  const monthInvoices = loadList(KEYS.history).filter((it) => String(it.issueDate || it.createdDate || "").slice(0, 10) >= monthStart);
   const salesByCurrency = new Map();
   monthInvoices.forEach((it) => {
     const currency = String(it.currency || "").trim().toUpperCase();
@@ -65,15 +66,15 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
 
   const expenseStatus = (e) => {
     if (e.status === "Paid" || e.status === "Received" || e.status === "Cancelled") return e.status;
-    const overdue = new Date(e.date) < new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+    const overdue = String(e.date || "").slice(0, 10) < localDate(-7);
     return overdue ? "Overdue" : (e.status || "Unpaid");
   };
 
   const filtered = useMemo(() => expenses.filter((e) => {
     const hay = `${e.vendor} ${e.category} ${e.notes}`.toLowerCase();
     if (q && !hay.includes(q.toLowerCase())) return false;
-    if (from && new Date(e.date) < new Date(from)) return false;
-    if (to && new Date(e.date) > new Date(to)) return false;
+    if (from && String(e.date || "").slice(0, 10) < from) return false;
+    if (to && String(e.date || "").slice(0, 10) > to) return false;
     if (cat !== "all" && e.category !== cat) return false;
     if (statusFilter !== "all" && expenseStatus(e) !== statusFilter) return false;
     return true;
@@ -83,17 +84,25 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
   const rows = paginate(filtered, page);
   const pages = totalPages(filtered);
 
-  const remove = (id) => { setExpenses(removeItem(KEYS.expenses, id)); setExpanded(null); };
+  const remove = (id) => { const expense = expenses.find((item) => item.id === id); if (!expense || !window.confirm("Delete expense for " + expense.vendor + "? This cannot be undone.")) return; setExpenses(removeItem(KEYS.expenses, id)); setExpanded(null); };
   // Status changes (Pending → Received / Paid / Cancelled) persist to the store and refresh the UI immediately.
   const setStatus = (id, status) => {
+    const expense = expenses.find((item) => item.id === id);
+    if (!expense || !window.confirm("Change expense status from " + expenseStatus(expense) + " to " + status + "?")) return;
     const updated = expenses.map((x) => (x.id === id ? { ...x, status } : x));
     setExpenses(updated);
     saveList(KEYS.expenses, updated);
   };
   const save = (entry) => {
-    if (!entry.vendor.trim() || !entry.amount) return;
+    const amount = Number(entry.amount);
+    const [year, month, day] = String(entry.date || "").split("-").map(Number);
+    const calendarDate = new Date(year, month - 1, day);
+    const validDate = /^\d{4}-\d{2}-\d{2}$/.test(entry.date) && calendarDate.getFullYear() === year && calendarDate.getMonth() === month - 1 && calendarDate.getDate() === day;
+    if (!entry.vendor.trim()) { window.alert("Enter a vendor or payee name."); return; }
+    if (!Number.isFinite(amount) || amount <= 0) { window.alert("Enter an amount greater than zero."); return; }
+    if (!validDate) { window.alert("Choose a valid expense date."); return; }
     if (!requestAction()) return;
-    const next = [{ ...entry, currencyCode, id: genId("exp"), amount: Number(entry.amount) || 0 }, ...expenses];
+    const next = [{ ...entry, currencyCode, id: genId("exp"), amount }, ...expenses];
     setExpenses(next); saveList(KEYS.expenses, next); setOpen(false);
   };
   const resetFilters = () => { setQ(""); setFrom(""); setTo(""); setCat("all"); setStatusFilter("all"); setPage(1); };
@@ -106,22 +115,24 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <SummaryCard label="Monthly Expense" value={monthExp} gradient="bg-gradient-to-br from-[#E11D48] to-[#F43F5E]" icon={Wallet} badge="this month" />
         <SummaryCard label="Monthly Sales" value={monthSales} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={TrendingUp} badge="this month" />
-        <SummaryCard label={`Net Profit · ${currencyCode}`} value={money2(net, currencyCode)} gradient={net >= 0 ? "bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" : "bg-gradient-to-br from-[#D97706] to-[#F59E0B]"} icon={PiggyBank} badge={net >= 0 ? "surplus" : "deficit"} />
+        <SummaryCard label={`Operating Difference · ${currencyCode}`} value={money2(net, currencyCode)} gradient={net >= 0 ? "bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" : "bg-gradient-to-br from-[#D97706] to-[#F59E0B]"} icon={PiggyBank} badge={net >= 0 ? "positive" : "negative"} />
       </div>
-      {(hasOtherCurrencySales || hasOtherCurrencyExpenses || hasUnknownCurrencyExpenses || hasUnknownCurrencySales) && <p className="text-[11px] text-muted-foreground">Sales and expenses are grouped by their recorded currency. Net profit uses only base-currency sales and expenses; records without a recorded currency are excluded. No FX conversion is performed.</p>}
+      {(hasOtherCurrencySales || hasOtherCurrencyExpenses || hasUnknownCurrencyExpenses || hasUnknownCurrencySales) && <p className="text-[11px] text-muted-foreground">Sales and expenses are grouped by their recorded currency. Operating difference uses only base-currency sales and expenses; records without a recorded currency are excluded. No FX conversion is performed.</p>}
+      <p className="text-[11px] leading-relaxed text-muted-foreground">Operating difference is sales minus recorded expenses, not a complete accounting profit. It excludes cost of goods, taxes and other unrecorded adjustments.</p>
+      {/* Net profit uses only base-currency sales and expenses; records without a recorded currency are excluded. The metric is labeled Operating Difference because it is not a complete accounting profit. */}
 
       <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-[#E5E7EB] p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-1 items-center gap-2">
             <div className="relative max-w-xs flex-1">
               <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search vendor, category…" className={`${inputCls} pl-9`} />
+              <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search vendor, category…" aria-label="Search expenses" className={`${inputCls} pl-9`} />
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} className={`${inputCls} w-auto`} aria-label="From" />
+            <input type="date" value={from} max={to || undefined} onChange={(e) => { setFrom(e.target.value); setPage(1); }} className={`${inputCls} w-auto`} aria-label="From" />
             <span className="text-slate-300">–</span>
-            <input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} className={`${inputCls} w-auto`} aria-label="To" />
+            <input type="date" value={to} min={from || undefined} onChange={(e) => { setTo(e.target.value); setPage(1); }} className={`${inputCls} w-auto`} aria-label="To" />
             <select value={cat} onChange={(e) => { setCat(e.target.value); setPage(1); }} className={`${inputCls} w-auto`}>
               <option value="all">All categories</option>
               {CATS.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -142,7 +153,8 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
         {filtered.length === 0 ? (
           <Empty label="No expenses match your filters." />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[640px] text-left text-[12px]">
               <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 <tr>
@@ -160,8 +172,8 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
                   const open = expanded === e.id;
                   const vendorLogs = expenses.filter((x) => x.vendor === e.vendor && x.id !== e.id);
                   return (
-                    <>
-                      <tr key={e.id} className="hover:bg-slate-50">
+                    <Fragment key={e.id}>
+                      <tr className="hover:bg-slate-50">
                         <td className="px-3 py-3">
                           <button onClick={() => setExpanded(open ? null : e.id)} className="rounded-md p-1 text-slate-400 hover:bg-slate-100" aria-label="Expand">
                             {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -172,7 +184,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
                         <td className="px-3 py-3 text-slate-500">{dateLabel(e.date)}</td>
                         <td className="px-3 py-3 text-right font-bold text-slate-900">{recordedExpenseAmount(e)}</td>
                         <td className="px-3 py-3">
-                          <select value={e.status || "Unpaid"} onChange={(ev) => setStatus(e.id, ev.target.value)} aria-label="Order status" className={`cursor-pointer rounded-full border-0 px-2.5 py-1 text-[10px] font-bold uppercase outline-none ${statusCls(expenseStatus(e))}`}>
+                          <select value={e.status || "Unpaid"} onChange={(ev) => setStatus(e.id, ev.target.value)} aria-label={"Status for expense " + e.vendor} className={`cursor-pointer rounded-full border-0 px-2.5 py-1 text-[10px] font-bold uppercase outline-none ${statusCls(expenseStatus(e))}`}>
                             <option value="Pending">Pending</option>
                             <option value="Unpaid">Unpaid</option>
                             <option value="Received">Received</option>
@@ -218,12 +230,20 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>
             </table>
           </div>
+          <div className="space-y-2.5 p-3 md:hidden">
+            {rows.map((expense) => <article key={expense.id} className="rounded-xl border border-slate-200 p-3.5">
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words text-[13px] font-bold text-slate-900">{expense.vendor}</p><p className="mt-0.5 text-[10px] text-slate-500">{expense.category} · {dateLabel(expense.date)}</p></div><p className="shrink-0 text-[13px] font-bold text-slate-900">{recordedExpenseAmount(expense)}</p></div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3"><span className={"rounded-full px-2.5 py-1 text-[10px] font-bold " + statusCls(expenseStatus(expense))}>{expenseStatus(expense)}</span><div className="flex items-center gap-2"><select value={expense.status || "Unpaid"} onChange={(event) => setStatus(expense.id, event.target.value)} aria-label={"Change status for " + expense.vendor} className="min-h-9 max-w-[125px] rounded-lg border border-slate-200 bg-white px-2 text-[10px]"><option value="Pending">Pending</option><option value="Unpaid">Unpaid</option><option value="Received">Received</option><option value="Paid">Paid</option><option value="Cancelled">Cancelled</option></select><button type="button" onClick={() => remove(expense.id)} aria-label={"Delete expense for " + expense.vendor} className="min-h-9 rounded-lg border border-rose-100 px-3 text-[11px] font-semibold text-rose-700">Delete</button></div></div>
+              {expense.notes && <p className="mt-2 text-[11px] leading-relaxed text-slate-500">{expense.notes}</p>}
+            </article>)}
+          </div>
+          </>
         )}
 
         <div className="flex items-center justify-between border-t border-[#E5E7EB] px-4 py-3 text-[11px] text-slate-500">
@@ -242,12 +262,12 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
 }
 
 function ExpenseModal({ currencyCode, onClose, onSave }) {
-  const [form, setForm] = useState(blank);
+  const [form, setForm] = useState(() => ({ ...blank, date: localDate() }));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-[480px] rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between"><h3 className="text-lg font-bold text-slate-900">Record a purchase</h3><button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
+      <div role="dialog" aria-modal="true" aria-labelledby="expense-modal-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-[480px] overflow-y-auto overscroll-contain rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between"><h3 id="expense-modal-title" className="text-lg font-bold text-slate-900">Record a purchase</h3><button type="button" onClick={onClose} aria-label="Close purchase form" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
         <div className="mt-4 grid gap-3">
           <label className="block text-[12px] font-semibold text-slate-500">Vendor name<input className={inputCls} value={form.vendor} onChange={(e) => set("vendor", e.target.value)} placeholder="Vendor / supplier" /></label>
           <div className="grid grid-cols-2 gap-3">
