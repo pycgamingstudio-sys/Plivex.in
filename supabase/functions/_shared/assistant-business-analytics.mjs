@@ -27,9 +27,9 @@ export function groupNumericTotals(items = [], valueField, groupField) {
   }, {});
   const keys = Object.keys(byGroup);
   return {
-    total: keys.length <= 1 ? (keys.length ? byGroup[keys[0]] : 0) : null,
+    total: keys.length === 0 ? 0 : (keys.length === 1 && keys[0] !== "UNKNOWN" ? byGroup[keys[0]] : null),
     byGroup,
-    mixedGroups: keys.length > 1,
+    mixedGroups: keys.length > 1 || keys.includes("UNKNOWN"),
   };
 }
 
