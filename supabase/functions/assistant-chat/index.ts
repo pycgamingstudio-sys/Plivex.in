@@ -6,6 +6,7 @@ import { buildAssistantBusinessAnalytics, groupNumericTotals } from "../_shared/
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
 import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
 import { validateWarehouseAction } from "../_shared/assistant-warehouse-validation.mjs";
+import { detectPurchasingWriteIntent } from "../_shared/assistant-purchasing-write-intent.mjs";
 import { validatePurchaseOrderAgainstContext } from "../_shared/assistant-purchase-order-context.mjs";
 import { validateGoodsReceiptAgainstContext } from "../_shared/assistant-goods-receipt-context.mjs";
 
@@ -590,6 +591,12 @@ async function handleRequest(req: Request) {
     const expenseClarificationActive = plausibleFieldAnswer && assistantAwaitingField(/(?:expense|amount|vendor|payee|supplier|description|purpose|खर्च|रकम)/i);
     const stockClarificationActive = plausibleFieldAnswer && assistantAwaitingField(/(?:stock|quantity|qty|price|rate|item|मात्रा|कीमत)/i);
     const clientClarificationActive = plausibleFieldAnswer && assistantAwaitingField(/(?:client|customer|grahak|क्लाइंट|name|नाम)/i);
+    const purchasingIntent = detectPurchasingWriteIntent(currentUserText, {
+      explicitWriteIntent,
+      awaitingPurchaseOrderField: plausibleFieldAnswer && assistantAwaitingField(/(?:purchase order|supplier|stock item|quantity|unit cost|rate|expected date|खरीद आदेश|सप्लायर)/i),
+      awaitingWarehouseField: plausibleFieldAnswer && assistantAwaitingField(/(?:warehouse|godown|code|address|गोदाम)/i),
+      awaitingGoodsReceiptField: plausibleFieldAnswer && assistantAwaitingField(/(?:goods receipt|purchase order|warehouse|received quantity|stock received|batch|माल)/i),
+    });
     const clientIntentActive = /(?:client|customer|grahak|क्लाइंट)/i.test(currentUserText) && explicitWriteIntent || clientClarificationActive;
     const invoiceIntentActive = /(?:invoice|bill|इनवॉइस|बिल)/i.test(currentUserText) && (explicitWriteIntent || invoiceClarificationActive);
     const expenseIntentActive = /(?:expense|kharcha|kharch|खर्च)/i.test(currentUserText) && (explicitWriteIntent || expenseClarificationActive)
@@ -643,7 +650,7 @@ async function handleRequest(req: Request) {
     );
     const latestText = recentUserTexts[recentUserTexts.length - 1] || "";
     // Never allow Gemini to replay a completed or unrelated write action from old chat history.
-    const activeWriteTask = Boolean(clientIntentActive || invoiceIntentActive || expenseIntentActive || stockIntentActive);
+    const activeWriteTask = Boolean(clientIntentActive || invoiceIntentActive || expenseIntentActive || stockIntentActive || purchasingIntent.purchaseOrderIntentActive || purchasingIntent.warehouseIntentActive || purchasingIntent.goodsReceiptIntentActive);
     if (!activeWriteTask) {
       parsed.actions = [];
       parsed.action = { type: "none", payload: {} };
