@@ -69,3 +69,17 @@ test("flags lifecycle ambiguity instead of merging order and receipt events", ()
   const result = buildBusinessIntentHints("create purchase order and receive goods");
   assert.ok(result.ambiguities.some((item) => item.field === "purchase_lifecycle"));
 });
+
+test("does not confuse read-only purchase-order questions with creation intent", () => {
+  assert.deepEqual(classifyBusinessIntents("show my purchase orders"), []);
+  assert.deepEqual(classifyBusinessIntents("list purchase orders for this month"), []);
+  assert.ok(classifyBusinessIntents("raise a purchase order for 20 kg rice").includes("create_purchase_order"));
+  assert.ok(classifyBusinessIntents("purchase order bana do").includes("create_purchase_order"));
+});
+
+test("recognizes multiple explicit intents in one compound request", () => {
+  const intents = classifyBusinessIntents("add a customer, record an expense, and create a stock item");
+  assert.ok(intents.includes("create_client"));
+  assert.ok(intents.includes("create_expense"));
+  assert.ok(intents.includes("create_stock"));
+});
