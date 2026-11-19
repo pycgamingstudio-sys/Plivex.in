@@ -63,8 +63,9 @@ test("mobile onboarding keeps progress, step content and actions within the phon
   const onboarding = await read("../../components/global/UnifiedWorkspaceOnboarding.jsx");
   assert.match(onboarding, /h-\[100dvh\].*px-3/);
   assert.match(onboarding, /w-full max-w-3xl/);
-  assert.match(onboarding, /flex h-\[calc\(100dvh-2\.5rem\)\] min-h-0 w-full/);
-  assert.match(onboarding, /min-h-0 flex-1 overflow-y-auto overscroll-y-contain touch-pan-y/);
+  assert.match(onboarding, /h-auto min-h-\[calc\(100dvh-1\.5rem\)\] w-full/);
+  assert.match(onboarding, /overflow-y-auto overscroll-y-contain/);
+  assert.match(onboarding, /overflow-visible.*sm:overflow-y-auto/);
   assert.match(onboarding, /shrink-0 items-center justify-between.*safe-area-inset-bottom/);
   assert.match(onboarding, /min-h-11/);
   assert.match(onboarding, /Skip mobile number/);
