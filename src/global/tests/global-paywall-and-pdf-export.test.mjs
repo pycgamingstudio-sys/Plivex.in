@@ -40,3 +40,10 @@ test("invoice PDF filenames are safe on Android and desktop filesystems", () => 
   assert.equal(getGlobalInvoicePdfFilename({ invoice_number: "INV/2026:001" }), "INV-2026-001.pdf");
   assert.equal(getGlobalInvoicePdfFilename({ invoice_number: "   " }), "Plivex-invoice.pdf");
 });
+
+test("pricing modal does not flash the unresolved-country warning while billing context is loading", async () => {
+  const paywall = await read("../../lib/paywall.jsx");
+  const modal = paywall.slice(paywall.indexOf("function PaywallModal"));
+  assert.match(modal, /resolvedBillingContext\.loading \? "Verifying workspace billing country and currency/);
+  assert.match(modal, /!resolvedBillingContext\.loading && !billingConfig && <p role="alert"/);
+});
