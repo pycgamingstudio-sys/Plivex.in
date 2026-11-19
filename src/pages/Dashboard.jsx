@@ -78,7 +78,7 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
     if (path === "/inventory-procurement") return workspaceFeatures.includes("inventoryWorkspace");
     if (["/usage-reports", "/tax-summary", "/account-activity"].includes(path)) return workspaceFeatures.includes("reports");
     if (path === "/payment-logs") return workspaceFeatures.includes("expenses");
-    if (path === "/team-management") return workspaceFeatures.includes("team");
+    if (path === "/team-management") return user?.workspace_type === "business" || workspaceFeatures.includes("team");
     if (path === "/templates" || path === "/service-catalog") return workspaceFeatures.includes("quotations");
     return true;
   };
