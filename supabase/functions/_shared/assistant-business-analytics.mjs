@@ -39,11 +39,12 @@ export function groupNumericTotals(items = [], valueField, groupField) {
  *   stock?: Array<Record<string, unknown>>,
  *   stockMovements?: Array<Record<string, unknown>>,
  *   purchaseOrders?: Array<Record<string, unknown>>,
+ *   inventoryBatches?: Array<Record<string, unknown>>,
  *   asOfDate?: string
  * }} input
  */
 export function buildAssistantBusinessAnalytics(input = {}) {
-  const { invoices = [], stock = [], stockMovements = [], purchaseOrders = [], asOfDate } = input;
+  const { invoices = [], stock = [], stockMovements = [], purchaseOrders = [], inventoryBatches = [], asOfDate } = input;
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(String(asOfDate || ""));
   const openInvoices = invoices.filter((item) => {
     const status = String(item?.status || "").toLowerCase();
@@ -71,6 +72,17 @@ export function buildAssistantBusinessAnalytics(input = {}) {
   const overduePurchaseOrders = validDate ? openPurchaseOrders.filter((order) => {
     const expectedDate = String(order?.expected_date || "");
     return Boolean(expectedDate) && daysBetween(asOfDate, expectedDate) > 0;
+  }) : [];
+  const positiveBatches = inventoryBatches.filter((batch) => finite(batch?.quantity, 0) > 0);
+  const expiredBatches = validDate ? positiveBatches.filter((batch) => {
+    const expiry = String(batch?.expires_on || "");
+    return /^\\d{4}-\\d{2}-\\d{2}$/.test(expiry) && daysBetween(asOfDate, expiry) > 0;
+  }) : [];
+  const expiringBatches = validDate ? positiveBatches.filter((batch) => {
+    const expiry = String(batch?.expires_on || "");
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(expiry)) return false;
+    const daysUntilExpiry = daysBetween(expiry, asOfDate);
+    return daysUntilExpiry !== null && daysUntilExpiry >= 0 && daysUntilExpiry <= 30;
   }) : [];
   const movementTypes = stockMovements.reduce((counts, item) => {
     const type = String(item?.movement_type || "unknown").slice(0, 40);
@@ -103,6 +115,9 @@ export function buildAssistantBusinessAnalytics(input = {}) {
       lowStockItems: lowStock,
       movementRecordCount: stockMovements.length,
       movementTypes,
+      batchRecordCount: inventoryBatches.length,
+      expiredBatchCount: expiredBatches.length,
+      expiringWithin30DaysCount: expiringBatches.length,
     },
     caveats: [
       "Receivables are counts only; monetary values are intentionally not combined across currencies.",
