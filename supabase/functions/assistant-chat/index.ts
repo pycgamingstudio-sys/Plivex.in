@@ -458,13 +458,13 @@ async function handleRequest(req: Request) {
                 items: {
                   type: "OBJECT",
                   properties: {
-                    type: { type: "STRING", enum: ["create_client", "create_expense", "create_lead", "create_stock", "create_quotation", "create_invoice"] },
+                    type: { type: "STRING", enum: ["create_client", "create_expense", "create_lead", "create_stock", "create_quotation", "create_invoice", "receive_purchase_order"] },
                     payload: { type: "OBJECT", properties: {
                       name:{type:"STRING"}, company:{type:"STRING"}, email:{type:"STRING"}, phone:{type:"STRING"}, gstin:{type:"STRING"}, address:{type:"STRING"},
                       vendor:{type:"STRING"}, category:{type:"STRING"}, amount:{type:"NUMBER"}, date:{type:"STRING"}, status:{type:"STRING"}, method:{type:"STRING"}, notes:{type:"STRING"},
                       requirement:{type:"STRING"}, value:{type:"NUMBER"}, stage:{type:"STRING"}, sku:{type:"STRING"}, quantity:{type:"NUMBER"}, unit:{type:"STRING"}, price:{type:"NUMBER"}, low_stock:{type:"NUMBER"},
-                      client_name:{type:"STRING"}, client_email:{type:"STRING"}, business_name:{type:"STRING"}, issue_date:{type:"STRING"}, due_date:{type:"STRING"}, currency:{type:"STRING"}, tax_mode:{type:"STRING"}, discount_type:{type:"STRING"}, discount:{type:"NUMBER"}, terms:{type:"STRING"}, is_draft:{type:"BOOLEAN"}, total:{type:"NUMBER"}, tax_rate:{type:"NUMBER"},
-                      items:{type:"ARRAY",items:{type:"OBJECT",properties:{description:{type:"STRING"},quantity:{type:"NUMBER"},rate:{type:"NUMBER"},gst_rate:{type:"NUMBER"}}}}
+                      purchase_order_id:{type:"STRING"}, warehouse_id:{type:"STRING"}, client_name:{type:"STRING"}, client_email:{type:"STRING"}, business_name:{type:"STRING"}, issue_date:{type:"STRING"}, due_date:{type:"STRING"}, currency:{type:"STRING"}, tax_mode:{type:"STRING"}, discount_type:{type:"STRING"}, discount:{type:"NUMBER"}, terms:{type:"STRING"}, is_draft:{type:"BOOLEAN"}, total:{type:"NUMBER"}, tax_rate:{type:"NUMBER"},
+                      items:{type:"ARRAY",items:{type:"OBJECT",properties:{description:{type:"STRING"},quantity:{type:"NUMBER"},rate:{type:"NUMBER"},gst_rate:{type:"NUMBER"},purchase_order_item_id:{type:"STRING"},batch_number:{type:"STRING"},expires_on:{type:"STRING"}}}}
                     } }
                   },
                   required:["type","payload"]
@@ -473,7 +473,7 @@ async function handleRequest(req: Request) {
               action: {
                 type: "OBJECT",
                 properties: {
-                  type: { type: "STRING", enum: ["none", "create_client", "create_expense", "create_lead", "create_stock", "create_quotation", "create_invoice"] },
+                  type: { type: "STRING", enum: ["none", "create_client", "create_expense", "create_lead", "create_stock", "create_quotation", "create_invoice", "receive_purchase_order"] },
                   payload: {
                     type: "OBJECT",
                     properties: {
