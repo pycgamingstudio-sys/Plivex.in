@@ -39,7 +39,7 @@ export function getSuggestedWorkspaceFeatures(workTypes = []) {
 /** Workspace feature preferences are stored on the canonical workspace.
  * The retired Global build keeps its compatibility metadata path until that worker is decommissioned.
  */
-export function useWorkspaceFeatures(workspaceId) {
+export function useWorkspaceFeatures(workspaceId, workspaceIdentity = {}) {
   const [features, setFeatures] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -97,10 +97,45 @@ export function useWorkspaceFeatures(workspaceId) {
         });
         if (updateError) throw updateError;
       } else {
-        const { error: updateError } = await supabase.from("workspace_settings")
-          .update({ optional_features: next, updated_at: new Date().toISOString() })
-          .eq("workspace_id", workspaceId);
-        if (updateError) throw updateError;
+        const table = supabase.from("workspace_settings");
+        const { data: existing, error: readError } = await table
+          .select("workspace_id")
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+        if (readError) throw readError;
+
+        const updatedAt = new Date().toISOString();
+        if (existing?.workspace_id) {
+          const { data: saved, error: updateError } = await table
+            .update({ optional_features: next, updated_at: updatedAt })
+            .eq("workspace_id", workspaceId)
+            .select("workspace_id")
+            .maybeSingle();
+          if (updateError) throw updateError;
+          if (!saved?.workspace_id) throw new Error("Workspace feature preferences were not saved. Check your workspace permissions and retry.");
+        } else {
+          const countryCode = String(workspaceIdentity.country_code || "").trim().toUpperCase();
+          const localeCode = String(workspaceIdentity.locale_code || "").trim();
+          const currencyCode = String(workspaceIdentity.currency_code || "").trim().toUpperCase();
+          const workspaceType = String(workspaceIdentity.workspace_type || "").trim();
+          if (!countryCode || !localeCode || !currencyCode || !["freelancer", "business"].includes(workspaceType)) {
+            throw new Error("Workspace settings are incomplete. Reopen Workspace setup before changing feature preferences.");
+          }
+          const { data: saved, error: insertError } = await table
+            .upsert({
+              workspace_id: workspaceId,
+              country_code: countryCode,
+              locale_code: localeCode,
+              currency_code: currencyCode,
+              workspace_type: workspaceType,
+              optional_features: next,
+              updated_at: updatedAt,
+            }, { onConflict: "workspace_id" })
+            .select("workspace_id")
+            .maybeSingle();
+          if (insertError) throw insertError;
+          if (!saved?.workspace_id) throw new Error("Workspace feature preferences could not be confirmed as saved.");
+        }
       }
       setFeatures(next);
       window.dispatchEvent(new CustomEvent("plivex:workspace-features-updated", { detail: { features: next } }));
