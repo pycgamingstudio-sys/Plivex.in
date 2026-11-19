@@ -97,44 +97,14 @@ export function useWorkspaceFeatures(workspaceId, workspaceIdentity = {}) {
         });
         if (updateError) throw updateError;
       } else {
-        const table = supabase.from("workspace_settings");
-        const { data: existing, error: readError } = await table
-          .select("workspace_id")
+        const { data: saved, error: updateError } = await supabase.from("workspace_settings")
+          .update({ optional_features: next, updated_at: new Date().toISOString() })
           .eq("workspace_id", workspaceId)
+          .select("workspace_id")
           .maybeSingle();
-        if (readError) throw readError;
-
-        const updatedAt = new Date().toISOString();
-        if (existing?.workspace_id) {
-          const { data: saved, error: updateError } = await table
-            .update({ optional_features: next, updated_at: updatedAt })
-            .eq("workspace_id", workspaceId)
-            .select("workspace_id")
-            .maybeSingle();
-          if (updateError) throw updateError;
-          if (!saved?.workspace_id) throw new Error("Workspace feature preferences were not saved. Check your workspace permissions and retry.");
-        } else {
-          const countryCode = String(workspaceIdentity.country_code || "").trim().toUpperCase();
-          const localeCode = String(workspaceIdentity.locale_code || "").trim();
-          const currencyCode = String(workspaceIdentity.currency_code || "").trim().toUpperCase();
-          const workspaceType = String(workspaceIdentity.workspace_type || "").trim();
-          if (!countryCode || !localeCode || !currencyCode || !["freelancer", "business"].includes(workspaceType)) {
-            throw new Error("Workspace settings are incomplete. Reopen Workspace setup before changing feature preferences.");
-          }
-          const { data: saved, error: insertError } = await table
-            .upsert({
-              workspace_id: workspaceId,
-              country_code: countryCode,
-              locale_code: localeCode,
-              currency_code: currencyCode,
-              workspace_type: workspaceType,
-              optional_features: next,
-              updated_at: updatedAt,
-            }, { onConflict: "workspace_id" })
-            .select("workspace_id")
-            .maybeSingle();
-          if (insertError) throw insertError;
-          if (!saved?.workspace_id) throw new Error("Workspace feature preferences could not be confirmed as saved.");
+        if (updateError) throw updateError;
+        if (!saved?.workspace_id) {
+          throw new Error("Workspace settings were not found, so feature changes could not be saved. Complete Workspace setup again or contact support.");
         }
       }
       setFeatures(next);
