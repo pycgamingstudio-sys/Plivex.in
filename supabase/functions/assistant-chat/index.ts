@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
 import { validateGlobalInvoicePaymentAction } from "../_shared/assistant-global-payment-validation.mjs";
+import { validateGlobalClientAction } from "../_shared/assistant-global-client-validation.mjs";
 import { normalizeAssistantActionBatch } from "../_shared/assistant-tool-registry.mjs";
 import { buildBusinessIntentHints } from "../_shared/assistant-intent-planner.mjs";
 import { buildAssistantBusinessAnalytics, groupNumericTotals } from "../_shared/assistant-business-analytics.mjs";
@@ -389,6 +390,14 @@ function validateAction(action: any) {
         amount.toLocaleString(locale) + (globalDraft ? " (global tax details must be reviewed before finalizing)" : " (GST and totals will be calculated by Plivex)"),
     };
   }
+  if (type === "create_global_client") {
+    const validated = validateGlobalClientAction(action);
+    if (!validated) return null;
+    return {
+      ...validated,
+      summary: "Add Global client: " + validated.payload.name + (validated.payload.email ? " · " + validated.payload.email : "") + ". This creates a client in the authenticated Global workspace.",
+    };
+  }
   if (type === "create_client") {
     const name = text(p.name, 120);
     if (!name) return null;
@@ -481,27 +490,42 @@ async function handleRequest(req: Request) {
     // functions, not the legacy public-table snapshot above. Reuse the user's
     // JWT through the Supabase client; the Global function re-checks membership.
     const needsGlobalFinanceContext = deterministicIntentHints.intents.includes("payment_incoming") || /invoice|bill|payment|paid|received|refund|reconcil|ledger|balance|outstanding|due|receivable|payable|paise|jama|bhugtan|पेमेंट|भुगतान|पैसे|रकम/i.test(String(latestUserText));
-    const globalContextPromise = needsGlobalFinanceContext
+    const needsGlobalClientContext = /\\b(client|customer|grahak)\\b|ग्राहक|कस्टमर/i.test(String(latestUserText));
+    const globalContextPromise = needsGlobalFinanceContext || needsGlobalClientContext
       ? (async () => {
           let timeoutId: ReturnType<typeof setTimeout> | undefined;
           try {
-            const invocation = supabase.functions.invoke("global-invoices", {
-              body: { action: "list_reconciliation", workspace_id: profile.workspace_id, limit: 100 },
-            }).then(({ data, error }: any) => {
-              if (error || !data?.ok) return null;
+            const financeInvocation = needsGlobalFinanceContext
+              ? supabase.functions.invoke("global-invoices", {
+                  body: { action: "list_reconciliation", workspace_id: profile.workspace_id, limit: 100 },
+                }).then(({ data, error }: any) => !error && data?.ok ? {
+                  country_code: data.country_code || null,
+                  invoices: Array.isArray(data.records) ? data.records.slice(0, 100) : [],
+                } : null).catch(() => null)
+              : Promise.resolve(null);
+            const clientsInvocation = needsGlobalClientContext
+              ? supabase.functions.invoke("global-business-records", {
+                  body: { action: "list", table: "clients", workspace_id: profile.workspace_id, limit: 100 },
+                }).then(({ data, error }: any) => !error && data?.ok ? {
+                  currency_code: data.currency_code || null,
+                  records: Array.isArray(data.records) ? data.records.slice(0, 100) : [],
+                } : null).catch(() => null)
+              : Promise.resolve(null);
+            const combined = Promise.all([financeInvocation, clientsInvocation]).then(([finance, clients]) => {
+              if (!finance && !clients) return null;
               return {
-                country_code: data.country_code || null,
-                invoices: Array.isArray(data.records) ? data.records.slice(0, 100) : [],
-                source: "authenticated Global invoice reconciliation",
+                global_workspace: true,
+                country_code: finance?.country_code || null,
+                currency_code: clients?.currency_code || null,
+                invoices: finance?.invoices || [],
+                clients: clients?.records || [],
+                source: "authenticated Global workspace records",
               };
-            }).catch((error: any) => {
-              console.warn("Global assistant context unavailable", { message: String(error?.message || "request_failed").slice(0, 120) });
-              return null;
             });
             const timeout = new Promise<null>((resolve) => {
               timeoutId = setTimeout(() => resolve(null), 4000);
             });
-            return await Promise.race([invocation, timeout]);
+            return await Promise.race([combined, timeout]);
           } finally {
             if (timeoutId !== undefined) clearTimeout(timeoutId);
           }
@@ -540,9 +564,10 @@ async function handleRequest(req: Request) {
       "Only propose a creation when the user clearly asks to add/create/save a record. Never save anything directly during chat. IMAGE/RECEIPT UNDERSTANDING RULE: When an image is attached with an expense request, visually inspect the actual image before asking questions. Understand common Indian payment receipts (PhonePe, Google Pay, Paytm, UPI, bank transfer) and paper bills. For a successful OUTGOING payment, extract the recipient/payee as vendor, the amount paid as amount, transaction date as date (convert readable dates to YYYY-MM-DD), payment app/mode as method, and transaction ID/UTR plus purpose as notes when readable. The 'Paid to'/recipient amount is the expense amount; 'Debited from' is the payer/source account and is NOT the vendor. Do not confuse transaction ID, UTR, phone number, account balance, or payer details with amount/vendor. A successful incoming/received payment is NOT an expense; ask which record type they want instead. If receipt clearly shows a successful outgoing payment and user asked to add expense, create create_expense immediately with all readable fields, category Other if purpose/category is unknown, and leave genuinely unknown optional fields blank. Amount is required; ask only for amount if unreadable. Do not ask for vendor/amount if they are visible. Do not ask for item name, quantity or price for an expense; those belong to stock. Reply that extracted expense is ready for confirmation; never claim saved before confirmation. Do not expose full phone/account details in notes. For image requests explicitly mentioning stock/inventory, use create_stock instead. Follow the user's explicitly named module; never infer stock from words like name/quantity unless they explicitly ask for stock.",
       "If the user reports an app bug, technical problem, or something not working in Plivex, apologize briefly and direct them to support@plivex.in or +91 97584 55218. Do not claim that a support person has been contacted or promise a response time.",
       "CRITICAL ACTION RULE: Output JSON {reply, actions:[{type,payload}]} with every fully specified supported operation, up to 10. The frontend shows one combined confirmation; backend validates every action and permission. Include only explicit or unambiguously extracted fields. Never invent phone numbers, prices, quantities, dates or amounts. Do not create inventory unless product name and positive quantity are known. Do not create expense unless positive amount is known. Do not silently treat missing stock price as zero; ask for it if required. Preserve details from prior turns when the latest message supplies missing information.",
+      "GLOBAL CLIENT ACTION: When GLOBAL WORKSPACE CONTEXT contains a clients array, this is a Global workspace: create new customers only with create_global_client, not create_client. Check existing clients by normalized name first; if a matching client already exists, do not create a duplicate and ask whether the user meant to use that client. Map email, phone, tax_registration_number and notes only when explicitly supplied. In a non-Global workspace with no Global client context, use create_client. Never invent a company name or tax number.",
       "GLOBAL WORKSPACE AUTHORITY: When GLOBAL FINANCE CONTEXT is present, use its Global reconciliation records as the authoritative invoice/payment source for that workspace. Do not override Global balances with legacy public invoice summaries. When absent, do not infer Global invoice or payment data from public tables.",
       "GLOBAL PAYMENT ACTION: If the user explicitly asks to record a payment received against a Global invoice, use record_global_invoice_payment only when the exact invoice_id and currency_code exist in GLOBAL FINANCE CONTEXT, outstanding_minor is positive, and the user supplied the payment amount and date. amount is expressed in major currency units; never send minor units in amount. Do not use this for outgoing supplier payments, refunds, subscription payments or screenshots alone. Never mark an invoice paid manually; the Global ledger recalculates its balance. This action is one invoice at a time and requires confirmation. If the workspace has no Global reconciliation context, explain that this action is not connected for that workspace.",
-      "GLOBAL FINANCE CONTEXT: When present, this is the authenticated Global invoice reconciliation snapshot from the workspace's own country context. Match invoices by the visible invoice_number or client_name when the user refers to a customer; if multiple invoices match, ask which invoice. Use invoice_id only from these records when preparing a payment action. Amount fields ending in _minor are minor currency units, not major units; do not display them as whole currency amounts without the currency's correct exponent. Distinguish invoice total, gross payments, refunds, net received and outstanding. This context is read-only; payment/refund writes still require an explicitly supported action and confirmation. " + JSON.stringify(globalBusinessContext),
+      "GLOBAL WORKSPACE CONTEXT: When present, this is the authenticated Global workspace snapshot. The clients array is workspace-scoped and may be empty when no clients exist. The invoices array is the authenticated Global invoice reconciliation snapshot from the workspace's own country context. Match invoices by the visible invoice_number or client_name when the user refers to a customer; if multiple invoices match, ask which invoice. Use invoice_id only from these records when preparing a payment action. Amount fields ending in _minor are minor currency units, not major units; do not display them as whole currency amounts without the currency's correct exponent. Distinguish invoice total, gross payments, refunds, net received and outstanding. This context is read-only; payment/refund writes still require an explicitly supported action and confirmation. " + JSON.stringify(globalBusinessContext),
       "LIVE DATA JSON: " + JSON.stringify(liveContext),
     ].join("\n");
     const requestOptions = {
@@ -564,9 +589,9 @@ async function handleRequest(req: Request) {
                 items: {
                   type: "OBJECT",
                   properties: {
-                    type: { type: "STRING", enum: ["create_client", "create_expense", "create_lead", "create_stock", "create_quotation", "create_invoice", "create_purchase_order", "receive_purchase_order", "create_warehouse", "record_global_invoice_payment"] },
+                    type: { type: "STRING", enum: ["create_client", "create_global_client", "create_expense", "create_lead", "create_stock", "create_quotation", "create_invoice", "create_purchase_order", "receive_purchase_order", "create_warehouse", "record_global_invoice_payment"] },
                     payload: { type: "OBJECT", properties: {
-                      name:{type:"STRING"}, company:{type:"STRING"}, email:{type:"STRING"}, phone:{type:"STRING"}, gstin:{type:"STRING"}, address:{type:"STRING"}, invoice_id:{type:"STRING"}, currency_code:{type:"STRING"}, payment_date:{type:"STRING"}, reference:{type:"STRING"},
+                      name:{type:"STRING"}, company:{type:"STRING"}, email:{type:"STRING"}, phone:{type:"STRING"}, gstin:{type:"STRING"}, address:{type:"STRING"}, tax_registration_number:{type:"STRING"}, invoice_id:{type:"STRING"}, currency_code:{type:"STRING"}, payment_date:{type:"STRING"}, reference:{type:"STRING"},
                       vendor:{type:"STRING"}, category:{type:"STRING"}, amount:{type:"NUMBER"}, date:{type:"STRING"}, status:{type:"STRING"}, method:{type:"STRING"}, notes:{type:"STRING"},
                       requirement:{type:"STRING"}, value:{type:"NUMBER"}, stage:{type:"STRING"}, sku:{type:"STRING"}, quantity:{type:"NUMBER"}, unit:{type:"STRING"}, price:{type:"NUMBER"}, low_stock:{type:"NUMBER"},
                       purchase_order_id:{type:"STRING"}, warehouse_id:{type:"STRING"}, supplier_name:{type:"STRING"}, supplier_reference:{type:"STRING"}, expected_date:{type:"STRING"}, code:{type:"STRING"}, client_name:{type:"STRING"}, client_email:{type:"STRING"}, business_name:{type:"STRING"}, issue_date:{type:"STRING"}, due_date:{type:"STRING"}, currency:{type:"STRING"}, tax_mode:{type:"STRING"}, discount_type:{type:"STRING"}, discount:{type:"NUMBER"}, terms:{type:"STRING"}, is_draft:{type:"BOOLEAN"}, total:{type:"NUMBER"}, tax_rate:{type:"NUMBER"},
@@ -579,7 +604,7 @@ async function handleRequest(req: Request) {
               action: {
                 type: "OBJECT",
                 properties: {
-                  type: { type: "STRING", enum: ["none", "create_client", "create_expense", "create_lead", "create_stock", "create_quotation", "create_invoice", "create_purchase_order", "receive_purchase_order", "create_warehouse", "record_global_invoice_payment"] },
+                  type: { type: "STRING", enum: ["none", "create_client", "create_global_client", "create_expense", "create_lead", "create_stock", "create_quotation", "create_invoice", "create_purchase_order", "receive_purchase_order", "create_warehouse", "record_global_invoice_payment"] },
                   payload: {
                     type: "OBJECT",
                     properties: {
