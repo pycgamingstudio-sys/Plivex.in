@@ -18,7 +18,8 @@ test("validates required Global expense category, amount and workspace currency"
 });
 
 test("accepts an omitted expense date for the database default but rejects invalid dates", () => {
-  const { expense_date: _date, ...payload } = valid.payload;
+  const payload = { ...valid.payload };
+  delete payload.expense_date;
   assert.equal(validateGlobalExpenseAction({ type: "create_global_expense", payload }).payload.expense_date, null);
   assert.equal(validateGlobalExpenseAction({ ...valid, payload: { ...valid.payload, expense_date: "2026-02-30" } }), null);
 });
