@@ -31,7 +31,8 @@ export function validateGoodsReceiptAction(action) {
     const expiresOn = cleanText(item?.expires_on, 10);
     return { purchase_order_item_id: purchaseOrderItemId, quantity, batch_number: batchNumber, expires_on: expiresOn };
   });
-  if (new Set(items.map((item) => item.purchase_order_item_id)).size !== items.length) return null;\n  if (items.some((item) =>
+  if (new Set(items.map((item) => item.purchase_order_item_id)).size !== items.length) return null;
+  if (items.some((item) =>
     !UUID_RE.test(item.purchase_order_item_id)
     || !(item.quantity > 0)
     || Math.round(item.quantity * 10000) !== item.quantity * 10000
