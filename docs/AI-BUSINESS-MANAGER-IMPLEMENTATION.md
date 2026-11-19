@@ -21,7 +21,7 @@ The assistant live context now includes bounded workspace-scoped reads for activ
 
 ## Read-only business analytics
 - The assistant context derives overdue receivables aging buckets and oldest overdue age from loaded, non-draft open invoices, plus expected-date aging for open purchase orders.
-- Inventory analytics identify low-stock candidates using each item's configured threshold and summarize recent stock movement types. Stock quantities are grouped by unit, and no combined total is reported across kilograms, pieces, litres or other units.
+- Inventory analytics identify low-stock candidates using each item's configured threshold and summarize recent stock movement types, batch expiry counts and recent stock-transfer records. Stock quantities are grouped by unit, and no combined total is reported across kilograms, pieces, litres or other units.
 - Invoice and purchase-order monetary summaries are grouped by currency; a mixed-currency grand total is deliberately null rather than a misleading sum.
 - Monetary receivables are deliberately not aggregated across currencies. These analytics are counts and operational indicators, not accounting ledger balances.
 - Every calculation is limited to loaded workspace-scoped rows; unavailable modules and sample limits remain disclosed.
