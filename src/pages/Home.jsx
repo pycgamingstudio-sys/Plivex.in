@@ -605,16 +605,20 @@ export default function Home() {
       if (!user?.workspace_id) { if (active) { setWorkspaceTaxProfile(null); setWorkspaceTaxProfileLoading(false); } return; }
       if (active) setWorkspaceTaxProfileLoading(true);
       try {
-        const [{ data: settings, error: settingsError }, response] = await Promise.all([
-          supabase.from("workspace_settings")
-            .select("country_code,currency_code,locale_code")
-            .eq("workspace_id", user.workspace_id)
-            .maybeSingle(),
-          backend.functions.invoke("workspaceRecords", { table: "business_profile", action: "get" }),
-        ]);
+        // Resolve canonical workspace country/currency independently. Optional tax-profile
+        // metadata must never make a valid workspace billing configuration disappear.
+        const { data: settings, error: settingsError } = await supabase.from("workspace_settings")
+          .select("country_code,currency_code,locale_code")
+          .eq("workspace_id", user.workspace_id)
+          .maybeSingle();
         if (settingsError) throw settingsError;
-        if (response?.error) throw response.error;
-        const record = response?.data?.record || {};
+        let record = {};
+        try {
+          const response = await backend.functions.invoke("workspaceRecords", { table: "business_profile", action: "get" });
+          if (!response?.error) record = response?.data?.record || {};
+        } catch {
+          // Registration details are optional for pricing and base-currency resolution.
+        }
         if (!active) return;
         // Canonical Workspace settings are the source of truth. Profile metadata and
         // business_profile may be stale after country onboarding and must not override it.
