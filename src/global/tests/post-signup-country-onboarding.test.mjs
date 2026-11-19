@@ -22,11 +22,11 @@ test("unified signup authenticates first and collects country after sign-in", as
   assert.match(onboarding, /Please select your country again and choose Freelancer or Business/);
   assert.doesNotMatch(onboarding, /initial\.countryCode \|\| user\?\.country_code/);
   assert.doesNotMatch(onboarding, /user\?\.workspace_type \? \[user\.workspace_type\]/);
-  assert.match(onboarding, /optionalFeatures: features/);
+  assert.match(onboarding, /optionalFeatures: getSuggestedWorkspaceFeatures\\(workTypes\\)/);
   assert.match(onboarding, /phone: phone\.trim\(\) \|\| null/);
   assert.doesNotMatch(onboarding, /supabase\.auth\.updateUser/);
   assert.match(onboarding, /businessType: workTypes\[0\]/);
-  assert.match(onboarding, /optionalFeatures: features/);
+  assert.match(onboarding, /optionalFeatures: getSuggestedWorkspaceFeatures\\(workTypes\\)/);
 });
 
 test("new unified identities are held at onboarding before workspace provisioning", async () => {
@@ -83,14 +83,14 @@ test("invoice persistence reads country and currency only from canonical workspa
   assert.doesNotMatch(saveInvoice, /businessProfile\?\.country_code \|\| "IN"/);
 });
 
-test("onboarding lets users choose optional modules instead of only accepting automatic suggestions", async () => {
+test("onboarding asks only for Freelancer or Business and derives workspace modules automatically", async () => {
   const onboarding = await read("../../components/global/UnifiedWorkspaceOnboarding.jsx");
   const featureCatalog = await read("../../lib/workspaceFeatures.js");
-  assert.match(onboarding, /WORKSPACE_FEATURE_CATALOG\.map\(\(feature\)/);
-  assert.match(onboarding, /type="checkbox" checked=\{features\.includes\(feature\.id\)\}/);
-  assert.match(onboarding, /const toggleFeature = \(featureId\)/);
-  assert.match(onboarding, /setFeatures\(\(current\) => current\.includes\(featureId\)/);
-  assert.match(onboarding, /You can change these later in More Features/);
+  assert.match(onboarding, /chooseWorkType\("freelancer"\)/);
+  assert.match(onboarding, /chooseWorkType\("business"\)/);
+  assert.match(onboarding, /optionalFeatures: getSuggestedWorkspaceFeatures\\(workTypes\\)/);
+  assert.doesNotMatch(onboarding, /WORKSPACE_FEATURE_CATALOG|type="checkbox"|toggleFeature/);
+  assert.match(onboarding, /available in More Features/);
   assert.match(featureCatalog, /export const WORKSPACE_FEATURE_CATALOG/);
 });
 
