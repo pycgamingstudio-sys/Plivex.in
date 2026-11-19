@@ -70,3 +70,30 @@ The health advisor returned no lints at the time of this audit.
 
 ## Product naming update
 The user confirmed the assistant's name as **Plivex Nova** (short name: **Nova**). The assistant system identity and user-facing widget labels have been updated on the development branch. This is branding only; it does not imply additional connected capabilities.
+
+
+## Expanded SECURITY DEFINER body review
+
+A further read-only inspection covered the full definitions of all 13 advisor-flagged functions.
+
+- `cancel_invoice`: derives workspace from `auth.uid()`, requires admin/manager, locks the invoice inside that workspace, and reverses applied stock before cancellation.
+- `delete_draft_invoice`: scopes deletion to the caller's profile workspace and draft invoices, with an admin role check.
+- `execute_assistant_action_batch`: derives caller/workspace from auth, validates idempotency key and request hash, locks/reuses batch records, limits batch size to 10, and uses an explicit per-action role allow-list. It only accepts the public India action types implemented in its body.
+- `get_access_status`: permits service-role calls or requires the authenticated profile to belong to the requested workspace before reading subscription/usage data.
+- `global_get_financial_statements`: requires authenticated Global workspace membership, validates date range and refuses unsupported currency conversion.
+- `global_get_general_ledger`: requires authenticated Global workspace membership and validates account/date filters.
+- `global_get_trial_balance`: requires authenticated Global workspace membership and validates date range.
+- `global_list_purchase_bills`: requires the supplied user ID to equal `auth.uid()` and checks active membership in the requested Global workspace.
+- `india_part4_create_purchase_order`: derives workspace from caller profile, requires admin/manager, validates supplier/items and verifies each stock ID belongs to that workspace.
+- `india_part4_receive_purchase_order`: derives workspace from caller profile, requires admin/manager/storekeeper, locks the PO and PO lines, checks active warehouse, quantity outstanding and idempotency fingerprint; receipt writes occur transactionally.
+- `india_part4_transfer_stock`: derives workspace from caller profile, requires admin/manager/storekeeper, locks source stock, validates destination warehouse and quantity, checks idempotency and moves stock/batches within the workspace.
+- `revenue_summary`: joins invoices to the authenticated user's own profile workspace and restricts results to admin/manager/accountant roles.
+- `save_invoice`: derives workspace and role from `auth.uid()`, restricts roles, locks existing invoices in that workspace, validates invoice totals/items, and handles stock reversal/application.
+
+The SQL privilege check found no `anon` execution grant among these 13 functions; all are executable by `authenticated`. All have fixed function-level `search_path` settings. This body review did not find a clear cross-workspace access path in the inspected definitions, but it is not a formal penetration test. Continue with negative tests using two separate workspaces and each role, including attempts with foreign IDs and malformed payloads. Keep grants until call sites and role semantics are fully tested.
+
+## Important boundaries confirmed
+
+- India purchase-order, receipt and transfer functions are not Global workspace executors. Nova must never route Global requests into these public India RPCs.
+- `execute_assistant_action_batch` is the public India batch executor; Global operations use separate Global-specific wrappers and Edge Function paths.
+- The assistant's UI/system branding is **Plivex Nova**. This does not change the model provider or expand the connected write-action allow-list.
