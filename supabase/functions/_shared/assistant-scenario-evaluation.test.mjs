@@ -83,3 +83,23 @@ test("recognizes multiple explicit intents in one compound request", () => {
   assert.ok(intents.includes("create_expense"));
   assert.ok(intents.includes("create_stock"));
 });
+
+test("preserves both intents across 1,000 generated compound business requests", () => {
+  const connectors = ["and", "then", "also", "plus", "aur", "saath mein"];
+  const failures = [];
+  for (let index = 0; index < 1000; index += 1) {
+    const first = families[index % families.length];
+    const second = families[Math.floor(index / families.length) % families.length];
+    const firstVerb = first.verbs[Math.floor(index / families.length) % first.verbs.length];
+    const firstNoun = first.nouns[Math.floor(index / (families.length * 2)) % first.nouns.length];
+    const secondVerb = second.verbs[Math.floor(index / (families.length * 3)) % second.verbs.length];
+    const secondNoun = second.nouns[Math.floor(index / (families.length * 4)) % second.nouns.length];
+    const phrase = `${firstVerb} ${firstNoun} ${connectors[index % connectors.length]} ${secondVerb} ${secondNoun}`;
+    const actual = classifyBusinessIntents(phrase);
+    if (!actual.includes(first.expected) || !actual.includes(second.expected)) {
+      failures.push({ phrase, expected: [first.expected, second.expected], actual });
+    }
+  }
+  assert.deepEqual(failures.slice(0, 20), []);
+  assert.equal(failures.length, 0);
+});
