@@ -53,7 +53,7 @@ export function normalizeOpenAiResult(result) {
 }
 
 export function isRetryableProviderStatus(status) {
-  return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
+  return [401, 402, 403, 404].includes(status) || status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
 }
 
 async function callOpenAiProvider({ provider, model, key, body, fetchImpl, deadline }) {
