@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const migration = await readFile(
-  new URL("../../../supabase/migrations/20261119210000_recover_legacy_global_workspaces.sql", import.meta.url),
+  new URL("../../../supabase/migrations/20261119163854_recover_legacy_global_workspaces.sql", import.meta.url),
   "utf8",
 );
 
