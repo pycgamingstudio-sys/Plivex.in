@@ -286,13 +286,32 @@ function PaywallModal({ blocked, blockReason = "", currentPlan, onClose }) {
         return;
       }
 
-      // Plivex One has one canonical public workspace identity for every country.
-      // Use the same authenticated workspace country/currency as Invoice Desk.
-      // A Global membership is not required to display verified regional pricing.
+      // Plivex One stores the canonical regional billing identity in
+      // public.workspace_settings, not on the AuthContext user object.
+      // Resolve it through the signed-in user's own profile/workspace link.
+      // A Global membership is deliberately not required for unified billing.
       if (isUnifiedBuild) {
-        const countryCode = String(user.country_code || "").trim().toUpperCase();
-        const currencyCode = String(user.currency_code || "").trim().toUpperCase();
-        const billing = resolveWorkspaceBillingContext(countryCode, currencyCode);
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("workspace_id")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (profileError || !profile?.workspace_id || profile.workspace_id !== user.workspace_id) {
+          if (active) setResolvedBillingContext({ loading: false, countryCode: "", currencyCode: "", edition: "", error: true });
+          return;
+        }
+
+        const { data: workspaceSettings, error: settingsError } = await supabase
+          .from("workspace_settings")
+          .select("country_code, currency_code")
+          .eq("workspace_id", profile.workspace_id)
+          .maybeSingle();
+        const countryCode = String(workspaceSettings?.country_code || "").trim().toUpperCase();
+        const currencyCode = String(workspaceSettings?.currency_code || "").trim().toUpperCase();
+        const billing = !settingsError
+          ? resolveWorkspaceBillingContext(countryCode, currencyCode)
+          : { ok: false, currencyCode: "" };
+
         if (active) setResolvedBillingContext({
           loading: false,
           countryCode: billing.ok ? countryCode : "",
