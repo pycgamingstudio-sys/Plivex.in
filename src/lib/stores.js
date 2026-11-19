@@ -392,7 +392,6 @@ export async function saveInvoiceToServer(inv) {
   const workspaceCountry = String(inv.workspaceCountryCode || "").trim().toUpperCase();
   const isGlobalWorkspaceInvoice = Boolean(workspaceCountry && workspaceCountry !== "IN");
   const workspaceCurrency = String(inv.workspaceCurrencyCode || "").trim().toUpperCase();
-  const enteredCurrency = String(inv.currency || "").trim().toUpperCase();
   // Non-India workspaces currently use one verified base currency. A locally
   // cached invoice draft may still carry the previous workspace currency after
   // country onboarding; bind that draft to the newly verified base currency.
