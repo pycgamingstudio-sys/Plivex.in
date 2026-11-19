@@ -28,7 +28,7 @@ export function validateGoodsReceiptAction(action) {
     !UUID_RE.test(item.purchase_order_item_id)
     || !(item.quantity > 0)
     || Math.round(item.quantity * 10000) !== item.quantity * 10000
-    || (item.expires_on && !DATE_RE.test(item.expires_on))
+    || (item.expires_on && !isRealDate(item.expires_on))
   )) return null;
 
   return {
