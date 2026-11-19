@@ -46,8 +46,11 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
     supabase.from("purchase_order_items").select("id,purchase_order_id,stock_id,quantity_ordered,quantity_received,unit_cost,currency_code").eq("workspace_id", workspaceId).limit(1000),
     supabase.from("purchase_receipts").select("purchase_order_id,warehouse_id,received_at").eq("workspace_id", workspaceId).order("received_at", { ascending: false }).limit(200),
     supabase.from("stock_movements").select("stock_id,warehouse_id,movement_type,quantity_delta,reference_type,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
+    supabase.from("inventory_batches").select("id,warehouse_id,stock_id,batch_number,quantity,expires_on,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
+    supabase.from("stock_transfers").select("id,from_warehouse_id,to_warehouse_id,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(200),
+    supabase.from("stock_transfer_items").select("transfer_id,source_stock_id,destination_stock_id,quantity").eq("workspace_id", workspaceId).limit(1000),
   ]);
-  const names = ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile", "warehouses", "purchase_orders", "purchase_order_items", "purchase_receipts", "stock_movements"];
+  const names = ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile", "warehouses", "purchase_orders", "purchase_order_items", "purchase_receipts", "stock_movements", "inventory_batches", "stock_transfers", "stock_transfer_items"];
   const rows: Record<string, any> = Object.fromEntries(names.map((name, i) => [name, results[i].data ?? (name === "business_profile" ? null : [])]));
   const errors = names.filter((name, i) => results[i].error).map((name) => name);
   const invoices = rows.invoices || [];
@@ -61,7 +64,19 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
   const purchaseOrderItems = rows.purchase_order_items || [];
   const purchaseReceipts = rows.purchase_receipts || [];
   const stockMovements = rows.stock_movements || [];
-  const stockById = new Map<string, any>(stock.map((item: any) => [item.id, item]));\n  const purchaseItemsByOrder = new Map<string, any[]>();
+  const inventoryBatches = rows.inventory_batches || [];
+  const stockTransfers = rows.stock_transfers || [];
+  const stockTransferItems = rows.stock_transfer_items || [];
+  const stockById = new Map<string, any>(stock.map((item: any) => [item.id, item]));
+  const warehouseById = new Map<string, any>(warehouses.map((item: any) => [item.id, item]));
+  const batchesWithNames = inventoryBatches.map((batch: any) => ({ ...batch, stock_name: stockById.get(batch.stock_id)?.name || null, warehouse_name: warehouseById.get(batch.warehouse_id)?.name || null }));
+  const transferItemsById = new Map<string, any[]>();
+  for (const item of stockTransferItems) {
+    const current = transferItemsById.get(item.transfer_id) || [];
+    current.push({ ...item, stock_name: stockById.get(item.source_stock_id)?.name || stockById.get(item.destination_stock_id)?.name || null, unit: stockById.get(item.source_stock_id)?.unit || stockById.get(item.destination_stock_id)?.unit || null });
+    transferItemsById.set(item.transfer_id, current);
+  }
+  const transfersWithDetails = stockTransfers.slice(0, 30).map((transfer: any) => ({ ...transfer, from_warehouse_name: warehouseById.get(transfer.from_warehouse_id)?.name || null, to_warehouse_name: warehouseById.get(transfer.to_warehouse_id)?.name || null, items: transferItemsById.get(transfer.id) || [] }));\n  const purchaseItemsByOrder = new Map<string, any[]>();
   for (const item of purchaseOrderItems) {
     const current = purchaseItemsByOrder.get(item.purchase_order_id) || [];
     const stockItem = stockById.get(item.stock_id);\n    current.push({ ...item, stock_name: stockItem?.name || null, stock_sku: stockItem?.sku || null, stock_unit: stockItem?.unit || null });
@@ -84,7 +99,7 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
     pendingValueByCurrency: currencyTotals(pendingInvoices, "total", "currency").byGroup,
   };
   const stockQuantityTotals = groupNumericTotals(stock, "quantity", "unit");
-  const businessAnalytics = buildAssistantBusinessAnalytics({ invoices, stock, stockMovements, purchaseOrders, asOfDate: indiaToday() });
+  const businessAnalytics = buildAssistantBusinessAnalytics({ invoices, stock, stockMovements, purchaseOrders, inventoryBatches, asOfDate: indiaToday() });
   return {
     businessAnalytics,
     warning: errors.length ? "Some tables were unavailable due to permissions or query errors: " + errors.join(", ") : undefined,
