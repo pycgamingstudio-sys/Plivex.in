@@ -200,7 +200,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
                         <p className="text-[12px] font-bold text-slate-900">{l.name}</p>
                         <p className="text-[10px] text-slate-400">{l.company || l.phone || "—"}</p>
                         <p className="mt-1 text-[9px] font-semibold text-slate-500">Lead score: {Number(l.score || 0)}/100</p>
-                        {l.nextFollowUpAt && <p className="text-[9px] text-slate-500">Follow-up: {new Date(l.nextFollowUpAt).toLocaleString()}</p>}
+                        {l.nextFollowUpAt && <p className="text-[9px] text-slate-600">Follow-up: {new Date(l.nextFollowUpAt).toLocaleString()} <span className={new Date(l.nextFollowUpAt).getTime() < Date.now() ? "ml-1 font-bold text-rose-600" : "ml-1 font-semibold text-emerald-700"}>{new Date(l.nextFollowUpAt).getTime() < Date.now() ? "Overdue" : "Upcoming"}</span></p>}
                         <p className="mt-1 text-[11px] text-slate-500">{l.requirement || "—"}</p>
                         <p className="mt-1 text-[12px] font-bold text-[#6D28D9]">{recordedLeadAmount(l)}</p>
                         <div className="mt-2 flex flex-wrap gap-1">
