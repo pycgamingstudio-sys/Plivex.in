@@ -28,6 +28,7 @@ export function calculateGlobalTax(input) {
       treatment,
       taxCategoryId: input.taxCategory,
       asOfDate: input.invoiceDate,
+      jurisdictionId: input.jurisdictionId,
     });
     if (!resolvedTreatment.ok) {
       return { ok: false, status: "needs_review", code: resolvedTreatment.code, message: "No verified rule exists for this exact tax treatment and confirmed supply category." };
