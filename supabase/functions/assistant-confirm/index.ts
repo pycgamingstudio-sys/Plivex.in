@@ -13,6 +13,7 @@ const ALLOWED_ORIGINS = new Set([
   "https://plivex.in",
   "https://www.plivex.in",
   "https://plivex.netlify.app",
+  "https://deploy-preview-139--plivex.netlify.app",
 ]);
 
 function corsHeaders(origin: string | null) {
