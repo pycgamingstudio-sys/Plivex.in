@@ -126,6 +126,7 @@ declare
 begin
   if tg_op='UPDATE' or tg_op='DELETE' then
     select is_draft into v_is_draft from public.invoices where id=old.invoice_id for update;
+    if not found and tg_op='DELETE' then return old; end if;
     if v_is_draft is distinct from true then
       raise exception using errcode='55000', message='Issued invoice lines are immutable';
     end if;
