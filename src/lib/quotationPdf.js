@@ -65,7 +65,7 @@ export async function createQuotationPdfBlob(quotation) {
     return formatMoney(Number(value || 0), currency || "INR");
   };
   const stage = document.createElement("div");
-  stage.style.cssText = `position:fixed;left:-10000px;top:0;width:${A4_WIDTH}px;z-index:-1;pointer-events:none;background:#fff;`;
+  stage.style.cssText = `position:fixed;left:0;top:0;width:${A4_WIDTH}px;z-index:-1;pointer-events:none;background:#fff;`;
   document.body.appendChild(stage);
   const root = createRoot(stage);
   let canvas;
