@@ -15,7 +15,7 @@ test("Global tax invoice issuance is server-authoritative for six countries and 
   assert.match(multiCountry, /v_country = 'US'/);
   assert.match(multiCountry, /us_verified_local_rule_unavailable/);
   assert.match(multiCountry, /v_us_jurisdiction/);
-  assert.match(multiCountry, /global\\.tax_rule_versions/);
+  assert.match(multiCountry, /global\.tax_rule_versions/);
   assert.match(multiCountry, /collection_obligation_attested/);
   assert.match(multiCountry, /v_tax_category <> 'CA_' \|\| v_province \|\| '_PST_TAXABLE_GOODS'/);
   assert.match(multiCountry, /rateBps',997\.5/);
