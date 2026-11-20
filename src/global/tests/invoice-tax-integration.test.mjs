@@ -171,6 +171,25 @@ test("manual zero-rate components fail closed instead of silently creating a tax
 });
 
 
+
+test("Canadian PST provinces require an explicit taxable-goods classification before adding PST/RST", () => {
+  const caProfile = profile("CA", "CAD", { registeredJurisdiction: "CA-BC" });
+  const base = invoice("CAD", {
+    destinationJurisdiction: { province: "BC" },
+    collectionObligationAttested: true,
+    taxDetailsConfirmed: true,
+    taxCategory: "standard-rated",
+  });
+  assert.equal(calculateInvoiceGlobalTax(base, caProfile).code, "CANADIAN_PST_TAXABILITY_REQUIRED");
+  const confirmed = invoice("CAD", {
+    destinationJurisdiction: { province: "BC" },
+    collectionObligationAttested: true,
+    taxDetailsConfirmed: true,
+    taxCategory: "CA_BC_PST_TAXABLE_GOODS",
+  });
+  assert.equal(calculateInvoiceGlobalTax(confirmed, caProfile).ok, true);
+});
+
 test("workspace country always selects its required invoice currency, including after country changes", () => {
   const expected = { IN: "INR", US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD" };
   for (const [country, currency] of Object.entries(expected)) {
