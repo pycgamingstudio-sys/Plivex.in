@@ -99,9 +99,9 @@ export default function UnifiedWorkspaceOnboarding() {
   };
 
   return (
-    <main className="flex h-[100dvh] min-h-0 w-full items-start justify-center overflow-y-auto overscroll-y-contain bg-[#F8F7FC] px-3 py-3 text-slate-900 sm:h-[100dvh] sm:min-h-0 sm:overflow-hidden sm:py-10 sm:grid sm:place-items-center sm:px-5">
-      <section className="mx-auto flex h-auto min-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-visible rounded-[28px] sm:overflow-hidden border border-slate-200/80 bg-white shadow-[0_24px_80px_rgba(36,20,74,0.10)] sm:h-[min(780px,calc(100dvh-5rem))] sm:min-h-0">
-        <header className="shrink-0 border-b border-slate-100 px-5 py-5 sm:px-8">
+    <main className="plivex-onboarding flex h-[100dvh] min-h-0 w-full items-start justify-center overflow-y-auto overscroll-y-contain bg-[#F8F7FC] px-3 py-3 text-slate-900 sm:h-[100dvh] sm:min-h-0 sm:overflow-hidden sm:py-10 sm:grid sm:place-items-center sm:px-5">
+      <section className="plivex-onboarding-card mx-auto flex h-auto min-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-visible rounded-[26px] border border-[#E8E7EF] bg-white shadow-[0_24px_80px_rgba(36,20,74,0.10)] sm:overflow-hidden sm:h-[min(780px,calc(100dvh-5rem))] sm:min-h-0">
+        <header className="shrink-0 border-b border-slate-100 bg-gradient-to-r from-white via-[#FCFBFF] to-violet-50/50 px-5 py-5 sm:px-8">
           <div className="flex items-center justify-between gap-3">
             <span className="text-lg font-black tracking-tight text-violet-700">Plivex</span>
             <span className="text-xs font-semibold text-slate-500">Workspace setup · {step + 1} of 5</span>
