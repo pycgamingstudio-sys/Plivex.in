@@ -136,7 +136,7 @@ begin
     from public.invoices i left join public.workspace_settings ws on ws.workspace_id=i.workspace_id
     where i.id=old.invoice_id for update of i;
     if not found and tg_op='DELETE' then return old; end if;
-    if coalesce(v_country,'IN')<>'IN' and v_is_draft is distinct from true then
+    if coalesce(v_country,'')<>'IN' and v_is_draft is distinct from true then
       raise exception using errcode='55000', message='Issued invoice lines are immutable';
     end if;
   end if;
@@ -144,7 +144,7 @@ begin
     select i.is_draft,ws.country_code into v_is_draft,v_country
     from public.invoices i left join public.workspace_settings ws on ws.workspace_id=i.workspace_id
     where i.id=new.invoice_id for update of i;
-    if coalesce(v_country,'IN')<>'IN' and v_is_draft is distinct from true then
+    if coalesce(v_country,'')<>'IN' and v_is_draft is distinct from true then
       raise exception using errcode='55000', message='Issued invoice lines are immutable';
     end if;
   end if;
