@@ -29,6 +29,7 @@ test("Document title never mislabels a commercial invoice as a tax invoice", () 
   assert.equal(getGlobalInvoiceDocumentTitle({ tax_status:"calculated" },"issued"),"TAX INVOICE");
   assert.equal(getGlobalInvoiceDocumentTitle({ document_type:"commercial_invoice" },"draft"),"DRAFT INVOICE");
   assert.match(getGlobalInvoiceTaxDisclosure({ tax_status:"not_assessed" }),/not been calculated or validated/i);
+  assert.match(getGlobalInvoiceTaxDisclosure({ tax_status:"calculated",tax_treatment:"reverse-charge",reverse_charge_buyer_accounting:true }),/buyer accounts for the tax/i);
 });
 
 import { resolveWorkspaceBillingContext } from "../billing/pricing.js";
