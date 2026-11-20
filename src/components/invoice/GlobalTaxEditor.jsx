@@ -95,10 +95,13 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
           </select>
         </label>
         <label className={labelClass}>Place of supply
-          {countryCode === "GB" ? (
+          {["GB","AE","AU","SG"].includes(countryCode) ? (
             <select className={fieldClass} value={config.placeOfSupply || ""} onChange={(e) => update({ placeOfSupply: e.target.value, placeOfSupplyConfirmed: false })}>
               <option value="">Select place of supply</option>
-              <option value="United Kingdom">United Kingdom</option>
+              {countryCode === "GB" && <option value="United Kingdom">United Kingdom</option>}
+              {countryCode === "AE" && <option value="United Arab Emirates">United Arab Emirates</option>}
+              {countryCode === "AU" && <option value="Australia">Australia</option>}
+              {countryCode === "SG" && <option value="Singapore">Singapore</option>}
             </select>
           ) : (
             <input className={fieldClass} maxLength={180} value={config.placeOfSupply || ""} onChange={(e) => update({ placeOfSupply: e.target.value, placeOfSupplyConfirmed: false })} placeholder="Destination / place where supply is made" />
