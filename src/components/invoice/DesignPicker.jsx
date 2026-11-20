@@ -28,7 +28,7 @@ export default function DesignPicker({ value, onChange, canPremium, onLocked }) 
             aria-label={`${design.label}${locked ? ", Pro plan required" : active ? ", selected" : ""}`}
             className={`group rounded-xl border p-3 text-left transition-all duration-150 ${active ? "border-primary bg-primary/[.055] shadow-[0_0_0_2px_rgba(109,40,217,.08)]" : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-md"}`}
           >
-            <div className="rounded-lg bg-slate-50 p-1"><Swatch id={design.id} /></div>
+            <div className="rounded-lg bg-slate-50 p-1"><div className="rounded-lg bg-slate-50 p-1"><Swatch id={design.id} /></div></div>
             <div className="mt-2.5 flex items-center gap-1.5">
               <span className="text-[12px] font-bold">{design.label}</span>
               {locked && <span className="ml-auto flex items-center gap-1 rounded bg-primary/15 px-1.5 py-0.5 font-mono-ui text-[9px] font-bold uppercase text-primary"><Lock className="h-2.5 w-2.5" />Pro</span>}
