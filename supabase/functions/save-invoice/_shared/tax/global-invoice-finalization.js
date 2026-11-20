@@ -62,7 +62,10 @@ export function createGlobalInvoiceTaxSnapshot(input) {
     return fail("TAX_TREATMENT_SNAPSHOT_INVALID", "A supported tax treatment, its distinct disclosure and consistent tax-charged state are required.");
   }
   const rule = result.ruleSnapshot;
-  if (!isRecord(rule) || rule.treatment !== result.treatment
+  if (!isRecord(rule)) {
+    return fail("RULE_PROVENANCE_REQUIRED", "A source-backed, versioned rule effective on the invoice date is required.");
+  }
+  if (rule.treatment !== result.treatment
     || (result.treatment !== "standard" && (!String(rule.taxCategoryId || "").trim()
       || result.taxCategory !== rule.taxCategoryId))) {
     return fail("TAX_TREATMENT_RULE_MISMATCH", "The tax treatment and confirmed supply category must match the selected versioned rule.");
