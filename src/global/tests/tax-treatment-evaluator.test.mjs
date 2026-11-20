@@ -145,3 +145,28 @@ test("Canada standard tax resolves GST/HST plus general PST/QST by province or t
   assert.equal(zeroRated.rule.jurisdictionId, "QC");
   assert.equal(zeroRated.rule.components[0].rateBps, 0);
 });
+
+
+test("expanded official country tax categories resolve only for their exact treatment and category", () => {
+  const cases = [
+    ["GB", "zero-rated", "GB_ZERO_RATED_BOOKS_PRINTED_MATTER"],
+    ["GB", "zero-rated", "GB_ZERO_RATED_CHILDRENS_CLOTHING"],
+    ["GB", "exempt", "GB_EXEMPT_ELIGIBLE_BODY_EDUCATION"],
+    ["CA", "zero-rated", "CA_ZERO_RATED_EXPORTS"],
+    ["CA", "exempt", "CA_EXEMPT_FINANCIAL_SERVICES"],
+    ["AE", "zero-rated", "AE_ZERO_RATED_QUALIFYING_HEALTHCARE"],
+    ["AE", "zero-rated", "AE_ZERO_RATED_QUALIFYING_EDUCATION"],
+    ["SG", "exempt", "SG_EXEMPT_RESIDENTIAL_PROPERTY"],
+    ["SG", "exempt", "SG_EXEMPT_INVESTMENT_PRECIOUS_METALS"],
+  ];
+  for (const [countryCode, treatment, taxCategoryId] of cases) {
+    const resolved = getTaxTreatmentRuleSet(countryCode, {
+      treatment, taxCategoryId, asOfDate: "2026-11-20",
+    });
+    assert.equal(resolved.ok, true, taxCategoryId);
+    assert.equal(resolved.rule.countryCode, countryCode);
+    assert.equal(resolved.rule.treatment, treatment);
+    assert.equal(resolved.rule.components.reduce((sum, item) => sum + item.rateBps, 0), 0);
+    assert.ok(resolved.rule.source.startsWith("https://"));
+  }
+});
