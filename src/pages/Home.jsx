@@ -973,11 +973,14 @@ export default function Home() {
       const savedInvoice = await recordInvoice({ issueInvoice: isGlobalWorkspace && globalTaxCalculation?.ok === true && globalTaxCalculation.status === "not_applicable" });
       if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
       const shareLink = await createInvoiceShareLink(savedInvoice.id);
-      if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
-        setInvoice((current) => ({ ...current, id: savedInvoice.id, number: savedInvoice.number, documentStatus: savedInvoice.issued ? "issued" : (isGlobalWorkspace ? "draft" : current.documentStatus), documentType: savedInvoice.issued ? "commercial_invoice" : (isGlobalWorkspace ? "draft_invoice" : current.documentType) }));
-        // Let React update the visible invoice preview before rasterizing it.
-        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      }
+      setInvoice((current) => ({
+        ...current,
+        id: savedInvoice.id,
+        number: savedInvoice.number || current.number,
+        documentStatus: savedInvoice.issued ? "issued" : (isGlobalWorkspace ? "draft" : current.documentStatus),
+        documentType: savedInvoice.issued ? "commercial_invoice" : (isGlobalWorkspace ? "draft_invoice" : current.documentType),
+      }));
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const pdf = await renderPdfDocument();
       if (!pdf) throw new Error("Invoice preview is not ready. Please try again.");
       const safeNumber = savedInvoice?.number || invoice.number || "INV-000";
@@ -1049,10 +1052,14 @@ export default function Home() {
     try {
       const savedInvoice = await recordInvoice({ issueInvoice: isGlobalWorkspace && globalTaxCalculation?.ok === true && globalTaxCalculation.status === "not_applicable" });
       if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
-      if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
-        setInvoice((current) => ({ ...current, number: savedInvoice.number }));
-        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      }
+      setInvoice((current) => ({
+        ...current,
+        id: savedInvoice.id,
+        number: savedInvoice.number || current.number,
+        documentStatus: savedInvoice.issued ? "issued" : (isGlobalWorkspace ? "draft" : current.documentStatus),
+        documentType: savedInvoice.issued ? "commercial_invoice" : (isGlobalWorkspace ? "draft_invoice" : current.documentType),
+      }));
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const pdf = await renderPdfDocument();
       if (!pdf) throw new Error("Invoice preview is not ready. Please try again.");
       const safeNumber = savedInvoice?.number || invoice.number || "INV-000";
