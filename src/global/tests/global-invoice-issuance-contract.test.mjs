@@ -11,7 +11,7 @@ const stores = readFileSync(new URL("../../lib/stores.js", import.meta.url), "ut
 
 test("Global tax invoice issuance is server-authoritative for six countries and fails closed without a verified US local rule", () => {
   const multiCountry = readFileSync(new URL("../../../supabase/migrations/20261120070000_global_multi_country_tax_issuance.sql", import.meta.url), "utf8");
-  assert.match(multiCountry, /v_country not in \('GB','AE','CA','AU','SG'\)/);
+  assert.match(multiCountry, /v_country not in \('US','GB','AE','CA','AU','SG'\)/);
   assert.match(multiCountry, /v_country = 'US'/);
   assert.match(multiCountry, /us_verified_local_rule_unavailable/);
   assert.match(multiCountry, /v_us_jurisdiction/);
