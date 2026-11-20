@@ -29,6 +29,11 @@ declare
   v_item global.invoice_items%rowtype;
   v_line_base bigint;
   v_line_tax bigint;
+  v_line_discount bigint;
+  v_remaining_discount bigint;
+  v_items_subtotal bigint;
+  v_line_index integer := 0;
+  v_line_count integer := 0;
   v_subtotal_after_discount bigint;
   v_tax bigint := 0;
   v_total bigint;
@@ -163,10 +168,19 @@ begin
 
   v_price_mode := p_tax_context->>'price_mode';
   v_place := left(btrim(p_tax_context->>'place_of_supply'),180);
-  v_subtotal_after_discount := v_invoice.subtotal_minor-v_invoice.discount_minor;
-  if v_invoice.currency_code <> v_currency or v_subtotal_after_discount < 0 then
+  select coalesce(sum(line_total_minor),0),count(*)::integer
+    into v_items_subtotal,v_line_count
+    from global.invoice_items
+    where workspace_id=p_workspace_id and invoice_id=p_invoice_id;
+  if v_invoice.currency_code <> v_currency
+    or v_invoice.subtotal_minor < 0 or v_invoice.discount_minor < 0
+    or v_invoice.discount_minor > v_invoice.subtotal_minor
+    or v_items_subtotal <> v_invoice.subtotal_minor
+    or v_line_count < 1 then
     return jsonb_build_object('ok',false,'reason','invalid_invoice_amounts');
   end if;
+  v_subtotal_after_discount := v_items_subtotal-v_invoice.discount_minor;
+  v_remaining_discount := v_invoice.discount_minor;
 
   -- Current standard-rate rule catalog. Every component is recalculated here,
   -- never trusted from a browser-supplied tax total.
@@ -242,7 +256,24 @@ begin
     order by sort_order, id
     for update
   loop
+    v_line_index := v_line_index+1;
     v_line_base := v_item.line_total_minor;
+    -- Allocate the invoice-level discount proportionally in minor units.
+    -- The final line absorbs the integer remainder so allocations equal the
+    -- exact stored discount and no fractional minor unit is invented.
+    if v_line_index = v_line_count then
+      v_line_discount := v_remaining_discount;
+    elsif v_items_subtotal = 0 then
+      v_line_discount := 0;
+    else
+      v_line_discount := floor(v_invoice.discount_minor::numeric * v_line_base / v_items_subtotal)::bigint;
+    end if;
+    if v_line_discount < 0 or v_line_discount > v_line_base
+      or v_line_discount > v_remaining_discount then
+      return jsonb_build_object('ok',false,'reason','discount_allocation_invalid');
+    end if;
+    v_remaining_discount := v_remaining_discount-v_line_discount;
+    v_line_base := v_line_base-v_line_discount;
     if v_price_mode = 'inclusive' then
       v_line_tax := round(v_line_base::numeric * v_rate / (10000+v_rate))::bigint;
     else
@@ -253,6 +284,9 @@ begin
       line_total_minor=case when v_price_mode='exclusive' then v_line_base+v_line_tax else v_line_base end
     where id=v_item.id and workspace_id=p_workspace_id;
   end loop;
+  if v_remaining_discount <> 0 then
+    return jsonb_build_object('ok',false,'reason','discount_allocation_incomplete');
+  end if;
 
   if v_price_mode = 'inclusive' then
     v_taxable := v_subtotal_after_discount-v_tax;
