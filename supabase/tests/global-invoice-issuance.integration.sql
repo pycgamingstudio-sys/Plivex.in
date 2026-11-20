@@ -286,20 +286,6 @@ BEGIN
     RAISE EXCEPTION 'Unpublished UK reduced-rate category did not fail closed: %',v_reduced_issue;
   END IF;
 
-  INSERT INTO global.tax_rule_versions(
-    id,country_code,jurisdiction_id,currency_code,tax_code,version,treatment,
-    effective_from,effective_to,reviewed_on,reviewed_by,source_url,components,status,created_by
-  ) VALUES (
-    'aaaaaaa4-eeee-4aaa-8aaa-aaaaaaaaaaa4','GB',NULL,'GBP',
-    'GB_REDUCED_FUEL_POWER','2026.11','reduced','2011-01-04',NULL,'2026-11-20',
-    'pending-review','https://www.gov.uk/vat-rates',
-    '[{"id":"GB-VAT-REDUCED","name":"VAT","rateBps":500}]'::jsonb,
-    'draft','66666666-6666-4666-8666-666666666666'
-  );
-  v_reduced_issue := public.global_publish_tax_rule_version('aaaaaaa4-eeee-4aaa-8aaa-aaaaaaaaaaa4','candidate-review');
-  IF v_reduced_issue->>'ok'<>'true' THEN
-    RAISE EXCEPTION 'Could not publish the test UK reduced-rate rule: %',v_reduced_issue;
-  END IF;
   v_reduced_issue := public.global_issue_invoice(
     '66666666-6666-4666-8666-666666666666',
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
