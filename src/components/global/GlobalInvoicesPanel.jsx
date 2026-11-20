@@ -86,7 +86,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       phone: nextProfile?.phone || "",
       address: nextProfile?.address || "",
       tax_registration_number: nextProfile?.tax_registration_number || "",
-      tax_registration_type: nextProfile?.tax_registration_type || (countryCode === "GB" ? "VAT" : ""),
+      tax_registration_type: nextProfile?.tax_registration_type || ({ GB:"VAT", AE:"VAT", CA:"GST/HST", AU:"ABN", SG:"GST" }[countryCode] || ""),
       tax_registration_status: nextProfile?.tax_registration_status || "unregistered",
       tax_registration_effective_from: nextProfile?.tax_registration_effective_from || "",
       tax_jurisdiction_code: nextProfile?.tax_jurisdiction_code || "",
@@ -488,8 +488,8 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
           {[
             ["legal_name","Legal business name"],["display_name","Display name"],["email","Business email"],
             ["phone","Phone"],["address","Registered business address"],["tax_registration_number","Tax registration number"],
-            ["tax_registration_type","Registration type (e.g. VAT)"],["tax_registration_effective_from","Registration effective date"],
-            ["tax_jurisdiction_code","Registered jurisdiction code"],
+            ["tax_registration_type",countryCode === "CA" ? "Registration type (e.g. GST/HST)" : countryCode === "AU" ? "Registration type (ABN)" : countryCode === "SG" ? "Registration type (GST)" : "Registration type (VAT)"],["tax_registration_effective_from","Registration effective date"],
+            ["tax_jurisdiction_code",countryCode === "CA" ? "Registered jurisdiction code (e.g. CA-ON)" : "Registered jurisdiction code"],
           ].map(([key,label])=><label key={key} className="text-xs font-semibold text-slate-600">{label}<input className={field+" mt-1"} type={key==="tax_registration_effective_from"?"date":"text"} value={profileForm[key]||""} onChange={(e)=>setProfileForm((v)=>({...v,[key]:e.target.value}))}/></label>)}
           <label className="text-xs font-semibold text-slate-600">Registration status
             <select className={field+" mt-1"} value={profileForm.tax_registration_status||"unregistered"} onChange={(e)=>setProfileForm((v)=>({...v,tax_registration_status:e.target.value}))}>
