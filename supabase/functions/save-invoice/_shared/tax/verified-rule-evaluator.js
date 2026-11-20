@@ -133,6 +133,7 @@ export function calculateVerifiedTaxRule(input) {
       id: rule.id, version: rule.version, catalogVersion: rule.catalogVersion || TAX_RULE_CATALOG_VERSION,
       source: rule.source, sourceAuthority: rule.sourceAuthority || null, coverage: rule.coverage || null,
       effectiveFrom: rule.effectiveFrom, effectiveTo: rule.effectiveTo || null, reviewedOn: rule.reviewedOn || null,
+      jurisdictionId: rule.jurisdictionId || null,
     },
   };
 }
