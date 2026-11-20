@@ -24,6 +24,7 @@ declare
   v_profile global.business_profiles%rowtype;
   v_client global.clients%rowtype;
   v_invoice global.invoices%rowtype;
+  v_tax_snapshot jsonb;
   v_existing global.invoices%rowtype;
   v_item global.invoice_items%rowtype;
   v_line_base bigint;
