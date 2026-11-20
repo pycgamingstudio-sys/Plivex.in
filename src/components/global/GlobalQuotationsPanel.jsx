@@ -129,13 +129,19 @@ export default function GlobalQuotationsPanel({ account }) {
     converted: sum.converted + (entry.quotation.status === "converted" ? 1 : 0),
   }), { all: 0, open: 0, accepted: 0, converted: 0 }), [records]);
 
-  const updateItem = (index, key, value) => setForm((current) => ({
-    ...current,
-    items: current.items.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item),
-  }));
-  const addItem = () => setForm((current) => current.items.length >= 100 ? current : ({
-    ...current, items: [...current.items, { description: "", quantity: "1", unit_price: "", discount: "0" }],
-  }));
+  const updateItem = (index, key, value) => {
+    setTaxContext((current) => ({ ...current, taxDetailsConfirmed: false }));
+    setForm((current) => ({
+      ...current,
+      items: current.items.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item),
+    }));
+  };
+  const addItem = () => {
+    setTaxContext((current) => ({ ...current, taxDetailsConfirmed: false }));
+    setForm((current) => current.items.length >= 100 ? current : ({
+      ...current, items: [...current.items, { description: "", quantity: "1", unit_price: "", discount: "0" }],
+    }));
+  };
 
   const createQuotation = async (event) => {
     event.preventDefault();
@@ -233,7 +239,7 @@ export default function GlobalQuotationsPanel({ account }) {
       doc.text("Subtotal: " + formatMoney(quotation.subtotal_minor, quotation.currency_code, locale), 16, y); y += 7;
       doc.text("Discount: " + formatMoney(quotation.discount_minor, quotation.currency_code, locale), 16, y); y += 8;
       doc.setFontSize(13); doc.setFont(undefined, "bold");
-      doc.text("Total: " + formatMoney(quotation.total_minor, quotation.currency_code, locale), 16, y);
+      doc.text((quotation.tax_status === "calculated" ? "Taxable amount: " : "Amount before tax: ") + formatMoney(quotation.taxable_minor ?? quotation.total_minor, quotation.currency_code, locale), 16, y);
       y += 13; doc.setFont(undefined, "normal"); doc.setFontSize(8); doc.setTextColor(100, 100, 100);
       const taxSnapshot = quotation.tax_snapshot;
       const taxResult = taxSnapshot?.taxResult;
@@ -318,7 +324,7 @@ export default function GlobalQuotationsPanel({ account }) {
           <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-violet-700">New sales document</p><h2 className="mt-1 text-xl font-bold text-slate-900">Create quotation</h2><p className="mt-1 text-xs text-slate-500">Currency follows your verified Global workspace settings: {currency}.</p></div><button type="button" onClick={() => setShowCreate(false)} className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100">Close</button></div>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             <label className="text-xs font-semibold text-slate-600 sm:col-span-1">Customer<select className={field + " mt-1"} value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })}><option value="">Walk-in / not selected</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
-            <label className="text-xs font-semibold text-slate-600">Quotation date<input required type="date" className={field + " mt-1"} value={form.issue_date} onChange={(event) => setForm({ ...form, issue_date: event.target.value })} /></label>
+            <label className="text-xs font-semibold text-slate-600">Quotation date<input required type="date" className={field + " mt-1"} value={form.issue_date} onChange={(event) => { setTaxContext((v) => ({ ...v, taxDetailsConfirmed: false })); setForm({ ...form, issue_date: event.target.value }); }} /></label>
             <label className="text-xs font-semibold text-slate-600">Valid until<input type="date" min={form.issue_date} className={field + " mt-1"} value={form.valid_until} onChange={(event) => setForm({ ...form, valid_until: event.target.value })} /></label>
           </div>
           <div className="mt-5"><div className="flex items-center justify-between"><h3 className="text-sm font-bold text-slate-900">Items and pricing</h3><span className="text-xs text-slate-500">{currency}</span></div>
@@ -327,7 +333,7 @@ export default function GlobalQuotationsPanel({ account }) {
               <input required aria-label="Quantity" min="0.0001" step="0.0001" type="number" className={field} placeholder="Qty" value={item.quantity} onChange={(event) => updateItem(index, "quantity", event.target.value)} />
               <input required aria-label="Unit price" min="0" step="any" type="number" className={field} placeholder="Unit price" value={item.unit_price} onChange={(event) => updateItem(index, "unit_price", event.target.value)} />
               <input aria-label="Discount" min="0" step="any" type="number" className={field} placeholder="Discount" value={item.discount} onChange={(event) => updateItem(index, "discount", event.target.value)} />
-              <button type="button" disabled={form.items.length === 1} onClick={() => setForm((current) => ({ ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index) }))} className="min-h-10 rounded-lg px-3 text-xs font-semibold text-rose-600 disabled:opacity-30">Remove</button>
+              <button type="button" disabled={form.items.length === 1} onClick={() => { setTaxContext((v) => ({ ...v, taxDetailsConfirmed: false })); setForm((current) => ({ ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index) })); }} className="min-h-10 rounded-lg px-3 text-xs font-semibold text-rose-600 disabled:opacity-30">Remove</button>
             </div>)}</div>
             <button type="button" disabled={form.items.length >= 100} className={secondary + " mt-3"} onClick={addItem}><Plus className="h-4 w-4" /> Add line item</button>
           </div>
