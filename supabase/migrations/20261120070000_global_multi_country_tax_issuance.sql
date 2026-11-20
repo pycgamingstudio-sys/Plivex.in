@@ -237,6 +237,13 @@ begin
     v_rule_id := v_tax_rule.id::text;
     v_rule_version := v_tax_rule.version;
     v_rule_source := v_tax_rule.source_url;
+    v_tax_system := case v_country
+      when 'GB' then 'VAT'
+      when 'AE' then 'VAT'
+      when 'CA' then 'GST/HST/PST/QST'
+      when 'AU' then 'GST'
+      when 'SG' then 'GST'
+    end;
     v_rule_authority := case v_country
       when 'GB' then 'UK HM Revenue & Customs'
       when 'AE' then 'UAE Federal Tax Authority'
@@ -312,7 +319,9 @@ begin
     end if;
   end if;
 
-  if v_rate is null or v_rate <= 0 or v_rate > 10000
+  if v_rate is null or v_rate < 0 or v_rate > 10000
+    or (v_treatment in ('zero-rated','gst-free','exempt','out-of-scope') and v_rate <> 0)
+    or (v_treatment not in ('zero-rated','gst-free','exempt','out-of-scope') and v_rate <= 0)
     or v_invoice.issue_date < v_effective_from or v_invoice.issue_date < v_reviewed_on then
     return jsonb_build_object('ok',false,'reason','no_effective_verified_rule');
   end if;
