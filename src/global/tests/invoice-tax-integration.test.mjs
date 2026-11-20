@@ -389,3 +389,21 @@ test("UAE electronic-device reverse charge requires recipient declaration eviden
   }), profile("AE", "AED"));
   assert.equal(missingEvidence.code, "AE_REVERSE_CHARGE_EVIDENCE_REQUIRED");
 });
+
+
+test("UAE precious-metals reverse charge uses the effective 2025 rule and pre-supply recipient declaration", () => {
+  const result = calculateInvoiceGlobalTax(invoice("AED", {
+    issueDate: "2026-11-20",
+    taxTreatment: "reverse-charge",
+    taxCategory: "AE_REVERSE_CHARGE_PRECIOUS_METALS_STONES",
+    reverseChargeEvidence: {
+      recipientVatRegisteredConfirmed: true,
+      recipientIntendedResaleOrManufacture: true,
+      recipientDeclarationReceived: true,
+    },
+  }), profile("AE", "AED"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.taxMinor, 0);
+  assert.equal(result.recipientTaxMinor, 500);
+  assert.equal(result.taxSnapshot.rule.id, "AE-VAT-REVERSE-CHARGE-PRECIOUS-METALS-2026-11");
+});
