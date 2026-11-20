@@ -359,3 +359,52 @@ button, a, [role="button"], input[type="checkbox"], input[type="radio"] {
 .plivex-dashboard-tab :where(.rounded-xl.border, .rounded-2xl.border) { box-shadow: 0 1px 2px rgb(24 24 40 / .025); }
 .plivex-onboarding-card :where(input, select, textarea) { border-radius: .75rem; }
 .plivex-onboarding :where(button:focus-visible, input:focus-visible, select:focus-visible) { outline: 2px solid #6D28D9; outline-offset: 2px; }
+
+
+/* Plivex Phase 3 — shared product finishing layer */
+:root {
+  --plivex-surface: #ffffff;
+  --plivex-surface-soft: #faf9ff;
+  --plivex-border-soft: #e8e7ef;
+  --plivex-shadow-card: 0 1px 2px rgb(24 24 40 / .035), 0 8px 24px rgb(24 24 40 / .035);
+  --plivex-shadow-hover: 0 10px 28px rgb(46 32 86 / .09);
+}
+:where(table) { border-collapse: separate; border-spacing: 0; }
+:where(thead th) { color: #647084; font-size: 10px; font-weight: 700; letter-spacing: .045em; }
+:where(tbody tr) { transition: background-color 140ms ease; }
+:where(tbody tr:hover) { background-color: #fbfaff; }
+:where(tbody td) { border-color: #efedf4; }
+:where(button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible) {
+  outline-color: #6D28D9;
+  outline-offset: 2px;
+}
+.plivex-dashboard-tab :where(h1,h2,h3,h4) { text-wrap: balance; }
+.plivex-dashboard-tab :where(.rounded-xl.border, .rounded-2xl.border) { border-color: var(--plivex-border-soft); }
+.plivex-dashboard-tab :where(button, a) { transition-duration: 160ms; transition-timing-function: ease-out; }
+.plivex-modal-panel {
+  width: min(100%, 42rem);
+  max-height: min(88dvh, 52rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--plivex-border-soft);
+  border-radius: 1.1rem;
+  background: var(--plivex-surface);
+  box-shadow: 0 24px 80px rgb(15 23 42 / .18);
+}
+.plivex-empty-state { display: grid; justify-items: center; gap: .55rem; padding: clamp(1.5rem, 4vw, 2.5rem) 1rem; text-align: center; }
+.plivex-auth-shell {
+  background: radial-gradient(ellipse at 12% 8%, rgb(109 40 217 / .09), transparent 34rem),
+    radial-gradient(ellipse at 92% 88%, rgb(59 130 246 / .07), transparent 30rem), hsl(var(--background));
+}
+.plivex-auth-card { box-shadow: 0 16px 48px rgb(36 24 72 / .07), 0 2px 8px rgb(36 24 72 / .035); }
+.plivex-public-section { scroll-margin-top: 5rem; }
+.plivex-onboarding-card :where(input, select, textarea) { border-radius: .75rem; }
+.plivex-onboarding :where(button:focus-visible, input:focus-visible, select:focus-visible) { outline: 2px solid #6D28D9; outline-offset: 2px; }
+@media (max-width: 640px) {
+  .plivex-modal-panel { max-height: calc(100dvh - 1rem); border-radius: 1rem; }
+  .plivex-auth-card { padding: 1.1rem; }
+  :where(table) { font-size: 11px; }
+}
+@media (hover: hover) and (pointer: fine) {
+  .plivex-hover-lift:hover { transform: translateY(-2px); box-shadow: var(--plivex-shadow-hover); }
+}
