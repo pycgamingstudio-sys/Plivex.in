@@ -157,7 +157,7 @@ begin
           if v_province in ('BC','MB','SK','QC') then
             v_expected_component_name := case v_province when 'BC' then 'PST' when 'MB' then 'RST' when 'SK' then 'PST' else 'QST' end;
             v_expected_component_rate := case v_province when 'BC' then 700 when 'MB' then 700 when 'SK' then 600 else 997.5 end;
-            if v_tax_context->>'taxCategory' is distinct from 'CA_' || v_province || '_PST_TAXABLE_GOODS'
+            if v_tax_context->>'taxCategory' is distinct from ('CA_' || v_province || '_PST_TAXABLE_GOODS')
               or jsonb_array_length(v_tax_result->'components') <> 2
               or v_tax_result->'components'->0->>'name' is distinct from 'GST'
               or (v_tax_result->'components'->0->>'rateBps')::numeric <> 500
@@ -179,7 +179,7 @@ begin
         else
           if v_tax_context->>'taxCategory' is distinct from 'standard-rated'
             or jsonb_array_length(v_tax_result->'components') <> 1
-            or v_tax_result->'components'->0->>'name' is distinct from case when v_country in ('GB','AE') then 'VAT' else 'GST' end
+            or v_tax_result->'components'->0->>'name' is distinct from (case when v_country in ('GB','AE') then 'VAT' else 'GST' end)
             or (v_tax_result->'components'->0->>'rateBps')::numeric <> v_expected_rate then
             return jsonb_build_object('ok',false,'reason','unverified_tax_components');
           end if;
