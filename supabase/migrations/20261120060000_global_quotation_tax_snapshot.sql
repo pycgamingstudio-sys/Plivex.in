@@ -74,8 +74,8 @@ begin
     if p_tax_snapshot is not null then
       if jsonb_typeof(p_tax_snapshot) <> 'object'
         or octet_length(p_tax_snapshot::text) > 65536
-        or jsonb_typeof(p_tax_snapshot->'taxResult') <> 'object'
-        or jsonb_typeof(p_tax_snapshot->'taxContext') <> 'object' then
+        or jsonb_typeof(p_tax_snapshot->'taxResult') is distinct from 'object'
+        or jsonb_typeof(p_tax_snapshot->'taxContext') is distinct from 'object' then
         return jsonb_build_object('ok',false,'reason','invalid_tax_snapshot');
       end if;
       v_tax_result := p_tax_snapshot->'taxResult';
@@ -83,22 +83,22 @@ begin
       v_rule := v_tax_result->'ruleSnapshot';
       v_country := upper(coalesce(v_tax_result->>'countryCode',''));
       if v_tax_result->>'ok' is distinct from 'true'
-        or v_tax_result->>'status' <> 'calculated'
-        or v_tax_result->>'mode' <> 'automatic'
-        or v_tax_result->>'priceMode' <> 'exclusive'
+        or v_tax_result->>'status' is distinct from 'calculated'
+        or v_tax_result->>'mode' is distinct from 'automatic'
+        or v_tax_result->>'priceMode' is distinct from 'exclusive'
         or v_tax_result->>'invoiceDate' is distinct from p_issue_date::text
         or v_tax_result->>'currencyCode' is distinct from upper(coalesce(p_currency_code,''))
         or v_tax_context->>'countryCode' is distinct from v_country
-        or v_tax_context->>'mode' <> 'automatic'
-        or v_tax_context->>'taxTreatment' <> 'standard'
-        or v_tax_context->>'priceMode' <> 'exclusive'
-        or v_tax_context->>'taxDetailsConfirmed' <> 'true'
-        or (v_country = 'CA' and v_tax_context->>'collectionObligationAttested' <> 'true')
+        or v_tax_context->>'mode' is distinct from 'automatic'
+        or v_tax_context->>'taxTreatment' is distinct from 'standard'
+        or v_tax_context->>'priceMode' is distinct from 'exclusive'
+        or v_tax_context->>'taxDetailsConfirmed' is distinct from 'true'
+        or (v_country = 'CA' and v_tax_context->>'collectionObligationAttested' is distinct from 'true')
         or nullif(trim(v_tax_context->>'placeOfSupply'),'') is null
         or nullif(trim(v_tax_context->>'taxCategory'),'') is null
         or v_rule is null
-        or v_tax_result->>'treatment' <> 'standard'
-        or jsonb_typeof(v_tax_result->'components') <> 'array'
+        or v_tax_result->>'treatment' is distinct from 'standard'
+        or jsonb_typeof(v_tax_result->'components') is distinct from 'array'
         or jsonb_array_length(v_tax_result->'components') < 1
         or jsonb_array_length(v_tax_result->'components') > 8 then
         return jsonb_build_object('ok',false,'reason','invalid_tax_snapshot');
@@ -149,9 +149,9 @@ begin
           v_expected_component_rate := case v_province when 'BC' then 700 when 'MB' then 700 when 'SK' then 600 else 997.5 end;
           if v_tax_context->>'taxCategory' is distinct from 'CA_' || v_province || '_PST_TAXABLE_GOODS'
             or jsonb_array_length(v_tax_result->'components') <> 2
-            or v_tax_result->'components'->0->>'name' <> 'GST'
+            or v_tax_result->'components'->0->>'name' is distinct from 'GST'
             or (v_tax_result->'components'->0->>'rateBps')::numeric <> 500
-            or v_tax_result->'components'->1->>'name' <> v_expected_component_name
+            or v_tax_result->'components'->1->>'name' is distinct from v_expected_component_name
             or (v_tax_result->'components'->1->>'rateBps')::numeric <> v_expected_component_rate then
             return jsonb_build_object('ok',false,'reason','unverified_tax_components');
           end if;
@@ -161,7 +161,7 @@ begin
           end if;
           v_expected_component_name := case when v_province in ('NB','NL','NS','ON','PE') then 'HST' else 'GST' end;
           if jsonb_array_length(v_tax_result->'components') <> 1
-            or v_tax_result->'components'->0->>'name' <> v_expected_component_name
+            or v_tax_result->'components'->0->>'name' is distinct from v_expected_component_name
             or (v_tax_result->'components'->0->>'rateBps')::numeric <> v_expected_rate then
             return jsonb_build_object('ok',false,'reason','unverified_tax_components');
           end if;
