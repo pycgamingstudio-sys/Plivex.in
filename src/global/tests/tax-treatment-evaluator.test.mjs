@@ -86,7 +86,7 @@ test("treatment must match the verified rule and unsupported reverse charge fail
     ...base, treatment: "reverse-charge", rule: makeRule("reverse-charge", 0),
   });
   assert.equal(mismatch.code, "TREATMENT_RULE_MISMATCH");
-  assert.equal(reverseCharge.code, "TREATMENT_ADAPTER_REQUIRED");
+  assert.equal(reverseCharge.code, "TREATMENT_RATE_MISMATCH");
 });
 
 test("US and Canada still require exact jurisdiction rules; no national rate is added", () => {
@@ -161,7 +161,7 @@ test("expanded official country tax categories resolve only for their exact trea
   ];
   for (const [countryCode, treatment, taxCategoryId] of cases) {
     const resolved = getTaxTreatmentRuleSet(countryCode, {
-      treatment, taxCategoryId, asOfDate: "2026-11-20",
+      treatment, taxCategoryId, asOfDate: "2026-11-20", ...(countryCode === "CA" ? { jurisdictionId: "QC" } : {}),
     });
     assert.equal(resolved.ok, true, taxCategoryId);
     assert.equal(resolved.rule.countryCode, countryCode);
