@@ -431,3 +431,44 @@ button, a, [role="button"], input[type="checkbox"], input[type="radio"] {
   .app-shell :where(.table-responsive, [data-table-scroll]),
   .plivex-dashboard :where(.table-responsive, [data-table-scroll]) { margin-inline: 0; }
 }
+/* Persistent dark surfaces for the Main Workspace's routed pages. */
+.plivex-main-layout.dark {
+  color-scheme: dark;
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+  --card: 217 33% 17%;
+  --card-foreground: 210 40% 98%;
+  --border: 215 25% 27%;
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+  --secondary: 217 33% 17%;
+  --secondary-foreground: 210 40% 98%;
+  background: #111827;
+  color: #f8fafc;
+}
+.plivex-main-layout.dark [class~="bg-white"],
+.plivex-main-layout.dark [class~="bg-white/80"],
+.plivex-main-layout.dark [class~="bg-white/95"] { background-color: #1f2937 !important; }
+.plivex-main-layout.dark [class~="bg-slate-50"] { background-color: #111827 !important; }
+.plivex-main-layout.dark [class~="bg-slate-100"] { background-color: #273449 !important; }
+.plivex-main-layout.dark [class~="text-slate-900"],
+.plivex-main-layout.dark [class~="text-slate-800"] { color: #f1f5f9 !important; }
+.plivex-main-layout.dark [class~="text-slate-700"],
+.plivex-main-layout.dark [class~="text-slate-600"] { color: #cbd5e1 !important; }
+.plivex-main-layout.dark [class~="text-slate-500"],
+.plivex-main-layout.dark [class~="text-slate-400"] { color: #94a3b8 !important; }
+.plivex-main-layout.dark [class~="border-[#E5E7EB]"],
+.plivex-main-layout.dark [class~="border-[#E8E7EF]"],
+.plivex-main-layout.dark [class~="border-slate-100"],
+.plivex-main-layout.dark [class~="border-slate-200"] { border-color: #374151 !important; }
+.plivex-main-layout.dark [class~="bg-violet-50"] { background-color: #312e45 !important; }
+.plivex-main-layout.dark [class~="text-violet-800"] { color: #ddd6fe !important; }
+.plivex-main-layout.dark :where(input, select, textarea) {
+  color-scheme: dark;
+  background-color: #1f2937;
+  border-color: #475569;
+  color: #f8fafc;
+}
+.plivex-main-layout.dark :where(table) { color: #e2e8f0; }
+.plivex-main-layout.dark :where(thead th) { background: #1f2937; color: #cbd5e1; }
+.plivex-main-layout.dark :where(tbody td) { border-color: #374151; }
