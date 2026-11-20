@@ -19,7 +19,6 @@ export function buildConversationRoutingText(messages, maxUserTurns = 4) {
   if (ACKNOWLEDGEMENT.test(latest)) return latest;
   if (userTurns.length === 1) return latest;
 
-  const previous = userTurns.slice(0, -1).join(" ");
   const isContinuation = CONTINUATION_CUE.test(latest);
 
   return isContinuation ? userTurns.join("\n") : latest;
