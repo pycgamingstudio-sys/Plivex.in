@@ -2,7 +2,7 @@ name: Global Foundation CI
 
 on:
   push:
-    branches: [global-dev, feat/part9-approval-gates-unified]
+    branches: [global-dev, feat/part9-approval-gates-unified, feat/unified-international-invoice-issuance-final]
   pull_request:
     branches: [global-dev, main]
 
