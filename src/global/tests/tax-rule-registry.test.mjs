@@ -82,7 +82,12 @@ test("Canadian province rules include CRA-published provincial sales tax compone
       province,
     );
     assert.equal(result.rule.sourceAuthority, "Canada Revenue Agency");
-    assert.equal(result.rule.coverage, "federal-gst-or-harmonized-hst-only-provincial-sales-taxes-excluded");
+    assert.equal(
+      result.rule.coverage,
+      ["BC", "MB", "SK"].includes(province)
+        ? "federal-gst-hst-plus-listed-provincial-pst-rst-components"
+        : "federal-gst-or-harmonized-hst-only",
+    );
   }
 });
 

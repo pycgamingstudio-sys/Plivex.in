@@ -295,7 +295,7 @@ export function getTaxRuleSet(countryCode, options = {}) {
       treatment: "standard", jurisdictionId: province, rateBps,
       effectiveFrom: province === "NS" ? "2025-04-01" : "2025-04-01", effectiveTo: null,
       reviewedOn: "2026-11-20", source: CA_RATE_SOURCE, sourceAuthority: "Canada Revenue Agency",
-      scope: "province", coverage: "federal-gst-or-harmonized-hst-only-provincial-sales-taxes-excluded",
+      scope: "province", coverage: ["BC", "MB", "SK"].includes(province) ? "federal-gst-hst-plus-listed-provincial-pst-rst-components" : "federal-gst-or-harmonized-hst-only",
       components,
     };
     return { ok: true, status: "rule_available", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION, profile: { ...profile }, rule };
