@@ -350,6 +350,32 @@ export default function GlobalQuotationsPanel({ account }) {
             <h3 className="text-sm font-bold text-slate-900">Tax calculation</h3>
             <p className="mt-1 text-xs leading-5 text-slate-500">Uses the same country tax engine as invoices. Tax is calculated only when the current verified rule, seller registration and supply details are available.</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-semibold text-slate-600">Tax treatment
+                <select className={field + " mt-1"} value={taxContext.taxTreatment} onChange={(e) => setTaxContext((v) => ({ ...v, taxTreatment: e.target.value, taxCategory: e.target.value === "standard" ? "standard-rated" : "", taxDetailsConfirmed: false, taxMode: "taxable", noTaxConfirmed: false }))}>
+                  <option value="standard">Standard-rated</option>
+                  {countryCode === "GB" && <><option value="reduced">Reduced-rated · qualifying fuel and power</option><option value="zero-rated">Zero-rated · qualifying books</option><option value="exempt">Exempt · qualifying financial services</option></>}
+                  {countryCode === "AE" && <><option value="zero-rated">Zero-rated · qualifying exports</option><option value="exempt">Exempt · qualifying financial services</option></>}
+                  {countryCode === "CA" && <option value="zero-rated">Zero-rated · qualifying basic groceries</option>}
+                  {countryCode === "AU" && <><option value="gst-free">GST-free · qualifying basic food</option><option value="exempt">Input-taxed · qualifying financial services</option></>}
+                  {countryCode === "SG" && <><option value="zero-rated">Zero-rated · qualifying exports / international services</option><option value="exempt">Exempt · qualifying financial services</option><option value="out-of-scope">Out of scope · overseas-to-overseas goods</option></>}
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-slate-600">Tax category
+                <select className={field + " mt-1"} value={taxContext.taxCategory} onChange={(e) => setTaxContext((v) => ({ ...v, taxCategory: e.target.value, taxDetailsConfirmed: false, taxMode: "taxable", noTaxConfirmed: false }))}>
+                  {taxContext.taxTreatment === "standard" && <option value="standard-rated">Standard-rated supply</option>}
+                  {countryCode === "GB" && taxContext.taxTreatment === "reduced" && <option value="GB_REDUCED_DOMESTIC_FUEL_POWER">Qualifying domestic fuel and power</option>}
+                  {countryCode === "GB" && taxContext.taxTreatment === "zero-rated" && <option value="GB_ZERO_RATED_BOOKS">Qualifying printed books</option>}
+                  {countryCode === "GB" && taxContext.taxTreatment === "exempt" && <option value="GB_EXEMPT_FINANCIAL_SERVICES">Qualifying financial services</option>}
+                  {countryCode === "AE" && taxContext.taxTreatment === "zero-rated" && <option value="AE_ZERO_RATED_EXPORTS">Qualifying exports</option>}
+                  {countryCode === "AE" && taxContext.taxTreatment === "exempt" && <option value="AE_EXEMPT_FINANCIAL_SERVICES">Qualifying financial services</option>}
+                  {countryCode === "CA" && taxContext.taxTreatment === "zero-rated" && <option value="CA_ZERO_RATED_BASIC_GROCERIES">Qualifying basic groceries</option>}
+                  {countryCode === "AU" && taxContext.taxTreatment === "gst-free" && <option value="AU_GST_FREE_BASIC_FOOD">Qualifying basic food</option>}
+                  {countryCode === "AU" && taxContext.taxTreatment === "exempt" && <option value="AU_INPUT_TAXED_FINANCIAL_SERVICES">Qualifying input-taxed financial services</option>}
+                  {countryCode === "SG" && taxContext.taxTreatment === "zero-rated" && <option value="SG_ZERO_RATED_EXPORTS_INTERNATIONAL_SERVICES">Qualifying exports and international services</option>}
+                  {countryCode === "SG" && taxContext.taxTreatment === "exempt" && <option value="SG_EXEMPT_FINANCIAL_SERVICES">Qualifying financial services</option>}
+                  {countryCode === "SG" && taxContext.taxTreatment === "out-of-scope" && <option value="SG_OUT_OF_SCOPE_OVERSEAS_TO_OVERSEAS_GOODS">Goods delivered overseas to overseas</option>}
+                </select>
+              </label>
               <label className="text-xs font-semibold text-slate-600">Place of supply
                 {["GB","AE","AU","SG"].includes(countryCode) ? <select className={field + " mt-1"} value={taxContext.placeOfSupply} onChange={(e) => setTaxContext((v) => ({ ...v, placeOfSupply: e.target.value, taxDetailsConfirmed: false, taxMode: "taxable", noTaxConfirmed: false }))}><option value="">Select place</option>{countryCode === "GB" && <option value="United Kingdom">United Kingdom</option>}{countryCode === "AE" && <option value="United Arab Emirates">United Arab Emirates</option>}{countryCode === "AU" && <option value="Australia">Australia</option>}{countryCode === "SG" && <option value="Singapore">Singapore</option>}</select> : <input className={field + " mt-1"} value={taxContext.placeOfSupply} maxLength={180} placeholder="Supply destination / place" onChange={(e) => setTaxContext((v) => ({ ...v, placeOfSupply: e.target.value, taxDetailsConfirmed: false }))} />}
               </label>
@@ -359,7 +385,7 @@ export default function GlobalQuotationsPanel({ account }) {
                   {["AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","QC","SK","YT"].map((province) => <option key={province} value={province}>{province}</option>)}
                 </select>
               </label>}
-              {["BC","MB","SK"].includes(taxContext.destinationJurisdiction.province) && <label className="text-xs font-semibold text-slate-600 sm:col-span-2">Provincial sales tax classification
+              {taxContext.taxTreatment === "standard" && ["BC","MB","SK"].includes(taxContext.destinationJurisdiction.province) && <label className="text-xs font-semibold text-slate-600 sm:col-span-2">Provincial sales tax classification
                 <select className={field + " mt-1"} value={taxContext.taxCategory} onChange={(e) => setTaxContext((v) => ({ ...v, taxCategory: e.target.value, taxDetailsConfirmed: false, taxMode: "taxable", noTaxConfirmed: false }))}>
                   <option value="standard-rated">Not confirmed</option>
                   <option value={"CA_" + taxContext.destinationJurisdiction.province + "_PST_TAXABLE_GOODS"}>All lines are taxable tangible goods for this province's PST/RST</option>
@@ -372,7 +398,7 @@ export default function GlobalQuotationsPanel({ account }) {
             </label>
             {taxContext.taxMode !== "no_tax" && <label className="mt-3 flex items-start gap-2 text-xs leading-5 text-slate-600">
               <input type="checkbox" checked={taxContext.taxDetailsConfirmed === true} onChange={(e) => setTaxContext((v) => ({ ...v, taxDetailsConfirmed: e.target.checked, collectionObligationAttested: countryCode === "CA" ? e.target.checked : v.collectionObligationAttested }))} />
-              <span>I confirm the seller's tax registration is current, the place of supply is correct, and all quotation lines have the selected standard tax treatment. For BC, Manitoba or Saskatchewan, I also confirm every line qualifies for the selected PST/RST taxable-goods category.</span>
+              <span>I confirm the seller's tax registration is current, the place of supply is correct, and all quotation lines qualify for the selected tax category and treatment. For BC, Manitoba or Saskatchewan, I also confirm every line qualifies for the selected PST/RST taxable-goods category.</span>
             </label>}
             <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs">
               {taxPreview.ok === true && taxPreview.status === "calculated" ? <>
