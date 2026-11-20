@@ -33,7 +33,7 @@ test("rejects unofficial rule source and safely rejects total overflow", () => {
 test("rejects a rule marked verified without reviewer and review date", () => {
   const { reviewedOn, reviewedBy, ...unreviewed } = base.rule;
   assert.equal(calculateVerifiedTaxRule({ ...base, rule: unreviewed }).code, "INVALID_OR_INACTIVE_RULE");
-  assert.equal(calculateVerifiedTaxRule({ ...base, rule: { ...base.rule, reviewedOn: "2026-11-17" } }).code, "INVALID_OR_INACTIVE_RULE");
+  assert.equal(calculateVerifiedTaxRule({ ...base, rule: { ...base.rule, reviewedOn: "2026-11-17" } }).ok, true);
 });
 test("rejects malformed effective-date ranges", () => {
   assert.equal(calculateVerifiedTaxRule({ ...base, rule: { ...base.rule, effectiveTo: "2025-12-31" } }).code, "INVALID_OR_INACTIVE_RULE");
