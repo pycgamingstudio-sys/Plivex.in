@@ -84,7 +84,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className={labelClass}>Calculation method
           <select className={fieldClass} value={selectedMode} onChange={(e) => update({ mode: e.target.value })}>
-            {!isUS && !isCA && <option value="automatic">Automatic · verified standard rate</option>}
+            {!isUS && !isCA && <option value="automatic">Automatic · source-backed country rate</option>}
             <option value="manual">Manual · user-entered rate</option>
           </select>
         </label>
