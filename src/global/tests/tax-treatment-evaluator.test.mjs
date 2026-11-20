@@ -170,3 +170,24 @@ test("expanded official country tax categories resolve only for their exact trea
     assert.ok(resolved.rule.source.startsWith("https://"));
   }
 });
+
+
+test("verified UK and UAE reverse-charge rules resolve only for their explicit categories", () => {
+  const cases = [
+    ["GB", "GB_REVERSE_CHARGE_CONSTRUCTION_STANDARD", 2000],
+    ["GB", "GB_REVERSE_CHARGE_CONSTRUCTION_REDUCED", 500],
+    ["AE", "AE_REVERSE_CHARGE_ELECTRONIC_DEVICES", 500],
+  ];
+  for (const [countryCode, taxCategoryId, rateBps] of cases) {
+    const resolved = getTaxTreatmentRuleSet(countryCode, {
+      treatment: "reverse-charge", taxCategoryId, asOfDate: "2026-11-20",
+    });
+    assert.equal(resolved.ok, true, taxCategoryId);
+    assert.equal(resolved.rule.treatment, "reverse-charge");
+    assert.equal(resolved.rule.components[0].rateBps, rateBps);
+  }
+  assert.equal(getTaxTreatmentRuleSet("US", {
+    treatment: "reverse-charge", taxCategoryId: "US_REVERSE_CHARGE_NOT_APPLICABLE",
+    asOfDate: "2026-11-20",
+  }).ok, false);
+});
