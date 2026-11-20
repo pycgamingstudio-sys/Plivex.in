@@ -39,12 +39,12 @@ BEGIN
   -- Special treatment quotations must match a published server rule, not just
   -- a browser-supplied zero/reduced rate.
   v_special_quote := public.global_manage_quotation_with_tax(
-    '66666666-6666-4666-8666-666666666666',
-    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-    'create',NULL,'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','GBP',
-    current_date,current_date+14,'UK reduced-rate quotation test',
+    '66666666-6666-4666-8666-666666666666'::uuid,
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid,
+    'create'::text,NULL::uuid,'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'::uuid,'GBP'::text,
+    current_date,current_date+14,'UK reduced-rate quotation test'::text,
     jsonb_build_array(jsonb_build_object('description','Qualifying domestic fuel and power','quantity',1,'unit_price_minor',10000,'discount_minor',0)),
-    NULL,'b3333333-3333-4333-8333-333333333333',
+    NULL::text,'b3333333-3333-4333-8333-333333333333'::uuid,
     jsonb_build_object(
       'taxContext',jsonb_build_object(
         'countryCode','GB','mode','automatic','priceMode','exclusive',
