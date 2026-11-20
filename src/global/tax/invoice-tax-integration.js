@@ -111,7 +111,7 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
     return fail("WORKSPACE_COUNTRY_REQUIRED", "Choose a supported workspace country before calculating tax.");
   }
 
-  const config = invoice?.globalTax || {
+  const config = {
     mode: ["US", "CA"].includes(countryCode) ? "manual" : "automatic",
     // A business that explicitly declares itself unregistered starts with the
     // commercial-invoice path. Issuance still requires a separate confirmation
@@ -119,6 +119,7 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
     taxMode: String(workspaceProfile?.registrationStatus || "unregistered").trim().toLowerCase() === "unregistered" ? "no_tax" : "taxable",
     noTaxConfirmed: false,
     priceMode: "exclusive",
+    ...(invoice?.globalTax || {}),
   };
   if (config.countryCode && config.countryCode !== countryCode) return fail("COUNTRY_PROFILE_MISMATCH", "Invoice tax country does not match the saved workspace country.");
   const mode = config.mode;
