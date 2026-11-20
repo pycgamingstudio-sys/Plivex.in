@@ -88,3 +88,11 @@ test("unified non-India workspaces do not hit legacy Global-only feature gates",
   const app = read("../../App.jsx");
   assert.match(app, /if \(!isUnifiedBuild && APP_EDITION === "global" && user\?\.country_code && user\.country_code !== "IN"\)/);
 });
+
+test("legacy pending review metadata never blocks unified Main Workspace access", () => {
+  const app = read("../../App.jsx");
+  const onboardingGate = app.slice(app.indexOf("// One shared post-auth onboarding"), app.indexOf('if (APP_EDITION === "global"'));
+  assert.match(onboardingGate, /!user\.workspace_id|!user\.country_code|!user\.workspace_type/);
+  assert.doesNotMatch(onboardingGate, /migration_status|legacy_review_required/);
+  assert.doesNotMatch(onboardingGate, /mandatory Workspace review/);
+});
