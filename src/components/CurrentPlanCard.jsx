@@ -10,12 +10,12 @@ function formatDate(value, fallbackLabel) {
 // Shown on pricing surfaces for the current plan, dates, and included benefits.
 export default function CurrentPlanCard({ planName, benefits = [], startedAt, expiresAt }) {
   return (
-    <div className="mb-4 rounded-2xl border border-primary/30 bg-primary/[.04] p-4">
+    <div className="mb-4 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[.07] via-white to-violet-50/60 p-4 shadow-[0_1px_2px_rgba(24,24,40,.03)] sm:p-5">
       <div className="flex items-center gap-2">
         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><BadgeCheck className="h-3.5 w-3.5" /></span>
         <p className="font-mono-ui text-[10px] font-bold uppercase tracking-[0.16em] text-primary">Your current plan</p>
       </div>
-      <p className="mt-2 text-[18px] font-bold tracking-[-0.03em] text-foreground">{planName}</p>
+      <p className="mt-2 text-[19px] font-bold tracking-[-0.035em] text-foreground">{planName}</p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-[11px]"><CalendarDays className="h-3.5 w-3.5 text-primary" /><span className="text-muted-foreground">Started</span><span className="ml-auto font-semibold text-foreground">{formatDate(startedAt, "Date unavailable")}</span></div>
         <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-[11px]"><CalendarDays className="h-3.5 w-3.5 text-primary" /><span className="text-muted-foreground">{String(planName || "").toLowerCase() === "free" ? "Plan validity" : "Expires"}</span><span className="ml-auto font-semibold text-foreground">{String(planName || "").toLowerCase() === "free" ? "No expiry" : formatDate(expiresAt, "Pending")}</span></div>
