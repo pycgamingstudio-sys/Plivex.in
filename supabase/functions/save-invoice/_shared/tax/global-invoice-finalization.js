@@ -64,8 +64,10 @@ export function createGlobalInvoiceTaxSnapshot(input) {
   const rule = result.ruleSnapshot;
   if (!isRecord(rule) || rule.treatment !== result.treatment
     || (result.treatment !== "standard" && (!String(rule.taxCategoryId || "").trim()
-      || result.taxCategory !== rule.taxCategoryId))
-    || !String(rule.id || "").trim() || !String(rule.version || "").trim()
+      || result.taxCategory !== rule.taxCategoryId))) {
+    return fail("TAX_TREATMENT_RULE_MISMATCH", "The tax treatment and confirmed supply category must match the selected versioned rule.");
+  }
+  if (!String(rule.id || "").trim() || !String(rule.version || "").trim()
     || !/^https:\/\//.test(String(rule.source || "")) || !validDate(rule.effectiveFrom)
     || input.invoiceDate < rule.effectiveFrom
     || (rule.effectiveTo && (!validDate(rule.effectiveTo) || input.invoiceDate > rule.effectiveTo))) {
