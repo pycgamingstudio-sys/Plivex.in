@@ -13,7 +13,7 @@ import TrialGate from "@/components/TrialGate";
 // authenticated users land on their real workspace. Pending guest intents
 // (stored before sign-in) are resumed automatically.
 export default function HomeGate() {
-  const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings, user } = useAuth();
+  const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings } = useAuth();
   const location = useLocation();
   const [pending, setPending] = useState(null);
 
