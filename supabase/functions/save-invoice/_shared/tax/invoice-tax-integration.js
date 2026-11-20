@@ -116,7 +116,7 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
     return fail("TAX_CATEGORY_REQUIRED", "Select the goods/services tax category.");
   }
   const selectedTreatment = String(config.taxTreatment || "standard").trim().toLowerCase();
-  if (!["standard", "reduced", "zero-rated", "exempt", "out-of-scope"].includes(selectedTreatment)) {
+  if (!["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"].includes(selectedTreatment)) {
     return fail("UNSUPPORTED_TAX_TREATMENT", "This tax treatment is not supported. Keep the invoice as a draft.");
   }
   const normalizedTreatment = selectedTreatment === "standard" ? "standard-rated" : selectedTreatment;
@@ -206,7 +206,7 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
       effectiveFrom: registrationEffectiveFrom,
       jurisdictions: [
         ...(workspaceProfile?.registeredJurisdiction ? [workspaceProfile.registeredJurisdiction] : []),
-        ...(countryCode === "CA" && config.destinationJurisdiction?.province ? [String(config.destinationJurisdiction.province).toUpperCase()] : []),
+        
       ],
     },
     placeOfSupplyVerified: true,
