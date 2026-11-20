@@ -181,12 +181,15 @@ test("Canadian PST provinces require an explicit taxable-goods classification be
     taxCategory: "standard-rated",
   });
   assert.equal(calculateInvoiceGlobalTax(base, caProfile).code, "CANADIAN_PST_TAXABILITY_REQUIRED");
-  const confirmed = invoice("CAD", {
-    destinationJurisdiction: { province: "BC" },
-    collectionObligationAttested: true,
-    taxDetailsConfirmed: true,
-    taxCategory: "CA_BC_PST_TAXABLE_GOODS",
-  });
+  const confirmed = {
+    ...invoice("CAD", {
+      destinationJurisdiction: { province: "BC" },
+      collectionObligationAttested: true,
+      taxDetailsConfirmed: true,
+      taxCategory: "CA_BC_PST_TAXABLE_GOODS",
+    }),
+    issueDate: "2026-11-20",
+  };
   assert.equal(calculateInvoiceGlobalTax(confirmed, caProfile).ok, true);
 });
 
@@ -217,8 +220,9 @@ test("US/Canada manual tax validates destination separately from seller registra
     components: [{ id: "state", name: "State tax", rateBps: 500 }] }), profile("US", "USD", { registeredJurisdiction: "US-CA" }));
   assert.equal(us.ok, true);
   const ca = calculateInvoiceGlobalTax(invoice("CAD", { mode: "manual", collectionObligationAttested: true,
+    taxCategory: "CA_BC_PST_TAXABLE_GOODS",
     destinationJurisdiction: { province: "BC" },
-    components: [{ id: "gst", name: "GST", rateBps: 500 }] }), profile("CA", "CAD", { registeredJurisdiction: "CA-ON" }));
+    components: [{ id: "gst", name: "GST", rateBps: 500 }, { id: "pst", name: "PST", rateBps: 700 }] }), profile("CA", "CAD", { registeredJurisdiction: "CA-ON" }));
   assert.equal(ca.ok, true);
 });
 
