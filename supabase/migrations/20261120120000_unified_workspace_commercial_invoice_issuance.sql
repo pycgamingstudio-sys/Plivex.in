@@ -217,9 +217,12 @@ begin
   if v_settings.country_code not in ('GB','US','AE','CA','AU','SG') then
     raise exception using errcode='22023', message='Commercial issuance is not enabled for this workspace country';
   end if;
-  if v_settings.currency_code <> case v_settings.country_code
-    when 'GB' then 'GBP' when 'US' then 'USD' when 'AE' then 'AED'
-    when 'CA' then 'CAD' when 'AU' then 'AUD' when 'SG' then 'SGD' end then
+  if (v_settings.country_code='GB' and v_settings.currency_code<>'GBP')
+    or (v_settings.country_code='US' and v_settings.currency_code<>'USD')
+    or (v_settings.country_code='AE' and v_settings.currency_code<>'AED')
+    or (v_settings.country_code='CA' and v_settings.currency_code<>'CAD')
+    or (v_settings.country_code='AU' and v_settings.currency_code<>'AUD')
+    or (v_settings.country_code='SG' and v_settings.currency_code<>'SGD') then
     raise exception using errcode='22023', message='Workspace base currency does not match its country';
   end if;
   if nullif(btrim(v_profile.name),'') is null or nullif(btrim(v_profile.address),'') is null then
