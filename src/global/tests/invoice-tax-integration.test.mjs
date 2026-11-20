@@ -342,3 +342,48 @@ test("Canada automatic GST/HST resolves a reviewed province rule and exact sourc
   assert.equal(result.components[0].source.startsWith("https://"), true);
   assert.equal(result.lineTaxBreakdown[0].ruleSnapshot.jurisdictionId, "ON");
 });
+
+
+test("UK construction reverse charge keeps supplier invoice tax at zero and records recipient VAT", () => {
+  const result = calculateInvoiceGlobalTax(invoice("GBP", {
+    taxTreatment: "reverse-charge",
+    taxCategory: "GB_REVERSE_CHARGE_CONSTRUCTION_STANDARD",
+    reverseChargeEvidence: {
+      recipientVatRegisteredConfirmed: true,
+      constructionIndustrySchemeConfirmed: true,
+      recipientNotEndUserConfirmed: true,
+      supplyWithinConstructionIndustryScheme: true,
+      employmentBusinessExcluded: true,
+    },
+  }), profile("GB", "GBP"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.taxMinor, 0);
+  assert.equal(result.totalMinor, 10000);
+  assert.equal(result.recipientTaxMinor, 2000);
+  assert.equal(result.recipientAccountingRequired, true);
+  assert.equal(result.taxCharged, false);
+  assert.equal(result.taxSnapshot.recipientTaxMinor, 2000);
+  assert.equal(result.taxSnapshot.recipientTaxComponents[0].amountMinor, 2000);
+});
+
+test("UAE electronic-device reverse charge requires recipient declaration evidence", () => {
+  const result = calculateInvoiceGlobalTax(invoice("AED", {
+    taxTreatment: "reverse-charge",
+    taxCategory: "AE_REVERSE_CHARGE_ELECTRONIC_DEVICES",
+    reverseChargeEvidence: {
+      recipientVatRegisteredConfirmed: true,
+      recipientIntendedResaleOrManufacture: true,
+      recipientDeclarationReceived: true,
+    },
+  }), profile("AE", "AED"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.taxMinor, 0);
+  assert.equal(result.recipientTaxMinor, 500);
+  assert.equal(result.totalMinor, 10000);
+  const missingEvidence = calculateInvoiceGlobalTax(invoice("AED", {
+    taxTreatment: "reverse-charge",
+    taxCategory: "AE_REVERSE_CHARGE_ELECTRONIC_DEVICES",
+    reverseChargeEvidence: {},
+  }), profile("AE", "AED"));
+  assert.equal(missingEvidence.code, "AE_REVERSE_CHARGE_EVIDENCE_REQUIRED");
+});
