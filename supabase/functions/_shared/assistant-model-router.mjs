@@ -54,9 +54,10 @@ function assertJsonModelResult(result) {
   try {
     parsed = JSON.parse(raw);
   } catch {
-    // Some compatible OpenAI-style free models return plain text despite
-    // response_format=json_object. Treat it as a read-only answer, never an action.
-    return { reply: raw.slice(0, 12000), actions: [], action: { type: "none", payload: {} } };
+    // Some compatible free models return plain text despite response_format.
+    // Wrap it in the exact chat contract and force the turn to be read-only.
+    const normalized = { reply: raw.slice(0, 12000), actions: [], action: { type: "none", payload: {} } };
+    return { candidates: [{ content: { parts: [{ text: JSON.stringify(normalized) }] } }] };
   }
 
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
