@@ -6,15 +6,15 @@ import { calculateGlobalTax } from "../tax/global-tax-engine.js";
 test("capability matrix distinguishes India legacy, Global calculation and issuance readiness", () => {
   assert.equal(getGlobalTaxCapability("IN").calculation, "india_legacy");
   assert.equal(getGlobalTaxCapability("GB").calculation, "standard_rate_baseline");
-  assert.equal(getGlobalTaxCapability("GB").issuance, "code_ready_database_migration_pending");
+  assert.equal(getGlobalTaxCapability("GB").issuance, "standard_rate_only");
   for (const code of ["AE", "AU", "SG"]) {
     assert.equal(getGlobalTaxCapability(code).calculation, "standard_rate_baseline");
-    assert.equal(getGlobalTaxCapability(code).issuance, "disabled");
+    assert.equal(getGlobalTaxCapability(code).issuance, "standard_rate_only");
   }
-  for (const code of ["US", "CA"]) {
-    assert.equal(getGlobalTaxCapability(code).calculation, "verified_jurisdiction_rule_required");
-    assert.equal(getGlobalTaxCapability(code).issuance, "disabled");
-  }
+  assert.equal(getGlobalTaxCapability("CA").calculation, "verified_jurisdiction_rule_required");
+  assert.equal(getGlobalTaxCapability("CA").issuance, "standard_rate_only");
+  assert.equal(getGlobalTaxCapability("US").calculation, "verified_jurisdiction_rule_required");
+  assert.equal(getGlobalTaxCapability("US").issuance, "disabled");
 });
 
 test("unconfigured ISO countries and malformed codes fail closed", () => {
