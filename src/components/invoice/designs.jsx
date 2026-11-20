@@ -17,6 +17,13 @@ export function isPremiumDesign(id) {
   return Boolean(INVOICE_DESIGNS.find((design) => design.id === id)?.premium);
 }
 
+function invoiceDocumentTitle(invoice) {
+  if (invoice.documentStatus === "draft" || invoice.documentType === "draft_invoice") return "Draft Invoice";
+  if (invoice.documentType === "commercial_invoice") return "Commercial Invoice";
+  if (invoice.documentType === "tax_invoice") return "Tax Invoice";
+  return "Invoice";
+}
+
 function initials(name) {
   const parts = String(name || "Your business").trim().split(/\s+/).filter(Boolean);
   return (parts.map((word) => word[0]).slice(0, 2).join("") || "P").toUpperCase();
@@ -84,12 +91,12 @@ function Totals({ invoice, subtotal, discount, discountValue, taxValue, total, m
         <p className="text-[11px] text-amber-800">Tax calculation needs review: {invoice.globalTaxCalculation?.message || "Complete the tax details before finalizing."}</p>
       ) : (
         <>
-          <div className="flex justify-between text-[#77758a]"><span>{invoice.taxLabel || `${invoice.taxMode === "split" ? "CGST + SGST" : "IGST"} (${invoice.taxRate}%)`}</span><span>{money(taxValue, invoice.currency)}</span></div>
+          <div className="flex justify-between text-[#77758a]"><span>{invoice.taxMode === "split" ? "CGST + SGST" : "IGST"} ({invoice.taxRate}%)</span><span>{money(taxValue, invoice.currency)}</span></div>
           {invoice.taxMode === "split" && <div className="flex justify-between text-[#8b889b]"><span>CGST / SGST</span><span>{money(taxValue / 2, invoice.currency)} each</span></div>}
         </>
       )}
       <div className="mt-3 flex items-end justify-between border-t-2 pt-3" style={{ borderColor: accent }}>
-        <span className="font-bold">{invoice.totalLabel || "Total due"}</span>
+        <span className="font-bold">Total due</span>
         <span className="text-[20px] font-bold tracking-[-0.04em]" style={{ color: accent }}>{money(total, invoice.currency)}</span>
       </div>
       <p className="pt-1 text-right text-[13px] italic text-[#8b889b]">{amountInWords(total, invoice.currency)}</p>
@@ -110,7 +117,7 @@ function NotesBlock({ invoice }) {
 function SignatureBlock({ invoice }) {
   return (
     <div className="text-right">
-      {invoice.signature?.startsWith?.("data:image/") ? <img src={invoice.signature} alt="Signature" className="ml-auto h-16 max-w-[180px] object-contain" /> : invoice.signature ? <p className="ml-auto max-w-[180px] border-b border-dashed border-[#aaa7b8] pb-2 text-right font-display text-[17px] italic">{invoice.signature}</p> : <div className="ml-auto h-12 w-[150px] border-b border-dashed border-[#aaa7b8]" />}
+      {invoice.signature ? <img src={invoice.signature} alt="Signature" className="ml-auto h-16 max-w-[180px] object-contain" /> : <div className="ml-auto h-12 w-[150px] border-b border-dashed border-[#aaa7b8]" />}
       <p className="mt-2 text-[13px] font-semibold">{invoice.business.name}</p>
       <p className="text-[13px] text-[#8b889b]">Authorised signature</p>
     </div>
@@ -149,17 +156,17 @@ function ClassicDesign({ invoice, subtotal, discount, discountValue, taxValue, t
           </div>
         </div>
         <div className="text-right">
-          <p className="font-mono-ui text-[13px] uppercase tracking-[0.17em] text-[#77758a]">{invoice.documentTitle || "Invoice"}</p>
+          <p className="font-mono-ui text-[13px] uppercase tracking-[0.17em] text-[#77758a]">{invoiceDocumentTitle(invoice)}</p>
           <p className="mt-1 text-[19px] font-bold tracking-[-0.04em] text-[#2e2857]">{invoice.number || "INV-000"}</p>
           <div className="mt-3 grid grid-cols-2 gap-x-5 gap-y-1 text-[13px]">
-            <span className="text-[#77758a]">{invoice.issueDateLabel || "Issued"}</span><span className="font-medium">{dateLabel(invoice.issueDate)}</span>
-            <span className="text-[#77758a]">{invoice.expiryDateLabel || "Due"}</span><span className="font-medium">{dateLabel(invoice.dueDate)}</span>
+            <span className="text-[#77758a]">Issued</span><span className="font-medium">{dateLabel(invoice.issueDate)}</span>
+            <span className="text-[#77758a]">Due</span><span className="font-medium">{dateLabel(invoice.dueDate)}</span>
           </div>
         </div>
       </div>
       <div className="flex justify-between gap-8 border-b border-[#e4e1eb] py-7">
         <div>
-          <p className="font-mono-ui text-[13px] uppercase tracking-[0.14em] text-[#8b889b]">{invoice.clientHeading || "Billed to"}</p>
+          <p className="font-mono-ui text-[13px] uppercase tracking-[0.14em] text-[#8b889b]">Billed to</p>
           <p className="mt-2 text-[14px] font-bold">{invoice.client.name || "Client name"}</p>
           <p className="mt-0.5 text-[13px] font-medium text-[#555267]">{invoice.client.company}</p>
           <p className="mt-2 whitespace-pre-line text-[13px] leading-relaxed text-[#77758a]">{invoice.client.address}</p>
@@ -193,7 +200,7 @@ function ModernDesign({ invoice, subtotal, discount, discountValue, taxValue, to
             </div>
           </div>
           <div className="text-right">
-            <p className="font-mono-ui text-[13px] uppercase tracking-[0.2em] text-white/70">{invoice.documentTitle || "Invoice"}</p>
+            <p className="font-mono-ui text-[13px] uppercase tracking-[0.2em] text-white/70">{invoiceDocumentTitle(invoice)}</p>
             <p className="mt-1 text-[22px] font-bold tracking-[-0.03em]">{invoice.number || "INV-000"}</p>
           </div>
         </div>
@@ -201,15 +208,15 @@ function ModernDesign({ invoice, subtotal, discount, discountValue, taxValue, to
       <div className="p-7 sm:p-12">
         <div className="grid grid-cols-2 gap-6 border-b border-[#e4e1eb] pb-6">
           <div>
-            <p className="font-mono-ui text-[13px] uppercase tracking-[0.14em] text-[#8b889b]">{invoice.clientHeading || "Billed to"}</p>
+            <p className="font-mono-ui text-[13px] uppercase tracking-[0.14em] text-[#8b889b]">Billed to</p>
             <p className="mt-2 text-[14px] font-bold">{invoice.client.name || "Client name"}</p>
             <p className="mt-0.5 text-[13px] font-medium text-[#555267]">{invoice.client.company}</p>
             <p className="mt-2 whitespace-pre-line text-[13px] leading-relaxed text-[#77758a]">{invoice.client.address}</p>
             <p className="mt-1 text-[13px] text-[#77758a]">{invoice.client.email} · {invoice.client.phone}</p>
           </div>
           <div className="text-right text-[13px]">
-            <p className="text-[#8b889b]">{invoice.issueDateLabel || "Issued"} <span className="font-medium text-[#28263a]">{dateLabel(invoice.issueDate)}</span></p>
-            <p className="mt-1.5 text-[#8b889b]">{invoice.expiryDateLabel || "Due"} <span className="font-medium text-[#28263a]">{dateLabel(invoice.dueDate)}</span></p>
+            <p className="text-[#8b889b]">Issued <span className="font-medium text-[#28263a]">{dateLabel(invoice.issueDate)}</span></p>
+            <p className="mt-1.5 text-[#8b889b]">Due <span className="font-medium text-[#28263a]">{dateLabel(invoice.dueDate)}</span></p>
             {invoice.client.gstin && <p className="mt-1.5 font-mono-ui text-[13px] text-[#77758a]">{registrationLabel(invoice)} {invoice.client.gstin}</p>}
           </div>
         </div>
@@ -260,7 +267,7 @@ function MinimalDesign({ invoice, subtotal, discount, discountValue, taxValue, t
           </div>
         </div>
         <div className="text-right">
-          <p className="text-[26px] font-light uppercase leading-none tracking-[0.3em] text-[#28263a]">{invoice.documentTitle || "Invoice"}</p>
+          <p className="text-[26px] font-light uppercase leading-none tracking-[0.3em] text-[#28263a]">{invoiceDocumentTitle(invoice)}</p>
           <p className="mt-2 font-mono-ui text-[13px] tracking-[0.06em] text-[#8b889b]">{invoice.number || "INV-000"}</p>
         </div>
       </div>
@@ -268,14 +275,14 @@ function MinimalDesign({ invoice, subtotal, discount, discountValue, taxValue, t
       <div className="mt-1 h-px w-full bg-[#28263a]/25" />
       <div className="mt-10 grid grid-cols-2 gap-8 text-[13px]">
         <div>
-          <p className="font-mono-ui uppercase tracking-[0.2em] text-[#8b889b]">{invoice.clientHeading || "Billed to"}</p>
+          <p className="font-mono-ui uppercase tracking-[0.2em] text-[#8b889b]">Billed to</p>
           <p className="mt-2 text-[13px] font-bold">{invoice.client.name || "Client name"}</p>
           <p className="mt-1 whitespace-pre-line leading-relaxed text-[#8b889b]">{invoice.client.address}</p>
           <p className="mt-1 text-[#8b889b]">{invoice.client.email}</p>
         </div>
         <div className="text-right">
-          <p className="text-[#8b889b]">{invoice.issueDateLabel || "Issued"} <span className="font-medium text-[#28263a]">{dateLabel(invoice.issueDate)}</span></p>
-          <p className="mt-1 text-[#8b889b]">{invoice.expiryDateLabel || "Due"} <span className="font-medium text-[#28263a]">{dateLabel(invoice.dueDate)}</span></p>
+          <p className="text-[#8b889b]">Issued <span className="font-medium text-[#28263a]">{dateLabel(invoice.issueDate)}</span></p>
+          <p className="mt-1 text-[#8b889b]">Due <span className="font-medium text-[#28263a]">{dateLabel(invoice.dueDate)}</span></p>
           {invoice.business.gstin && <p className="mt-1 font-mono-ui text-[#8b889b]">{registrationLabel(invoice)} {invoice.business.gstin}</p>}
         </div>
       </div>
@@ -319,10 +326,10 @@ function ExecutiveDesign({ invoice, subtotal, discount, discountValue, taxValue,
         <p className="text-[13px] text-white/55">{invoice.business.phone}</p>
         {invoice.business.gstin && <p className="mt-2 font-mono-ui text-[13px] tracking-[0.08em] text-white/45">{registrationLabel(invoice)} {invoice.business.gstin}</p>}
         <div className="mt-7 border-t border-white/15 pt-5">
-          <p className="font-mono-ui text-[13px] uppercase tracking-[0.24em] text-[#c9a24a]">{invoice.documentTitle || "Invoice"}</p>
+          <p className="font-mono-ui text-[13px] uppercase tracking-[0.24em] text-[#c9a24a]">{invoiceDocumentTitle(invoice)}</p>
           <p className="mt-2 text-[20px] font-bold tracking-[-0.03em]">{invoice.number || "INV-000"}</p>
-          <p className="mt-3 text-[13px] text-white/60">{invoice.issueDateLabel || "Issued"} <span className="font-medium text-white">{dateLabel(invoice.issueDate)}</span></p>
-          <p className="mt-1 text-[13px] text-white/60">{invoice.expiryDateLabel || "Due"} <span className="font-medium text-white">{dateLabel(invoice.dueDate)}</span></p>
+          <p className="mt-3 text-[13px] text-white/60">Issued <span className="font-medium text-white">{dateLabel(invoice.issueDate)}</span></p>
+          <p className="mt-1 text-[13px] text-white/60">Due <span className="font-medium text-white">{dateLabel(invoice.dueDate)}</span></p>
         </div>
         {upiValid && (
           <div data-pdf-keep-together="upi" className="mt-auto pt-8">
@@ -334,17 +341,17 @@ function ExecutiveDesign({ invoice, subtotal, discount, discountValue, taxValue,
       <div className="min-w-0 flex-1 p-7 sm:p-10">
         <div className="flex items-start justify-between gap-6">
           <div>
-            <p className="font-mono-ui text-[13px] uppercase tracking-[0.24em] text-[#c9a24a]">{invoice.documentSubtitle || "Statement of account"}</p>
-            <h2 className="mt-1.5 text-[24px] font-bold tracking-[-0.045em] text-[#241f45]">{invoice.documentTitle || "Invoice"}</h2>
+            <p className="font-mono-ui text-[13px] uppercase tracking-[0.24em] text-[#c9a24a]">Statement of account</p>
+            <h2 className="mt-1.5 text-[24px] font-bold tracking-[-0.045em] text-[#241f45]">Invoice</h2>
           </div>
           <div className="rounded-lg bg-[#f6f4fb] px-4 py-2.5 text-right">
-            <p className="text-[13px] uppercase tracking-[0.16em] text-[#8b889b]">{invoice.totalHeading || "Amount due"}</p>
+            <p className="text-[13px] uppercase tracking-[0.16em] text-[#8b889b]">Amount due</p>
             <p className="mt-0.5 text-[16px] font-bold tracking-[-0.03em] text-[#241f45]">{money(total, invoice.currency)}</p>
           </div>
         </div>
         <div className="mt-7 flex items-start justify-between gap-6 border-y border-[#e4e1eb] py-5">
           <div>
-            <p className="font-mono-ui text-[13px] uppercase tracking-[0.14em] text-[#8b889b]">{invoice.clientHeading || "Billed to"}</p>
+            <p className="font-mono-ui text-[13px] uppercase tracking-[0.14em] text-[#8b889b]">Billed to</p>
             <p className="mt-2 text-[14px] font-bold">{invoice.client.name || "Client name"}</p>
             <p className="mt-0.5 text-[13px] font-medium text-[#555267]">{invoice.client.company}</p>
             <p className="mt-1.5 whitespace-pre-line text-[13px] leading-relaxed text-[#77758a]">{invoice.client.address}</p>
@@ -366,7 +373,7 @@ function ElegantDesign({ invoice, subtotal, discount, discountValue, taxValue, t
     <div className="p-8 sm:p-14">
       <div className="border-b-4 border-double border-[#b9a86a] pb-6 text-center">
         <p className="font-display text-[26px] font-normal tracking-[-0.02em] text-[#28263a]">{invoice.business.name || "Your business"}</p>
-        <p className="mt-2 text-[13px] uppercase tracking-[0.32em] text-[#8b889b]">{invoice.documentTitle || "Invoice"}</p>
+        <p className="mt-2 text-[13px] uppercase tracking-[0.32em] text-[#8b889b]">{invoiceDocumentTitle(invoice)}</p>
       </div>
       <div className="mt-8 grid grid-cols-3 gap-6 text-[13px]">
         <div>
@@ -376,7 +383,7 @@ function ElegantDesign({ invoice, subtotal, discount, discountValue, taxValue, t
           {invoice.business.gstin && <p className="mt-1 font-mono-ui text-[13px] text-[#77758a]">{registrationLabel(invoice)} {invoice.business.gstin}</p>}
         </div>
         <div className="text-center">
-          <p className="font-display text-[13px] italic text-[#b9a86a]">{invoice.clientHeading || "Billed to"}</p>
+          <p className="font-display text-[13px] italic text-[#b9a86a]">Billed to</p>
           <p className="mt-1.5 text-[13px] font-bold">{invoice.client.name || "Client name"}</p>
           <p className="mt-1 whitespace-pre-line leading-relaxed text-[#77758a]">{invoice.client.address}</p>
           <p className="mt-1 text-[#77758a]">{invoice.client.email}</p>
@@ -384,8 +391,8 @@ function ElegantDesign({ invoice, subtotal, discount, discountValue, taxValue, t
         <div className="text-right">
           <p className="font-display text-[13px] italic text-[#b9a86a]">Details</p>
           <p className="mt-1.5 text-[#77758a]">No. <span className="font-medium text-[#28263a]">{invoice.number || "INV-000"}</span></p>
-          <p className="mt-1 text-[#77758a]">{invoice.issueDateLabel || "Issued"} <span className="font-medium text-[#28263a]">{dateLabel(invoice.issueDate)}</span></p>
-          <p className="mt-1 text-[#77758a]">{invoice.expiryDateLabel || "Due"} <span className="font-medium text-[#28263a]">{dateLabel(invoice.dueDate)}</span></p>
+          <p className="mt-1 text-[#77758a]">Issued <span className="font-medium text-[#28263a]">{dateLabel(invoice.issueDate)}</span></p>
+          <p className="mt-1 text-[#77758a]">Due <span className="font-medium text-[#28263a]">{dateLabel(invoice.dueDate)}</span></p>
         </div>
       </div>
       <div className="mt-10">
