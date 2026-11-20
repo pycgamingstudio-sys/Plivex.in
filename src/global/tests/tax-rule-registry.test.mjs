@@ -65,14 +65,10 @@ test("Canadian province rules include CRA-published provincial sales tax compone
     ON: { rateBps: 1300, components: { HST: 1300 } },
     PE: { rateBps: 1500, components: { HST: 1500 } },
     SK: { rateBps: 1100, components: { GST: 500, PST: 600 } },
-    QC: null,
+    QC: { rateBps: 1497.5, components: { GST: 500, QST: 997.5 } },
     YT: { rateBps: 500, components: { GST: 500 } },
   };
   for (const [province, expectedRule] of Object.entries(expected)) {
-    if (province === "QC") {
-      assert.equal(getTaxRuleSet("CA", { jurisdictionId: province, asOfDate: "2026-11-20" }).code, "CANADIAN_QST_PRECISION_ENGINE_REQUIRED");
-      continue;
-    }
     const result = getTaxRuleSet("CA", { jurisdictionId: province, asOfDate: "2026-11-20" });
     assert.equal(result.ok, true, province);
     assert.equal(result.rule.rateBps, expectedRule.rateBps, province);
@@ -86,7 +82,7 @@ test("Canadian province rules include CRA-published provincial sales tax compone
       result.rule.coverage,
       ["BC", "MB", "SK"].includes(province)
         ? "federal-gst-hst-plus-listed-provincial-pst-rst-components"
-        : "federal-gst-or-harmonized-hst-only",
+        : province === "QC" ? "federal-gst-plus-quebec-qst" : "federal-gst-or-harmonized-hst-only",
     );
   }
 });
