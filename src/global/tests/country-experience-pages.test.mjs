@@ -63,7 +63,7 @@ test("legacy Global feature restrictions do not block unified Main Workspace rou
 });
 
 
-test("public marketing copy distinguishes Global availability from India-only features", async () => {
+test("public marketing copy presents one unified Plivex product with country-aware capabilities", async () => {
   const pages = await read("../../pages/PublicInfoPages.jsx");
   const about = await read("../../components/landing/AboutSection.jsx");
   assert.doesNotMatch(pages, /platform for Indian small businesses/);
