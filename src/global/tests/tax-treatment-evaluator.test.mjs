@@ -99,7 +99,7 @@ test("UK domestic fuel and power reduced-rate rule is available only for its exa
   const resolved = getTaxTreatmentRuleSet("GB", { treatment: "reduced", taxCategoryId: category, asOfDate: "2026-11-20" });
   assert.equal(resolved.ok, true);
   assert.equal(resolved.rule.components[0].rateBps, 500);
-  const result = calculateGlobalTax({ ...base, treatment: "reduced", taxCategory: category });
+  const result = calculateGlobalTax({ ...base, invoiceDate: "2026-11-20", treatment: "reduced", taxCategory: category });
   assert.equal(result.ok, true);
   assert.equal(result.taxMinor, 500);
   assert.equal(result.totalMinor, 10500);
