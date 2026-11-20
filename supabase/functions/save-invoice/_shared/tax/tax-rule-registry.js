@@ -1,4 +1,20 @@
 // Bundled copy for the save-invoice Edge Function. Keep in sync with src/global/tax/tax-rule-registry.js.
+/**
+ * Versioned, source-controlled tax rule catalogue for Plivex Global.
+ *
+ * This catalogue contains only the narrow standard-rate baselines already
+ * reviewed for GB, AE, AU and SG. It is not a complete tax-law database.
+ * US/CA deliberately have no national rate; India remains on its legacy GST
+ * adapter. Unknown, out-of-period and jurisdiction-dependent cases fail closed.
+ *
+ * Update policy:
+ * - Add a new immutable version for every legal/rate change; never overwrite
+ *   the meaning of an issued invoice's rule snapshot.
+ * - Keep legal effective dates separate from review/publication dates.
+ * - Cite an official tax authority source for every rate component.
+ * - Do not promote a rule to active until its scope and effective dates are
+ *   reviewed. This code catalogue is not a live database or legal advice.
+ */
 export const TAX_RULE_CATALOG_VERSION = "2026.11.3";
 export const TAX_ENGINE_VERSION = "1.0.0";
 
