@@ -118,6 +118,29 @@ test("registration, invoice date, currency and user confirmations fail closed", 
   assert.equal(calculateInvoiceGlobalTax(invoice("GBP", { registrationConfirmed: false }), profile("GB", "GBP")).code, "REGISTRATION_CONFIRMATION_REQUIRED");
 });
 
+test("unregistered sellers can issue a confirmed commercial invoice without a tax registration ID", () => {
+  const seller = profile("GB", "GBP", { registrationNumber: "", registrationStatus: "unregistered", registrationEffectiveFrom: "" });
+  const blockedUntilConfirmed = calculateInvoiceGlobalTax(invoice("GBP"), seller);
+  assert.equal(blockedUntilConfirmed.code, "NO_TAX_CONFIRMATION_REQUIRED");
+  const commercial = calculateInvoiceGlobalTax(invoice("GBP", { taxMode: "no_tax", noTaxConfirmed: true }), seller);
+  assert.equal(commercial.ok, true);
+  assert.equal(commercial.status, "not_applicable");
+  assert.equal(commercial.taxMinor, 0);
+  assert.equal(commercial.totalMinor, 10000);
+  assert.equal(commercial.taxSnapshot, null);
+  assert.match(commercial.disclosure, /commercial invoice/i);
+});
+
+test("unregistered sellers in all six supported non-India countries can issue confirmed commercial invoices", () => {
+  for (const [country, currency] of [["US","USD"],["GB","GBP"],["AE","AED"],["CA","CAD"],["AU","AUD"],["SG","SGD"]]) {
+    const seller = profile(country, currency, { registrationNumber: "", registrationStatus: "unregistered", registrationEffectiveFrom: "", registeredJurisdiction: "" });
+    const result = calculateInvoiceGlobalTax(invoice(currency, { taxMode: "no_tax", noTaxConfirmed: true }), seller);
+    assert.equal(result.ok, true, country + ": " + (result.message || result.code));
+    assert.equal(result.status, "not_applicable", country);
+    assert.equal(result.taxMinor, 0, country);
+  }
+});
+
 test("India remains delegated to the existing GST path", () => {
   assert.deepEqual(calculateInvoiceGlobalTax(invoice("INR"), profile("IN", "INR")), {
     ok: true, status: "india_legacy", countryCode: "IN",
