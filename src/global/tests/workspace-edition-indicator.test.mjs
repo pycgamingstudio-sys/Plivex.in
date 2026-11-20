@@ -132,6 +132,7 @@ test("save-invoice Edge Function bundles the exact shared tax engine sources", (
     ["../tax/tax-invoice-formats.js", "../../../supabase/functions/save-invoice/_shared/tax/tax-invoice-formats.js"],
     ["../tax/tax-treatment-policy.js", "../../../supabase/functions/save-invoice/_shared/tax/tax-treatment-policy.js"],
     ["../tax/verified-rule-evaluator.js", "../../../supabase/functions/save-invoice/_shared/tax/verified-rule-evaluator.js"],
+    ["../tax/tax-treatment-evaluator.js", "../../../supabase/functions/save-invoice/_shared/tax/tax-treatment-evaluator.js"],
     ["../tax/standard-rate-rules.js", "../../../supabase/functions/save-invoice/_shared/tax/standard-rate-rules.js"],
     ["../tax/tax-rule-registry.js", "../../../supabase/functions/save-invoice/_shared/tax/tax-rule-registry.js"],
     ["../money/currency-precision.js", "../../../supabase/functions/save-invoice/_shared/money/currency-precision.js"],
