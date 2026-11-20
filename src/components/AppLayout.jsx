@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PresenceBeacon from "@/components/PresenceBeacon";
 import Logo from "@/components/Logo";
 import { navItems, MORE_NAV_ITEMS, HIDDEN_FROM_SIDEBAR } from "@/lib/nav";
@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { APP_EDITION } from "@/api/backendClient";
 import { getCountryByCode, getCountryFlag } from "@/global/countries/country-registry.js";
 import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
-import { LayoutDashboard, Users, Package, FileText, Handshake, Warehouse, Calculator, ShoppingCart, MoreHorizontal, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Users, Package, FileText, Handshake, Warehouse, Calculator, ShoppingCart, MoreHorizontal, ChevronDown, Moon, Sun } from "lucide-react";
 
 const GLOBAL_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -32,6 +32,15 @@ export default function AppLayout({ children }) {
   const { canAccess, openPaywall } = usePaywall();
   const isGlobal = APP_EDITION === "global";
   const [moreOpen, setMoreOpen] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    if (APP_EDITION === "global") return false;
+    try { return localStorage.getItem("plivex-main-workspace-theme") === "dark"; } catch { return false; }
+  });
+  useEffect(() => {
+    if (isGlobal) return;
+    document.documentElement.dataset.plivexTheme = isDark ? "dark" : "light";
+    try { localStorage.setItem("plivex-main-workspace-theme", isDark ? "dark" : "light"); } catch { /* preference storage is optional */ }
+  }, [isGlobal, isDark]);
 
   const isFeatureAvailable = (path) => {
     if (path === "/crm" || path === "/client-database") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
@@ -62,7 +71,7 @@ export default function AppLayout({ children }) {
   });
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className={`plivex-main-layout min-h-screen bg-background ${!isGlobal && isDark ? "dark" : ""}`}>
       <header className="sticky top-0 z-20 border-b border-[#E8E7EF] bg-white/95 shadow-[0_1px_2px_rgba(24,24,40,.025)] backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
@@ -83,7 +92,10 @@ export default function AppLayout({ children }) {
               <button type="button" onClick={() => logout()} className="rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition-colors hover:bg-secondary">Sign out</button>
             </div>
           ) : (
-            <NavLink to="/" className="rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition-colors hover:bg-secondary">← Invoice desk</NavLink>
+            <div className="flex shrink-0 items-center gap-2">
+              {!isGlobal && <button type="button" onClick={() => setIsDark((value) => !value)} aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"} title={isDark ? "Switch to light theme" : "Switch to dark theme"} className="flex h-9 w-9 items-center justify-center rounded-lg border text-muted-foreground transition-colors hover:bg-secondary">{isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button>}
+              <NavLink to="/" className="rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition-colors hover:bg-secondary">← Invoice desk</NavLink>
+            </div>
           )}
         </div>
         <div data-testid="compact-workspace-identity" className="mx-auto flex min-w-0 max-w-6xl items-center gap-2 px-4 pb-2 sm:hidden">
