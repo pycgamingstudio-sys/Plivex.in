@@ -68,7 +68,7 @@ export function calculateVerifiedTaxRule(input) {
     || typeof rule.id !== "string" || !rule.id.trim() || typeof rule.version !== "string" || !rule.version.trim()
     || !officialSource(countryCode, rule.source) || !validDate(rule.effectiveFrom)
     || (rule.effectiveTo && (!validDate(rule.effectiveTo) || rule.effectiveTo < rule.effectiveFrom))
-    || !validDate(rule.reviewedOn) || rule.reviewedOn > input.invoiceDate
+    || !validDate(rule.reviewedOn)
     || typeof rule.reviewedBy !== "string" || !rule.reviewedBy.trim()
     || input.invoiceDate < rule.effectiveFrom || (rule.effectiveTo && input.invoiceDate > rule.effectiveTo)) {
     return fail("INVALID_OR_INACTIVE_RULE", "A verified, officially sourced, reviewed and effective rule snapshot is required.");
