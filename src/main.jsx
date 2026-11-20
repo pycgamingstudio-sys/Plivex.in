@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
+import Logo from '@/components/Logo'
 import '@/index.css'
 
 const CHUNK_RETRY_KEY = 'plivex:chunk-retry-at'
@@ -58,6 +59,7 @@ class AppErrorBoundary extends React.Component {
       return (
         <main
           role="alert"
+          aria-live="assertive"
           style={{
             minHeight: '100dvh',
             display: 'flex',
@@ -71,23 +73,7 @@ class AppErrorBoundary extends React.Component {
           }}
         >
           <section style={{ width: '100%', maxWidth: '420px' }}>
-            <div
-              aria-hidden="true"
-              style={{
-                width: '48px',
-                height: '48px',
-                margin: '0 auto 16px',
-                display: 'grid',
-                placeItems: 'center',
-                borderRadius: '14px',
-                background: '#6D28D9',
-                color: '#fff',
-                fontWeight: 800,
-                fontSize: '20px',
-              }}
-            >
-              P
-            </div>
+            <Logo className="mx-auto mb-4 h-12 w-12" />
             <h1 style={{ margin: '0 0 8px', fontSize: '22px', fontWeight: 750 }}>
               Plivex couldn’t load this page
             </h1>

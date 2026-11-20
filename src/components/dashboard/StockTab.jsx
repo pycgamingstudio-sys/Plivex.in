@@ -24,19 +24,32 @@ export default function StockTab() {
 
   const filtered = useMemo(() => items.filter((p) => `${p.name} ${p.sku || ""} ${p.barcode || ""}`.toLowerCase().includes(q.toLowerCase())), [items, q]);
   const lowCount = items.filter((p) => (Number(p.quantity) || 0) <= (p.lowStock === "" || p.lowStock === null || p.lowStock === undefined ? DEFAULT_LOW : Number(p.lowStock))).length;
-  const totalUnits = items.reduce((s, p) => s + (Number(p.quantity) || 0), 0);
+  const stockByUnit = new Map();
+  items.forEach((product) => {
+    const unit = String(product.unit || "units").trim() || "units";
+    const quantity = Number(product.quantity);
+    if (Number.isFinite(quantity)) stockByUnit.set(unit, (stockByUnit.get(unit) || 0) + quantity);
+  });
+  const totalUnits = [...stockByUnit.entries()].map(([unit, quantity]) => `${quantity} ${unit}`).join(" · ") || "0";
 
   const isLow = (p) => (Number(p.quantity) || 0) <= (p.lowStock === "" || p.lowStock === null || p.lowStock === undefined ? DEFAULT_LOW : Number(p.lowStock));
 
-  const remove = (id) => setItems((prev) => prev.filter((p) => p.id !== id));
+  const remove = (id) => { const product = items.find((item) => item.id === id); if (!product || !window.confirm("Delete product " + product.name + "? This cannot be undone.")) return; setItems((prev) => prev.filter((p) => p.id !== id)); };
   const save = (entry) => {
-    if (!entry.name.trim()) return;
+    if (!entry.name.trim()) { window.alert("Enter a product name."); return; }
+    const quantity = Number(entry.quantity);
+    const price = Number(entry.price || 0);
+    const lowStock = Number(entry.lowStock);
+    if (!Number.isFinite(quantity) || quantity < 0 || !Number.isFinite(price) || price < 0 || !Number.isFinite(lowStock) || lowStock < 0) { window.alert("Quantity, price and low-stock threshold must be valid non-negative numbers."); return; }
+    const normalizeCode = (value) => String(value || "").trim().toLowerCase();
+    const duplicate = items.find((item) => item.id !== (editTarget && editTarget.id) && ((normalizeCode(entry.sku) && normalizeCode(item.sku) === normalizeCode(entry.sku)) || (normalizeCode(entry.barcode) && normalizeCode(item.barcode) === normalizeCode(entry.barcode))));
+    if (duplicate) { window.alert("This SKU or barcode is already assigned to another product."); return; }
     if (!editTarget && Number.isFinite(remaining("stock")) && remaining("stock") <= 0) { openPaywall("Stock item limit reached for your current plan."); return; }
     if (editTarget) {
       setItems((prev) => prev.map((p) => (p.id === editTarget.id ? { ...editTarget, ...entry } : p)));
       setEditTarget(null);
     } else {
-      setItems((prev) => [{ ...entry, id: genId("stk"), quantity: Number(entry.quantity) || 0 }, ...prev]);
+      setItems((prev) => [{ ...entry, id: genId("stk"), quantity }, ...prev]);
     }
     setOpen(false);
   };
@@ -46,7 +59,7 @@ export default function StockTab() {
       <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-xs"><div className="flex justify-between"><span className="font-semibold">Stock items used</span><span className="font-bold">{Number(usage.stock ?? items.length)}/{Number(limits.stock ?? 20)}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${Number(usage.stock ?? items.length) / Number(limits.stock ?? 20) >= 1 ? "bg-rose-500" : Number(usage.stock ?? items.length) / Number(limits.stock ?? 20) >= 0.8 ? "bg-amber-500" : "bg-[#6D28D9]"}`} style={{ width: `${Math.min(100, Number(usage.stock ?? items.length) / Number(limits.stock ?? 20) * 100)}%` }} /></div>{Number(usage.stock ?? items.length) / Number(limits.stock ?? 20) >= 0.8 && <p className="mt-1 text-amber-600">{Number(usage.stock ?? items.length) >= Number(limits.stock ?? 20) ? "Plan limit reached" : "Usage limit warning"}</p>}</div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <SummaryCard label="Total Products" value={String(items.length)} gradient="bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]" icon={Boxes} badge="SKUs" />
-        <SummaryCard label="Units in Stock" value={String(totalUnits)} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={Package} badge="quantity" />
+        <SummaryCard label="Quantity by Unit" value={String(totalUnits)} gradient="bg-gradient-to-br from-[#059669] to-[#10B981]" icon={Package} badge="quantity" />
         <SummaryCard label="Low Stock Alerts" value={String(lowCount)} gradient={lowCount > 0 ? "bg-gradient-to-br from-[#E11D48] to-[#F43F5E]" : "bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]"} icon={AlertTriangle} badge={lowCount > 0 ? "restock soon" : "all good"} />
       </div>
 
@@ -65,7 +78,8 @@ export default function StockTab() {
         {filtered.length === 0 ? (
           <Empty label="No products in stock yet. Add your first product to enable auto-deduction on invoices." />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[640px] text-left text-[12px]">
               <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 <tr>
@@ -85,7 +99,7 @@ export default function StockTab() {
                       <td className="px-4 py-3 font-bold text-slate-900">{p.name}</td>
                       <td className="px-4 py-3 text-slate-500">{p.sku || "—"}{p.barcode ? <span className="block text-[10px] text-slate-400">{p.barcode}</span> : null}</td>
                       <td className="px-4 py-3 text-right font-bold text-slate-900">{Number(p.quantity) || 0} <span className="font-normal text-slate-400">{p.unit}</span></td>
-                      <td className="px-4 py-3 text-right text-slate-500">{Number(p.lowStock) || DEFAULT_LOW}</td>
+                      <td className="px-4 py-3 text-right text-slate-500">{p.lowStock === "" || p.lowStock === null || p.lowStock === undefined ? DEFAULT_LOW : Number(p.lowStock)}</td>
                       <td className="px-4 py-3">
                         {low ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-[10px] font-bold uppercase text-rose-700"><AlertTriangle className="h-3 w-3" />Low Stock Alert</span>
@@ -105,6 +119,26 @@ export default function StockTab() {
               </tbody>
             </table>
           </div>
+          <div className="space-y-2.5 p-3 md:hidden">
+            {filtered.map((product) => {
+              const low = isLow(product);
+              return <article key={product.id} className="rounded-xl border border-slate-200 bg-white p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0"><p className="break-words text-[13px] font-bold text-slate-900">{product.name}</p><p className="mt-0.5 break-all text-[10px] text-slate-500">{product.sku || "No SKU"}{product.barcode ? " · " + product.barcode : ""}</p></div>
+                  <span className={low ? "shrink-0 rounded-full bg-rose-100 px-2 py-1 text-[9px] font-bold text-rose-700" : "shrink-0 rounded-full bg-emerald-100 px-2 py-1 text-[9px] font-bold text-emerald-700"}>{low ? "Low stock" : "In stock"}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-2.5">
+                  <div><p className="text-[9px] font-semibold uppercase text-slate-400">Quantity</p><p className="mt-0.5 text-[12px] font-bold text-slate-800">{Number(product.quantity) || 0} {product.unit}</p></div>
+                  <div><p className="text-[9px] font-semibold uppercase text-slate-400">Low-stock threshold</p><p className="mt-0.5 text-[12px] font-bold text-slate-800">{product.lowStock === "" || product.lowStock == null ? DEFAULT_LOW : Number(product.lowStock)}</p></div>
+                </div>
+                <div className="mt-3 flex justify-end gap-2 border-t border-slate-100 pt-3">
+                  <button type="button" onClick={() => { setEditTarget(product); setOpen(true); }} className="min-h-9 rounded-lg border border-slate-200 px-3 text-[11px] font-semibold text-slate-700">Edit</button>
+                  <button type="button" onClick={() => remove(product.id)} className="min-h-9 rounded-lg border border-rose-100 px-3 text-[11px] font-semibold text-rose-700">Delete</button>
+                </div>
+              </article>;
+            })}
+          </div>
+          </>
         )}
       </div>
 
@@ -144,9 +178,9 @@ function ProductModal({ value, isEdit, items = [], currencyCode = "INR", onClose
             </select>
             {isCustomUnit && <input className={inputCls} value={form.unit} onChange={(e) => set("unit", e.target.value)} placeholder="Type unit, e.g. tray" autoFocus />}
           </label>
-          <label className="block text-[12px] font-semibold text-slate-500">Quantity<input type="number" className={inputCls} value={form.quantity} onChange={(e) => set("quantity", e.target.value)} placeholder="0" /></label>
-          <label className="block text-[12px] font-semibold text-slate-500">Low-stock at<input type="number" className={inputCls} value={form.lowStock} onChange={(e) => set("lowStock", e.target.value)} placeholder={String(DEFAULT_LOW)} /></label>
-          <label className="block text-[12px] font-semibold text-slate-500 sm:col-span-2">Price ({currencyCode})<input type="number" className={inputCls} value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="0" /></label>
+          <label className="block text-[12px] font-semibold text-slate-500">Quantity<input type="number" min="0" step="any" className={inputCls} value={form.quantity} onChange={(e) => set("quantity", e.target.value)} placeholder="0" /></label>
+          <label className="block text-[12px] font-semibold text-slate-500">Low-stock at<input type="number" min="0" step="any" className={inputCls} value={form.lowStock} onChange={(e) => set("lowStock", e.target.value)} placeholder={String(DEFAULT_LOW)} /></label>
+          <label className="block text-[12px] font-semibold text-slate-500 sm:col-span-2">Price ({currencyCode})<input type="number" min="0" step="any" className={inputCls} value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="0" /></label>
         </div></div>
         <div className="sticky bottom-0 z-10 flex shrink-0 justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"><button type="button" onClick={onClose} className={btnGhost}>Cancel</button><button type="button" onClick={() => onSave(form)} className={btnAccent}>Save product</button></div>
       </div>

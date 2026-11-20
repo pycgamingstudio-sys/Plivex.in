@@ -1,5 +1,5 @@
 import { useAuth } from "@/lib/AuthContext";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Trash2, Pencil, X, ArrowRight, UserPlus, Search, ChevronDown, ChevronRight, Users, Target, Wallet } from "lucide-react";
 import ClientRiskBadge from "@/components/ClientRiskBadge";
@@ -18,8 +18,9 @@ const formatCurrencyTotals = (records, currencyCode) => {
   const totals = new Map();
   records.forEach((record) => {
     const currency = String(record.currencyCode || "").trim().toUpperCase();
-    if (!/^[A-Z]{3}$/.test(currency)) return;
-    totals.set(currency, (totals.get(currency) || 0) + Number(record.value || 0));
+    const amount = Number(record.value || 0);
+    if (!/^[A-Z]{3}$/.test(currency) || !Number.isFinite(amount)) return;
+    totals.set(currency, (totals.get(currency) || 0) + amount);
   });
   return [...totals.entries()]
     .sort(([a], [b]) => a === currencyCode ? -1 : b === currencyCode ? 1 : a.localeCompare(b))
@@ -41,6 +42,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
   const [clientModal, setClientModal] = useState(null);
   const [leadModal, setLeadModal] = useState(false);
   const [q, setQ] = useState("");
+  const [leadQuery, setLeadQuery] = useState("");
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState(null);
   const navigate = useNavigate();
@@ -52,9 +54,12 @@ export default function CrmTab({ intent, onConsumeIntent }) {
 
   const persistClients = (n) => { setClients(n); saveList(KEYS.clients, n); };
   const persistLeads = (n) => { setLeads(n); saveList(KEYS.leads, n); };
-  const saveClient = (entry) => { if (!entry.name.trim()) return; if (!requestAction()) return; const n = clientModal.id ? clients.map((c) => (c.id === clientModal.id ? { ...entry, id: clientModal.id } : c)) : [{ ...entry, id: genId("client") }, ...clients]; persistClients(n); setClientModal(null); };
+  const saveClient = (entry) => { if (!entry.name.trim()) { window.alert("Enter a client name."); return; } if (entry.email && !(/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(entry.email.trim()))) { window.alert("Enter a valid client email address."); return; } if (!requestAction()) return; const n = clientModal.id ? clients.map((c) => (c.id === clientModal.id ? { ...entry, id: clientModal.id } : c)) : [{ ...entry, id: genId("client") }, ...clients]; persistClients(n); setClientModal(null); };
   const saveLead = (entry) => {
-    if (!entry.name.trim()) return;
+    if (!entry.name.trim()) { window.alert("Enter a lead name."); return; }
+    if (entry.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(entry.email.trim())) { window.alert("Enter a valid lead email address."); return; }
+    if (entry.value !== "" && (!Number.isFinite(Number(entry.value)) || Number(entry.value) < 0)) { window.alert("Lead value must be a valid non-negative amount."); return; }
+    if (entry.nextFollowUpAt && Number.isNaN(new Date(entry.nextFollowUpAt).getTime())) { window.alert("Choose a valid follow-up date and time."); return; }
     if (!requestAction()) return;
     const score = Math.min(100, (entry.email.trim() ? 15 : 0) + (entry.phone.trim() ? 20 : 0)
       + (entry.company.trim() ? 15 : 0) + (entry.requirement.trim() ? 20 : 0)
@@ -75,6 +80,15 @@ export default function CrmTab({ intent, onConsumeIntent }) {
 
   const activeLeads = leads.filter((l) => !["Won", "Lost"].includes(l.stage));
   const pipelineValue = formatCurrencyTotals(activeLeads, currencyCode) || money2(0, currencyCode);
+  const leadsByStage = useMemo(() => {
+    const query = leadQuery.trim().toLowerCase();
+    const groups = Object.fromEntries(STAGES.map((stage) => [stage, []]));
+    leads.forEach((lead) => {
+      const haystack = [lead.name, lead.company, lead.phone, lead.email, lead.requirement].join(" ").toLowerCase();
+      if ((!query || haystack.includes(query)) && groups[lead.stage]) groups[lead.stage].push(lead);
+    });
+    return groups;
+  }, [leads, leadQuery]);
 
   return (
     <div className="space-y-5">
@@ -94,7 +108,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
           <div className="flex flex-col gap-3 border-b border-[#E5E7EB] p-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="relative max-w-xs flex-1">
               <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search clients…" className={`${inputCls} pl-9`} />
+              <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search clients…" aria-label="Search clients" className={`${inputCls} pl-9`} />
             </div>
             <button onClick={() => setClientModal({ ...blankClient })} className={btnAccent}><Plus className="h-3.5 w-3.5" />Add client</button>
           </div>
@@ -102,7 +116,8 @@ export default function CrmTab({ intent, onConsumeIntent }) {
           {filteredClients.length === 0 ? (
             <Empty label="No clients match your search. Add a client to invoice them in one click." />
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[640px] text-left text-[12px]">
                 <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   <tr>
@@ -119,8 +134,8 @@ export default function CrmTab({ intent, onConsumeIntent }) {
                     const open = expanded === c.id;
                     const history = invoices.filter((it) => it.clientName === c.name);
                     return (
-                      <>
-                        <tr key={c.id} className="hover:bg-slate-50">
+                      <Fragment key={c.id}>
+                        <tr className="hover:bg-slate-50">
                           <td className="px-3 py-3">
                             <button onClick={() => setExpanded(open ? null : c.id)} className="rounded-md p-1 text-slate-400 hover:bg-slate-100" aria-label="Expand">
                               {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -137,7 +152,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
                             <div className="flex items-center justify-end gap-1.5">
                               <button onClick={() => invoiceFor(c)} className="inline-flex items-center gap-1 rounded-lg bg-[#6D28D9] px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-[#7C3AED]"><ArrowRight className="h-3 w-3" />Invoice</button>
                               <button onClick={() => setClientModal({ ...c })} className="rounded-lg border border-[#E5E7EB] p-1.5 text-slate-500 hover:bg-slate-50" aria-label="Edit"><Pencil className="h-3.5 w-3.5" /></button>
-                              <button onClick={() => persistClients(removeItem(KEYS.clients, c.id))} className="rounded-lg border border-[#E5E7EB] p-1.5 text-red-500 hover:bg-red-50" aria-label="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
+                              <button onClick={() => { if (window.confirm("Delete client " + c.name + "? This cannot be undone.")) persistClients(removeItem(KEYS.clients, c.id)); }} className="rounded-lg border border-[#E5E7EB] p-1.5 text-red-500 hover:bg-red-50" aria-label="Delete client"><Trash2 className="h-3.5 w-3.5" /></button>
                             </div>
                           </td>
                         </tr>
@@ -163,12 +178,24 @@ export default function CrmTab({ intent, onConsumeIntent }) {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </tbody>
               </table>
             </div>
+            <div className="space-y-2.5 p-3 md:hidden">
+              {rows.map((client) => {
+                const clientOpen = expanded === client.id;
+                const clientInvoices = invoices.filter((invoice) => invoice.clientName === client.name);
+                return <article key={client.id} className="rounded-xl border border-slate-200 p-3.5">
+                  <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words text-[13px] font-bold text-slate-900">{client.name}</p><p className="mt-0.5 text-[10px] text-slate-500">{client.company || "Individual client"}</p><p className="mt-1 break-all text-[10px] text-slate-500">{client.email || "No email"}{client.phone ? " · " + client.phone : ""}</p></div><button type="button" onClick={() => setExpanded(clientOpen ? null : client.id)} className="shrink-0 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-slate-600">{clientOpen ? "Hide details" : "Details"}</button></div>
+                  {clientOpen && <div className="mt-3 rounded-lg bg-slate-50 p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Invoice history · {clientInvoices.length}</p>{clientInvoices.length ? clientInvoices.slice(0, 5).map((invoice) => <div key={invoice.id} className="flex items-center justify-between gap-2 border-b border-slate-200 py-2 text-[10px] last:border-0"><span className="text-slate-600">{invoice.number} · {invoice.issueDate || "—"}</span><strong className="text-slate-800">{money2(invoice.total, invoice.currency || currencyCode)}</strong></div>) : <p className="mt-2 text-[11px] text-slate-500">No invoices recorded.</p>}{client.address && <p className="mt-2 text-[10px] text-slate-500">{client.address}</p>}</div>}
+                  <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => invoiceFor(client)} className="min-h-9 rounded-lg bg-[#6D28D9] px-3 text-[11px] font-bold text-white">Create invoice</button><button type="button" onClick={() => setClientModal({ ...client })} className="min-h-9 rounded-lg border border-slate-200 px-3 text-[11px] font-semibold text-slate-700">Edit</button><button type="button" onClick={() => { if (window.confirm("Delete client " + client.name + "? This cannot be undone.")) persistClients(removeItem(KEYS.clients, client.id)); }} className="min-h-9 rounded-lg border border-rose-100 px-3 text-[11px] font-semibold text-rose-700">Delete</button></div>
+                </article>;
+              })}
+            </div>
+            </>
           )}
 
           <div className="flex items-center justify-between border-t border-[#E5E7EB] px-4 py-3 text-[11px] text-slate-500">
@@ -182,10 +209,10 @@ export default function CrmTab({ intent, onConsumeIntent }) {
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="flex justify-end"><button onClick={() => setLeadModal(true)} className={btnAccent}><UserPlus className="h-3.5 w-3.5" />Add new lead</button></div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div className="relative min-w-0 flex-1 sm:max-w-sm"><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><input value={leadQuery} onChange={(event) => setLeadQuery(event.target.value)} placeholder="Search leads by name, company or contact…" aria-label="Search leads" className={inputCls + " pl-9"} /></div><button onClick={() => setLeadModal(true)} className={btnAccent}><UserPlus className="h-3.5 w-3.5" />Add new lead</button></div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {STAGES.map((stage) => {
-              const items = leads.filter((l) => l.stage === stage);
+              const items = leadsByStage[stage] || [];
               const stageValue = formatCurrencyTotals(items, currencyCode);
               return (
                 <div key={stage} className="rounded-2xl border border-[#E5E7EB] bg-white p-3 shadow-sm">
@@ -197,12 +224,12 @@ export default function CrmTab({ intent, onConsumeIntent }) {
                         <p className="text-[12px] font-bold text-slate-900">{l.name}</p>
                         <p className="text-[10px] text-slate-400">{l.company || l.phone || "—"}</p>
                         <p className="mt-1 text-[9px] font-semibold text-slate-500">Lead score: {Number(l.score || 0)}/100</p>
-                        {l.nextFollowUpAt && <p className="text-[9px] text-slate-500">Follow-up: {new Date(l.nextFollowUpAt).toLocaleString()}</p>}
+                        {l.nextFollowUpAt && <p className="text-[9px] text-slate-600">Follow-up: {new Date(l.nextFollowUpAt).toLocaleString()} <span className={new Date(l.nextFollowUpAt).getTime() < Date.now() ? "ml-1 font-bold text-rose-600" : "ml-1 font-semibold text-emerald-700"}>{new Date(l.nextFollowUpAt).getTime() < Date.now() ? "Overdue" : "Upcoming"}</span></p>}
                         <p className="mt-1 text-[11px] text-slate-500">{l.requirement || "—"}</p>
                         <p className="mt-1 text-[12px] font-bold text-[#6D28D9]">{recordedLeadAmount(l)}</p>
                         <div className="mt-2 flex flex-wrap gap-1">
                           {STAGES.filter((s) => s !== stage).map((s) => <button key={s} onClick={() => moveLead(l.id, s)} className="rounded-md bg-slate-100 px-2 py-1 text-[9px] font-semibold text-slate-600 hover:bg-slate-200">→ {s}</button>)}
-                          <button onClick={() => persistLeads(removeItem(KEYS.leads, l.id))} className="rounded-md bg-red-50 px-2 py-1 text-[9px] font-semibold text-red-500 hover:bg-red-100">del</button>
+                          <button onClick={() => { if (window.confirm("Delete lead " + l.name + "? This cannot be undone.")) persistLeads(removeItem(KEYS.leads, l.id)); }} className="rounded-md bg-red-50 px-2 py-1 text-[9px] font-semibold text-red-500 hover:bg-red-100" aria-label={"Delete lead " + l.name}>Delete</button>
                         </div>
                       </div>
                     ))}
@@ -226,8 +253,8 @@ function ClientModal({ value, onClose, onSave }) {
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-[440px] rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between"><h3 className="text-lg font-bold text-slate-900">{value.id ? "Edit client" : "Add client"}</h3><button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
+      <div role="dialog" aria-modal="true" aria-labelledby="client-modal-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-[440px] overflow-y-auto overscroll-contain rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between"><h3 id="client-modal-title" className="text-lg font-bold text-slate-900">{value.id ? "Edit client" : "Add client"}</h3><button type="button" onClick={onClose} aria-label="Close client form" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="block text-[12px] font-semibold text-slate-500">Name<input className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Client name" /></label>
           <label className="block text-[12px] font-semibold text-slate-500">Company<input className={inputCls} value={form.company} onChange={(e) => set("company", e.target.value)} placeholder="Company" /></label>
