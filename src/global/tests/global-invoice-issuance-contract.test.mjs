@@ -66,15 +66,30 @@ test("Global invoice workspace exposes PDF, WhatsApp/email share, payment, refun
   assert.match(panel, /GlobalTaxEditor/);
 });
 
-test("PLIVEX ONE keeps non-India invoice drafts unissued until server capability is ready", async () => {
+test("Unified Main Workspace issues explicitly confirmed commercial invoices through the public-schema RPC", async () => {
   const canonicalSave = readFileSync(new URL("../../../supabase/functions/save-invoice/index.ts", import.meta.url), "utf8");
-  assert.match(canonicalSave, /body\?\.is_draft !== true/);
-  assert.match(canonicalSave, /verifiedGlobalTaxResult/);
-  assert.match(home, /const issuedInvoice = null/);
-  assert.doesNotMatch(home, /action:"capabilities"/);
-  assert.doesNotMatch(home, /action:"issue"/);
-  assert.match(stores, /is_draft: isGlobalWorkspaceInvoice/);
+  const unifiedMigration = readFileSync(new URL("../../../supabase/migrations/20261120120000_unified_workspace_commercial_invoice_issuance.sql", import.meta.url), "utf8");
+  assert.match(canonicalSave, /body\?\.issue_invoice === true/);
+  assert.match(canonicalSave, /save_and_issue_commercial_invoice/);
+  assert.match(canonicalSave, /calculation\?\.status !== "not_applicable"/);
+  assert.match(unifiedMigration, /create or replace function public\.save_and_issue_commercial_invoice/);
+  assert.match(unifiedMigration, /noTaxConfirmed/);
+  assert.match(unifiedMigration, /set_config\('plivex\.invoice_issuance','on',true\)/);
+  assert.match(unifiedMigration, /Issued invoice content is immutable/);
+  assert.match(home, /const issuedInvoice = saved\.issued/);
+  assert.match(home, /globalTaxCalculation\.status === "not_applicable"/);
+  assert.match(stores, /issue_invoice: isGlobalWorkspaceInvoice && issueInvoice/);
   assert.match(history, /isDraft/);
+});
+
+test("Unified Main Workspace commercial issuance fails closed for tax invoices and preserves India", async () => {
+  const canonicalSave = readFileSync(new URL("../../../supabase/functions/save-invoice/index.ts", import.meta.url), "utf8");
+  const unifiedMigration = readFileSync(new URL("../../../supabase/migrations/20261120120000_unified_workspace_commercial_invoice_issuance.sql", import.meta.url), "utf8");
+  assert.match(canonicalSave, /Tax invoices remain gated/);
+  assert.match(unifiedMigration, /v_settings\.country_code not in \('GB','US','AE','CA','AU','SG'\)/);
+  assert.match(unifiedMigration, /unverified_non_india_tax_components_not_allowed/);
+  assert.match(unifiedMigration, /if v_country <> 'IN' then/);
+  assert.match(unifiedMigration, /save_invoice\(/);
 });
 
 test("canonical invoice drafts remain linked to CRM customer records", async () => {
