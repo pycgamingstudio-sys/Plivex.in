@@ -224,11 +224,13 @@ test("Canada automatic GST/HST uses selected destination province and a confirme
 });
 
 test("Australia GST-free category uses the exact verified GST-free rule", () => {
-  const result = calculateInvoiceGlobalTax(invoice("AUD", { issueDate: "2026-11-20",
+  const document = invoice("AUD", {
     mode: "automatic",
     taxTreatment: "gst-free",
     taxCategory: "AU_GST_FREE_BASIC_FOOD",
-  }), profile("AU", "AUD"));
+  });
+  document.issueDate = "2026-11-20";
+  const result = calculateInvoiceGlobalTax(document, profile("AU", "AUD"));
   assert.equal(result.ok, true, result.message || result.code);
   assert.equal(result.treatment, "gst-free");
   assert.equal(result.taxMinor, 0);
