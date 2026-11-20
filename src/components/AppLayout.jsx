@@ -1,18 +1,17 @@
 import { NavLink, Outlet } from "react-router-dom";
 import PresenceBeacon from "@/components/PresenceBeacon";
 import Logo from "@/components/Logo";
-import { navItems, HIDDEN_FROM_SIDEBAR } from "@/lib/nav";
+import { navItems, MORE_NAV_ITEMS, HIDDEN_FROM_SIDEBAR } from "@/lib/nav";
 import { useRole } from "@/lib/roles";
 import { usePaywall } from "@/lib/paywall";
 import { useAuth } from "@/lib/AuthContext";
 import { APP_EDITION } from "@/api/backendClient";
 import { getCountryByCode, getCountryFlag } from "@/global/countries/country-registry.js";
 import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
-import { LayoutDashboard, Users, Package, Receipt, FileText, Handshake, Warehouse, Calculator, ShoppingCart } from "lucide-react";
+import { LayoutDashboard, Users, Package, FileText, Handshake, Warehouse, Calculator, ShoppingCart, MoreHorizontal, ChevronDown } from "lucide-react";
 
 const GLOBAL_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/invoice-history", label: "Sales", icon: Receipt },
   { to: "/quotations", label: "Quotations", icon: FileText },
   { to: "/expenses", label: "Purchase", icon: ShoppingCart },
   { to: "/accounting", label: "Reports", icon: Calculator },
@@ -20,8 +19,10 @@ const GLOBAL_NAV = [
   { to: "/products", label: "Stock", icon: Package },
   { to: "/enterprise", label: "Team", icon: Users },
   { to: "/inventory-procurement", label: "Warehouse", icon: Warehouse },
-
 ];
+
+const navPillClass = (isActive) =>
+  `flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${isActive ? "bg-primary text-primary-foreground shadow-sm" : "border border-[#E8E7EF] bg-white text-muted-foreground hover:border-violet-200 hover:bg-violet-50/60 hover:text-foreground"}`;
 
 export default function AppLayout({ children }) {
   const { role } = useRole();
@@ -29,15 +30,35 @@ export default function AppLayout({ children }) {
   const { features: workspaceFeatures } = useWorkspaceFeatures(user?.workspace_id);
   const { canAccess, openPaywall } = usePaywall();
   const isGlobal = APP_EDITION === "global";
-  const items = navItems.filter((i) => {
-    if (i.to === "/" || HIDDEN_FROM_SIDEBAR.includes(i.to) || (i.roles && !i.roles.includes(role))) return false;
-    if (i.to === "/crm" || i.to === "/client-database") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
-    if (i.to === "/inventory-procurement") return workspaceFeatures.includes("inventoryWorkspace");
-    if (i.to === "/usage-reports" || i.to === "/tax-summary" || i.to === "/account-activity") return workspaceFeatures.includes("reports");
-    if (i.to === "/payment-logs") return workspaceFeatures.includes("expenses");
-    if (i.to === "/templates") return workspaceFeatures.includes("quotations");
+
+  const isFeatureAvailable = (path) => {
+    if (path === "/crm" || path === "/client-database") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
+    if (path === "/inventory-procurement") return workspaceFeatures.includes("inventoryWorkspace");
+    if (path === "/usage-reports" || path === "/tax-summary" || path === "/account-activity") return workspaceFeatures.includes("reports");
+    if (path === "/payment-logs") return workspaceFeatures.includes("expenses");
+    if (path === "/templates") return workspaceFeatures.includes("quotations");
+    return true;
+  };
+
+  const items = navItems.filter((item) =>
+    item.to !== "/" &&
+    !HIDDEN_FROM_SIDEBAR.includes(item.to) &&
+    (!item.roles || item.roles.includes(role)) &&
+    isFeatureAvailable(item.to)
+  );
+
+  const moreItems = MORE_NAV_ITEMS.filter((item) =>
+    (!item.roles || item.roles.includes(role)) && isFeatureAvailable(item.to)
+  );
+
+  const globalItems = GLOBAL_NAV.filter((item) => {
+    if (item.to === "/inventory-procurement") return workspaceFeatures.includes("inventoryWorkspace");
+    if (item.to === "/expenses") return workspaceFeatures.includes("expenses");
+    if (item.to === "/crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
+    if (item.to === "/accounting") return workspaceFeatures.includes("reports");
     return true;
   });
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-20 border-b border-[#E8E7EF] bg-white/95 shadow-[0_1px_2px_rgba(24,24,40,.025)] backdrop-blur-xl">
@@ -68,35 +89,42 @@ export default function AppLayout({ children }) {
           <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground">{user?.workspace_name || "Workspace"}</span>
           <span className="shrink-0 text-[10px] text-muted-foreground">{getCountryByCode(user?.country_code)?.name || "Country not set"}{user?.currency_code ? ` · ${user.currency_code}` : ""}</span>
         </div>
-        <nav className="mx-auto flex max-w-6xl snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain px-4 pb-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Workspace">
-          {isGlobal ? GLOBAL_NAV.filter((item) => {
-            if (item.to === "/products") return true;
-            if (item.to === "/quotations") return true;
-            if (item.to === "/inventory-procurement") return workspaceFeatures.includes("inventoryWorkspace");
-            if (item.to === "/expenses") return workspaceFeatures.includes("expenses");
-            if (item.to === "/crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
-            if (item.to === "/accounting") return workspaceFeatures.includes("reports");
-            return true;
-          }).map((item) => (
-            <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold transition-colors ${isActive ? "bg-primary text-primary-foreground" : "border bg-card text-muted-foreground hover:text-foreground"}`}>
-              <item.icon className="h-3.5 w-3.5" />{item.label}
-            </NavLink>
-          )) : items.map((item) => {
-            const locked = item.pro && !canAccess("team_management");
-            if (locked) {
-              return (
-                <button key={item.to} onClick={openPaywall} className="flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground">
-                  <item.icon className="h-3.5 w-3.5" />{item.label}
-                  <span className="ml-0.5 rounded-full bg-amber-400 px-1.5 py-0.5 text-[9px] font-bold text-amber-900">PRO</span>
-                </button>
-              );
-            }
-            return (
-              <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold transition-colors ${isActive ? "bg-primary text-primary-foreground" : "border bg-card text-muted-foreground hover:text-foreground"}`}>
+        <nav className="mx-auto flex max-w-6xl items-center gap-2 px-4 pb-2.5" aria-label="Workspace">
+          <div className="flex min-w-0 flex-1 snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {isGlobal ? globalItems.map((item) => (
+              <NavLink key={item.to} to={item.to} className={({ isActive }) => navPillClass(isActive)}>
                 <item.icon className="h-3.5 w-3.5" />{item.label}
               </NavLink>
-            );
-          })}
+            )) : items.map((item) => {
+              const locked = item.pro && !canAccess("team_management");
+              if (locked) {
+                return (
+                  <button key={item.to} onClick={openPaywall} className="flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-full border border-[#E8E7EF] bg-white px-3 py-1.5 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground">
+                    <item.icon className="h-3.5 w-3.5" />{item.label}
+                    <span className="ml-0.5 rounded-full bg-amber-400 px-1.5 py-0.5 text-[9px] font-bold text-amber-900">PRO</span>
+                  </button>
+                );
+              }
+              return (
+                <NavLink key={item.to} to={item.to} className={({ isActive }) => navPillClass(isActive)}>
+                  <item.icon className="h-3.5 w-3.5" />{item.label}
+                </NavLink>
+              );
+            })}
+          </div>
+          <details className="group relative shrink-0">
+            <summary className="flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-[12px] font-bold text-violet-800 shadow-sm transition-colors hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+              <MoreHorizontal className="h-4 w-4" />More<ChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-60 rounded-2xl border border-[#E8E7EF] bg-white p-2 shadow-[0_14px_40px_rgba(25,18,48,.16)]">
+              <p className="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Workspace & account</p>
+              {moreItems.map((item) => (
+                <NavLink key={item.to} to={item.to} onClick={(event) => { const details = event.currentTarget.closest("details"); if (details) details.open = false; }} className={({ isActive }) => `flex min-h-10 items-center gap-2.5 rounded-xl px-3 py-2 text-[12px] font-semibold transition-colors ${isActive ? "bg-violet-50 text-violet-800" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}>
+                  <item.icon className="h-4 w-4 shrink-0" />{item.label}
+                </NavLink>
+              ))}
+            </div>
+          </details>
         </nav>
       </header>
       <main className={`mx-auto max-w-6xl px-4 py-6 ${isGlobal ? "min-h-[calc(100vh-120px)] bg-[#F8F7FC]" : ""}`}>{children ?? <Outlet />}</main>
