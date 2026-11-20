@@ -51,7 +51,7 @@ test("Edge Function issues only a server-validated commercial invoice and keeps 
 test("Main Workspace renders issued PDF state only after server confirms issuance", () => {
   assert.match(stores, /issue_invoice: isGlobalWorkspaceInvoice && issueInvoice/);
   assert.match(stores, /issue_idempotency_key/);
-  assert.match(home, /globalTaxCalculation\?\.status === "not_applicable"/);
+  assert.match(home, /globalTaxCalculation\.status === "not_applicable"/);
   assert.match(home, /const issuedInvoice = saved\.issued/);
 });
 
