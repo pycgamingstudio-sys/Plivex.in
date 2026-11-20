@@ -71,7 +71,7 @@ begin
       v_tax_context := p_tax_snapshot->'taxContext';
       v_rule := v_tax_result->'ruleSnapshot';
       v_country := upper(coalesce(v_tax_result->>'countryCode',''));
-      if v_tax_result->>'ok' <> 'true'
+      if v_tax_result->>'ok' is distinct from 'true'
         or v_tax_result->>'status' <> 'calculated'
         or v_tax_result->>'mode' <> 'automatic'
         or v_tax_result->>'priceMode' <> 'exclusive'
@@ -81,6 +81,7 @@ begin
         or v_tax_context->>'mode' <> 'automatic'
         or v_tax_context->>'priceMode' <> 'exclusive'
         or v_tax_context->>'taxDetailsConfirmed' <> 'true'
+        or (v_country = 'CA' and v_tax_context->>'collectionObligationAttested' <> 'true')
         or nullif(trim(v_tax_context->>'placeOfSupply'),'') is null
         or nullif(trim(v_tax_context->>'taxCategory'),'') is null
         or v_rule is null
@@ -169,6 +170,15 @@ begin
     end if;
   end if;
 
+  if p_action = 'status' and p_status = 'sent' then
+    select * into v_quote from global.quotations
+    where id=p_quotation_id and workspace_id=p_workspace_id for update;
+    if v_quote.id is null then return jsonb_build_object('ok',false,'reason','quotation_not_found'); end if;
+    if v_quote.tax_status <> 'calculated' then
+      return jsonb_build_object('ok',false,'reason','quotation_tax_review_required');
+    end if;
+  end if;
+
   v_result := public.global_manage_quotation(
     p_user_id,p_workspace_id,p_action,p_quotation_id,p_client_id,p_currency_code,
     p_issue_date,p_valid_until,p_notes,p_items,p_status,p_idempotency_key
@@ -193,12 +203,6 @@ begin
       returning * into v_quote;
     end if;
     v_result := jsonb_set(v_result,'{quotation}',to_jsonb(v_quote),true);
-  elsif p_action = 'status' and p_status = 'sent' then
-    select * into v_quote from global.quotations
-    where id=p_quotation_id and workspace_id=p_workspace_id for update;
-    if v_quote.tax_status <> 'calculated' then
-      return jsonb_build_object('ok',false,'reason','quotation_tax_review_required');
-    end if;
   elsif p_action = 'convert' then
     select * into v_quote from global.quotations
     where id=p_quotation_id and workspace_id=p_workspace_id;
