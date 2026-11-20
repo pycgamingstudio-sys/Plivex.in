@@ -307,6 +307,7 @@ begin
         v_tax_status := 'not_applicable';
       end if;
     end if;
+  end if;
 
   if p_action = 'status' and p_status = 'sent' then
     select * into v_quote from global.quotations
