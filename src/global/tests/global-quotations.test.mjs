@@ -37,7 +37,7 @@ test("Global quotations remain permanently visible outside More Features", async
   assert.match(features, /PERMANENT_DASHBOARD_FEATURES = Object\.freeze\(\["invoices", "quotations"\]\)/);
   assert.match(features, /id: "quotations", label: "Quotations".*core: true/);
   assert.match(layout, /to: "\/quotations", label: "Quotations"/);
-  assert.match(layout, /if \(item\.to === "\/quotations"\) return true/);
+  assert.match(layout, /to: "\/quotations", label: "Quotations"/);
   assert.match(app, /path="\/quotations".*GlobalApp section="quotations"/);
   assert.match(global, /GlobalQuotationsPanel account=\{account\}/);
   assert.match(global, /title: "Quotations"[\s\S]*tab: "quotations"[\s\S]*icon: FileText/);

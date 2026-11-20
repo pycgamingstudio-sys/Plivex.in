@@ -1,8 +1,5 @@
 import {
-  History,
-  Store,
   Users,
-  UsersRound,
   BarChart3,
   Settings as SettingsIcon,
   LayoutTemplate,
@@ -15,15 +12,14 @@ import {
   Link2,
   Warehouse,
   Handshake,
+  History,
+  Store,
 } from "lucide-react";
 
 const ALL = ["admin", "employee", "accountant"];
 
 export const navItems = [
   { to: "/", label: "Invoice desk", icon: FilePenLine, roles: ALL },
-  { to: "/invoice-history", label: "Invoice history", icon: History, roles: ALL },
-  { to: "/invoice-shares", label: "Shared invoice links", icon: Link2, roles: ["admin"] },
-  { to: "/business-profile", label: "Business profile", icon: Store, roles: ["admin"] },
   { to: "/client-database", label: "Client database", icon: Users, roles: ["admin", "employee"] },
   { to: "/crm", label: "CRM & leads", icon: Handshake, roles: ["admin", "manager", "employee"] },
   { to: "/inventory-procurement", label: "Inventory & procurement", icon: Warehouse, roles: ["admin", "manager", "storekeeper"] },
@@ -32,6 +28,12 @@ export const navItems = [
   { to: "/service-catalog", label: "Service catalog", icon: Package, roles: ["admin", "employee"] },
   { to: "/payment-logs", label: "Payment logs", icon: CreditCard, roles: ["admin", "accountant"] },
   { to: "/tax-summary", label: "Tax summary", icon: Receipt, roles: ["admin", "accountant"] },
+];
+
+export const MORE_NAV_ITEMS = [
+  { to: "/invoice-history", label: "Invoice history", icon: History, roles: ALL },
+  { to: "/invoice-shares", label: "Shared invoice links", icon: Link2, roles: ["admin"] },
+  { to: "/business-profile", label: "Business profile", icon: Store, roles: ["admin"] },
   { to: "/account-activity", label: "Account activity", icon: Activity, roles: ["admin", "accountant"] },
   { to: "/settings", label: "Settings", icon: SettingsIcon, roles: ["admin"] },
   { to: "/help-center", label: "Help center", icon: LifeBuoy, roles: ALL },

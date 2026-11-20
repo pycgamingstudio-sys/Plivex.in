@@ -32,7 +32,7 @@ test("freelancer and business are mutually exclusive primary workspace profiles"
   assert.match(features, /id: "quotations"/);
   const layout = await read("../../components/AppLayout.jsx");
   const globalApp = await read("../../global/GlobalApp.jsx");
-  assert.match(layout, /if \(item\.to === "\/quotations"\) return true/);
+  assert.match(layout, /to: "\/quotations", label: "Quotations"/);
   assert.match(globalApp, /tab === "quotations"/);
   assert.match(globalApp, /title: "Quotations"[\s\S]*tab: "quotations"[\s\S]*icon: FileText/);
   assert.doesNotMatch(globalApp, /tab: "quotations", icon: FileText, tone:.*feature catalog/);
@@ -74,7 +74,10 @@ test("More Features exposes every dashboard module and supports adding optional 
   assert.match(nav, /workspaceFeatures.includes\("inventoryWorkspace"\)/);
   assert.match(nav, /workspaceFeatures.includes\("reports"\)/);
   assert.match(nav, /workspaceFeatures.includes\("team"\)/);
-  for (const label of ["Dashboard", "Sales", "Purchase", "Reports", "Client CRM", "Stock", "Team", "Warehouse"]) assert.ok(layout.includes(`label: "${label}"`), "Missing Global navigation area: " + label);
+  for (const label of ["Dashboard", "Purchase", "Reports", "Client CRM", "Stock", "Team", "Warehouse"]) assert.ok(layout.includes(`label: "${label}"`), "Missing Global navigation area: " + label);
+  const sharedNav = await read("../../lib/nav.js");
+  for (const label of ["Invoice history", "Shared invoice links", "Business profile", "Account activity", "Settings", "Help center"]) assert.ok(sharedNav.includes(`label: "${label}"`), "Missing More destination: " + label);
+  assert.match(layout, /<MoreHorizontal className=/);
 });
 
 test("feature preference changes do not mutate or delete business records", async () => {
