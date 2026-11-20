@@ -36,8 +36,11 @@ export function calculateGlobalTax(input) {
       catalogVersion: resolvedTreatment.catalogVersion,
     };
   }
-  if ((countryCode === "US" || (countryCode === "CA" && !input.jurisdictionId)) && !rule) {
-    return { ok: false, status: "needs_review", code: "JURISDICTION_RULE_REQUIRED", message: "A verified US state/local or Canadian province tax rule is required; no national rate is assumed." };
+  if (countryCode === "US" && !rule) {
+    return { ok: false, status: "needs_review", code: "JURISDICTION_RULE_REQUIRED", message: "A verified US state/local tax rule is required; no national rate is assumed." };
+  }
+  if (countryCode === "CA" && !rule) {
+    return { ok: false, status: "needs_review", code: "CANADIAN_PROVINCE_REQUIRED", message: "Select an exact Canadian province or territory to resolve the GST/HST rate." };
   }
   return calculateVerifiedTaxTreatment({ ...input, countryCode, rule });
 }
