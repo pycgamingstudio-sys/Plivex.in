@@ -1,10 +1,10 @@
 /**
  * Versioned, source-controlled tax rule catalogue for Plivex Global.
  *
- * This catalogue contains only the narrow standard-rate baselines already
- * reviewed for GB, AE, AU and SG. It is not a complete tax-law database.
- * US/CA deliberately have no national rate; India remains on its legacy GST
- * adapter. Unknown, out-of-period and jurisdiction-dependent cases fail closed.
+ * This catalogue contains narrow, source-backed standard and special-treatment
+ * rules only; it is not a complete tax-law database. US/CA have no national
+ * rate: exact verified local/provincial rules and collection evidence are required.
+ * India remains on its legacy GST adapter. Unsupported cases fail closed.
  *
  * Update policy:
  * - Add a new immutable version for every legal/rate change; never overwrite
@@ -14,7 +14,7 @@
  * - Do not promote a rule to active until its scope and effective dates are
  *   reviewed. This code catalogue is not a live database or legal advice.
  */
-export const TAX_RULE_CATALOG_VERSION = "2026.11.4";
+export const TAX_RULE_CATALOG_VERSION = "2026.11.5";
 export const TAX_ENGINE_VERSION = "1.0.0";
 
 const freezeRule = (rule) => Object.freeze({
