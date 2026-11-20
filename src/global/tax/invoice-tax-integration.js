@@ -182,6 +182,40 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
   if (mode === "manual" && (normalizedTreatment !== "standard-rated" || !isSupportedManualTaxTreatment(config.taxCategory))) {
     return fail("UNSUPPORTED_TAX_TREATMENT", "Manual rates support standard-rated tax only. Special treatments require an exact verified country/category rule.");
   }
+  if (![ "inclusive", "exclusive" ].includes(config.priceMode)) {
+    return fail("PRICE_MODE_REQUIRED", "Choose whether each entered line price includes tax or excludes tax.");
+  }
+  if (mode === "manual") {
+    if (!Array.isArray(config.components) || config.components.length < 1 || config.components.length > 8) {
+      return fail("MANUAL_COMPONENTS_REQUIRED", "Add one to eight manual tax components before calculating.");
+    }
+    const componentIds = new Set();
+    for (const component of config.components) {
+      const id = String(component?.id || "").trim();
+      const rateBps = Number(component?.rateBps);
+      if (!id || componentIds.has(id) || !Number.isInteger(rateBps) || rateBps <= 0 || rateBps > 10000) {
+        return fail("MANUAL_COMPONENT_INVALID", "Each manual tax component needs a unique ID and a valid rate above 0% and no more than 100%.");
+      }
+      componentIds.add(id);
+    }
+    if (countryCode === "US" || countryCode === "CA") {
+      const jurisdiction = config.destinationJurisdiction || {};
+      const required = countryCode === "US" ? ["state", "county", "city"] : ["province"];
+      const region = String(jurisdiction[countryCode === "US" ? "state" : "province"] || "").trim().toUpperCase();
+      const registeredParts = String(workspaceProfile?.registeredJurisdiction || "").trim().toUpperCase().split("-");
+      const sellerRegion = registeredParts[1] || "";
+      const allowed = countryCode === "US" ? US_JURISDICTIONS : CA_JURISDICTIONS;
+      if (required.some((key) => !String(jurisdiction[key] || "").trim()) || !region) {
+        return fail("DESTINATION_JURISDICTION_REQUIRED", "Enter the required destination state/county/city or province/territory.");
+      }
+      if (!allowed.has(region) || registeredParts.length !== 2 || registeredParts[0] !== countryCode || !allowed.has(sellerRegion)) {
+        return fail("INVALID_JURISDICTION", "Enter valid destination and seller registration state/province codes for the selected country.");
+      }
+      if (config.collectionObligationAttested !== true) {
+        return fail("COLLECTION_OBLIGATION_ATTESTATION_REQUIRED", "Confirm that you have checked the collection obligation for this destination.");
+      }
+    }
+  }
 
   const amount = amountMinor(invoice);
   if (!Number.isSafeInteger(amount) || amount < 0) return fail("INVALID_AMOUNT", "Invoice amount is outside supported calculation limits.");
@@ -201,8 +235,15 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
   for (let index = 0; index < lineAmounts.lines.length; index += 1) {
     const line = lineAmounts.lines[index];
     const item = invoice.items[index] || {};
+    const hasLineOverride = item.taxTreatment !== undefined || item.taxCategory !== undefined;
+    if (hasLineOverride && (item.taxTreatmentConfirmed !== true || item.taxCategoryConfirmed !== true)) {
+      return fail("LINE_TAX_CONFIRMATION_REQUIRED", "Confirm the tax treatment and goods/services category for invoice line " + (index + 1) + ".");
+    }
     const lineTreatmentRaw = String(item.taxTreatment || selectedTreatment).trim().toLowerCase();
     const lineTreatment = lineTreatmentRaw === "standard-rated" ? "standard" : lineTreatmentRaw;
+    if (!["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"].includes(lineTreatment)) {
+      return fail("UNSUPPORTED_LINE_TREATMENT", "Invoice line " + (index + 1) + " has an unsupported tax treatment.");
+    }
     const lineCategory = String(item.taxCategory || config.taxCategory || "").trim();
     let calculated;
     if (mode === "manual") {
