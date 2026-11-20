@@ -121,8 +121,8 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
       <p className="text-[11px] leading-relaxed text-muted-foreground">Operating difference is sales minus recorded expenses, not a complete accounting profit. It excludes cost of goods, taxes and other unrecorded adjustments.</p>
       {/* Net profit uses only base-currency sales and expenses; records without a recorded currency are excluded. The metric is labeled Operating Difference because it is not a complete accounting profit. */}
 
-      <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-[#E5E7EB] p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="plivex-hover-lift overflow-hidden rounded-2xl border border-[#E8E7EF] bg-white shadow-[0_1px_2px_rgba(24,24,40,.03),0_8px_24px_rgba(24,24,40,.035)]">
+        <div className="flex flex-col gap-3 border-b border-[#E8E7EF] bg-[#FCFBFE] p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-1 items-center gap-2">
             <div className="relative max-w-xs flex-1">
               <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -237,7 +237,7 @@ export default function PurchaseTab({ intent, onConsumeIntent }) {
             </table>
           </div>
           <div className="space-y-2.5 p-3 md:hidden">
-            {rows.map((expense) => <article key={expense.id} className="rounded-xl border border-slate-200 p-3.5">
+            {rows.map((expense) => <article key={expense.id} className="rounded-xl border border-[#E8E7EF] bg-gradient-to-br from-white to-[#FAF9FF] p-3.5">
               <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words text-[13px] font-bold text-slate-900">{expense.vendor}</p><p className="mt-0.5 text-[10px] text-slate-500">{expense.category} · {dateLabel(expense.date)}</p></div><p className="shrink-0 text-[13px] font-bold text-slate-900">{recordedExpenseAmount(expense)}</p></div>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3"><span className={"rounded-full px-2.5 py-1 text-[10px] font-bold " + statusCls(expenseStatus(expense))}>{expenseStatus(expense)}</span><div className="flex items-center gap-2"><select value={expense.status || "Unpaid"} onChange={(event) => setStatus(expense.id, event.target.value)} aria-label={"Change status for " + expense.vendor} className="min-h-9 max-w-[125px] rounded-lg border border-slate-200 bg-white px-2 text-[10px]"><option value="Pending">Pending</option><option value="Unpaid">Unpaid</option><option value="Received">Received</option><option value="Paid">Paid</option><option value="Cancelled">Cancelled</option></select><button type="button" onClick={() => remove(expense.id)} aria-label={"Delete expense for " + expense.vendor} className="min-h-9 rounded-lg border border-rose-100 px-3 text-[11px] font-semibold text-rose-700">Delete</button></div></div>
               {expense.notes && <p className="mt-2 text-[11px] leading-relaxed text-slate-500">{expense.notes}</p>}
@@ -266,7 +266,7 @@ function ExpenseModal({ currencyCode, onClose, onSave }) {
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-labelledby="expense-modal-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-[480px] overflow-y-auto overscroll-contain rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-labelledby="expense-modal-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-[480px] overflow-y-auto overscroll-contain rounded-2xl border border-[#E8E7EF] bg-white p-5 shadow-[0_24px_72px_rgba(15,23,42,.18)]" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between"><h3 id="expense-modal-title" className="text-lg font-bold text-slate-900">Record a purchase</h3><button type="button" onClick={onClose} aria-label="Close purchase form" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
         <div className="mt-4 grid gap-3">
           <label className="block text-[12px] font-semibold text-slate-500">Vendor name<input className={inputCls} value={form.vendor} onChange={(e) => set("vendor", e.target.value)} placeholder="Vendor / supplier" /></label>
