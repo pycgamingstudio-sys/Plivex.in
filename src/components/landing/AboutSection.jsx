@@ -45,14 +45,14 @@ const PILLARS = [
     icon: Plug, title: "Usability & Integrations", tone: "from-[#DB2777] to-[#EC4899]",
     features: [
       "Mobile responsive PWA", "Bulk PDF export", "Connected web workspace", "Regional payment options where available",
-      "Cancel & track invoices", "Available interface language options", "Workspace team access and role controls", "Custom branding & logos",
+      "Cancel & track invoices", "Interface languages where available", "Workspace team access and role controls", "Custom branding & logos",
     ],
   },
 ];
 
 const STATS = [
   { value: "6", label: "Core capability areas" },
-  { value: "2", label: "Interface language options" },
+  { value: "Local", label: "Tax & currency by country" },
   { value: "Free", label: "Plan to get started" },
   { value: "No card", label: "Needed to get started" },
 ];
