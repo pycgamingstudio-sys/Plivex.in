@@ -208,19 +208,49 @@ export async function generateWithFallback({
     try {
       let result;
       if (attempt.provider === "gemini") {
-        const remaining = deadline - Date.now();
-        const response = await fetchImpl(GEMINI_URL, {
-          ...requestOptions,
-          headers: { ...requestOptions.headers, "x-goog-api-key": geminiKey },
-          signal: AbortSignal.timeout(Math.min(20000, remaining)),
-        });
-        retryAfterSeconds = parseRetryAfterSeconds(response.headers) ?? retryAfterSeconds;
-        result = await response.json().catch(() => ({}));
-        if (!response.ok) {
+        // Gemini can return transient 503/504 capacity and network failures even
+        // when this project has unused quota. Retry once with bounded jitter;
+        // never spin on quota/auth/configuration errors.
+        let response = null;
+        for (let geminiTry = 0; geminiTry < 2; geminiTry += 1) {
+          const remaining = deadline - Date.now();
+          if (remaining <= 0) break;
+          if (geminiTry > 0) {
+            const delayMs = 500 + Math.floor(Math.random() * 500);
+            if (Date.now() + delayMs + 1000 >= deadline) break;
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+          }
+          try {
+            response = await fetchImpl(GEMINI_URL, {
+              ...requestOptions,
+              headers: { ...requestOptions.headers, "x-goog-api-key": geminiKey },
+              signal: AbortSignal.timeout(Math.min(12500, Math.max(1000, deadline - Date.now()))),
+            });
+          } catch (error) {
+            lastStatus = error?.name === "TimeoutError" || error?.name === "AbortError" ? 504 : 503;
+            console.warn("Nova Gemini transient network failure", {
+              provider: "gemini", model: attempt.model, attempt: geminiTry + 1,
+              status: lastStatus, reason: error?.message || "network_error",
+            });
+            if (geminiTry === 0 && [503, 504].includes(lastStatus)) continue;
+            throw error;
+          }
+          retryAfterSeconds = parseRetryAfterSeconds(response.headers) ?? retryAfterSeconds;
+          if (response.ok) break;
           lastStatus = response.status;
-          console.warn("Nova provider unavailable", { provider: attempt.provider, model: attempt.model, status: response.status, retryAfterSeconds });
-          continue;
+          console.warn("Nova provider unavailable", {
+            provider: attempt.provider, model: attempt.model, status: response.status,
+            attempt: geminiTry + 1, retryAfterSeconds,
+          });
+          // Retry only transient server/timeout responses. For 429, respect
+          // Retry-After only when it fits the short interactive-chat budget.
+          const transient = [408, 500, 502, 503, 504].includes(response.status);
+          const briefQuotaWait = response.status === 429 && retryAfterSeconds !== null && retryAfterSeconds <= 1;
+          if (geminiTry === 0 && (transient || briefQuotaWait)) continue;
+          break;
         }
+        if (!response?.ok) continue;
+        result = await response.json().catch(() => ({}));
       } else {
         result = await callOpenAiProvider({ ...attempt, key: attempt.provider === "groq" ? groqKey : openRouterKey, body, fetchImpl, deadline });
       }
