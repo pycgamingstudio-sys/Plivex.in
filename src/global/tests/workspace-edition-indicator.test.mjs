@@ -99,7 +99,7 @@ test("business and client tax fields follow selected country rather than the Ind
   assert.doesNotMatch(clients, /APP_EDITION === "global"/);
 });
 
-test("invoice history uses workspace locale and disables India-only reminders outside India", () => {
+test("invoice history uses workspace locale and supports reminders for every unified workspace country", () => {
   const history = read("../../pages/InvoiceHistory.jsx");
   assert.match(history, /user\?\.country_code !== "IN" \|\| !view\?\.id/);
   assert.match(history, /dateLabel\(it\.issueDate, user\?\.locale_code\)/);
