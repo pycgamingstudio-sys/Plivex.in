@@ -961,7 +961,7 @@ export default function Home() {
       // exactly once. This prevents WhatsApp sharing from creating an unsaved invoice.
       const savedInvoice = await recordInvoice();
       if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
-      const shareLink = await createInvoiceShareLink(savedInvoice.id, user?.workspace_id, isGlobalWorkspace);
+      const shareLink = await createInvoiceShareLink(savedInvoice.id);
       if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
         setInvoice((current) => ({ ...current, number: savedInvoice.number }));
         // Let React update the visible invoice preview before rasterizing it.
