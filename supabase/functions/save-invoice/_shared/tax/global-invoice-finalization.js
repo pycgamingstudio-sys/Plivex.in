@@ -14,6 +14,8 @@ const E_INVOICE = Object.freeze({
   SG: Object.freeze({ countryCode:"SG", status:"phased_requirement_provider_required", network:"InvoiceNow (Peppol)", submission:"disabled", note:"GST InvoiceNow obligations are phased by registration/cohort and implementation date. No InvoiceNow-ready access point is configured.", source:"https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/gst-invoicenow-requirement" }),
 });
 const COUNTRY_CURRENCY = Object.freeze({ IN:"INR", US:"USD", GB:"GBP", AE:"AED", CA:"CAD", AU:"AUD", SG:"SGD" });
+const TAX_TREATMENTS = new Set(["standard", "reduced", "zero-rated", "exempt", "out-of-scope"]);
+const NO_CHARGE_TREATMENTS = new Set(["zero-rated", "exempt", "out-of-scope"]);
 const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const validDate = (value) => {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -46,6 +48,12 @@ export function createGlobalInvoiceTaxSnapshot(input) {
     return fail("TAX_RESULT_NOT_ISSUABLE", "Only a successful, country-matched calculated tax result can be snapshotted. Manual estimates and review results remain drafts.");
   }
   if (result.currencyCode !== COUNTRY_CURRENCY[countryCode] || result.currencyMinorUnits !== 2) return fail("SNAPSHOT_CURRENCY_INVALID", "Tax snapshot currency and precision must match the workspace country.");
+  if (!TAX_TREATMENTS.has(result.treatment) || typeof result.taxDisclosure !== "string"
+    || !result.taxDisclosure.trim() || typeof result.taxCharged !== "boolean"
+    || (NO_CHARGE_TREATMENTS.has(result.treatment) !== (result.taxCharged === false))
+    || (!result.taxCharged && result.taxMinor !== 0)) {
+    return fail("TAX_TREATMENT_SNAPSHOT_INVALID", "A supported tax treatment, its distinct disclosure and consistent tax-charged state are required.");
+  }
   const rule = result.ruleSnapshot;
   if (!isRecord(rule) || !String(rule.id || "").trim() || !String(rule.version || "").trim()
     || !/^https:\/\//.test(String(rule.source || "")) || !validDate(rule.effectiveFrom)
@@ -67,7 +75,9 @@ export function createGlobalInvoiceTaxSnapshot(input) {
     schemaVersion:"1", countryCode, invoiceDate:input.invoiceDate,
     currencyCode:result.currencyCode, currencyMinorUnits:result.currencyMinorUnits,
     engineVersion:result.engineVersion || null, rule:{ ...rule },
-    treatment:result.treatment, priceMode:result.priceMode,
+    treatment:result.treatment, taxDisclosure:result.taxDisclosure,
+    taxCharged:result.taxCharged, taxCategory:result.taxCategory || rule.taxCategoryId || null,
+    priceMode:result.priceMode,
     taxableMinor:result.taxableMinor, taxMinor:result.taxMinor, totalMinor:result.totalMinor,
     components:result.components.map((item) => ({ ...item })),
     sellerRegistrationEvidence:result.registrationEvidence || "not_recorded",
