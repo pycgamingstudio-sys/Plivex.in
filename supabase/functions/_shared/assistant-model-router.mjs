@@ -38,7 +38,7 @@ export function toOpenAiChatPayload(geminiBody, model) {
     messages: openAiMessages(geminiBody),
     max_tokens: geminiBody?.generationConfig?.maxOutputTokens || 2200,
     response_format: { type: "json_object" },
-    provider: { data_collection: "deny", zdr: true },
+    provider: { data_collection: "deny" },
   };
 }
 
