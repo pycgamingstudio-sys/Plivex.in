@@ -59,7 +59,14 @@ function GlobalPublicInvoice({ snapshot }) {
      <div className="flex justify-between"><span className="text-slate-500">{taxNotAssessed?"Tax (not assessed)": "Tax"}</span><span>{taxNotAssessed?"Not assessed":moneyMinor(snapshot.tax_minor,currency,locale)}</span></div>
      <div className="flex justify-between border-t pt-3 text-lg font-bold"><span>Total</span><span>{moneyMinor(snapshot.total_minor,currency,locale)}</span></div>
     </section>
-    {taxNotAssessed&&<section className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">{taxDisclosure}</section>}
+    <section className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-700" data-testid="global-tax-declaration">
+     <p className="font-semibold text-slate-900">Tax declaration</p>
+     {snapshot.tax_treatment&&<p>Tax treatment: {String(snapshot.tax_treatment).replace(/-/g," ")}</p>}
+     {snapshot.tax_category&&<p>Supply category: {snapshot.tax_category}</p>}
+     {taxNotAssessed&&<p className="font-semibold text-amber-800">Tax has not been assessed or calculated.</p>}
+     <p>{taxDisclosure}</p>
+     {snapshot.tax_rule_source&&<a className="underline" href={snapshot.tax_rule_source} target="_blank" rel="noreferrer">Tax rule source</a>}
+    </section>
     {(snapshot.notes||snapshot.terms)&&<section className="mt-7 border-t pt-5 text-sm"><div className="font-semibold">Notes</div><p className="mt-1 whitespace-pre-line text-slate-600">{snapshot.notes}</p>{snapshot.terms&&<><div className="mt-4 font-semibold">Terms & conditions</div><p className="mt-1 whitespace-pre-line text-slate-600">{snapshot.terms}</p></>}</section>}
     <footer className="mt-8 border-t pt-4 text-center text-xs text-slate-400">Shared securely through Plivex. This document reflects the invoice snapshot at the time the link was created.</footer>
    </article>
