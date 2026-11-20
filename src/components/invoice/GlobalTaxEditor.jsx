@@ -110,7 +110,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
         <label className={labelClass}>Tax treatment
           <select className={fieldClass} value={config.taxTreatment || "standard"} onChange={(e) => update({ taxTreatment: e.target.value, taxCategory: "", taxCategoryConfirmed: false, taxDetailsConfirmed: false, ...(e.target.value === "reverse-charge" ? { priceMode: "exclusive" } : {}) })}>
             <option value="standard">Standard-rated</option>
-            {["AE","SG","CA"].includes(countryCode) && <option value="zero-rated">Zero-rated · 0%</option>}{countryCode === "GB" && <option value="reduced">Reduced-rated · 5%</option>}{countryCode === "AU" && <option value="gst-free">GST-free · 0%</option>}{countryCode === "CA" && <option value="zero-rated">Zero-rated · 0%</option>}
+            {["AE","SG","CA"].includes(countryCode) && <option value="zero-rated">Zero-rated · 0%</option>}{countryCode === "GB" && <option value="reduced">Reduced-rated · 5%</option>}{countryCode === "GB" && <option value="reverse-charge">Reverse charge · buyer accounts for tax</option>}{countryCode === "AU" && <option value="gst-free">GST-free · 0%</option>}{countryCode === "CA" && <option value="zero-rated">Zero-rated · 0%</option>}
             {["AE","AU","SG"].includes(countryCode) && <option value="exempt">Exempt · no tax charged</option>}
             {countryCode === "SG" && <option value="out-of-scope">Out of scope</option>}
           </select>
@@ -127,6 +127,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
             {countryCode === "SG" && config.taxTreatment === "zero-rated" && <option value="SG_ZERO_RATED_EXPORTS_INTERNATIONAL_SERVICES">Qualifying exports / international services</option>}
             {countryCode === "SG" && config.taxTreatment === "exempt" && <option value="SG_EXEMPT_FINANCIAL_SERVICES">Qualifying exempt financial services</option>}
             {countryCode === "SG" && config.taxTreatment === "out-of-scope" && <option value="SG_OUT_OF_SCOPE_OVERSEAS_TO_OVERSEAS_GOODS">Goods delivered overseas to overseas</option>}
+            {countryCode === "GB" && config.taxTreatment === "reverse-charge" && <option value="GB_DOMESTIC_CONSTRUCTION_REVERSE_CHARGE">Eligible domestic construction services (buyer must be VAT registered)</option>}
             {countryCode === "GB" && config.taxTreatment === "reverse-charge" && <option value="GB_DOMESTIC_CONSTRUCTION_REVERSE_CHARGE">Eligible domestic construction services (buyer must be VAT registered)</option>}
           </select>
         </label>
