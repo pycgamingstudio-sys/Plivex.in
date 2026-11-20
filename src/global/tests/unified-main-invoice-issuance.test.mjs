@@ -33,6 +33,9 @@ test("Commercial issuance is atomic, idempotent and assigns a server-side countr
   assert.match(migration, /public\.save_invoice\(/);
   assert.match(migration, /pg_advisory_xact_lock/);
   assert.match(migration, /issue_request_key/);
+  assert.match(migration, /issue_request_hash/);
+  assert.match(migration, /md5\(coalesce\(_data/);
+  assert.match(migration, /v_existing\.issue_request_hash is distinct from v_request_hash/);
   assert.match(migration, /primary key \(workspace_id, invoice_year\)/);
   assert.match(migration, /'INV-'\|\|v_settings\.country_code/);
   assert.match(migration, /'documentStatus','issued'/);
@@ -42,6 +45,7 @@ test("Issued invoice header and lines cannot be edited or deleted", () => {
   assert.match(migration, /guard_issued_workspace_invoice/);
   assert.match(migration, /current_user = 'postgres' and coalesce\(current_setting\('plivex\.invoice_issuance'/);
   assert.match(migration, /Issued invoice content is immutable/);
+  assert.match(migration, /new\.issue_request_hash is distinct from old\.issue_request_hash/);
   assert.match(migration, /guard_issued_workspace_invoice_items/);
   assert.match(migration, /Issued invoice lines are immutable/);
   assert.match(migration, /if v_country='IN' then return new/);
