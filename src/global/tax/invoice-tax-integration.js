@@ -187,6 +187,9 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
   if (countryCode === "CA" && !String(config.destinationJurisdiction?.province || "").trim()) {
     return fail("DESTINATION_JURISDICTION_REQUIRED", "Select the Canadian province or territory for the place-of-supply rate.");
   }
+  if (countryCode === "CA" && config.collectionObligationAttested !== true) {
+    return fail("COLLECTION_OBLIGATION_ATTESTATION_REQUIRED", "Confirm that you have checked whether your business must collect GST/HST in the selected destination province.");
+  }
 
   const result = calculateGlobalTax({
     countryCode,
@@ -210,7 +213,11 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
     taxCategoryVerified: true,
     taxCategory: String(config.taxCategory).trim(),
     treatment: selectedTreatment,
-    ...(countryCode === "CA" ? { jurisdictionId: String(config.destinationJurisdiction.province).trim().toUpperCase() } : {}),
+    ...(countryCode === "CA" ? {
+      jurisdictionId: String(config.destinationJurisdiction.province).trim().toUpperCase(),
+      jurisdictionAttestedByUser: true,
+      collectionObligationAttestedByUser: config.collectionObligationAttested === true,
+    } : {}),
     priceMode: config.priceMode,
   });
   if (!result.ok) return result;
