@@ -964,7 +964,7 @@ export default function Home() {
       if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
       const shareLink = await createInvoiceShareLink(savedInvoice.id);
       if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
-        setInvoice((current) => ({ ...current, id: savedInvoice.id, number: savedInvoice.number, documentStatus: savedInvoice.issued ? "issued" : current.documentStatus, documentType: savedInvoice.issued ? "commercial_invoice" : current.documentType }));
+        setInvoice((current) => ({ ...current, id: savedInvoice.id, number: savedInvoice.number, documentStatus: savedInvoice.issued ? "issued" : (isGlobalWorkspace ? "draft" : current.documentStatus), documentType: savedInvoice.issued ? "commercial_invoice" : (isGlobalWorkspace ? "draft_invoice" : current.documentType) }));
         // Let React update the visible invoice preview before rasterizing it.
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       }
