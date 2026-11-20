@@ -129,8 +129,33 @@ test("UAE, Australia and Singapore expose narrowly scoped verified special treat
   assert.equal(getTaxTreatmentRuleSet("AE", { treatment: "zero-rated", taxCategoryId: "wrong-category", asOfDate: "2026-11-20" }).ok, false);
 });
 
-test("Canada provincial tax components are included only where verified; Quebec fails closed pending exact QST precision", () => {
-  const expected = { AB: 500, BC: 1200, MB: 1200, NB: 1500, NL: 1500, NS: 1400, NT: 500, NU: 500, ON: 1300, PE: 1500, SK: 1100, YT: 500 };
+
+test("Quebec GST and QST calculate to exact 5% plus 9.975% with minor-unit rounding", () => {
+  const result = calculateGlobalTax({
+    countryCode: "CA", currencyCode: "CAD", currencyMinorUnits: 2, amountMinor: 10000,
+    invoiceDate: "2026-11-20",
+    sellerRegistration: {
+      verified: false, attestedByUser: true, status: "registered",
+      registrationNumber: "QC-REG-123", effectiveFrom: "2026-01-01",
+    },
+    placeOfSupplyVerified: true, placeOfSupply: "Quebec",
+    taxCategoryVerified: true, taxCategory: "standard-rated",
+    treatment: "standard", jurisdictionId: "QC",
+    jurisdictionAttestedByUser: true, collectionObligationAttestedByUser: true,
+    priceMode: "exclusive",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.ruleSnapshot.coverage, "federal-gst-plus-quebec-qst");
+  assert.equal(result.taxMinor, 1498);
+  assert.deepEqual(result.components.map(({ name, rateBps, amountMinor }) => ({ name, rateBps, amountMinor })), [
+    { name: "GST", rateBps: 500, amountMinor: 500 },
+    { name: "QST", rateBps: 997.5, amountMinor: 998 },
+  ]);
+  assert.equal(result.totalMinor, 11498);
+});
+
+test("Canada provincial tax components include exact Quebec QST precision", () => {
+  const expected = { AB: 500, BC: 1200, MB: 1200, NB: 1500, NL: 1500, NS: 1400, NT: 500, NU: 500, ON: 1300, PE: 1500, QC: 1497.5, SK: 1100, YT: 500 };
   for (const [jurisdictionId, rateBps] of Object.entries(expected)) {
     const result = getTaxRuleSet("CA", { jurisdictionId, asOfDate: "2026-11-20" });
     assert.equal(result.ok, true, jurisdictionId);
@@ -140,10 +165,10 @@ test("Canada provincial tax components are included only where verified; Quebec 
       result.rule.coverage,
       ["BC", "MB", "SK"].includes(jurisdictionId)
         ? "federal-gst-hst-plus-listed-provincial-pst-rst-components"
-        : "federal-gst-or-harmonized-hst-only",
+        : jurisdictionId === "QC" ? "federal-gst-plus-quebec-qst" : "federal-gst-or-harmonized-hst-only",
     );
   }
-  assert.equal(getTaxRuleSet("CA", { jurisdictionId: "QC", asOfDate: "2026-11-20" }).code, "CANADIAN_QST_PRECISION_ENGINE_REQUIRED");
+
   assert.equal(getTaxRuleSet("CA", { asOfDate: "2026-11-20" }).code, "CANADIAN_PROVINCE_REQUIRED");
   const zeroRated = getTaxTreatmentRuleSet("CA", { treatment: "zero-rated", taxCategoryId: "CA_ZERO_RATED_BASIC_GROCERIES", jurisdictionId: "QC", asOfDate: "2026-11-20" });
   assert.equal(zeroRated.ok, true);
