@@ -13,8 +13,8 @@ const normalized = pairs.filter((x) => x.normalized_sql_match === true);
 const localOnly = manifest.local_only_files || [];
 
 if (manifest.remote_ledger_entries !== 52 || history.length !== 39 || missing.length !== 35
-  || manifest.local_migration_files !== 57 || pairs.length !== 17
-  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 40) {
+  || manifest.local_migration_files !== 59 || pairs.length !== 17
+  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 42) {
   fail("Migration reconciliation counts differ from the reviewed archive with 52 remote entries, 39 historical sources and 40 local-only migrations");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
@@ -44,7 +44,7 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 92 || new Set(candidatePlan.map((x) => x.path)).size !== 92) {
+if (candidatePlan.length !== 94 || new Set(candidatePlan.map((x) => x.path)).size !== 92) {
   fail("Candidate replay plan must contain 35 recovered historical and all 57 current local migrations");
 }
 
@@ -128,6 +128,10 @@ function assertGlobalFoundation(port) {
   if (taxAuditCatalog !== "true|true|true") fail("Global tax-rule publication or append-only tax audit storage missing: " + taxAuditCatalog);
   const quotationCatalog = query(port, "plivex_migration_replay", "SELECT (to_regclass('global.quotations') IS NOT NULL)::text || '|' || (to_regclass('global.quotation_items') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_manage_quotation(uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='quotations' AND column_name='creation_fingerprint')::text || '|' || COALESCE((SELECT relrowsecurity::text FROM pg_class WHERE oid='global.quotations'::regclass),'false')");
   if (quotationCatalog !== "true|true|true|true|true") fail("Global quotation tables, fingerprint, RLS or RPC missing: " + quotationCatalog);
+  const quotationTaxCatalog = query(port, "plivex_migration_replay", "SELECT (to_regprocedure('public.global_manage_quotation_with_tax(uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid,jsonb)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='quotations' AND column_name='tax_snapshot')::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='quotations' AND column_name='tax_status')::text");
+  if (quotationTaxCatalog !== "true|true|true") fail("Global quotation tax snapshot RPC or persistence columns missing: " + quotationTaxCatalog);
+  const invoiceTaxCatalog = query(port, "plivex_migration_replay", "SELECT (to_regprocedure('public.global_issue_invoice(uuid,uuid,uuid,jsonb,uuid)') IS NOT NULL)::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoices' AND column_name='reverse_charge_tax_minor')::text || '|' || EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='global' AND table_name='invoice_items' AND column_name='reverse_charge_tax_minor')::text || '|' || EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='global' AND table_name='tax_rule_versions')::text");
+  if (invoiceTaxCatalog !== "true|true|true|true") fail("Global tax invoice issuance or reverse-charge persistence missing: " + invoiceTaxCatalog);
   const quotationPrivileges = query(port, "plivex_migration_replay", "SELECT has_table_privilege('anon','global.quotations','SELECT')::text || '|' || has_table_privilege('authenticated','global.quotations','SELECT')::text || '|' || has_function_privilege('anon','public.global_manage_quotation(uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid)','EXECUTE')::text || '|' || has_function_privilege('authenticated','public.global_manage_quotation(uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid)','EXECUTE')::text || '|' || has_function_privilege('service_role','public.global_manage_quotation(uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid)','EXECUTE')::text");
   if (quotationPrivileges !== "false|false|false|false|true") fail("Global quotation data/RPC privileges are not service-role-only: " + quotationPrivileges);
   const shareCatalog = query(port, "plivex_migration_replay", "SELECT (to_regclass('global.invoice_share_links') IS NOT NULL)::text || '|' || (to_regclass('global.invoice_share_rate_limits') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_create_invoice_share(uuid,uuid,uuid,text,timestamp with time zone)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_resolve_invoice_share(text)') IS NOT NULL)::text || '|' || (to_regprocedure('public.global_check_invoice_share_rate_limit(text,integer,integer)') IS NOT NULL)::text || '|' || COALESCE((SELECT relrowsecurity::text FROM pg_class WHERE oid='global.invoice_share_rate_limits'::regclass),'false')");
