@@ -4,8 +4,9 @@ const esc = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (char) =
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 }[char]!));
 const validEmail = (value: string) => value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value);
-const dateLabel = (value: string) => value
-  ? new Date(value + "T00:00:00.000Z").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })
+const localeForCurrency = (currency: string) => ({ INR: "en-IN", USD: "en-US", GBP: "en-GB", AED: "en-AE", CAD: "en-CA", AUD: "en-AU", SGD: "en-SG" } as Record<string, string>)[currency] || "en";
+const dateLabel = (value: string, locale: string) => value
+  ? new Date(value + "T00:00:00.000Z").toLocaleDateString(locale, { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })
   : "";
 
 Deno.serve(async (req: Request) => {
@@ -95,9 +96,10 @@ Deno.serve(async (req: Request) => {
       if (!claimed) { skipped++; continue; }
 
       const hindi = invoice.reminder_language === "hi";
-      const amount = Number(invoice.total || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const locale = localeForCurrency(String(invoice.currency || ""));
+      const amount = Number(invoice.total || 0).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const currency = invoice.currency === "INR" ? "₹" : String(invoice.currency || "₹");
-      const due = dateLabel(invoice.due_date || "");
+      const due = dateLabel(invoice.due_date || "", locale);
       const stageLabels: Record<string, string> = {
         before_due_2: hindi ? "देय तिथि से 2 दिन पहले" : "2 days before due date",
         due_date: hindi ? "देय तिथि" : "On the due date",
