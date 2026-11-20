@@ -66,6 +66,8 @@ declare
   v_component_count integer := 0;
   v_last_index integer;
   v_last_amount bigint;
+  v_line_updates jsonb := '[]'::jsonb;
+  v_line_update jsonb;
 begin
   if p_user_id is null or p_workspace_id is null or p_invoice_id is null
     or p_idempotency_key is null or jsonb_typeof(coalesce(p_tax_context,'null')) <> 'object' then
@@ -280,9 +282,12 @@ begin
       v_line_tax := round(v_line_base::numeric * v_rate / 10000)::bigint;
     end if;
     v_tax := v_tax+v_line_tax;
-    update global.invoice_items set tax_rate_bps=v_rate,tax_minor=v_line_tax,
-      line_total_minor=case when v_price_mode='exclusive' then v_line_base+v_line_tax else v_line_base end
-    where id=v_item.id and workspace_id=p_workspace_id;
+    v_line_updates := v_line_updates || jsonb_build_array(jsonb_build_object(
+      'id',v_item.id,
+      'tax_rate_bps',v_rate,
+      'tax_minor',v_line_tax,
+      'line_total_minor',case when v_price_mode='exclusive' then v_line_base+v_line_tax else v_line_base end
+    ));
   end loop;
   if v_remaining_discount <> 0 then
     return jsonb_build_object('ok',false,'reason','discount_allocation_incomplete');
@@ -312,6 +317,18 @@ begin
   v_last_index := v_component_count-1;
   v_last_amount := (v_components_snapshot->v_last_index->>'amount_minor')::bigint + v_tax-v_component_total;
   v_components_snapshot := jsonb_set(v_components_snapshot,ARRAY[v_last_index::text,'amount_minor'],to_jsonb(v_last_amount),true);
+
+  -- Do not mutate invoice lines until every tax/discount/total check succeeds.
+  for v_line_update in select value from jsonb_array_elements(v_line_updates) loop
+    update global.invoice_items set
+      tax_rate_bps=(v_line_update->>'tax_rate_bps')::numeric,
+      tax_minor=(v_line_update->>'tax_minor')::bigint,
+      line_total_minor=(v_line_update->>'line_total_minor')::bigint
+    where id=(v_line_update->>'id')::uuid and workspace_id=p_workspace_id and invoice_id=p_invoice_id;
+    if not found then
+      return jsonb_build_object('ok',false,'reason','invoice_line_changed_during_issuance');
+    end if;
+  end loop;
 
   insert into global.invoice_number_sequences(workspace_id,invoice_year,last_number)
   values(p_workspace_id,extract(year from v_invoice.issue_date)::integer,1)
