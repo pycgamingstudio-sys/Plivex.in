@@ -8,6 +8,7 @@ import {
   listTaxCountryProfiles,
   listTaxRuleSets,
   normalizeTaxCountryCode,
+  validateTaxRuleSnapshot,
 } from "../tax/tax-rule-registry.js";
 import { getCountryStandardRateRule } from "../tax/standard-rate-rules.js";
 import { calculateGlobalTax } from "../tax/global-tax-engine.js";
@@ -147,4 +148,25 @@ test("global tax calculation preserves engine and catalogue provenance in its in
   assert.equal(result.ruleSnapshot.catalogVersion, TAX_RULE_CATALOG_VERSION);
   assert.equal(result.ruleSnapshot.sourceAuthority, "UK HM Revenue & Customs");
   assert.equal(result.ruleSnapshot.coverage, "standard-rate-only");
+});
+
+
+test("Canadian province rule snapshots accept official provincial sources and fractional QST rates", () => {
+  const quebec = getTaxRuleSet("CA", { jurisdictionId: "QC", asOfDate: "2026-11-20" });
+  assert.equal(quebec.ok, true);
+  const quebecSnapshot = validateTaxRuleSnapshot({
+    ...quebec.rule,
+    verified: true,
+    reviewedBy: "Plivex tax rule review",
+  });
+  assert.equal(quebecSnapshot.ok, true, quebecSnapshot.code);
+  assert.equal(quebecSnapshot.rule.components[1].rateBps, 997.5);
+
+  const britishColumbia = getTaxRuleSet("CA", { jurisdictionId: "BC", asOfDate: "2026-11-20" });
+  const bcSnapshot = validateTaxRuleSnapshot({
+    ...britishColumbia.rule,
+    verified: true,
+    reviewedBy: "Plivex tax rule review",
+  });
+  assert.equal(bcSnapshot.ok, true, bcSnapshot.code);
 });
