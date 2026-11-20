@@ -841,6 +841,7 @@ export default function Home() {
           number: saved.number,
           globalDraftRequestId: current.globalDraftRequestId,
           documentStatus: saved.issued ? "issued" : "draft",
+          documentType: saved.issued ? "commercial_invoice" : "draft_invoice",
         }));
 
         // Commercial issuance is atomic and server-validated. Tax invoices remain
@@ -963,7 +964,7 @@ export default function Home() {
       if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
       const shareLink = await createInvoiceShareLink(savedInvoice.id);
       if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
-        setInvoice((current) => ({ ...current, id: savedInvoice.id, number: savedInvoice.number, documentStatus: savedInvoice.issued ? "issued" : current.documentStatus }));
+        setInvoice((current) => ({ ...current, id: savedInvoice.id, number: savedInvoice.number, documentStatus: savedInvoice.issued ? "issued" : current.documentStatus, documentType: savedInvoice.issued ? "commercial_invoice" : current.documentType }));
         // Let React update the visible invoice preview before rasterizing it.
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       }
