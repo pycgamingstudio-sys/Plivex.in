@@ -356,7 +356,7 @@ export function listTaxRuleSets() {
 const SNAPSHOT_COUNTRY_CURRENCY = Object.freeze({ IN: "INR", US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD" });
 const SNAPSHOT_OFFICIAL_HOSTS = Object.freeze({
   IN: ["cbic-gst.gov.in", "gst.gov.in"], US: ["gov"], GB: ["gov.uk"],
-  AE: ["tax.gov.ae", "mof.gov.ae"], CA: ["canada.ca", "revenuquebec.ca", "gouv.qc.ca"],
+  AE: ["tax.gov.ae", "mof.gov.ae"], CA: ["canada.ca", "revenuquebec.ca", "gouv.qc.ca", "gov.bc.ca", "gov.mb.ca", "saskatchewan.ca"],
   AU: ["ato.gov.au"], SG: ["iras.gov.sg"],
 });
 const snapshotValidDate = (value) => {
@@ -389,7 +389,7 @@ export function validateTaxRuleSnapshot(rule) {
   let combinedRate = 0;
   for (const component of rule.components) {
     if (!snapshotIsRecord(component) || typeof component.id !== "string" || !component.id.trim() || ids.has(component.id)
-      || !Number.isInteger(component.rateBps) || component.rateBps < 0 || component.rateBps > 10000
+      || !Number.isFinite(component.rateBps) || !Number.isInteger(component.rateBps * 10) || component.rateBps < 0 || component.rateBps > 10000
       || (component.source && !snapshotOfficialSource(rule.countryCode, component.source))) return { ok: false, code: "INVALID_COMPONENT" };
     ids.add(component.id);
     combinedRate += component.rateBps;
