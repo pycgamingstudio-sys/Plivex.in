@@ -56,6 +56,7 @@ declare
   v_component_tax bigint := 0;
   v_component_rate numeric := 0;
   v_component_count integer := 0;
+  v_expected_component_minor bigint;
   v_expected_component_name text;
   v_expected_component_rate numeric;
 begin
@@ -133,6 +134,9 @@ begin
 
       if v_country = 'CA' then
         v_province := upper(v_tax_context->'destinationJurisdiction'->>'province');
+        if v_tax_result->>'jurisdictionId' is distinct from v_province then
+          return jsonb_build_object('ok',false,'reason','unverified_tax_rule');
+        end if;
         if v_province in ('BC','MB','SK','QC') then
           v_expected_component_name := case v_province when 'BC' then 'PST' when 'MB' then 'RST' when 'SK' then 'PST' else 'QST' end;
           v_expected_component_rate := case v_province when 'BC' then 700 when 'MB' then 700 when 'SK' then 600 else 997.5 end;
@@ -167,10 +171,15 @@ begin
       v_taxable := (v_tax_result->>'taxableMinor')::bigint;
       v_tax := (v_tax_result->>'taxMinor')::bigint;
       v_total := (v_tax_result->>'totalMinor')::bigint;
-      if v_taxable <> v_pre_tax or v_tax < 0 or v_total <> v_taxable + v_tax then
+      if v_taxable <> v_pre_tax or v_tax < 0 or v_tax > 9000000000000000
+        or v_total > 9000000000000000 or v_total <> v_taxable + v_tax then
         return jsonb_build_object('ok',false,'reason','tax_total_mismatch');
       end if;
       for v_component in select value from jsonb_array_elements(v_tax_result->'components') loop
+        v_expected_component_minor := round(v_taxable * (v_component->>'rateBps')::numeric / 10000)::bigint;
+        if (v_component->>'amountMinor')::bigint <> v_expected_component_minor then
+          return jsonb_build_object('ok',false,'reason','tax_component_rate_mismatch');
+        end if;
         v_component_tax := v_component_tax + (v_component->>'amountMinor')::bigint;
         v_component_rate := v_component_rate + (v_component->>'rateBps')::numeric;
         v_component_count := v_component_count + 1;
