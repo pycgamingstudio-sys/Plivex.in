@@ -24,7 +24,8 @@ export default function DesignPicker({ value, onChange, canPremium, onLocked }) 
             type="button"
             data-testid={`button-design-${design.id}`}
             onClick={() => (locked ? onLocked() : onChange(design.id))}
-            aria-pressed={active}\n            aria-label={`${design.label}${locked ? ", Pro plan required" : active ? ", selected" : ""}`}\n            className={`group rounded-xl border p-3 text-left transition-all duration-150 ${active ? "border-primary bg-primary/[.055] shadow-[0_0_0_2px_rgba(109,40,217,.08)]" : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-md"}`}
+            aria-pressed={active}
+            aria-label={`${design.label}${locked ? ", Pro plan required" : active ? ", selected" : ""}`}\n            className={`group rounded-xl border p-3 text-left transition-all duration-150 ${active ? "border-primary bg-primary/[.055] shadow-[0_0_0_2px_rgba(109,40,217,.08)]" : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-md"}`}
           >
             <div className="rounded-lg bg-slate-50 p-1"><Swatch id={design.id} /></div>
             <div className="mt-2.5 flex items-center gap-1.5">
