@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDialogA11y } from "@/lib/useDialogA11y";
 import { CreditCard, Plus, Trash2, X } from "lucide-react";
 import PageShell from "@/components/PageShell";
 import { KEYS, loadList, saveList, genId } from "@/lib/stores";
@@ -57,11 +58,12 @@ export default function PaymentLogs() {
 
 function LogModal({ onClose, onSave }) {
   const [form, setForm] = useState(blank);
+  const dialogRef = useDialogA11y(true, onClose);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-[440px] rounded-2xl border bg-card p-5 text-card-foreground shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between"><h3 className="text-lg font-bold">Log a payment</h3><button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button></div>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="payment-log-dialog-title" tabIndex={-1} className="max-h-[min(88dvh,700px)] w-full max-w-[440px] overflow-y-auto overscroll-contain rounded-2xl border bg-card p-5 text-card-foreground shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between"><h3 id="payment-log-dialog-title" className="text-lg font-bold">Log a payment</h3><button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button></div>
         <div className="mt-4 grid gap-3">
           <label className="block text-[12px] font-semibold text-muted-foreground">Invoice no.<input className={inputCls} value={form.invoiceNumber} onChange={(e) => set("invoiceNumber", e.target.value)} placeholder="INV-0001" /></label>
           <label className="block text-[12px] font-semibold text-muted-foreground">Client<input className={inputCls} value={form.client} onChange={(e) => set("client", e.target.value)} placeholder="Client name" /></label>
