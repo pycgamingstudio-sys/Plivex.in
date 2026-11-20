@@ -87,7 +87,11 @@ Deno.serve(async (req: Request) => {
           || typeof tax.tax_category !== "string"
           || typeof tax.mode !== "string"
           || typeof tax.price_mode !== "string"
-          || typeof tax.place_of_supply !== "string") {
+          || typeof tax.place_of_supply !== "string"
+          || typeof tax.tax_treatment !== "string"
+          || typeof tax.collection_obligation_attested !== "boolean"
+          || typeof tax.tax_details_confirmed !== "boolean"
+          || !isObject(tax.destination_jurisdiction)) {
           return globalJson({ error: "Required tax evidence is incomplete." }, 400, origin);
         }
       }
