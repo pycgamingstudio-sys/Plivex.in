@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateGlobalTax } from "../tax/global-tax-engine.js";
+import { getTaxTreatmentRuleSet } from "../tax/tax-rule-registry.js";
 
 const base = {
   countryCode: "GB", currencyCode: "GBP", currencyMinorUnits: 2, amountMinor: 10000,
@@ -91,4 +92,19 @@ test("treatment must match the verified rule and unsupported reverse charge fail
 test("US and Canada still require exact jurisdiction rules; no national rate is added", () => {
   assert.equal(calculateGlobalTax({ ...base, countryCode: "US", currencyCode: "USD", treatment: "standard" }).code, "JURISDICTION_RULE_REQUIRED");
   assert.equal(calculateGlobalTax({ ...base, countryCode: "CA", currencyCode: "CAD", treatment: "standard" }).code, "JURISDICTION_RULE_REQUIRED");
+});
+
+test("UK domestic fuel and power reduced-rate rule is available only for its exact confirmed category", () => {
+  const category = "GB_REDUCED_DOMESTIC_FUEL_POWER";
+  const resolved = getTaxTreatmentRuleSet("GB", { treatment: "reduced", taxCategoryId: category, asOfDate: "2026-11-20" });
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.rule.components[0].rateBps, 500);
+  const result = calculateGlobalTax({ ...base, treatment: "reduced", taxCategory: category });
+  assert.equal(result.ok, true);
+  assert.equal(result.taxMinor, 500);
+  assert.equal(result.totalMinor, 10500);
+  const wrongCategory = calculateGlobalTax({ ...base, treatment: "reduced", taxCategory: "GB_STANDARD_GOODS" });
+  assert.equal(wrongCategory.code, "NO_EFFECTIVE_VERIFIED_RULE");
+  const wrongDate = getTaxTreatmentRuleSet("GB", { treatment: "reduced", taxCategoryId: category, asOfDate: "2010-12-31" });
+  assert.equal(wrongDate.code, "NO_EFFECTIVE_VERIFIED_RULE");
 });
