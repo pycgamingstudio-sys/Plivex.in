@@ -114,11 +114,12 @@ test("UAE, Australia and Singapore expose narrowly scoped verified special treat
   const cases = [
     ["AE", "zero-rated", "AE_ZERO_RATED_EXPORTS"],
     ["AE", "exempt", "AE_EXEMPT_FINANCIAL_SERVICES"],
-    ["AU", "zero-rated", "AU_GST_FREE_BASIC_FOOD"],
+    ["AU", "gst-free", "AU_GST_FREE_BASIC_FOOD"],
     ["AU", "exempt", "AU_INPUT_TAXED_FINANCIAL_SERVICES"],
     ["SG", "zero-rated", "SG_ZERO_RATED_EXPORTS_INTERNATIONAL_SERVICES"],
     ["SG", "exempt", "SG_EXEMPT_FINANCIAL_SERVICES"],
     ["SG", "out-of-scope", "SG_OUT_OF_SCOPE_OVERSEAS_TO_OVERSEAS_GOODS"],
+    ["CA", "zero-rated", "CA_ZERO_RATED_BASIC_GROCERIES"],
   ];
   for (const [countryCode, treatment, taxCategoryId] of cases) {
     const resolved = getTaxTreatmentRuleSet(countryCode, { treatment, taxCategoryId, asOfDate: "2026-11-20" });
