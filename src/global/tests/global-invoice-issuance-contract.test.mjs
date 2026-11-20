@@ -9,11 +9,14 @@ const home = readFileSync(new URL("../../pages/Home.jsx", import.meta.url), "utf
 const history = readFileSync(new URL("../../pages/InvoiceHistory.jsx", import.meta.url), "utf8");
 const stores = readFileSync(new URL("../../lib/stores.js", import.meta.url), "utf8");
 
-test("Global tax invoice issuance is server-authoritative for five standard-rate countries and fails closed for US", () => {
+test("Global tax invoice issuance is server-authoritative for six countries and fails closed without a verified US local rule", () => {
   const multiCountry = readFileSync(new URL("../../../supabase/migrations/20261120070000_global_multi_country_tax_issuance.sql", import.meta.url), "utf8");
   assert.match(multiCountry, /v_country not in \('GB','AE','CA','AU','SG'\)/);
   assert.match(multiCountry, /v_country = 'US'/);
-  assert.match(multiCountry, /jurisdiction_rule_required/);
+  assert.match(multiCountry, /us_verified_local_rule_unavailable/);
+  assert.match(multiCountry, /v_us_jurisdiction/);
+  assert.match(multiCountry, /global\\.tax_rule_versions/);
+  assert.match(multiCountry, /collection_obligation_attested/);
   assert.match(multiCountry, /v_tax_category <> 'CA_' \|\| v_province \|\| '_PST_TAXABLE_GOODS'/);
   assert.match(multiCountry, /rateBps',997\.5/);
   assert.match(multiCountry, /tax_rate_bps type numeric\(7,1\)/);
