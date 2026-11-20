@@ -185,6 +185,21 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
   if (![ "inclusive", "exclusive" ].includes(config.priceMode)) {
     return fail("PRICE_MODE_REQUIRED", "Choose whether each entered line price includes tax or excludes tax.");
   }
+  if (mode !== "manual" && mode !== "automatic") {
+    return fail("TAX_MODE_REQUIRED", "Choose automatic verified rules or explicitly entered manual rates.");
+  }
+  if (mode === "automatic" && countryCode === "CA") {
+    const province = String(config.destinationJurisdiction?.province || "").trim().toUpperCase();
+    if (!CA_JURISDICTIONS.has(province)) {
+      return fail("DESTINATION_JURISDICTION_REQUIRED", "Select a valid Canadian province or territory for the place-of-supply rate.");
+    }
+    if (config.collectionObligationAttested !== true) {
+      return fail("COLLECTION_OBLIGATION_ATTESTATION_REQUIRED", "Confirm that you have checked whether your business must collect GST/HST in the selected destination province.");
+    }
+  }
+  if (mode === "automatic" && countryCode === "US") {
+    return fail("JURISDICTION_RULE_REQUIRED", "US state, county, city and special-district tax requires an exact verified jurisdiction rule. No national rate is assumed.");
+  }
   if (mode === "manual") {
     if (!Array.isArray(config.components) || config.components.length < 1 || config.components.length > 8) {
       return fail("MANUAL_COMPONENTS_REQUIRED", "Add one to eight manual tax components before calculating.");
