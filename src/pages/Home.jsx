@@ -1048,7 +1048,7 @@ export default function Home() {
     setManualShareBusy(true);
     notify("Saving invoice and preparing PDF…", "info", 0);
     try {
-      const savedInvoice = await recordInvoice();
+      const savedInvoice = await recordInvoice({ issueInvoice: isGlobalWorkspace && globalTaxCalculation?.ok === true && globalTaxCalculation.status === "not_applicable" });
       if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
       const shareLink = await createInvoiceShareLink(savedInvoice.id);
       if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
