@@ -5,9 +5,9 @@ import { useAuth } from "@/lib/AuthContext";
 import { refreshWorkspaceKey } from "@/lib/stores";
 
 const STARTERS = [
-  "Mere pending invoices aur total pending amount batao",
-  "Low stock items kaun se hain?",
-  "Mere total clients aur recent expenses batao",
+  "Mere business ki performance review karo",
+  "Sales aur expenses compare karke samjhao",
+  "Profit aur cash flow improve karne ke ideas do",
 ];
 
 async function readableError(error) {
@@ -227,13 +227,13 @@ export default function AssistantWidget() {
       ) : (
         <section role="dialog" aria-label="Plivex Nova assistant" className="fixed bottom-20 left-3 right-3 z-[70] flex h-[70vh] max-h-[680px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:left-auto sm:right-4 sm:w-[390px] md:bottom-4">
           <header className="flex items-center justify-between bg-[#6D28D9] px-4 py-3 text-white">
-            <div className="flex items-center gap-2"><Sparkles className="h-5 w-5" /><div><p className="text-sm font-bold">Plivex Nova</p><p className="text-[11px] opacity-80">Live workspace · Gemini</p></div></div>
+            <div className="flex items-center gap-2"><Sparkles className="h-5 w-5" /><div><p className="text-sm font-bold">Plivex Nova</p><p className="text-[11px] opacity-80">Your AI Business Manager</p></div></div>
             <button onClick={() => setOpen(false)} aria-label="Close assistant" className="rounded-lg p-2 hover:bg-white/10"><X className="h-4 w-4" /></button>
           </header>
           <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 px-3 py-4">
             {messages.length === 0 && <div className="rounded-xl bg-white p-3 text-sm text-slate-600 shadow-sm">
-              <p className="font-semibold text-slate-800">Namaste! I can check live data in your Plivex workspace.</p>
-              <p className="mt-1 text-xs">I can understand requests across your Plivex business modules. I can currently prepare client, expense, lead, stock-item, quotation and invoice drafts, create purchase orders, receive goods against existing purchase orders, and create warehouses. Purchase orders, goods receipts and warehouse creation are confirmed separately. You review every proposed change before confirming. I never mark an invoice as paid or treat a payment screenshot as bank verification.</p>
+              <p className="font-semibold text-slate-800">Namaste! Apne business ke baare mein freely baat karein — Nova aapki madad ke liye hai.</p>
+              <p className="mt-1 text-xs">Ask questions, discuss business strategy, understand reports, explore ideas, and ask follow-up questions in Hindi, Hinglish or English. Nova can also prepare supported business actions for your review. Nothing is saved until you confirm; unsupported actions are clearly identified.</p>
               <div className="mt-3 flex flex-wrap gap-2">{STARTERS.map((q) => <button key={q} onClick={() => send(q)} className="rounded-full border border-purple-200 bg-purple-50 px-3 py-2 text-left text-xs text-purple-800">{q}</button>)}</div>
             </div>}
             {messages.map((m, i) => <div key={m.id || i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
@@ -264,7 +264,7 @@ export default function AssistantWidget() {
               <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; if (file.size > 12 * 1024 * 1024) { setError("Image must be smaller than 12 MB."); e.target.value = ""; return; } const reader = new FileReader(); reader.onload = () => { const source = typeof reader.result === "string" ? reader.result : ""; const img = new Image(); img.onload = () => { const max = 1800; const ratio = Math.min(1, max / Math.max(img.width, img.height)); const canvas = document.createElement("canvas"); canvas.width = Math.max(1, Math.round(img.width * ratio)); canvas.height = Math.max(1, Math.round(img.height * ratio)); const ctx = canvas.getContext("2d"); if (!ctx) { setError("Image processing unavailable."); return; } ctx.drawImage(img, 0, 0, canvas.width, canvas.height); setAttachment(canvas.toDataURL("image/jpeg", 0.9)); }; img.onerror = () => setError("Could not read this image. Please choose another photo."); img.src = source; }; reader.readAsDataURL(file); e.target.value = ""; }} />
               <button type="button" onClick={() => imageInputRef.current?.click()} disabled={busy} aria-label="Attach receipt or image" title="Attach receipt or image" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-[#6D28D9] disabled:opacity-50"><ImagePlus className="h-5 w-5" /></button>
               <button type="button" onClick={toggleVoiceInput} disabled={busy} aria-label={listening ? "Stop voice input" : "Start voice input"} title={listening ? "Stop voice input" : "Speak to Nova"} className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border disabled:opacity-50 ${listening ? "border-red-300 bg-red-50 text-red-600" : "border-slate-200 text-[#6D28D9]"}`}>{listening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button>
-              <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={1000} placeholder="Ask Nova or add a receipt…" className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-purple-500" />
+              <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={1000} placeholder="Discuss your business with Nova…" className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-purple-500" />
               <button type="submit" disabled={busy || (!draft.trim() && !attachment)} aria-label="Send message" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#6D28D9] text-white disabled:opacity-50"><Send className="h-4 w-4" /></button>
             </div>
           </form>
