@@ -14,12 +14,13 @@ const E_INVOICE = Object.freeze({
   SG: Object.freeze({ countryCode:"SG", status:"phased_requirement_provider_required", network:"InvoiceNow (Peppol)", submission:"disabled", note:"GST InvoiceNow obligations are phased by registration/cohort and implementation date. No InvoiceNow-ready access point is configured.", source:"https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/gst-invoicenow-requirement" }),
 });
 const COUNTRY_CURRENCY = Object.freeze({ IN:"INR", US:"USD", GB:"GBP", AE:"AED", CA:"CAD", AU:"AUD", SG:"SGD" });
-const TAX_TREATMENTS = new Set(["standard", "reduced", "zero-rated", "exempt", "out-of-scope"]);
-const NO_CHARGE_TREATMENTS = new Set(["zero-rated", "exempt", "out-of-scope"]);
+const TAX_TREATMENTS = new Set(["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"]);
+const NO_CHARGE_TREATMENTS = new Set(["zero-rated", "gst-free", "exempt", "out-of-scope"]);
 const TAX_DISCLOSURES = Object.freeze({
   standard: "Tax charged at the verified standard rate.",
   reduced: "Tax charged at the verified reduced rate for the confirmed supply category.",
   "zero-rated": "Zero-rated supply — 0% tax under the selected verified rule. This is not the same as exempt.",
+  "gst-free": "GST-free supply — no GST charged under the selected verified Australian GST-free category. This is distinct from input-taxed supplies.",
   exempt: "Exempt supply — no tax charged under the selected verified rule.",
   "out-of-scope": "Outside the scope of this tax system under the selected verified rule.",
 });
