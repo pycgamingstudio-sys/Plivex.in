@@ -759,20 +759,20 @@ export default function Home() {
     }
     return valid;
   };
-  const recordInvoice = async () => {
+  const recordInvoice = async ({ issueInvoice = false } = {}) => {
     const total = computeTotal(invoiceForPreview);
     const taxValue = globalTaxCalculation?.ok && globalTaxCalculation.status !== "india_legacy"
       ? globalTaxCalculation.taxMinor / 100
       : Math.max(0, total - invoice.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.rate) || 0), 0));
-    const savedInvoice = await saveInvoiceToServer({ ...invoiceForPreview, total, taxValue });
+    const savedInvoice = await saveInvoiceToServer({ ...invoiceForPreview, total, taxValue }, { issueInvoice });
     await refreshAccessStatus();
-    const isGlobalDraft = isGlobalWorkspace;
+    const isGlobalDraft = isGlobalWorkspace && !savedInvoice.issued;
     trackStaffAction({
       label: isGlobalDraft
         ? `Draft invoice ${savedInvoice.number || "DRAFT"} saved for ${invoice.client.name || "client"}`
         : `Invoice ${savedInvoice.number || invoice.number || "INV"} generated for ${invoice.client.name || "client"}`,
       type: isGlobalDraft ? "invoice-draft" : "invoice",
-      ...(isGlobalDraft ? {} : { revenue: total }),
+      ...(!isGlobalDraft ? { revenue: total } : {}),
     });
     return savedInvoice;
   };
@@ -843,23 +843,20 @@ export default function Home() {
       notify("Preparing invoice PDF… please wait.", "info", 0);
       const isGlobalDraft = isGlobalWorkspace;
       if (isGlobalDraft) {
-        const saved = await recordInvoice();
-        const issueKey = invoice.globalIssueInvoiceId === saved.id && /^[0-9a-f-]{36}$/i.test(invoice.globalIssueRequestId || "")
-          ? invoice.globalIssueRequestId
-          : crypto.randomUUID();
+        const canIssueCommercial = globalTaxCalculation?.ok === true && globalTaxCalculation.status === "not_applicable";
+        const saved = await recordInvoice({ issueInvoice: canIssueCommercial });
         setInvoice((current) => ({
           ...current,
           id: saved.id,
           number: saved.number,
-          globalDraftRequestId: saved.idempotencyKey || current.globalDraftRequestId,
-          globalIssueInvoiceId: saved.id,
-          globalIssueRequestId: issueKey,
-          documentStatus: "draft",
+          globalDraftRequestId: current.globalDraftRequestId,
+          documentStatus: saved.issued ? "issued" : "draft",
+          documentType: saved.issued ? "commercial_invoice" : "draft_invoice",
         }));
 
-        // PLIVEX ONE stores non-India invoices in the same canonical ledger as drafts.
-        // Issuance stays disabled until a verified country rule and server capability are active.
-        const issuedInvoice = null;
+        // Commercial issuance is atomic and server-validated. Tax invoices remain
+        // draft-only until a country-specific tax adapter is enabled end to end.
+        const issuedInvoice = saved.issued ? { invoice_number: saved.number } : null;
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const pdf = await renderPdfDocument();
         if (!pdf) return;
@@ -870,7 +867,7 @@ export default function Home() {
         downloadPdfBlob(pdf, exportFilename);
         recordActivity(issuedInvoice ? "Workspace invoice issued and PDF exported" : "Workspace invoice draft exported");
         if (issuedInvoice) {
-          notify(`UK VAT invoice ${issuedInvoice.invoice_number} issued and PDF downloaded. Payment-provider collection is not connected yet.`);
+          notify(`Commercial invoice ${issuedInvoice.invoice_number} issued and PDF downloaded. Payment-provider collection is not connected yet.`);
         } else {
           const reason = activeWorkspaceCountry === "GB" && !globalTaxCalculation?.ok
             ? "Tax details are incomplete, so this document remains a draft."
@@ -973,11 +970,11 @@ export default function Home() {
     try {
       // Persist first: the server assigns the official invoice number and deducts stock
       // exactly once. This prevents WhatsApp sharing from creating an unsaved invoice.
-      const savedInvoice = await recordInvoice();
+      const savedInvoice = await recordInvoice({ issueInvoice: isGlobalWorkspace && globalTaxCalculation?.ok === true && globalTaxCalculation.status === "not_applicable" });
       if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
-      const shareLink = await createInvoiceShareLink(savedInvoice.id, user?.workspace_id, isGlobalWorkspace);
+      const shareLink = await createInvoiceShareLink(savedInvoice.id);
       if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
-        setInvoice((current) => ({ ...current, number: savedInvoice.number }));
+        setInvoice((current) => ({ ...current, id: savedInvoice.id, number: savedInvoice.number, documentStatus: savedInvoice.issued ? "issued" : (isGlobalWorkspace ? "draft" : current.documentStatus), documentType: savedInvoice.issued ? "commercial_invoice" : (isGlobalWorkspace ? "draft_invoice" : current.documentType) }));
         // Let React update the visible invoice preview before rasterizing it.
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       }
@@ -1050,7 +1047,7 @@ export default function Home() {
     setManualShareBusy(true);
     notify("Saving invoice and preparing PDF…", "info", 0);
     try {
-      const savedInvoice = await recordInvoice();
+      const savedInvoice = await recordInvoice({ issueInvoice: isGlobalWorkspace && globalTaxCalculation?.ok === true && globalTaxCalculation.status === "not_applicable" });
       if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
       if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
         setInvoice((current) => ({ ...current, number: savedInvoice.number }));
@@ -1102,9 +1099,9 @@ export default function Home() {
     setManualShareBusy(true);
     notify("Saving invoice and preparing PDF…", "info", 0);
     try {
-      const savedInvoice = await recordInvoice();
+      const savedInvoice = await recordInvoice({ issueInvoice: isGlobalWorkspace && globalTaxCalculation?.ok === true && globalTaxCalculation.status === "not_applicable" });
       if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
-      const shareLink = await createInvoiceShareLink(savedInvoice.id, user?.workspace_id, isGlobalWorkspace);
+      const shareLink = await createInvoiceShareLink(savedInvoice.id);
       if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
         setInvoice((current) => ({ ...current, number: savedInvoice.number }));
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
