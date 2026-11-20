@@ -4,6 +4,7 @@
 begin;
 
 alter table public.invoices add column if not exists issue_request_key uuid;
+alter table public.invoices add column if not exists issue_request_hash text;
 create unique index if not exists invoices_workspace_issue_request_key_idx
   on public.invoices(workspace_id, issue_request_key) where issue_request_key is not null;
 
@@ -109,7 +110,8 @@ begin
       or new.igst is distinct from old.igst
       or new.total is distinct from old.total
       or new.invoice_snapshot is distinct from old.invoice_snapshot
-      or new.issue_request_key is distinct from old.issue_request_key then
+      or new.issue_request_key is distinct from old.issue_request_key
+       or new.issue_request_hash is distinct from old.issue_request_hash then
       raise exception using errcode='55000', message='Issued invoice content is immutable; create a correction document';
     end if;
   end if;
@@ -184,9 +186,11 @@ declare
   v_sequence bigint;
   v_number text;
   v_issue_date date;
+  v_request_hash text;
 begin
   if v_user is null then raise exception using errcode='42501', message='Please sign in'; end if;
   if _idempotency_key is null then raise exception using errcode='22023', message='An invoice issue request key is required'; end if;
+  v_request_hash := md5(coalesce(_data,'{}'::jsonb)::text || '|' || coalesce(_items,'[]'::jsonb)::text);
   select workspace_id, role into v_workspace, v_role from public.profiles where id=v_user;
   if v_workspace is null or v_role not in ('admin','manager') then
     raise exception using errcode='42501', message='Only workspace admins or managers can issue invoices';
@@ -203,6 +207,9 @@ begin
     end if;
     if v_existing.is_draft then
       raise exception using errcode='55000', message='The previous invoice issue request is incomplete; keep this invoice as a draft and retry with a new request';
+    end if;
+    if v_existing.issue_request_hash is distinct from v_request_hash then
+      raise exception using errcode='55000', message='Issued invoice content is immutable; create a correction document';
     end if;
     return jsonb_build_object('invoice',to_jsonb(v_existing),'issued',true,'duplicate',true);
   end if;
@@ -335,7 +342,7 @@ begin
 
   perform set_config('plivex.invoice_issuance','on',true);
   update public.invoices set
-    number=v_number,is_draft=false,status='Pending',issue_request_key=_idempotency_key,
+    number=v_number,is_draft=false,status='Pending',issue_request_key=_idempotency_key,issue_request_hash=v_request_hash,
     tax_rate=0,tax_value=0,cgst=0,sgst=0,igst=0,
     total=v_invoice.total,
     invoice_snapshot=v_snapshot,
