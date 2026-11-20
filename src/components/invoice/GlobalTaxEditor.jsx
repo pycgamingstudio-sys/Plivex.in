@@ -104,10 +104,25 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
             <input className={fieldClass} maxLength={180} value={config.placeOfSupply || ""} onChange={(e) => update({ placeOfSupply: e.target.value, placeOfSupplyConfirmed: false })} placeholder="Destination / place where supply is made" />
           )}
         </label>
+        <label className={labelClass}>Tax treatment
+          <select className={fieldClass} value={config.taxTreatment || "standard"} onChange={(e) => update({ taxTreatment: e.target.value, taxCategory: "", taxCategoryConfirmed: false, taxDetailsConfirmed: false })}>
+            <option value="standard">Standard-rated</option>
+            {["AE","AU","SG"].includes(countryCode) && <option value="zero-rated">Zero-rated · 0%</option>}
+            {["AE","AU","SG"].includes(countryCode) && <option value="exempt">Exempt · no tax charged</option>}
+            {countryCode === "SG" && <option value="out-of-scope">Out of scope</option>}
+          </select>
+        </label>
         <label className={labelClass}>{format?.classificationLabel || "Goods/services tax category"}
           <select className={fieldClass} value={config.taxCategory || ""} onChange={(e) => update({ taxCategory: e.target.value, taxCategoryConfirmed: false })}>
             <option value="">Select supported treatment</option>
             <option value="standard-rated">Standard-rated taxable supply</option>
+            {countryCode === "AE" && config.taxTreatment === "zero-rated" && <option value="AE_ZERO_RATED_EXPORTS">Qualifying exports outside GCC</option>}
+            {countryCode === "AE" && config.taxTreatment === "exempt" && <option value="AE_EXEMPT_FINANCIAL_SERVICES">Qualifying financial services</option>}
+            {countryCode === "AU" && config.taxTreatment === "zero-rated" && <option value="AU_GST_FREE_BASIC_FOOD">Qualifying basic food</option>}
+            {countryCode === "AU" && config.taxTreatment === "exempt" && <option value="AU_INPUT_TAXED_FINANCIAL_SERVICES">Qualifying input-taxed financial services</option>}
+            {countryCode === "SG" && config.taxTreatment === "zero-rated" && <option value="SG_ZERO_RATED_EXPORTS_INTERNATIONAL_SERVICES">Qualifying exports / international services</option>}
+            {countryCode === "SG" && config.taxTreatment === "exempt" && <option value="SG_EXEMPT_FINANCIAL_SERVICES">Qualifying exempt financial services</option>}
+            {countryCode === "SG" && config.taxTreatment === "out-of-scope" && <option value="SG_OUT_OF_SCOPE_OVERSEAS_TO_OVERSEAS_GOODS">Goods delivered overseas to overseas</option>}
           </select>
         </label>
       </div>
@@ -133,14 +148,17 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
       {(isUS || isCA) && (
         <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">
           <p className="font-bold">Jurisdiction-specific rates are not auto-filled.</p>
-          <p className="mt-1">A verified address-level rate and nexus provider is not configured. Plivex will not guess US state/county/city or Canadian province rates. Manual rates are user-entered and unverified; the attestation is not independent verification.</p>
+          <p className="mt-1">US state/local rates still require exact address-level rules. Canadian provincial baseline rates are selected by province; product-specific PST exceptions and Quebec QST precision remain review-only. Manual rates are user-entered and unverified.</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {isUS ? <>
               <label className={labelClass}>Destination state code<input className={fieldClass} maxLength={8} value={config.destinationJurisdiction?.state || ""} onChange={(e) => updateJurisdiction("state", e.target.value.toUpperCase())} placeholder="e.g. CA" /></label>
               <label className={labelClass}>Destination county<input className={fieldClass} maxLength={100} value={config.destinationJurisdiction?.county || ""} onChange={(e) => updateJurisdiction("county", e.target.value)} /></label>
               <label className={labelClass}>Destination city<input className={fieldClass} maxLength={100} value={config.destinationJurisdiction?.city || ""} onChange={(e) => updateJurisdiction("city", e.target.value)} /></label>
             </> : <>
-              <label className={labelClass}>Destination province / territory code<input className={fieldClass} maxLength={8} value={config.destinationJurisdiction?.province || ""} onChange={(e) => updateJurisdiction("province", e.target.value.toUpperCase())} placeholder="e.g. ON" /></label>
+              <label className={labelClass}>Destination province / territory code<select className={fieldClass} value={config.destinationJurisdiction?.province || ""} onChange={(e) => updateJurisdiction("province", e.target.value)}>
+                <option value="">Select province / territory</option>
+                {["AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","SK","YT"].map((code) => <option key={code} value={code}>{code}</option>)}
+              </select></label>
             </>}
             <label className={labelClass}>{isUS ? "Seller registered state / jurisdiction" : "Seller registered province / jurisdiction"}
               <input className={fieldClass} value={workspaceProfile?.registeredJurisdiction || ""} readOnly />
