@@ -36,7 +36,7 @@ export default function GlobalQuotationsPanel({ account }) {
   const [records, setRecords] = useState([]);
   const [profile, setProfile] = useState(null);
   const [taxContext, setTaxContext] = useState({
-    countryCode, mode: "automatic", priceMode: "exclusive", taxMode: "taxable",
+    countryCode, mode: "automatic", priceMode: "exclusive", taxMode: "taxable", noTaxConfirmed: false, noTaxConfirmed: false,
     taxTreatment: "standard", taxCategory: "standard-rated", taxDetailsConfirmed: false,
     placeOfSupply: "", destinationJurisdiction: { province: "" }, collectionObligationAttested: false,
   });
@@ -161,7 +161,7 @@ export default function GlobalQuotationsPanel({ account }) {
         action: "create", client_id: form.client_id || null, currency_code: currency,
         issue_date: form.issue_date, valid_until: form.valid_until || null,
         notes: form.notes.trim() || null, items, idempotency_key: newId(),
-        tax_snapshot: taxPreview.ok === true && taxPreview.status === "calculated"
+        tax_snapshot: taxPreview.ok === true && ["calculated", "not_applicable"].includes(taxPreview.status)
           ? { taxResult: taxPreview, taxContext }
           : null,
       });
@@ -170,7 +170,9 @@ export default function GlobalQuotationsPanel({ account }) {
       setForm({ client_id: "", issue_date: today(), valid_until: "", notes: "", items: [{ description: "", quantity: "1", unit_price: "", discount: "0" }] });
       setNotice(taxPreview.ok === true && taxPreview.status === "calculated"
         ? "Quotation saved with a source-backed tax estimate. Review the PDF before sharing."
-        : "Quotation saved as a draft, but tax needs review. It cannot be marked as sent until a verified tax calculation is available.");
+        : taxPreview.ok === true && taxPreview.status === "not_applicable"
+          ? "Quotation saved with your explicit no-tax confirmation. This is not a zero-rated or exempt tax treatment."
+          : "Quotation saved as a draft, but tax needs review. It cannot be marked as sent until tax is resolved.");
       await refresh();
     } catch (saveError) { setError(saveError.message || "Could not create quotation."); }
     finally { setBusy(false); }
@@ -309,12 +311,12 @@ export default function GlobalQuotationsPanel({ account }) {
             </div>
             {selected.quotation.notes && <p className="mt-3 text-xs leading-5 text-slate-600">{selected.quotation.notes}</p>}
             <button type="button" className={secondary + " mt-4 w-full"} onClick={() => downloadPdf(selected)}><Download className="h-4 w-4" /> Download PDF</button>
-            {selected.quotation.tax_status !== "calculated" && <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">Tax review required. This total excludes tax, and the server will not allow this quotation to be marked as sent.</p>}
+            {selected.quotation.!["calculated","not_applicable"].includes(selected.quotation.tax_status) && <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">Tax review required. This total excludes tax, and the server will not allow this quotation to be marked as sent.</p>}
             {selected.quotation.status === "draft" && <button type="button" className={primary + " mt-2 w-full"} disabled={busy || selected.quotation.tax_status !== "calculated"} onClick={() => changeStatus("sent")}><Send className="h-4 w-4" /> Mark as sent</button>}
             {["draft", "sent"].includes(selected.quotation.status) && <div className="mt-2 grid grid-cols-2 gap-2"><button type="button" className={secondary} disabled={busy} onClick={() => changeStatus("accepted")}><CheckCircle2 className="h-4 w-4" /> Accept</button><button type="button" className={secondary} disabled={busy} onClick={() => changeStatus("rejected")}><XCircle className="h-4 w-4" /> Reject</button></div>}
             {selected.quotation.status === "accepted" && <button type="button" className={primary + " mt-2 w-full"} disabled={busy} onClick={convertToInvoice}>Convert to invoice draft <ArrowRight className="h-4 w-4" /></button>}
             {selected.quotation.status === "converted" && <p className="mt-3 rounded-xl bg-violet-50 p-3 text-xs font-medium text-violet-800">Converted successfully. Open Sales → Invoices to review the invoice draft before issuing.</p>}
-            <p className="mt-3 text-[11px] leading-5 text-slate-500">A quotation is not an invoice, does not create a receivable and cannot accept payments. Tax status: {selected.quotation.tax_status === "calculated" ? "source-backed estimate" : "review required"}.</p>
+            <p className="mt-3 text-[11px] leading-5 text-slate-500">A quotation is not an invoice, does not create a receivable and cannot accept payments. Tax status: {selected.quotation.tax_status === "calculated" ? "source-backed estimate" : selected.quotation.tax_status === "not_applicable" ? "business-confirmed no tax" : "review required"}.</p>
           </>}
         </aside>
       </div>
@@ -358,14 +360,21 @@ export default function GlobalQuotationsPanel({ account }) {
               </label>}
             </div>
             <label className="mt-3 flex items-start gap-2 text-xs leading-5 text-slate-600">
+              <input type="checkbox" checked={taxContext.taxMode === "no_tax"} onChange={(e) => setTaxContext((v) => ({ ...v, taxMode: e.target.checked ? "no_tax" : "taxable", noTaxConfirmed: e.target.checked, taxDetailsConfirmed: false }))} />
+              <span>I confirm no tax is chargeable on this transaction. This is a business attestation only; it is not the same as zero-rated or exempt treatment and is not independently verified by Plivex.</span>
+            </label>
+            {taxContext.taxMode !== "no_tax" && <label className="mt-3 flex items-start gap-2 text-xs leading-5 text-slate-600">
               <input type="checkbox" checked={taxContext.taxDetailsConfirmed === true} onChange={(e) => setTaxContext((v) => ({ ...v, taxDetailsConfirmed: e.target.checked, collectionObligationAttested: countryCode === "CA" ? e.target.checked : v.collectionObligationAttested }))} />
               <span>I confirm the seller's tax registration is current, the place of supply is correct, and all quotation lines have the selected standard tax treatment. For BC, Manitoba or Saskatchewan, I also confirm every line qualifies for the selected PST/RST taxable-goods category.</span>
-            </label>
+            </label>}
             <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs">
               {taxPreview.ok === true && taxPreview.status === "calculated" ? <>
                 <p className="font-semibold text-emerald-800">Tax calculated from the active rule</p>
                 <p className="mt-1">Taxable: {formatMoney(taxPreview.taxableMinor, currency, locale)} · Tax: {formatMoney(taxPreview.taxMinor, currency, locale)} · Total: {formatMoney(taxPreview.totalMinor, currency, locale)}</p>
                 {taxPreview.warning && <p className="mt-1 text-slate-500">{taxPreview.warning}</p>}
+              </> : taxPreview.ok === true && taxPreview.status === "not_applicable" ? <>
+                <p className="font-semibold text-emerald-800">No tax charged — business confirmed</p>
+                <p className="mt-1">Total: {formatMoney(taxPreview.totalMinor, currency, locale)}</p>
               </> : <p className="text-amber-800">Tax review required: {taxPreview.message || "Complete seller registration and transaction details. Unsupported rates are not guessed."}</p>}
               <p className="mt-1 text-[11px] text-slate-500">Seller details are business-supplied. This estimate is not a tax invoice or independent legal verification.</p>
             </div>
