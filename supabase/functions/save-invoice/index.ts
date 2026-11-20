@@ -95,10 +95,12 @@ Deno.serve(async (req: Request) => {
     if (invoiceId !== null && (typeof invoiceId !== "string" || !/^[0-9a-f-]{36}$/i.test(invoiceId))) return json({ error: "Invalid invoice id." }, 400, origin);
     if (invoiceId !== null) {
       const { data: existingInvoice, error: existingInvoiceError } = await db.from("invoices")
-        .select("id,is_draft").eq("id", invoiceId).eq("workspace_id", userProfile.workspace_id).maybeSingle();
+        .select("id,is_draft,issue_request_key").eq("id", invoiceId).eq("workspace_id", userProfile.workspace_id).maybeSingle();
       if (existingInvoiceError) return json({ error: "Existing invoice could not be checked." }, 500, origin);
       if (!existingInvoice) return json({ error: "Invoice not found in this workspace." }, 404, origin);
-      if (existingInvoice.is_draft !== true) return json({ error: "Only draft invoices can be edited from this workflow." }, 409, origin);
+      if (existingInvoice.is_draft !== true && !(body?.issue_invoice === true && existingInvoice.issue_request_key === body?.issue_idempotency_key)) {
+        return json({ error: "Only draft invoices can be edited from this workflow." }, 409, origin);
+      }
     }
     const { items, id, invoiceId: _ignored, issue_invoice: _issueInvoice, issue_idempotency_key: _issueKey, ...data } = body;
     const isNonIndiaInvoice = countryCode !== "IN";
@@ -133,7 +135,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Keep non-India invoice drafts connected to the canonical CRM customer record.
-    if (countryCode !== "IN") {
+    if (countryCode !== "IN" && body?.issue_invoice !== true) {
       const client = body?.invoice_snapshot?.client && typeof body.invoice_snapshot.client === "object"
         ? body.invoice_snapshot.client : {};
       const clientName = String(body.client_name || client.name || client.company || "").trim().slice(0, 160);
@@ -166,7 +168,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    if (verifiedGlobalTaxResult) {
+    if (verifiedGlobalTaxResult && !(isNonIndiaInvoice && body?.issue_invoice === true)) {
       const taxMinor = Number(verifiedGlobalTaxResult.taxMinor);
       const totalMinor = Number(verifiedGlobalTaxResult.totalMinor);
       if (!Number.isSafeInteger(taxMinor) || !Number.isSafeInteger(totalMinor) || taxMinor < 0 || totalMinor < 0) {
