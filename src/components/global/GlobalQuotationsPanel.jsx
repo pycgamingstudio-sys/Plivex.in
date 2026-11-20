@@ -130,7 +130,7 @@ export default function GlobalQuotationsPanel({ account }) {
   }), { all: 0, open: 0, accepted: 0, converted: 0 }), [records]);
 
   const updateItem = (index, key, value) => {
-    setTaxContext((current) => ({ ...current, taxDetailsConfirmed: false }));
+    setTaxContext((current) => ({ ...current, taxDetailsConfirmed: false, taxMode: "taxable", noTaxConfirmed: false }));
     setForm((current) => ({
       ...current,
       items: current.items.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item),
@@ -333,7 +333,7 @@ export default function GlobalQuotationsPanel({ account }) {
           <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-violet-700">New sales document</p><h2 className="mt-1 text-xl font-bold text-slate-900">Create quotation</h2><p className="mt-1 text-xs text-slate-500">Currency follows your verified Global workspace settings: {currency}.</p></div><button type="button" onClick={() => setShowCreate(false)} className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100">Close</button></div>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             <label className="text-xs font-semibold text-slate-600 sm:col-span-1">Customer<select className={field + " mt-1"} value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })}><option value="">Walk-in / not selected</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
-            <label className="text-xs font-semibold text-slate-600">Quotation date<input required type="date" className={field + " mt-1"} value={form.issue_date} onChange={(event) => { setTaxContext((v) => ({ ...v, taxDetailsConfirmed: false })); setForm({ ...form, issue_date: event.target.value }); }} /></label>
+            <label className="text-xs font-semibold text-slate-600">Quotation date<input required type="date" className={field + " mt-1"} value={form.issue_date} onChange={(event) => { setTaxContext((v) => ({ ...v, taxDetailsConfirmed: false, taxMode: "taxable", noTaxConfirmed: false })); setForm({ ...form, issue_date: event.target.value }); }} /></label>
             <label className="text-xs font-semibold text-slate-600">Valid until<input type="date" min={form.issue_date} className={field + " mt-1"} value={form.valid_until} onChange={(event) => setForm({ ...form, valid_until: event.target.value })} /></label>
           </div>
           <div className="mt-5"><div className="flex items-center justify-between"><h3 className="text-sm font-bold text-slate-900">Items and pricing</h3><span className="text-xs text-slate-500">{currency}</span></div>
@@ -351,16 +351,16 @@ export default function GlobalQuotationsPanel({ account }) {
             <p className="mt-1 text-xs leading-5 text-slate-500">Uses the same country tax engine as invoices. Tax is calculated only when the current verified rule, seller registration and supply details are available.</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <label className="text-xs font-semibold text-slate-600">Place of supply
-                {["GB","AE","AU","SG"].includes(countryCode) ? <select className={field + " mt-1"} value={taxContext.placeOfSupply} onChange={(e) => setTaxContext((v) => ({ ...v, placeOfSupply: e.target.value, taxDetailsConfirmed: false }))}><option value="">Select place</option>{countryCode === "GB" && <option value="United Kingdom">United Kingdom</option>}{countryCode === "AE" && <option value="United Arab Emirates">United Arab Emirates</option>}{countryCode === "AU" && <option value="Australia">Australia</option>}{countryCode === "SG" && <option value="Singapore">Singapore</option>}</select> : <input className={field + " mt-1"} value={taxContext.placeOfSupply} maxLength={180} placeholder="Supply destination / place" onChange={(e) => setTaxContext((v) => ({ ...v, placeOfSupply: e.target.value, taxDetailsConfirmed: false }))} />}
+                {["GB","AE","AU","SG"].includes(countryCode) ? <select className={field + " mt-1"} value={taxContext.placeOfSupply} onChange={(e) => setTaxContext((v) => ({ ...v, placeOfSupply: e.target.value, taxDetailsConfirmed: false, taxMode: "taxable", noTaxConfirmed: false }))}><option value="">Select place</option>{countryCode === "GB" && <option value="United Kingdom">United Kingdom</option>}{countryCode === "AE" && <option value="United Arab Emirates">United Arab Emirates</option>}{countryCode === "AU" && <option value="Australia">Australia</option>}{countryCode === "SG" && <option value="Singapore">Singapore</option>}</select> : <input className={field + " mt-1"} value={taxContext.placeOfSupply} maxLength={180} placeholder="Supply destination / place" onChange={(e) => setTaxContext((v) => ({ ...v, placeOfSupply: e.target.value, taxDetailsConfirmed: false }))} />}
               </label>
               {countryCode === "CA" && <label className="text-xs font-semibold text-slate-600">Destination province / territory
-                <select className={field + " mt-1"} value={taxContext.destinationJurisdiction.province} onChange={(e) => setTaxContext((v) => ({ ...v, destinationJurisdiction: { ...v.destinationJurisdiction, province: e.target.value }, taxDetailsConfirmed: false }))}>
+                <select className={field + " mt-1"} value={taxContext.destinationJurisdiction.province} onChange={(e) => setTaxContext((v) => ({ ...v, destinationJurisdiction: { ...v.destinationJurisdiction, province: e.target.value }, taxDetailsConfirmed: false, taxMode: "taxable", noTaxConfirmed: false }))}>
                   <option value="">Select province / territory</option>
                   {["AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","QC","SK","YT"].map((province) => <option key={province} value={province}>{province}</option>)}
                 </select>
               </label>}
               {["BC","MB","SK"].includes(taxContext.destinationJurisdiction.province) && <label className="text-xs font-semibold text-slate-600 sm:col-span-2">Provincial sales tax classification
-                <select className={field + " mt-1"} value={taxContext.taxCategory} onChange={(e) => setTaxContext((v) => ({ ...v, taxCategory: e.target.value, taxDetailsConfirmed: false }))}>
+                <select className={field + " mt-1"} value={taxContext.taxCategory} onChange={(e) => setTaxContext((v) => ({ ...v, taxCategory: e.target.value, taxDetailsConfirmed: false, taxMode: "taxable", noTaxConfirmed: false }))}>
                   <option value="standard-rated">Not confirmed</option>
                   <option value={"CA_" + taxContext.destinationJurisdiction.province + "_PST_TAXABLE_GOODS"}>All lines are taxable tangible goods for this province's PST/RST</option>
                 </select>
