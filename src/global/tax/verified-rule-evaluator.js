@@ -8,7 +8,7 @@ import { TAX_ENGINE_VERSION, TAX_RULE_CATALOG_VERSION } from "./tax-rule-registr
 const COUNTRIES = Object.freeze({ IN: "INR", US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD" });
 const OFFICIAL_SOURCE_HOSTS = Object.freeze({
   US: ["gov"], GB: ["gov.uk"], AE: ["tax.gov.ae", "mof.gov.ae"],
-  CA: ["canada.ca", "revenuquebec.ca", "gouv.qc.ca"],
+  CA: ["canada.ca", "revenuquebec.ca", "gouv.qc.ca", "gov.bc.ca", "gov.mb.ca", "saskatchewan.ca"],
   AU: ["ato.gov.au"], SG: ["iras.gov.sg"],
 });
 const officialSource = (countryCode, value) => {
@@ -68,7 +68,7 @@ export function calculateVerifiedTaxRule(input) {
     || typeof rule.id !== "string" || !rule.id.trim() || typeof rule.version !== "string" || !rule.version.trim()
     || !officialSource(countryCode, rule.source) || !validDate(rule.effectiveFrom)
     || (rule.effectiveTo && (!validDate(rule.effectiveTo) || rule.effectiveTo < rule.effectiveFrom))
-    || !validDate(rule.reviewedOn) || rule.reviewedOn > input.invoiceDate
+    || !validDate(rule.reviewedOn)
     || typeof rule.reviewedBy !== "string" || !rule.reviewedBy.trim()
     || input.invoiceDate < rule.effectiveFrom || (rule.effectiveTo && input.invoiceDate > rule.effectiveTo)) {
     return fail("INVALID_OR_INACTIVE_RULE", "A verified, officially sourced, reviewed and effective rule snapshot is required.");
@@ -80,7 +80,7 @@ export function calculateVerifiedTaxRule(input) {
   const ids = new Set();
   for (const component of rule.components) {
     if (!record(component) || typeof component.id !== "string" || !component.id.trim()
-      || ids.has(component.id) || !Number.isInteger(component.rateBps) || component.rateBps < 0
+      || ids.has(component.id) || !Number.isFinite(component.rateBps) || !Number.isInteger(component.rateBps * 10) || component.rateBps < 0
       || component.rateBps > 10000 || !officialSource(countryCode, component.source || rule.source)) {
       return fail("INVALID_TAX_COMPONENT", "Each component needs a unique ID, valid rate and official source.");
     }
@@ -97,11 +97,13 @@ export function calculateVerifiedTaxRule(input) {
     return fail("JURISDICTION_OR_NEXUS_REQUIRED", "US/Canada require an exact destination jurisdiction and an explicit collection-obligation confirmation. User attestations are recorded as such and are not independent verification.");
   }
 
-  const rateBps = rule.components.reduce((sum, component) => sum + component.rateBps, 0);
-  if (rateBps > 10000) return fail("RATE_OR_AMOUNT_OUT_OF_RANGE", "Combined tax rate exceeds supported limits.");
+  // Store rates in tenths of a basis point so jurisdictions such as Quebec
+  // can represent 9.975% exactly without floating-point tax arithmetic.
+  const rateUnits = rule.components.reduce((sum, component) => sum + Math.round(component.rateBps * 10), 0);
+  if (rateUnits > 100000) return fail("RATE_OR_AMOUNT_OUT_OF_RANGE", "Combined tax rate exceeds supported limits.");
   const amount = BigInt(input.amountMinor);
-  const rate = BigInt(rateBps);
-  const basis = 10000n;
+  const rate = BigInt(rateUnits);
+  const basis = 100000n;
   const taxable = input.priceMode === "exclusive" ? amount : roundHalfUp(amount * basis, basis + rate);
   const total = input.priceMode === "exclusive" ? amount + roundHalfUp(amount * rate, basis) : amount;
   const tax = total - taxable;
@@ -112,7 +114,8 @@ export function calculateVerifiedTaxRule(input) {
 
   const components = rule.components.map((component) => ({
     id: component.id, name: component.name || component.id, rateBps: component.rateBps,
-    amountMinor: safeNumber(roundHalfUp(taxable * BigInt(component.rateBps), basis)),
+    rateUnits: Math.round(component.rateBps * 10),
+    amountMinor: safeNumber(roundHalfUp(taxable * BigInt(Math.round(component.rateBps * 10)), basis)),
     source: component.source || rule.source,
   }));
   if (components.some((component) => component.amountMinor === null)) return fail("AMOUNT_OUT_OF_RANGE", "Tax component exceeds safe integer limits.");
@@ -130,6 +133,7 @@ export function calculateVerifiedTaxRule(input) {
       id: rule.id, version: rule.version, catalogVersion: rule.catalogVersion || TAX_RULE_CATALOG_VERSION,
       source: rule.source, sourceAuthority: rule.sourceAuthority || null, coverage: rule.coverage || null,
       effectiveFrom: rule.effectiveFrom, effectiveTo: rule.effectiveTo || null, reviewedOn: rule.reviewedOn || null,
+      jurisdictionId: rule.jurisdictionId || null,
     },
   };
 }

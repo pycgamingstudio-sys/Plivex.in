@@ -238,3 +238,202 @@ test("Australia GST-free category uses the exact verified GST-free rule", () => 
   assert.equal(result.taxMinor, 0);
   assert.match(result.taxDisclosure, /GST-free supply/);
 });
+
+
+test("invoice percentage discount is applied in integer minor units before VAT", () => {
+  const document = invoice("GBP");
+  document.discountType = "percent";
+  document.discount = 10;
+  const result = calculateInvoiceGlobalTax(document, profile("GB", "GBP"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.taxableMinor, 9000);
+  assert.equal(result.taxMinor, 1800);
+  assert.equal(result.totalMinor, 10800);
+});
+
+test("invoice fixed discount is applied before VAT and cannot exceed the subtotal", () => {
+  const document = invoice("GBP");
+  document.discountType = "fixed";
+  document.discount = 10;
+  const result = calculateInvoiceGlobalTax(document, profile("GB", "GBP"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.taxableMinor, 9000);
+  assert.equal(result.taxMinor, 1800);
+  assert.equal(result.totalMinor, 10800);
+});
+
+test("invalid percentage discounts fail closed instead of being silently clamped", () => {
+  const document = invoice("GBP");
+  document.discountType = "percent";
+  document.discount = 101;
+  const result = calculateInvoiceGlobalTax(document, profile("GB", "GBP"));
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "INVALID_AMOUNT");
+});
+
+
+test("mixed UK invoice lines calculate separate verified rates after exact percentage discount allocation", () => {
+  const mixed = invoice("GBP");
+  mixed.discountType = "percent";
+  mixed.discount = 10;
+  mixed.items = [
+    { id: "standard-line", description: "Standard goods", quantity: 1, rate: 100 },
+    {
+      id: "reduced-line", description: "Domestic fuel and power", quantity: 1, rate: 100,
+      taxTreatment: "reduced",
+      taxCategory: "GB_REDUCED_DOMESTIC_FUEL_POWER",
+      taxTreatmentConfirmed: true,
+      taxCategoryConfirmed: true,
+    },
+  ];
+  const result = calculateInvoiceGlobalTax(mixed, profile("GB", "GBP"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.status, "calculated");
+  assert.equal(result.taxableMinor, 18000);
+  assert.equal(result.taxMinor, 2250);
+  assert.equal(result.totalMinor, 20250);
+  assert.equal(result.lineTaxBreakdown.length, 2);
+  assert.equal(result.lineTaxBreakdown[0].taxMinor, 1800);
+  assert.equal(result.lineTaxBreakdown[1].taxMinor, 450);
+  assert.equal(result.lineTaxBreakdown[0].treatment, "standard");
+  assert.equal(result.lineTaxBreakdown[1].treatment, "reduced");
+  assert.equal(result.taxSnapshot.immutable, true);
+  assert.equal(result.taxSnapshot.treatment, "mixed");
+  assert.equal(result.taxSnapshot.lineRules.length, 2);
+});
+
+test("line-level tax overrides require explicit treatment and category confirmation", () => {
+  const mixed = invoice("GBP");
+  mixed.items = [{
+    id: "special-line", quantity: 1, rate: 100,
+    taxTreatment: "reduced",
+    taxCategory: "GB_REDUCED_DOMESTIC_FUEL_POWER",
+    taxTreatmentConfirmed: true,
+  }];
+  const result = calculateInvoiceGlobalTax(mixed, profile("GB", "GBP"));
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "LINE_TAX_CONFIRMATION_REQUIRED");
+});
+
+test("fixed invoice discount allocation across unequal lines reconciles exactly", () => {
+  const mixed = invoice("GBP");
+  mixed.discountType = "fixed";
+  mixed.discount = 1.01;
+  mixed.items = [
+    { id: "a", quantity: 1, rate: 1 },
+    { id: "b", quantity: 2, rate: 1 },
+    { id: "c", quantity: 3, rate: 1 },
+  ];
+  const result = calculateInvoiceGlobalTax(mixed, profile("GB", "GBP"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.taxableMinor, 499);
+  assert.equal(result.taxMinor, 100);
+  assert.equal(result.totalMinor, 599);
+  assert.equal(result.lineTaxBreakdown.reduce((sum, line) => sum + line.amountMinor, 0), 499);
+});
+
+
+test("Canada automatic GST/HST resolves a reviewed province rule and exact source components", () => {
+  const result = calculateInvoiceGlobalTax(invoice("CAD", {
+    destinationJurisdiction: { province: "ON" },
+    collectionObligationAttested: true,
+  }), profile("CA", "CAD"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.taxMinor, 1300);
+  assert.equal(result.totalMinor, 11300);
+  assert.equal(result.components[0].source.startsWith("https://"), true);
+  assert.equal(result.lineTaxBreakdown[0].ruleSnapshot.jurisdictionId, "ON");
+});
+
+
+test("UK construction reverse charge keeps supplier invoice tax at zero and records recipient VAT", () => {
+  const result = calculateInvoiceGlobalTax(invoice("GBP", {
+    taxTreatment: "reverse-charge",
+    taxCategory: "GB_REVERSE_CHARGE_CONSTRUCTION_STANDARD",
+    reverseChargeEvidence: {
+      recipientVatRegisteredConfirmed: true,
+      constructionIndustrySchemeConfirmed: true,
+      recipientNotEndUserConfirmed: true,
+      supplyWithinConstructionIndustryScheme: true,
+      employmentBusinessExcluded: true,
+    },
+  }), profile("GB", "GBP"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.taxMinor, 0);
+  assert.equal(result.totalMinor, 10000);
+  assert.equal(result.recipientTaxMinor, 2000);
+  assert.equal(result.recipientAccountingRequired, true);
+  assert.equal(result.taxCharged, false);
+  assert.equal(result.taxSnapshot.recipientTaxMinor, 2000);
+  assert.equal(result.taxSnapshot.recipientTaxComponents[0].amountMinor, 2000);
+});
+
+test("UAE electronic-device reverse charge requires recipient declaration evidence", () => {
+  const result = calculateInvoiceGlobalTax(invoice("AED", {
+    taxTreatment: "reverse-charge",
+    taxCategory: "AE_REVERSE_CHARGE_ELECTRONIC_DEVICES",
+    reverseChargeEvidence: {
+      recipientVatRegisteredConfirmed: true,
+      recipientIntendedResaleOrManufacture: true,
+      recipientDeclarationReceived: true,
+    },
+  }), profile("AE", "AED"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.taxMinor, 0);
+  assert.equal(result.recipientTaxMinor, 500);
+  assert.equal(result.totalMinor, 10000);
+  const missingEvidence = calculateInvoiceGlobalTax(invoice("AED", {
+    taxTreatment: "reverse-charge",
+    taxCategory: "AE_REVERSE_CHARGE_ELECTRONIC_DEVICES",
+    reverseChargeEvidence: {},
+  }), profile("AE", "AED"));
+  assert.equal(missingEvidence.code, "AE_REVERSE_CHARGE_EVIDENCE_REQUIRED");
+});
+
+
+test("UAE precious-metals reverse charge uses the effective 2025 rule and pre-supply recipient declaration", () => {
+  const result = calculateInvoiceGlobalTax(invoice("AED", {
+    issueDate: "2026-11-20",
+    taxTreatment: "reverse-charge",
+    taxCategory: "AE_REVERSE_CHARGE_PRECIOUS_METALS_STONES",
+    reverseChargeEvidence: {
+      recipientVatRegisteredConfirmed: true,
+      recipientIntendedResaleOrManufacture: true,
+      recipientDeclarationReceived: true,
+    },
+  }), profile("AE", "AED"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.taxMinor, 0);
+  assert.equal(result.recipientTaxMinor, 500);
+  assert.equal(result.taxSnapshot.rule.id, "AE-VAT-REVERSE-CHARGE-PRECIOUS-METALS-2026-11");
+});
+
+
+test("mixed standard and reverse-charge lines reconcile seller and recipient tax separately", () => {
+  const document = invoice("GBP", { taxTreatment: "standard" });
+  document.items = [
+    { id: "standard", description: "Standard supply", quantity: 1, rate: 100 },
+    {
+      id: "construction", description: "CIS construction service", quantity: 1, rate: 100,
+      taxTreatment: "reverse-charge",
+      taxCategory: "GB_REVERSE_CHARGE_CONSTRUCTION_STANDARD",
+      taxTreatmentConfirmed: true,
+      taxCategoryConfirmed: true,
+    },
+  ];
+  document.globalTax.reverseChargeEvidence = {
+    recipientVatRegisteredConfirmed: true,
+    constructionIndustrySchemeConfirmed: true,
+    recipientNotEndUserConfirmed: true,
+    supplyWithinConstructionIndustryScheme: true,
+    employmentBusinessExcluded: true,
+  };
+  const result = calculateInvoiceGlobalTax(document, profile("GB", "GBP"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.taxMinor, 2000);
+  assert.equal(result.recipientTaxMinor, 2000);
+  assert.equal(result.totalMinor, 22000);
+  assert.equal(result.taxSnapshot.immutable, true);
+  assert.equal(result.taxSnapshot.treatment, "mixed");
+  assert.equal(result.taxSnapshot.lineRules.length, 2);
+});

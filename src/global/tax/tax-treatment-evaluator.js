@@ -1,7 +1,7 @@
 import { calculateVerifiedTaxRule } from "./verified-rule-evaluator.js";
 
-const TREATMENTS = Object.freeze(["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"]);
-const NO_CHARGE_TREATMENTS = new Set(["zero-rated", "gst-free", "exempt", "out-of-scope"]);
+const TREATMENTS = Object.freeze(["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope", "reverse-charge"]);
+const NO_CHARGE_TREATMENTS = new Set(["zero-rated", "gst-free", "exempt", "out-of-scope", "reverse-charge"]);
 const DISCLOSURES = Object.freeze({
   standard: "Tax charged at the verified standard rate.",
   reduced: "Tax charged at the verified reduced rate for the confirmed supply category.",
@@ -9,6 +9,7 @@ const DISCLOSURES = Object.freeze({
   "gst-free": "GST-free supply — no GST charged under the selected verified Australian GST-free category. This is distinct from input-taxed supplies.",
   exempt: "Exempt supply — no tax charged under the selected verified rule.",
   "out-of-scope": "Outside the scope of this tax system under the selected verified rule.",
+  "reverse-charge": "Reverse charge applies. The seller does not collect tax; the recipient must account for the tax under the applicable rules.",
 });
 
 /**
@@ -17,8 +18,8 @@ const DISCLOSURES = Object.freeze({
  * product/service qualifies for a treatment; that classification must be
  * explicitly confirmed and represented by the selected rule snapshot.
  *
- * Reverse charge is intentionally excluded: seller/buyer accounting and
- * disclosure differ by jurisdiction and need a dedicated adapter.
+ * Reverse charge uses dedicated country/category evidence and records
+ * recipient-side tax separately from the seller's invoice payable amount.
  */
 export function calculateVerifiedTaxTreatment(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -46,16 +47,42 @@ export function calculateVerifiedTaxTreatment(input) {
     };
   }
   if (!Array.isArray(rule.components) || rule.components.length < 1
-    || rule.components.some((component) => !component || !Number.isInteger(component.rateBps) || component.rateBps < 0)) {
+    || rule.components.some((component) => !component || !Number.isFinite(component.rateBps) || !Number.isInteger(component.rateBps * 10) || component.rateBps < 0)) {
     return { ok: false, status: "needs_review", code: "INVALID_TAX_COMPONENTS", message: "Verified tax components are required." };
   }
   const combinedRate = rule.components.reduce((sum, component) => sum + component.rateBps, 0);
-  if (combinedRate > 10000 || (NO_CHARGE_TREATMENTS.has(treatment) && combinedRate !== 0)
+  const reverseCharge = treatment === "reverse-charge";
+  if (combinedRate > 10000
+    || (NO_CHARGE_TREATMENTS.has(treatment) && !reverseCharge && combinedRate !== 0)
+    || (reverseCharge && combinedRate === 0)
     || (!NO_CHARGE_TREATMENTS.has(treatment) && combinedRate === 0)) {
     return {
       ok: false, status: "needs_review", code: "TREATMENT_RATE_MISMATCH",
       message: "The verified component rates do not match the selected tax treatment.",
     };
+  }
+
+  if (reverseCharge) {
+    const evidence = input.reverseChargeEvidence || {};
+    if (input.countryCode === "GB" && (
+      evidence.recipientVatRegisteredConfirmed !== true
+      || evidence.constructionIndustrySchemeConfirmed !== true
+      || evidence.recipientNotEndUserConfirmed !== true
+      || evidence.supplyWithinConstructionIndustryScheme !== true
+      || evidence.employmentBusinessExcluded !== true
+    )) {
+      return { ok: false, status: "needs_review", code: "GB_REVERSE_CHARGE_EVIDENCE_REQUIRED", message: "UK construction reverse charge requires confirmed VAT registration, CIS scope, non-end-user status and the applicable employment-business exclusion." };
+    }
+    if (input.countryCode === "AE" && (
+      evidence.recipientVatRegisteredConfirmed !== true
+      || evidence.recipientIntendedResaleOrManufacture !== true
+      || evidence.recipientDeclarationReceived !== true
+    )) {
+      return { ok: false, status: "needs_review", code: "AE_REVERSE_CHARGE_EVIDENCE_REQUIRED", message: "UAE domestic reverse charge requires a VAT-registered recipient, resale/manufacturing intent and the required recipient declaration." };
+    }
+    if (!["GB", "AE"].includes(input.countryCode)) {
+      return { ok: false, status: "needs_review", code: "REVERSE_CHARGE_ADAPTER_UNAVAILABLE", message: "A country-specific reverse-charge adapter is not available for this supply. Keep the invoice in review." };
+    }
   }
 
   // The underlying evaluator performs all provenance, registration, date,
@@ -65,9 +92,31 @@ export function calculateVerifiedTaxTreatment(input) {
   const calculated = calculateVerifiedTaxRule({
     ...input,
     treatment: "standard",
+    priceMode: reverseCharge ? "exclusive" : input.priceMode,
     rule: { ...rule, treatment: "standard" },
   });
   if (!calculated.ok) return calculated;
+
+  if (reverseCharge) {
+    return {
+      ...calculated,
+      treatment,
+      taxCategory: input.taxCategory || rule.taxCategoryId || null,
+      taxMinor: 0,
+      totalMinor: calculated.taxableMinor,
+      components: [],
+      recipientTaxMinor: calculated.taxMinor,
+      recipientTaxComponents: calculated.components,
+      recipientAccountingRequired: true,
+      taxDisclosure: DISCLOSURES[treatment],
+      taxCharged: false,
+      ruleSnapshot: {
+        ...calculated.ruleSnapshot,
+        treatment,
+        taxCategoryId: rule.taxCategoryId || null,
+      },
+    };
+  }
 
   return {
     ...calculated,

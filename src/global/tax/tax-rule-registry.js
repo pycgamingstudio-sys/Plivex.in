@@ -69,8 +69,8 @@ const COUNTRY_PROFILES = Object.freeze({
 
 const CA_PROVINCE_RULES = Object.freeze({
   AB: { name: "Alberta", components: [{ id: "CA-AB-GST", name: "GST", rateBps: 500 }] },
-  BC: { name: "British Columbia", components: [{ id: "CA-BC-GST", name: "GST", rateBps: 500 }] },
-  MB: { name: "Manitoba", components: [{ id: "CA-MB-GST", name: "GST", rateBps: 500 }] },
+  BC: { name: "British Columbia", components: [{ id: "CA-BC-GST", name: "GST", rateBps: 500 }, { id: "CA-BC-PST", name: "PST", rateBps: 700, source: "https://www2.gov.bc.ca/gov/content/taxes/sales-taxes/pst" }] },
+  MB: { name: "Manitoba", components: [{ id: "CA-MB-GST", name: "GST", rateBps: 500 }, { id: "CA-MB-RST", name: "RST", rateBps: 700, source: "https://www.gov.mb.ca/finance/taxation/taxes/retail.html" }] },
   NB: { name: "New Brunswick", components: [{ id: "CA-NB-HST", name: "HST", rateBps: 1500 }] },
   NL: { name: "Newfoundland and Labrador", components: [{ id: "CA-NL-HST", name: "HST", rateBps: 1500 }] },
   NS: { name: "Nova Scotia", components: [{ id: "CA-NS-HST", name: "HST", rateBps: 1400 }] },
@@ -78,8 +78,8 @@ const CA_PROVINCE_RULES = Object.freeze({
   NU: { name: "Nunavut", components: [{ id: "CA-NU-GST", name: "GST", rateBps: 500 }] },
   ON: { name: "Ontario", components: [{ id: "CA-ON-HST", name: "HST", rateBps: 1300 }] },
   PE: { name: "Prince Edward Island", components: [{ id: "CA-PE-HST", name: "HST", rateBps: 1500 }] },
-  SK: { name: "Saskatchewan", components: [{ id: "CA-SK-GST", name: "GST", rateBps: 500 }] },
-  QC: { name: "Quebec", components: [{ id: "CA-QC-GST", name: "GST", rateBps: 500 }] },
+  SK: { name: "Saskatchewan", components: [{ id: "CA-SK-GST", name: "GST", rateBps: 500 }, { id: "CA-SK-PST", name: "PST", rateBps: 600, source: "https://www.saskatchewan.ca/business/taxes-licensing-and-reporting/provincial-taxes-policies-and-bulletins/provincial-sales-tax" }] },
+  QC: { name: "Quebec", components: [{ id: "CA-QC-GST", name: "GST", rateBps: 500 }, { id: "CA-QC-QST", name: "QST", rateBps: 997.5, source: "https://www.revenuquebec.ca/en/businesses/consumption-taxes/gsthst-and-qst/collecting-gst-and-qst/calculating-the-taxes/" }] },
   YT: { name: "Yukon", components: [{ id: "CA-YT-GST", name: "GST", rateBps: 500 }] },
 });
 const CA_RATE_SOURCE = "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html";
@@ -232,6 +232,149 @@ const TREATMENT_RULES = Object.freeze([
     scope: "country", coverage: "reduced-rate-domestic-fuel-power-only",
     components: [{ id: "GB-VAT-REDUCED-DOMESTIC-FUEL-POWER", name: "VAT", rateBps: 500, source: "https://www.gov.uk/charge-reclaim-record-vat" }],
   }),
+  freezeRule({
+    id: "GB-VAT-ZERO-RATED-BOOKS-PRINTED-MATTER-2026-11", version: "2026.11",
+    countryCode: "GB", currencyCode: "GBP", taxName: "VAT",
+    treatment: "zero-rated", taxCategoryId: "GB_ZERO_RATED_BOOKS_PRINTED_MATTER",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "1994-04-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.gov.uk/guidance/zero-rating-books-and-printed-matter-for-vat-notice-70110",
+    sourceAuthority: "UK HM Revenue & Customs", scope: "country",
+    coverage: "qualifying-books-and-printed-matter-only; statutory-exclusions-apply",
+    components: [{ id: "GB-VAT-ZERO-BOOKS", name: "VAT", rateBps: 0, source: "https://www.gov.uk/guidance/zero-rating-books-and-printed-matter-for-vat-notice-70110" }],
+  }),
+  freezeRule({
+    id: "GB-VAT-ZERO-RATED-CHILDRENS-CLOTHING-2026-11", version: "2026.11",
+    countryCode: "GB", currencyCode: "GBP", taxName: "VAT",
+    treatment: "zero-rated", taxCategoryId: "GB_ZERO_RATED_CHILDRENS_CLOTHING",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "1994-04-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.gov.uk/guidance/vat-rates-on-different-goods-and-services",
+    sourceAuthority: "UK HM Revenue & Customs", scope: "country",
+    coverage: "qualifying-childrens-clothing-and-footwear-only; age-and-garment-conditions-apply",
+    components: [{ id: "GB-VAT-ZERO-CHILDRENS-CLOTHING", name: "VAT", rateBps: 0, source: "https://www.gov.uk/guidance/vat-rates-on-different-goods-and-services" }],
+  }),
+  freezeRule({
+    id: "GB-VAT-EXEMPT-ELIGIBLE-EDUCATION-2026-11", version: "2026.11",
+    countryCode: "GB", currencyCode: "GBP", taxName: "VAT",
+    treatment: "exempt", taxCategoryId: "GB_EXEMPT_ELIGIBLE_BODY_EDUCATION",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "1994-04-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.gov.uk/guidance/vat-on-education-and-vocational-training-notice-70130",
+    sourceAuthority: "UK HM Revenue & Customs", scope: "country",
+    coverage: "qualifying-education-by-eligible-body-only; eligibility-and-supply-conditions-apply",
+    components: [{ id: "GB-VAT-EXEMPT-EDUCATION", name: "VAT", rateBps: 0, source: "https://www.gov.uk/guidance/vat-on-education-and-vocational-training-notice-70130" }],
+  }),
+  freezeRule({
+    id: "CA-GST-ZERO-RATED-EXPORTS-2026-11", version: "2026.11",
+    countryCode: "CA", currencyCode: "CAD", taxName: "GST/HST",
+    treatment: "zero-rated", taxCategoryId: "CA_ZERO_RATED_EXPORTS",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "1991-01-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-imports-exports.html",
+    sourceAuthority: "Canada Revenue Agency", scope: "country",
+    coverage: "qualifying-exported-goods-and-services-only; statutory-export-conditions-apply",
+    components: [{ id: "CA-GST-HST-ZERO-EXPORT", name: "GST/HST", rateBps: 0, source: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-imports-exports.html" }],
+  }),
+  freezeRule({
+    id: "CA-GST-EXEMPT-FINANCIAL-SERVICES-2026-11", version: "2026.11",
+    countryCode: "CA", currencyCode: "CAD", taxName: "GST/HST",
+    treatment: "exempt", taxCategoryId: "CA_EXEMPT_FINANCIAL_SERVICES",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "1991-01-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-type-supply.html",
+    sourceAuthority: "Canada Revenue Agency", scope: "country",
+    coverage: "qualifying-financial-services-only; statutory-definition-and-exceptions-apply",
+    components: [{ id: "CA-GST-HST-EXEMPT-FINANCIAL", name: "GST/HST", rateBps: 0, source: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-type-supply.html" }],
+  }),
+  freezeRule({
+    id: "AE-VAT-ZERO-RATED-QUALIFYING-HEALTHCARE-2026-11", version: "2026.11",
+    countryCode: "AE", currencyCode: "AED", taxName: "VAT",
+    treatment: "zero-rated", taxCategoryId: "AE_ZERO_RATED_QUALIFYING_HEALTHCARE",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2018-01-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://mof.gov.ae/en/public-finance/tax/value-added-tax-vat/",
+    sourceAuthority: "UAE Ministry of Finance", scope: "country",
+    coverage: "qualifying-healthcare-services-and-related-goods-only; statutory-provider-and-service-conditions-apply",
+    components: [{ id: "AE-VAT-ZERO-HEALTHCARE", name: "VAT", rateBps: 0, source: "https://mof.gov.ae/en/public-finance/tax/value-added-tax-vat/" }],
+  }),
+  freezeRule({
+    id: "AE-VAT-ZERO-RATED-QUALIFYING-EDUCATION-2026-11", version: "2026.11",
+    countryCode: "AE", currencyCode: "AED", taxName: "VAT",
+    treatment: "zero-rated", taxCategoryId: "AE_ZERO_RATED_QUALIFYING_EDUCATION",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2018-01-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://mof.gov.ae/en/public-finance/tax/value-added-tax-vat/",
+    sourceAuthority: "UAE Ministry of Finance", scope: "country",
+    coverage: "qualifying-education-services-and-related-goods-only; statutory-provider-and-service-conditions-apply",
+    components: [{ id: "AE-VAT-ZERO-EDUCATION", name: "VAT", rateBps: 0, source: "https://mof.gov.ae/en/public-finance/tax/value-added-tax-vat/" }],
+  }),
+  freezeRule({
+    id: "SG-GST-EXEMPT-RESIDENTIAL-PROPERTY-2026-11", version: "2026.11",
+    countryCode: "SG", currencyCode: "SGD", taxName: "GST",
+    treatment: "exempt", taxCategoryId: "SG_EXEMPT_RESIDENTIAL_PROPERTY",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "1994-04-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/charging-gst-%28output-tax%29/when-to-charge-goods-and-services-tax-%28gst%29",
+    sourceAuthority: "Singapore Inland Revenue Authority", scope: "country",
+    coverage: "sale-and-lease-of-residential-properties-only; statutory-residential-use-conditions-apply",
+    components: [{ id: "SG-GST-EXEMPT-RESIDENTIAL", name: "GST", rateBps: 0, source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/charging-gst-%28output-tax%29/when-to-charge-goods-and-services-tax-%28gst%29" }],
+  }),
+  freezeRule({
+    id: "SG-GST-EXEMPT-INVESTMENT-PRECIOUS-METALS-2026-11", version: "2026.11",
+    countryCode: "SG", currencyCode: "SGD", taxName: "GST",
+    treatment: "exempt", taxCategoryId: "SG_EXEMPT_INVESTMENT_PRECIOUS_METALS",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2012-10-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/charging-gst-%28output-tax%29/when-to-charge-goods-and-services-tax-%28gst%29",
+    sourceAuthority: "Singapore Inland Revenue Authority", scope: "country",
+    coverage: "qualifying-investment-precious-metals-only; statutory-purity-and-market-trading-conditions-apply",
+    components: [{ id: "SG-GST-EXEMPT-IPM", name: "GST", rateBps: 0, source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/charging-gst-%28output-tax%29/when-to-charge-goods-and-services-tax-%28gst%29" }],
+  }),
+  freezeRule({
+    id: "GB-VAT-REVERSE-CHARGE-CONSTRUCTION-STANDARD-2026-11", version: "2026.11",
+    countryCode: "GB", currencyCode: "GBP", taxName: "VAT reverse charge",
+    treatment: "reverse-charge", taxCategoryId: "GB_REVERSE_CHARGE_CONSTRUCTION_STANDARD",
+    rateBps: 2000, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2021-03-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.gov.uk/guidance/how-to-use-the-vat-reverse-charge-if-you-supply-building-and-construction-services",
+    sourceAuthority: "UK HM Revenue & Customs", scope: "country",
+    coverage: "standard-rated-construction-industry-scheme-supplies-only; recipient-vat-registration-cis-and-end-user-conditions-apply",
+    components: [{ id: "GB-VAT-RC-CONSTRUCTION", name: "Recipient-accounted VAT", rateBps: 2000, source: "https://www.gov.uk/guidance/how-to-use-the-vat-reverse-charge-if-you-supply-building-and-construction-services" }],
+  }),
+  freezeRule({
+    id: "GB-VAT-REVERSE-CHARGE-CONSTRUCTION-REDUCED-2026-11", version: "2026.11",
+    countryCode: "GB", currencyCode: "GBP", taxName: "VAT reverse charge",
+    treatment: "reverse-charge", taxCategoryId: "GB_REVERSE_CHARGE_CONSTRUCTION_REDUCED",
+    rateBps: 500, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2021-03-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.gov.uk/guidance/how-to-use-the-vat-reverse-charge-if-you-supply-building-and-construction-services",
+    sourceAuthority: "UK HM Revenue & Customs", scope: "country",
+    coverage: "reduced-rated-construction-industry-scheme-supplies-only; recipient-vat-registration-cis-and-end-user-conditions-apply",
+    components: [{ id: "GB-VAT-RC-CONSTRUCTION-REDUCED", name: "Recipient-accounted VAT", rateBps: 500, source: "https://www.gov.uk/guidance/how-to-use-the-vat-reverse-charge-if-you-supply-building-and-construction-services" }],
+  }),
+  freezeRule({
+    id: "AE-VAT-REVERSE-CHARGE-PRECIOUS-METALS-2026-11", version: "2026.11",
+    countryCode: "AE", currencyCode: "AED", taxName: "VAT reverse charge",
+    treatment: "reverse-charge", taxCategoryId: "AE_REVERSE_CHARGE_PRECIOUS_METALS_STONES",
+    rateBps: 500, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2025-02-15", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://tax.gov.ae/Datafolder/Files/Legislation/Cabinet-Decision-No-127-of-2024-on-Reverse-Charge-Mechanism-for-Precious-Metals.pdf",
+    sourceAuthority: "UAE Federal Tax Authority", scope: "country",
+    coverage: "qualifying-precious-metals-stones-and-jewelry-only; recipient-registration-resale-or-manufacturing-intent-and-pre-supply-declarations-required",
+    components: [{ id: "AE-VAT-RC-PRECIOUS-METALS", name: "Recipient-accounted VAT", rateBps: 500, source: "https://tax.gov.ae/Datafolder/Files/Legislation/Cabinet-Decision-No-127-of-2024-on-Reverse-Charge-Mechanism-for-Precious-Metals.pdf" }],
+  }),
+  freezeRule({
+    id: "AE-VAT-REVERSE-CHARGE-ELECTRONIC-DEVICES-2026-11", version: "2026.11",
+    countryCode: "AE", currencyCode: "AED", taxName: "VAT reverse charge",
+    treatment: "reverse-charge", taxCategoryId: "AE_REVERSE_CHARGE_ELECTRONIC_DEVICES",
+    rateBps: 500, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2023-10-30", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://tax.gov.ae/Datafolder/Files/Legislation/Cabinet%20Decision%20No.%2091%20of%202023%20res%20-%20for%20publishing.pdf",
+    sourceAuthority: "UAE Ministry of Finance", scope: "country",
+    coverage: "specified-electronic-devices-supplied-between-registered-recipients-for-resale-or-production-only; recipient-declaration-required",
+    components: [{ id: "AE-VAT-RC-ELECTRONIC-DEVICES", name: "Recipient-accounted VAT", rateBps: 500, source: "https://tax.gov.ae/Datafolder/Files/Legislation/Cabinet%20Decision%20No.%2091%20of%202023%20res%20-%20for%20publishing.pdf" }],
+  }),
 ]);
 
 const validDate = (value) => {
@@ -285,15 +428,16 @@ export function getTaxRuleSet(countryCode, options = {}) {
     if (asOfDate && asOfDate < "2025-04-01" && province === "NS") {
       return { ok: false, status: "no_effective_rule", code: "HISTORIC_NOVA_SCOTIA_RATE_REQUIRES_TRANSITION_REVIEW", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION };
     }
-    const components = entry.components.map((component) => ({ ...component, source: CA_RATE_SOURCE }));
+    const components = entry.components.map((component) => ({ ...component, source: component.source || CA_RATE_SOURCE }));
     const rateBps = components.reduce((sum, component) => sum + component.rateBps, 0);
     const rule = {
       id: `CA-${province}-GST-HST-PST-2025-04`, version: "2025.04",
       countryCode: "CA", currencyCode: "CAD", taxName: components.map((component) => component.name).join(" + "),
       treatment: "standard", jurisdictionId: province, rateBps,
       effectiveFrom: province === "NS" ? "2025-04-01" : "2025-04-01", effectiveTo: null,
-      reviewedOn: "2026-11-20", source: CA_RATE_SOURCE, sourceAuthority: "Canada Revenue Agency",
-      scope: "province", coverage: "federal-gst-or-harmonized-hst-only-provincial-sales-taxes-excluded",
+      reviewedOn: "2026-11-20", verified: true, reviewedBy: "Plivex tax rule review",
+      source: CA_RATE_SOURCE, sourceAuthority: "Canada Revenue Agency",
+      scope: "province", coverage: "federal-gst-hst-and-general-provincial-sales-tax-baselines; product-specific-exceptions-not-included",
       components,
     };
     return { ok: true, status: "rule_available", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION, profile: { ...profile }, rule };
@@ -323,7 +467,7 @@ export function getTaxRuleSet(countryCode, options = {}) {
  */
 export function getTaxTreatmentRuleSet(countryCode, { treatment, taxCategoryId, asOfDate, jurisdictionId } = {}) {
   const code = normalizeTaxCountryCode(countryCode);
-  if (!code || !["reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"].includes(treatment)
+  if (!code || !["reduced", "zero-rated", "gst-free", "exempt", "out-of-scope", "reverse-charge"].includes(treatment)
     || typeof taxCategoryId !== "string" || !taxCategoryId.trim()) {
     return { ok: false, status: "invalid_treatment_rule_request", code: "TREATMENT_AND_CATEGORY_REQUIRED", catalogVersion: TAX_RULE_CATALOG_VERSION };
   }
@@ -356,7 +500,7 @@ export function listTaxRuleSets() {
 const SNAPSHOT_COUNTRY_CURRENCY = Object.freeze({ IN: "INR", US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD" });
 const SNAPSHOT_OFFICIAL_HOSTS = Object.freeze({
   IN: ["cbic-gst.gov.in", "gst.gov.in"], US: ["gov"], GB: ["gov.uk"],
-  AE: ["tax.gov.ae", "mof.gov.ae"], CA: ["canada.ca", "revenuquebec.ca", "gouv.qc.ca"],
+  AE: ["tax.gov.ae", "mof.gov.ae"], CA: ["canada.ca", "revenuquebec.ca", "gouv.qc.ca", "gov.bc.ca", "gov.mb.ca", "saskatchewan.ca"],
   AU: ["ato.gov.au"], SG: ["iras.gov.sg"],
 });
 const snapshotValidDate = (value) => {
@@ -389,7 +533,7 @@ export function validateTaxRuleSnapshot(rule) {
   let combinedRate = 0;
   for (const component of rule.components) {
     if (!snapshotIsRecord(component) || typeof component.id !== "string" || !component.id.trim() || ids.has(component.id)
-      || !Number.isInteger(component.rateBps) || component.rateBps < 0 || component.rateBps > 10000
+      || !Number.isFinite(component.rateBps) || !Number.isInteger(component.rateBps * 10) || component.rateBps < 0 || component.rateBps > 10000
       || (component.source && !snapshotOfficialSource(rule.countryCode, component.source))) return { ok: false, code: "INVALID_COMPONENT" };
     ids.add(component.id);
     combinedRate += component.rateBps;

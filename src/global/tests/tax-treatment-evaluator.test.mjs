@@ -86,7 +86,7 @@ test("treatment must match the verified rule and unsupported reverse charge fail
     ...base, treatment: "reverse-charge", rule: makeRule("reverse-charge", 0),
   });
   assert.equal(mismatch.code, "TREATMENT_RULE_MISMATCH");
-  assert.equal(reverseCharge.code, "TREATMENT_ADAPTER_REQUIRED");
+  assert.equal(reverseCharge.code, "TREATMENT_RATE_MISMATCH");
 });
 
 test("US and Canada still require exact jurisdiction rules; no national rate is added", () => {
@@ -129,18 +129,66 @@ test("UAE, Australia and Singapore expose narrowly scoped verified special treat
   assert.equal(getTaxTreatmentRuleSet("AE", { treatment: "zero-rated", taxCategoryId: "wrong-category", asOfDate: "2026-11-20" }).ok, false);
 });
 
-test("Canada GST/HST standard rate is selected by province or territory and excludes separate PST/QST", () => {
-  const expected = { AB: 500, BC: 500, MB: 500, NB: 1500, NL: 1500, NS: 1400, NT: 500, NU: 500, ON: 1300, PE: 1500, QC: 500, SK: 500, YT: 500 };
+test("Canada standard tax resolves GST/HST plus general PST/QST by province or territory", () => {
+  const expected = { AB: 500, BC: 1200, MB: 1200, NB: 1500, NL: 1500, NS: 1400, NT: 500, NU: 500, ON: 1300, PE: 1500, QC: 1497.5, SK: 1100, YT: 500 };
   for (const [jurisdictionId, rateBps] of Object.entries(expected)) {
     const result = getTaxRuleSet("CA", { jurisdictionId, asOfDate: "2026-11-20" });
     assert.equal(result.ok, true, jurisdictionId);
     assert.equal(result.rule.rateBps, rateBps, jurisdictionId);
     assert.equal(result.rule.jurisdictionId, jurisdictionId);
-    assert.equal(result.rule.coverage, "federal-gst-or-harmonized-hst-only-provincial-sales-taxes-excluded");
+    assert.match(result.rule.coverage, /general-provincial-sales-tax-baselines/);
+    assert.ok(result.rule.components.every((component) => component.source.startsWith("https://")));
   }
   assert.equal(getTaxRuleSet("CA", { asOfDate: "2026-11-20" }).code, "CANADIAN_PROVINCE_REQUIRED");
   const zeroRated = getTaxTreatmentRuleSet("CA", { treatment: "zero-rated", taxCategoryId: "CA_ZERO_RATED_BASIC_GROCERIES", jurisdictionId: "QC", asOfDate: "2026-11-20" });
   assert.equal(zeroRated.ok, true);
   assert.equal(zeroRated.rule.jurisdictionId, "QC");
   assert.equal(zeroRated.rule.components[0].rateBps, 0);
+});
+
+
+test("expanded official country tax categories resolve only for their exact treatment and category", () => {
+  const cases = [
+    ["GB", "zero-rated", "GB_ZERO_RATED_BOOKS_PRINTED_MATTER"],
+    ["GB", "zero-rated", "GB_ZERO_RATED_CHILDRENS_CLOTHING"],
+    ["GB", "exempt", "GB_EXEMPT_ELIGIBLE_BODY_EDUCATION"],
+    ["CA", "zero-rated", "CA_ZERO_RATED_EXPORTS"],
+    ["CA", "exempt", "CA_EXEMPT_FINANCIAL_SERVICES"],
+    ["AE", "zero-rated", "AE_ZERO_RATED_QUALIFYING_HEALTHCARE"],
+    ["AE", "zero-rated", "AE_ZERO_RATED_QUALIFYING_EDUCATION"],
+    ["SG", "exempt", "SG_EXEMPT_RESIDENTIAL_PROPERTY"],
+    ["SG", "exempt", "SG_EXEMPT_INVESTMENT_PRECIOUS_METALS"],
+  ];
+  for (const [countryCode, treatment, taxCategoryId] of cases) {
+    const resolved = getTaxTreatmentRuleSet(countryCode, {
+      treatment, taxCategoryId, asOfDate: "2026-11-20", ...(countryCode === "CA" ? { jurisdictionId: "QC" } : {}),
+    });
+    assert.equal(resolved.ok, true, taxCategoryId);
+    assert.equal(resolved.rule.countryCode, countryCode);
+    assert.equal(resolved.rule.treatment, treatment);
+    assert.equal(resolved.rule.components.reduce((sum, item) => sum + item.rateBps, 0), 0);
+    assert.ok(resolved.rule.source.startsWith("https://"));
+  }
+});
+
+
+test("verified UK and UAE reverse-charge rules resolve only for their explicit categories", () => {
+  const cases = [
+    ["GB", "GB_REVERSE_CHARGE_CONSTRUCTION_STANDARD", 2000],
+    ["GB", "GB_REVERSE_CHARGE_CONSTRUCTION_REDUCED", 500],
+    ["AE", "AE_REVERSE_CHARGE_ELECTRONIC_DEVICES", 500],
+    ["AE", "AE_REVERSE_CHARGE_PRECIOUS_METALS_STONES", 500],
+  ];
+  for (const [countryCode, taxCategoryId, rateBps] of cases) {
+    const resolved = getTaxTreatmentRuleSet(countryCode, {
+      treatment: "reverse-charge", taxCategoryId, asOfDate: "2026-11-20",
+    });
+    assert.equal(resolved.ok, true, taxCategoryId);
+    assert.equal(resolved.rule.treatment, "reverse-charge");
+    assert.equal(resolved.rule.components[0].rateBps, rateBps);
+  }
+  assert.equal(getTaxTreatmentRuleSet("US", {
+    treatment: "reverse-charge", taxCategoryId: "US_REVERSE_CHARGE_NOT_APPLICABLE",
+    asOfDate: "2026-11-20",
+  }).ok, false);
 });

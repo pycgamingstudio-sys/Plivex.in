@@ -8,6 +8,7 @@ import {
   listTaxCountryProfiles,
   listTaxRuleSets,
   normalizeTaxCountryCode,
+  validateTaxRuleSnapshot,
 } from "../tax/tax-rule-registry.js";
 import { getCountryStandardRateRule } from "../tax/standard-rate-rules.js";
 import { calculateGlobalTax } from "../tax/global-tax-engine.js";
@@ -49,6 +50,48 @@ test("India, US and Canada never receive an invented national Global rate", () =
   assert.equal(getTaxRuleSet("CA").code, "CANADIAN_PROVINCE_REQUIRED");
   assert.equal(getCountryStandardRateRule("US"), null);
   assert.equal(getCountryStandardRateRule("CA"), null);
+});
+
+test("Canadian province rules include federal and general provincial sales-tax components", () => {
+  const expected = {
+    AB: 500, BC: 1200, MB: 1200, NB: 1500, NL: 1500, NS: 1400,
+    NT: 500, NU: 500, ON: 1300, PE: 1500, QC: 1497.5, SK: 1100, YT: 500,
+  };
+  for (const [province, rateBps] of Object.entries(expected)) {
+    const result = getTaxRuleSet("CA", { jurisdictionId: province, asOfDate: "2026-11-20" });
+    assert.equal(result.ok, true, province);
+    assert.equal(result.rule.rateBps, rateBps, province);
+    assert.equal(result.rule.jurisdictionId, province);
+    assert.ok(result.rule.components.every((component) => component.source.startsWith("https://")));
+  }
+  assert.deepEqual(
+    getTaxRuleSet("CA", { jurisdictionId: "BC", asOfDate: "2026-11-20" }).rule.components.map((item) => [item.name, item.rateBps]),
+    [["GST", 500], ["PST", 700]],
+  );
+  assert.deepEqual(
+    getTaxRuleSet("CA", { jurisdictionId: "QC", asOfDate: "2026-11-20" }).rule.components.map((item) => [item.name, item.rateBps]),
+    [["GST", 500], ["QST", 997.5]],
+  );
+});
+
+test("Canadian fractional QST rate calculates exactly with integer minor-unit arithmetic", () => {
+  const result = calculateGlobalTax({
+    countryCode: "CA", jurisdictionId: "QC", jurisdictionAttestedByUser: true,
+    collectionObligationAttestedByUser: true,
+    currencyCode: "CAD", currencyMinorUnits: 2, amountMinor: 10000,
+    invoiceDate: "2026-11-20",
+    sellerRegistration: {
+      verified: false, attestedByUser: true, status: "registered",
+      registrationNumber: "CA-QC-123", effectiveFrom: "2026-01-01",
+    },
+    placeOfSupplyVerified: true, placeOfSupply: "QC",
+    taxCategoryVerified: true, taxCategory: "standard-rated",
+    treatment: "standard", priceMode: "exclusive",
+  });
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.taxMinor, 1498);
+  assert.equal(result.totalMinor, 11498);
+  assert.deepEqual(result.components.map((item) => item.rateBps), [500, 997.5]);
 });
 
 test("unsupported and malformed country codes fail closed", () => {
@@ -105,4 +148,25 @@ test("global tax calculation preserves engine and catalogue provenance in its in
   assert.equal(result.ruleSnapshot.catalogVersion, TAX_RULE_CATALOG_VERSION);
   assert.equal(result.ruleSnapshot.sourceAuthority, "UK HM Revenue & Customs");
   assert.equal(result.ruleSnapshot.coverage, "standard-rate-only");
+});
+
+
+test("Canadian province rule snapshots accept official provincial sources and fractional QST rates", () => {
+  const quebec = getTaxRuleSet("CA", { jurisdictionId: "QC", asOfDate: "2026-11-20" });
+  assert.equal(quebec.ok, true);
+  const quebecSnapshot = validateTaxRuleSnapshot({
+    ...quebec.rule,
+    verified: true,
+    reviewedBy: "Plivex tax rule review",
+  });
+  assert.equal(quebecSnapshot.ok, true, quebecSnapshot.code);
+  assert.equal(quebecSnapshot.rule.components[1].rateBps, 997.5);
+
+  const britishColumbia = getTaxRuleSet("CA", { jurisdictionId: "BC", asOfDate: "2026-11-20" });
+  const bcSnapshot = validateTaxRuleSnapshot({
+    ...britishColumbia.rule,
+    verified: true,
+    reviewedBy: "Plivex tax rule review",
+  });
+  assert.equal(bcSnapshot.ok, true, bcSnapshot.code);
 });
