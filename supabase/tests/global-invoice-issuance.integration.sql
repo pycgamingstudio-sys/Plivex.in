@@ -201,23 +201,64 @@ BEGIN
     RAISE EXCEPTION 'Global payment/refund reconciliation mismatch: %',v_reconciliation;
   END IF;
 
+  UPDATE global.business_profiles
+  SET legal_name='US Workspace Ltd',address='100 Main Street, Los Angeles, CA 90012',
+      tax_registration_number='CA-TEST-PERMIT',tax_registration_type='SALES TAX PERMIT',
+      tax_registration_status='registered',tax_registration_effective_from='2026-01-01',
+      tax_jurisdiction_code='US-CA'
+  WHERE workspace_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+
   v_us_draft := public.global_create_invoice_draft(
     '77777777-7777-4777-8777-777777777777',
     'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     'ffffffff-ffff-4fff-8fff-ffffffffffff',
-    'USD','2026-11-15',NULL,'US remains draft-only',
-    jsonb_build_array(jsonb_build_object('description','US draft','quantity',1,'unit_price_minor',1000)),
+    'USD','2026-11-20',NULL,'US verified jurisdiction test',
+    jsonb_build_array(jsonb_build_object('description','US taxable item','quantity',1,'unit_price_minor',10000)),
     'a0000000-0000-4000-8000-000000000002'
   );
   v_us_issue := public.global_issue_invoice(
     '77777777-7777-4777-8777-777777777777',
     'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     (v_us_draft->'invoice'->>'id')::uuid,
-    '{"registration_confirmed":true,"place_of_supply_confirmed":true,"tax_category_confirmed":true,"tax_category":"standard-rated","mode":"automatic","price_mode":"exclusive","place_of_supply":"United States"}'::jsonb,
+    '{"registration_confirmed":true,"place_of_supply_confirmed":true,"tax_category_confirmed":true,"tax_category":"US_STANDARD","mode":"automatic","tax_treatment":"standard","price_mode":"exclusive","place_of_supply":"United States","collection_obligation_attested":true,"jurisdiction_id":"US|CA|LOSANGELES|LOSANGELES|90012","destination_jurisdiction":{"state":"CA","county":"Los Angeles","city":"Los Angeles","postal_code":"90012"}}'::jsonb,
     'a4444444-4444-4444-8444-444444444444'
   );
-  IF v_us_issue->>'reason'<>'country_not_enabled' THEN
-    RAISE EXCEPTION 'US invoice issuance did not fail closed: %',v_us_issue;
+  IF v_us_issue->>'reason'<>'us_verified_local_rule_unavailable' THEN
+    RAISE EXCEPTION 'US issuance did not fail closed when no verified local rule exists: %',v_us_issue;
+  END IF;
+
+  INSERT INTO global.tax_rule_versions(
+    id,country_code,jurisdiction_id,currency_code,tax_code,version,treatment,
+    effective_from,effective_to,reviewed_on,reviewed_by,source_url,components,status,created_by
+  ) VALUES (
+    'aaaaaaa3-eeee-4aaa-8aaa-aaaaaaaaaaa3','US','US|CA|LOSANGELES|LOSANGELES|90012','USD',
+    'US_STANDARD','2026.11','standard','2026-01-01',NULL,'2026-11-20','pending-review',
+    'https://www.cdtfa.ca.gov/taxes-and-fees/sales-use-tax-rates.htm',
+    '[{"id":"US-STATE","name":"State sales tax","rateBps":725},{"id":"US-LOCAL","name":"Local sales tax","rateBps":125}]'::jsonb,
+    'draft','77777777-7777-4777-8777-777777777777'
+  );
+  v_us_issue := public.global_publish_tax_rule_version('aaaaaaa3-eeee-4aaa-8aaa-aaaaaaaaaaa3','candidate-review');
+  IF v_us_issue->>'ok'<>'true' THEN
+    RAISE EXCEPTION 'Could not publish the test US verified rate rule: %',v_us_issue;
+  END IF;
+
+  v_us_issue := public.global_issue_invoice(
+    '77777777-7777-4777-8777-777777777777',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    (v_us_draft->'invoice'->>'id')::uuid,
+    '{"registration_confirmed":true,"place_of_supply_confirmed":true,"tax_category_confirmed":true,"tax_category":"US_STANDARD","mode":"automatic","tax_treatment":"standard","price_mode":"exclusive","place_of_supply":"United States","collection_obligation_attested":true,"jurisdiction_id":"US|CA|LOSANGELES|LOSANGELES|90012","destination_jurisdiction":{"state":"CA","county":"Los Angeles","city":"Los Angeles","postal_code":"90012"}}'::jsonb,
+    'a4444444-4444-4444-8444-444444444444'
+  );
+  IF v_us_issue->>'ok'<>'true'
+    OR (v_us_issue->'invoice'->>'tax_minor')::bigint<>850
+    OR (v_us_issue->'invoice'->>'total_minor')::bigint<>10850
+    OR v_us_issue->'invoice'->'invoice_snapshot'->>'jurisdiction_id'<>'US|CA|LOSANGELES|LOSANGELES|90012' THEN
+    RAISE EXCEPTION 'US verified state/county/city tax issuance failed: %',v_us_issue;
+  END IF;
+  SELECT * INTO v_line FROM global.invoice_items
+  WHERE invoice_id=(v_us_draft->'invoice'->>'id')::uuid LIMIT 1;
+  IF v_line.tax_rate_bps<>850 OR v_line.tax_minor<>850 OR v_line.line_total_minor<>10850 THEN
+    RAISE EXCEPTION 'US server-recalculated line tax is inconsistent: %',row_to_json(v_line);
   END IF;
 END
 $global_invoice_issuance$;
