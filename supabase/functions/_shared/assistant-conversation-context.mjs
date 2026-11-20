@@ -1,5 +1,5 @@
 const BUSINESS_CONTEXT_PATTERN = /\b(invoice|invoices|bill|billing|client|customer|grahak|stock|inventory|product|item|expense|kharcha|quotation|quote|lead|service|warehouse|supplier|purchase|receipt|payment|paid|received|reconciliation|ledger|balance|outstanding|sales|revenue|gst|tax|business|workspace|cash flow|profit|loss|accounting|reminder|activity)\b|ग्राहक|स्टॉक|माल|खर्च|बिल|इनवॉइस|भुगतान|गोदाम|खरीद|बकाया|बिक्री|जीएसटी|कर|व्यापार|कार्यक्षेत्र|लेखा/i;
-const CONTINUATION_CUE = /^(?:aur|or|and|also|then|phir|uska|uski|uske|isme|is mein|usmein|same|what about|how about|and what|aur batao|aur bataiye|kitna|kitne|kitni|kab|kaise|kyun|kyon|why|how much|how many|last month|previous month|pichhle|pichle|iss month|is month|that one|those|it|its|iska|iski|iske|haan|han|yes|no|nahi|nahin|continue|explain more)\b/i;
+const CONTINUATION_CUE = /^(?:aur|or|and|also|then|phir|overdue|pending|due|status|balance|total|amount|profit|loss|cash flow|sales|expenses|revenue|uska|uski|uske|isme|is mein|usmein|same|what about|how about|and what|aur batao|aur bataiye|kitna|kitne|kitni|kab|kaise|kyun|kyon|why|how much|how many|last month|previous month|pichhle|pichle|iss month|is month|that one|those|it|its|iska|iski|iske|haan|han|yes|no|nahi|nahin|continue|explain more)\b/i;
 const ACKNOWLEDGEMENT = /^(?:hi|hello|hey|namaste|thanks|thank you|shukriya|ok|okay|great|cool|bye|good morning|good evening)[!\.\s]*$/i;
 
 /**
@@ -21,7 +21,7 @@ export function buildConversationRoutingText(messages, maxUserTurns = 4) {
 
   const previous = userTurns.slice(0, -1).join(" ");
   const isContinuation = CONTINUATION_CUE.test(latest)
-    || (latest.length <= 90 && BUSINESS_CONTEXT_PATTERN.test(previous));
+    || (/^(?:overdue|pending|due|status|balance|total|amount)\\b/i.test(latest) && BUSINESS_CONTEXT_PATTERN.test(previous));
 
   return isContinuation ? userTurns.join("\n") : latest;
 }
