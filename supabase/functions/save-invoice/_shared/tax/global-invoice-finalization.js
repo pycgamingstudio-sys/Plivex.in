@@ -1,4 +1,3 @@
-// Bundled copy for the save-invoice Edge Function. Keep in sync with src/global/tax/global-invoice-finalization.js.
 /**
  * Part 11: final invoice-tax snapshot and e-invoicing readiness boundary.
  * No tax certification or invoice transmission is performed here.
@@ -14,8 +13,8 @@ const E_INVOICE = Object.freeze({
   SG: Object.freeze({ countryCode:"SG", status:"phased_requirement_provider_required", network:"InvoiceNow (Peppol)", submission:"disabled", note:"GST InvoiceNow obligations are phased by registration/cohort and implementation date. No InvoiceNow-ready access point is configured.", source:"https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/gst-invoicenow-requirement" }),
 });
 const COUNTRY_CURRENCY = Object.freeze({ IN:"INR", US:"USD", GB:"GBP", AE:"AED", CA:"CAD", AU:"AUD", SG:"SGD" });
-const TAX_TREATMENTS = new Set(["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"]);
-const NO_CHARGE_TREATMENTS = new Set(["zero-rated", "gst-free", "exempt", "out-of-scope"]);
+const TAX_TREATMENTS = new Set(["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope", "reverse-charge"]);
+const NO_CHARGE_TREATMENTS = new Set(["zero-rated", "gst-free", "exempt", "out-of-scope", "reverse-charge"]);
 const TAX_DISCLOSURES = Object.freeze({
   standard: "Tax charged at the verified standard rate.",
   reduced: "Tax charged at the verified reduced rate for the confirmed supply category.",
@@ -23,6 +22,7 @@ const TAX_DISCLOSURES = Object.freeze({
   "gst-free": "GST-free supply — no GST charged under the selected verified Australian GST-free category. This is distinct from input-taxed supplies.",
   exempt: "Exempt supply — no tax charged under the selected verified rule.",
   "out-of-scope": "Outside the scope of this tax system under the selected verified rule.",
+  "reverse-charge": "Reverse charge applies. The seller does not collect tax; the recipient must account for the tax under the applicable rules.",
 });
 const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const validDate = (value) => {
@@ -77,16 +77,29 @@ export function createGlobalInvoiceTaxSnapshot(input) {
     || (rule.effectiveTo && (!validDate(rule.effectiveTo) || input.invoiceDate > rule.effectiveTo))) {
     return fail("RULE_PROVENANCE_REQUIRED", "A source-backed, versioned rule effective on the invoice date is required.");
   }
+  const reverseCharge = result.treatment === "reverse-charge";
   if (!Number.isSafeInteger(result.taxableMinor) || result.taxableMinor < 0
     || !Number.isSafeInteger(result.taxMinor) || result.taxMinor < 0
     || !Number.isSafeInteger(result.totalMinor) || result.totalMinor !== result.taxableMinor + result.taxMinor
-    || !Array.isArray(result.components) || result.components.length < 1
+    || !Array.isArray(result.components)
+    || (!reverseCharge && result.components.length < 1)
     || result.components.some((item) => !isRecord(item) || !String(item.id || "").trim()
       || !Number.isSafeInteger(item.amountMinor) || item.amountMinor < 0)) {
     return fail("TAX_TOTALS_INVALID", "Tax totals and component amounts must be consistent integer minor-unit values.");
   }
   const componentTotal = result.components.reduce((sum, item) => sum + item.amountMinor, 0);
   if (componentTotal !== result.taxMinor) return fail("TAX_COMPONENT_TOTAL_MISMATCH", "Tax component amounts do not match the calculated tax total.");
+  if (reverseCharge) {
+    if (result.taxMinor !== 0 || result.taxCharged !== false
+      || result.recipientAccountingRequired !== true
+      || !Number.isSafeInteger(result.recipientTaxMinor) || result.recipientTaxMinor <= 0
+      || !Array.isArray(result.recipientTaxComponents) || result.recipientTaxComponents.length < 1
+      || result.recipientTaxComponents.some((item) => !isRecord(item) || !String(item.id || "").trim()
+        || !Number.isSafeInteger(item.amountMinor) || item.amountMinor < 0)
+      || result.recipientTaxComponents.reduce((sum, item) => sum + item.amountMinor, 0) !== result.recipientTaxMinor) {
+      return fail("REVERSE_CHARGE_ACCOUNTING_INVALID", "Reverse-charge recipient accounting amounts and components must reconcile separately from the seller invoice total.");
+    }
+  }
   const snapshot = {
     schemaVersion:"2", countryCode, invoiceDate:input.invoiceDate,
     currencyCode:result.currencyCode, currencyMinorUnits:result.currencyMinorUnits,
@@ -96,6 +109,7 @@ export function createGlobalInvoiceTaxSnapshot(input) {
     priceMode:result.priceMode,
     taxableMinor:result.taxableMinor, taxMinor:result.taxMinor, totalMinor:result.totalMinor,
     components:result.components.map((item) => ({ ...item })),
+    ...(reverseCharge ? { recipientAccountingRequired:true, recipientTaxMinor:result.recipientTaxMinor, recipientTaxComponents:result.recipientTaxComponents.map((item) => ({ ...item })) } : {}),
     sellerRegistrationEvidence:result.registrationEvidence || "not_recorded",
     capturedAt:typeof input.capturedAt === "string" ? input.capturedAt : null,
     immutable:true,
