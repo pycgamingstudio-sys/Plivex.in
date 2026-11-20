@@ -101,7 +101,8 @@ test("business and client tax fields follow selected country rather than the Ind
 
 test("invoice history uses workspace locale and supports reminders for every unified workspace country", () => {
   const history = read("../../pages/InvoiceHistory.jsx");
-  assert.match(history, /APP_EDITION === "global" \|\| !view\?\.id/);\n  assert.doesNotMatch(history, /user\?\.country_code !== "IN"/);
+  assert.match(history, /APP_EDITION === "global" \|\| !view\?\.id/);
+  assert.doesNotMatch(history, /user\?\.country_code !== "IN"/);
   assert.match(history, /dateLabel\(it\.issueDate, user\?\.locale_code\)/);
   assert.match(history, /money\(it\.total, it\.currency \|\| user\?\.currency_code\)/);
 });
