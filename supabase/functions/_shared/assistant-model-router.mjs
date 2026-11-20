@@ -124,6 +124,28 @@ export function normalizeOpenAiResult(result) {
   return { candidates: [{ content: { parts: [{ text: finalText }] } }] };
 }
 
+export function parseRetryAfterSeconds(headers, now = Date.now()) {
+  const raw = headers?.get?.("retry-after");
+  if (raw) {
+    const seconds = Number(raw);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds);
+    const date = Date.parse(raw);
+    if (Number.isFinite(date)) return Math.max(0, Math.ceil((date - now) / 1000));
+  }
+  const reset = headers?.get?.("x-ratelimit-reset-requests");
+  if (reset) {
+    const value = String(reset).trim();
+    const parts = [...value.matchAll(/(\\d+(?:\\.\\d+)?)(ms|s|m|h)/g)];
+    if (parts.length) {
+      const total = parts.reduce((sum, part) => sum + Number(part[1]) * ({ ms: 0.001, s: 1, m: 60, h: 3600 }[part[2]]), 0);
+      if (Number.isFinite(total)) return Math.ceil(total);
+    }
+    const seconds = Number(value);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds);
+  }
+  return null;
+}
+
 export function isRetryableProviderStatus(status) {
   return [401, 402, 403, 404].includes(status) || status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
 }
@@ -143,6 +165,7 @@ async function callOpenAiProvider({ provider, model, key, body, fetchImpl, deadl
     body: JSON.stringify(toOpenAiChatPayload(body, model)),
     signal: AbortSignal.timeout(Math.min(6000, remaining)),
   });
+  const retryAfterSeconds = parseRetryAfterSeconds(response.headers);
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
     const providerError = result?.error || {};
@@ -150,6 +173,7 @@ async function callOpenAiProvider({ provider, model, key, body, fetchImpl, deadl
     const code = typeof providerError?.code === "string" || typeof providerError?.code === "number" ? String(providerError.code).slice(0, 40) : "";
     const error = new Error(`${provider}_http_${response.status}${code ? `_${code}` : ""}${detail ? `: ${detail}` : ""}`);
     error.status = response.status;
+    error.retryAfterSeconds = retryAfterSeconds;
     error.retryable = isRetryableProviderStatus(response.status) || [400, 401, 402, 403, 404].includes(response.status);
     throw error;
   }
@@ -178,6 +202,7 @@ export async function generateWithFallback({
     for (const model of DEFAULT_OPENROUTER_MODELS) attempts.push({ provider: "openrouter", model });
   }
   let lastStatus = 503;
+  let retryAfterSeconds = null;
   for (const attempt of attempts) {
     if (Date.now() >= deadline) break;
     try {
@@ -189,10 +214,11 @@ export async function generateWithFallback({
           headers: { ...requestOptions.headers, "x-goog-api-key": geminiKey },
           signal: AbortSignal.timeout(Math.min(20000, remaining)),
         });
+        retryAfterSeconds = parseRetryAfterSeconds(response.headers) ?? retryAfterSeconds;
         result = await response.json().catch(() => ({}));
         if (!response.ok) {
           lastStatus = response.status;
-          console.warn("Nova provider unavailable", { provider: attempt.provider, model: attempt.model, status: response.status });
+          console.warn("Nova provider unavailable", { provider: attempt.provider, model: attempt.model, status: response.status, retryAfterSeconds });
           continue;
         }
       } else {
@@ -202,13 +228,23 @@ export async function generateWithFallback({
       return { ok: true, provider: attempt.provider, model: attempt.model, result };
     } catch (error) {
       lastStatus = Number(error?.status) || (error?.name === "TimeoutError" || error?.name === "AbortError" ? 504 : 503);
+      retryAfterSeconds = Number.isFinite(error?.retryAfterSeconds) ? error.retryAfterSeconds : retryAfterSeconds;
       console.warn("Nova provider attempt failed", {
         provider: attempt.provider,
         model: attempt.model,
         status: lastStatus,
+        retryAfterSeconds,
         reason: error?.message || "network_error",
       });
+      // All configured OpenRouter variants are :free and share the account-level
+      // daily cap. A 429 may consume that cap even when it fails, so do not burn
+      // another failed request against a second free model.
+      if (attempt.provider === "openrouter" && lastStatus === 429) break;
     }
   }
-  return { ok: false, status: lastStatus === 429 ? 429 : lastStatus === 504 ? 504 : 503 };
+  return {
+    ok: false,
+    status: lastStatus === 429 ? 429 : lastStatus === 504 ? 504 : 503,
+    retryAfterSeconds,
+  };
 }
