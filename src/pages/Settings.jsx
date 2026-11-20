@@ -44,7 +44,7 @@ export default function Settings() {
       <div className="mt-4 rounded-2xl border border-[#E8E7EF] bg-white p-4 shadow-[0_1px_2px_rgba(24,24,40,.03)]">
         <p className="text-sm font-semibold text-foreground">Language</p>
         <p className="mb-3 mt-1 text-xs text-muted-foreground">Choose the language of the app. You can change it any time in Settings.</p>
-        <LanguageSwitcher showHindi />
+        <LanguageSwitcher showHindi={APP_EDITION !== "global"} />
       </div>
       <div className="mt-4"><WorkspaceCountrySettings lockCountry={true} /></div>
       {APP_EDITION === "global" || user?.country_code !== "IN" ? <div className="mt-4 rounded-2xl border border-[#E8E7EF] bg-white p-4 shadow-[0_1px_2px_rgba(24,24,40,.03)]"><p className="text-sm font-semibold">Email integrations</p><p className="mt-1 text-xs text-muted-foreground">Automated invoice payment reminders are not enabled for this Workspace country yet.</p></div> : <div className="mt-4"><EmailSettingsCard /></div>}
