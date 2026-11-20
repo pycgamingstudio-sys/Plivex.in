@@ -13,7 +13,8 @@ const rule = {
 };
 const result = {
   ok: true, status: "calculated", countryCode: "GB", currencyCode: "GBP",
-  currencyMinorUnits: 2, engineVersion: "1.0.0", treatment: "standard",\n  taxDisclosure: "Tax charged at the verified standard rate.", taxCharged: true, taxCategory: "general-goods",
+  currencyMinorUnits: 2, engineVersion: "1.0.0", treatment: "standard",
+  taxDisclosure: "Tax charged at the verified standard rate.", taxCharged: true, taxCategory: "general-goods",
   priceMode: "exclusive", taxableMinor: 10000, taxMinor: 2000, totalMinor: 12000,
   registrationEvidence: "user-attested", ruleSnapshot: rule,
   components: [{ id: "GB-VAT-STANDARD", name: "VAT", rateBps: 2000, amountMinor: 2000 }],
