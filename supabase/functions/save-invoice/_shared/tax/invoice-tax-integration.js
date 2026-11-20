@@ -1,4 +1,3 @@
-// Bundled copy for the save-invoice Edge Function. Keep in sync with src/global/tax/invoice-tax-integration.js.
 import { calculateGlobalTax } from "./global-tax-engine.js";
 import { createGlobalInvoiceTaxSnapshot, getEInvoiceReadiness } from "./global-invoice-finalization.js";
 import { calculateManualTax } from "./manual-tax-calculator.js";
