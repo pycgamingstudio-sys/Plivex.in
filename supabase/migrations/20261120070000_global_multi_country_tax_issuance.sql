@@ -20,7 +20,7 @@ insert into global.tax_rule_versions(
 ('GB',NULL,'GBP','GB_EXEMPT_FINANCIAL_SERVICES','2026.11','exempt','1973-04-01',NULL,'2026-11-20','Plivex tax rule review',
  'https://www.gov.uk/guidance/vat-on-financial-services-notice-70149',
  '[{"id":"GB-VAT-EXEMPT","name":"VAT","rateBps":0}]'::jsonb,'verified'),
-('GB',NULL,'GBP','GB_REDUCED_FUEL_POWER','2026.11','reduced','2011-01-04',NULL,'2026-11-20','Plivex tax rule review',
+('GB',NULL,'GBP','GB_REDUCED_DOMESTIC_FUEL_POWER','2026.11','reduced','2011-01-04',NULL,'2026-11-20','Plivex tax rule review',
  'https://www.gov.uk/vat-rates',
  '[{"id":"GB-VAT-REDUCED","name":"VAT","rateBps":500}]'::jsonb,'verified'),
 ('GB',NULL,'GBP','GB_DOMESTIC_CONSTRUCTION_REVERSE_CHARGE','2026.11','reverse-charge','2021-03-01',NULL,'2026-11-20','Plivex tax rule review',
