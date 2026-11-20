@@ -237,7 +237,7 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
     ...(selectedTreatment === "reverse-charge" ? {
       buyerRegistration: {
         status: config.buyerRegistrationStatus || "registered",
-        registrationNumber: String(config.buyerRegistrationNumber || "").trim(),
+        registrationNumber: String(config.buyerRegistrationNumber || invoice?.buyerRegistrationNumber || "").trim(),
         attestedByUser: config.buyerRegistrationConfirmed === true,
       },
       buyerRegistrationConfirmed: config.buyerRegistrationConfirmed === true,
