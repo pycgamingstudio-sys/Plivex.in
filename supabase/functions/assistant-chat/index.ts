@@ -27,8 +27,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-api-version, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
-  status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+const json = (body: unknown, status = 200, extraHeaders: Record<string, string> = {}) => new Response(JSON.stringify(body), {
+  status, headers: { ...corsHeaders, "Content-Type": "application/json", ...extraHeaders },
 });
 const text = (value: unknown, max = 200) => String(value ?? "").trim().slice(0, max);
 const number = (value: unknown, fallback = 0) => {
@@ -791,7 +791,13 @@ async function handleRequest(req: Request) {
         : routed.status === 504
           ? "AI providers took too long. Please retry; your request was not saved."
           : "AI providers are temporarily unavailable. Please try again.";
-      return json({ error: message }, routed.status);
+      const retryAfter = Number.isFinite(routed.retryAfterSeconds) && routed.retryAfterSeconds >= 0
+        ? Math.ceil(routed.retryAfterSeconds)
+        : null;
+      return json({
+        error: message,
+        ...(retryAfter !== null ? { retry_after_seconds: retryAfter } : {}),
+      }, routed.status, retryAfter !== null ? { "Retry-After": String(retryAfter) } : {});
     }
     const result = routed.result;
     console.info("Nova response provider", { provider: routed.provider, model: routed.model });
