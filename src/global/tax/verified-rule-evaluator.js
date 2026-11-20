@@ -8,7 +8,7 @@ import { TAX_ENGINE_VERSION, TAX_RULE_CATALOG_VERSION } from "./tax-rule-registr
 const COUNTRIES = Object.freeze({ IN: "INR", US: "USD", GB: "GBP", AE: "AED", CA: "CAD", AU: "AUD", SG: "SGD" });
 const OFFICIAL_SOURCE_HOSTS = Object.freeze({
   US: ["gov"], GB: ["gov.uk"], AE: ["tax.gov.ae", "mof.gov.ae"],
-  CA: ["canada.ca", "revenuquebec.ca", "gouv.qc.ca"],
+  CA: ["canada.ca", "revenuquebec.ca", "gouv.qc.ca", "gov.bc.ca", "gov.mb.ca", "saskatchewan.ca"],
   AU: ["ato.gov.au"], SG: ["iras.gov.sg"],
 });
 const officialSource = (countryCode, value) => {
