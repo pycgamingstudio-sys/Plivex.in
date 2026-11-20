@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FileText, Plus, Download, ArrowRight, CheckCircle2, XCircle, Send } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { supabase } from "@/api/backendClient";
+import { calculateInvoiceGlobalTax } from "@/global/tax/invoice-tax-integration.js";
 
 const today = () => {
   const date = new Date();
@@ -31,7 +32,14 @@ const newId = () => crypto.randomUUID();
 export default function GlobalQuotationsPanel({ account }) {
   const currency = account?.currency_code || "USD";
   const locale = account?.locale_code || "en";
+  const countryCode = String(account?.country_code || "").trim().toUpperCase();
   const [records, setRecords] = useState([]);
+  const [profile, setProfile] = useState(null);
+  const [taxContext, setTaxContext] = useState({
+    countryCode, mode: "automatic", priceMode: "exclusive", taxMode: "taxable",
+    taxTreatment: "standard", taxCategory: "standard-rated", taxDetailsConfirmed: false,
+    placeOfSupply: "", destinationJurisdiction: { province: "" }, collectionObligationAttested: false,
+  });
   const [clients, setClients] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -61,18 +69,57 @@ export default function GlobalQuotationsPanel({ account }) {
   }, [account?.workspace_id]);
 
   const refresh = useCallback(async () => {
-    const [quotationData, clientData] = await Promise.all([
+    const [quotationData, clientData, profileData] = await Promise.all([
       request({ action: "list" }),
       supabase.functions.invoke("global-business-records", {
         body: { workspace_id: account.workspace_id, table: "clients", action: "list", limit: 100 },
       }),
+      supabase.functions.invoke("global-business-records", {
+        body: { workspace_id: account.workspace_id, table: "business_profiles", action: "list", limit: 5 },
+      }),
     ]);
     if (clientData.error) throw new Error(clientData.error.message || "Could not load customers.");
+    if (profileData.error) throw new Error(profileData.error.message || "Could not load seller tax profile.");
     setRecords(Array.isArray(quotationData.records) ? quotationData.records : []);
     setClients(clientData.data?.records || []);
+    setProfile(profileData.data?.records?.[0] || null);
   }, [account.workspace_id, request]);
 
   useEffect(() => { refresh().catch((loadError) => setError(loadError.message)); }, [refresh]);
+  useEffect(() => {
+    setTaxContext({
+      countryCode, mode: "automatic", priceMode: "exclusive", taxMode: "taxable",
+      taxTreatment: "standard", taxCategory: "standard-rated", taxDetailsConfirmed: false,
+      placeOfSupply: "", destinationJurisdiction: { province: "" }, collectionObligationAttested: false,
+    });
+  }, [countryCode]);
+
+  const workspaceProfile = useMemo(() => ({
+    countryCode, currencyCode: currency,
+    registrationNumber: profile?.tax_registration_number || "",
+    registrationType: profile?.tax_registration_type || "",
+    registrationStatus: profile?.tax_registration_status || "unregistered",
+    registrationEffectiveFrom: profile?.tax_registration_effective_from || "",
+    registeredJurisdiction: profile?.tax_jurisdiction_code || "",
+  }), [countryCode, currency, profile]);
+  const quoteAmountMinor = useMemo(() => form.items.reduce((sum, item) => {
+    const quantity = Number(item.quantity);
+    const unitPrice = minor(item.unit_price, currency);
+    const discount = minor(item.discount, currency);
+    if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isSafeInteger(unitPrice) || !Number.isSafeInteger(discount)) return NaN;
+    return sum + Math.round(quantity * unitPrice) - discount;
+  }, 0), [form.items, currency]);
+  const taxPreviewInvoice = useMemo(() => ({
+    currency, issueDate: form.issue_date,
+    business: { name: profile?.legal_name || profile?.display_name || "", address: profile?.address || "" },
+    items: Number.isSafeInteger(quoteAmountMinor) && quoteAmountMinor >= 0
+      ? [{ quantity: 1, rate: quoteAmountMinor / (10 ** digits(currency)) }] : [],
+    discountType: "fixed", discount: 0, globalTax: taxContext,
+  }), [currency, form.issue_date, profile, quoteAmountMinor, taxContext]);
+  const taxPreview = useMemo(
+    () => calculateInvoiceGlobalTax(taxPreviewInvoice, workspaceProfile),
+    [taxPreviewInvoice, workspaceProfile],
+  );
 
   const selected = records.find((entry) => entry.quotation.id === selectedId) || null;
   const totals = useMemo(() => records.reduce((sum, entry) => ({
@@ -108,11 +155,16 @@ export default function GlobalQuotationsPanel({ account }) {
         action: "create", client_id: form.client_id || null, currency_code: currency,
         issue_date: form.issue_date, valid_until: form.valid_until || null,
         notes: form.notes.trim() || null, items, idempotency_key: newId(),
+        tax_snapshot: taxPreview.ok === true && taxPreview.status === "calculated"
+          ? { taxResult: taxPreview, taxContext }
+          : null,
       });
       setShowCreate(false);
       setSelectedId(data.quotation?.id || "");
       setForm({ client_id: "", issue_date: today(), valid_until: "", notes: "", items: [{ description: "", quantity: "1", unit_price: "", discount: "0" }] });
-      setNotice("Quotation saved as a draft. It is not an invoice and cannot collect payments.");
+      setNotice(taxPreview.ok === true && taxPreview.status === "calculated"
+        ? "Quotation saved with a source-backed tax estimate. Review the PDF before sharing."
+        : "Quotation saved as a draft, but tax needs review. It cannot be marked as sent until a verified tax calculation is available.");
       await refresh();
     } catch (saveError) { setError(saveError.message || "Could not create quotation."); }
     finally { setBusy(false); }
@@ -183,8 +235,24 @@ export default function GlobalQuotationsPanel({ account }) {
       doc.setFontSize(13); doc.setFont(undefined, "bold");
       doc.text("Total: " + formatMoney(quotation.total_minor, quotation.currency_code, locale), 16, y);
       y += 13; doc.setFont(undefined, "normal"); doc.setFontSize(8); doc.setTextColor(100, 100, 100);
-      const note = "This is a quotation only, not an invoice or tax invoice. Taxes are not calculated or assessed by Plivex. Final pricing and applicable taxes must be confirmed before invoicing.";
-      doc.text(doc.splitTextToSize(note, pageWidth - 32), 16, Math.min(y, 280));
+      const taxSnapshot = quotation.tax_snapshot;
+      const taxResult = taxSnapshot?.taxResult;
+      if (quotation.tax_status === "calculated" && taxResult?.status === "calculated") {
+        doc.text("Taxable amount: " + formatMoney(quotation.taxable_minor, quotation.currency_code, locale), 16, y); y += 7;
+        for (const component of taxResult.components || []) {
+          doc.text(String(component.name || "Tax") + " (" + Number(component.rateBps) / 100 + "%): " + formatMoney(component.amountMinor, quotation.currency_code, locale), 16, y); y += 6;
+        }
+        doc.text("Tax total: " + formatMoney(quotation.tax_minor, quotation.currency_code, locale), 16, y); y += 7;
+        doc.setFontSize(13); doc.setFont(undefined, "bold");
+        doc.text("Total including tax: " + formatMoney(quotation.total_minor, quotation.currency_code, locale), 16, y);
+        y += 12; doc.setFont(undefined, "normal"); doc.setFontSize(8); doc.setTextColor(100, 100, 100);
+        const note = "Quotation only — not a tax invoice. Tax is an estimate based on the selected, source-backed rule and business-confirmed transaction details. Recheck tax treatment before issuing the invoice.";
+        doc.text(doc.splitTextToSize(note, pageWidth - 32), 16, Math.min(y, 280));
+      } else {
+        const note = "TAX REVIEW REQUIRED — tax has not been calculated. The displayed total excludes tax. Do not send this quotation as a final tax-inclusive price. Complete the verified tax calculation before marking it as sent.";
+        doc.setTextColor(170, 70, 20);
+        doc.text(doc.splitTextToSize(note, pageWidth - 32), 16, Math.min(y, 280));
+      }
       if (quotation.notes) { y += 14; doc.setTextColor(40, 40, 40); doc.text(doc.splitTextToSize("Notes: " + quotation.notes, pageWidth - 32), 16, Math.min(y, 285)); }
       doc.save(`${quotation.quotation_number}.pdf`);
     } catch (pdfError) { setError(pdfError.message || "Could not create quotation PDF."); }
@@ -229,15 +297,18 @@ export default function GlobalQuotationsPanel({ account }) {
               <div className="flex justify-between gap-3"><span className="text-slate-500">Date</span><span>{selected.quotation.issue_date}</span></div>
               <div className="flex justify-between gap-3"><span className="text-slate-500">Valid until</span><span>{selected.quotation.valid_until || "Not specified"}</span></div>
               <div className="flex justify-between gap-3"><span className="text-slate-500">Line items</span><span>{selected.items?.length || 0}</span></div>
-              <div className="flex justify-between gap-3 font-bold"><span>Total</span><span>{formatMoney(selected.quotation.total_minor, selected.quotation.currency_code, locale)}</span></div>
+              {selected.quotation.tax_status === "calculated" && <div className="flex justify-between gap-3"><span className="text-slate-500">Taxable amount</span><span>{formatMoney(selected.quotation.taxable_minor, selected.quotation.currency_code, locale)}</span></div>}
+              {selected.quotation.tax_status === "calculated" && <div className="flex justify-between gap-3"><span className="text-slate-500">Tax</span><span>{formatMoney(selected.quotation.tax_minor, selected.quotation.currency_code, locale)}</span></div>}
+              <div className="flex justify-between gap-3 font-bold"><span>Total {selected.quotation.tax_status === "calculated" ? "including tax" : "(tax review pending)"}</span><span>{formatMoney(selected.quotation.total_minor, selected.quotation.currency_code, locale)}</span></div>
             </div>
             {selected.quotation.notes && <p className="mt-3 text-xs leading-5 text-slate-600">{selected.quotation.notes}</p>}
             <button type="button" className={secondary + " mt-4 w-full"} onClick={() => downloadPdf(selected)}><Download className="h-4 w-4" /> Download PDF</button>
-            {selected.quotation.status === "draft" && <button type="button" className={primary + " mt-2 w-full"} disabled={busy} onClick={() => changeStatus("sent")}><Send className="h-4 w-4" /> Mark as sent</button>}
+            {selected.quotation.tax_status !== "calculated" && <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">Tax review required. This total excludes tax, and the server will not allow this quotation to be marked as sent.</p>}
+            {selected.quotation.status === "draft" && <button type="button" className={primary + " mt-2 w-full"} disabled={busy || selected.quotation.tax_status !== "calculated"} onClick={() => changeStatus("sent")}><Send className="h-4 w-4" /> Mark as sent</button>}
             {["draft", "sent"].includes(selected.quotation.status) && <div className="mt-2 grid grid-cols-2 gap-2"><button type="button" className={secondary} disabled={busy} onClick={() => changeStatus("accepted")}><CheckCircle2 className="h-4 w-4" /> Accept</button><button type="button" className={secondary} disabled={busy} onClick={() => changeStatus("rejected")}><XCircle className="h-4 w-4" /> Reject</button></div>}
             {selected.quotation.status === "accepted" && <button type="button" className={primary + " mt-2 w-full"} disabled={busy} onClick={convertToInvoice}>Convert to invoice draft <ArrowRight className="h-4 w-4" /></button>}
             {selected.quotation.status === "converted" && <p className="mt-3 rounded-xl bg-violet-50 p-3 text-xs font-medium text-violet-800">Converted successfully. Open Sales → Invoices to review the invoice draft before issuing.</p>}
-            <p className="mt-3 text-[11px] leading-5 text-slate-500">A quotation is not an invoice, does not create a receivable and cannot accept payments. No tax is calculated on this document.</p>
+            <p className="mt-3 text-[11px] leading-5 text-slate-500">A quotation is not an invoice, does not create a receivable and cannot accept payments. Tax status: {selected.quotation.tax_status === "calculated" ? "source-backed estimate" : "review required"}.</p>
           </>}
         </aside>
       </div>
@@ -260,8 +331,41 @@ export default function GlobalQuotationsPanel({ account }) {
             </div>)}</div>
             <button type="button" disabled={form.items.length >= 100} className={secondary + " mt-3"} onClick={addItem}><Plus className="h-4 w-4" /> Add line item</button>
           </div>
+          <section className="mt-5 rounded-xl border border-slate-200 p-4">
+            <h3 className="text-sm font-bold text-slate-900">Tax calculation</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">Uses the same country tax engine as invoices. Tax is calculated only when the current verified rule, seller registration and supply details are available.</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-semibold text-slate-600">Place of supply
+                {countryCode === "GB" ? <select className={field + " mt-1"} value={taxContext.placeOfSupply} onChange={(e) => setTaxContext((v) => ({ ...v, placeOfSupply: e.target.value, taxDetailsConfirmed: false }))}><option value="">Select place</option><option value="United Kingdom">United Kingdom</option></select> : <input className={field + " mt-1"} value={taxContext.placeOfSupply} maxLength={180} placeholder="Supply destination / place" onChange={(e) => setTaxContext((v) => ({ ...v, placeOfSupply: e.target.value, taxDetailsConfirmed: false }))} />}
+              </label>
+              {countryCode === "CA" && <label className="text-xs font-semibold text-slate-600">Destination province / territory
+                <select className={field + " mt-1"} value={taxContext.destinationJurisdiction.province} onChange={(e) => setTaxContext((v) => ({ ...v, destinationJurisdiction: { ...v.destinationJurisdiction, province: e.target.value }, taxDetailsConfirmed: false }))}>
+                  <option value="">Select province / territory</option>
+                  {["AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","QC","SK","YT"].map((province) => <option key={province} value={province}>{province}</option>)}
+                </select>
+              </label>}
+              {["BC","MB","SK"].includes(taxContext.destinationJurisdiction.province) && <label className="text-xs font-semibold text-slate-600 sm:col-span-2">Provincial sales tax classification
+                <select className={field + " mt-1"} value={taxContext.taxCategory} onChange={(e) => setTaxContext((v) => ({ ...v, taxCategory: e.target.value, taxDetailsConfirmed: false }))}>
+                  <option value="standard-rated">Not confirmed</option>
+                  <option value={"CA_" + taxContext.destinationJurisdiction.province + "_PST_TAXABLE_GOODS"}>All lines are taxable tangible goods for this province's PST/RST</option>
+                </select>
+              </label>}
+            </div>
+            <label className="mt-3 flex items-start gap-2 text-xs leading-5 text-slate-600">
+              <input type="checkbox" checked={taxContext.taxDetailsConfirmed === true} onChange={(e) => setTaxContext((v) => ({ ...v, taxDetailsConfirmed: e.target.checked, collectionObligationAttested: countryCode === "CA" ? e.target.checked : v.collectionObligationAttested }))} />
+              <span>I confirm the seller's tax registration is current, the place of supply is correct, and all quotation lines have the selected standard tax treatment. For BC, Manitoba or Saskatchewan, I also confirm every line qualifies for the selected PST/RST taxable-goods category.</span>
+            </label>
+            <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs">
+              {taxPreview.ok === true && taxPreview.status === "calculated" ? <>
+                <p className="font-semibold text-emerald-800">Tax calculated from the active rule</p>
+                <p className="mt-1">Taxable: {formatMoney(taxPreview.taxableMinor, currency, locale)} · Tax: {formatMoney(taxPreview.taxMinor, currency, locale)} · Total: {formatMoney(taxPreview.totalMinor, currency, locale)}</p>
+                {taxPreview.warning && <p className="mt-1 text-slate-500">{taxPreview.warning}</p>}
+              </> : <p className="text-amber-800">Tax review required: {taxPreview.message || "Complete seller registration and transaction details. Unsupported rates are not guessed."}</p>}
+              <p className="mt-1 text-[11px] text-slate-500">Seller details are business-supplied. This estimate is not a tax invoice or independent legal verification.</p>
+            </div>
+          </section>
           <label className="mt-4 block text-xs font-semibold text-slate-600">Notes<textarea rows={3} maxLength={4000} className={field + " mt-1"} placeholder="Optional scope, delivery or payment terms" value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
-          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">This quotation does not calculate tax and is not a tax invoice. Confirm applicable taxes and final amounts before issuing an invoice.</div>
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">A quotation with unresolved tax remains a draft and cannot be marked as sent. Unsupported country rates are never guessed.</div>
           {error && <p role="alert" className="mt-3 text-sm text-rose-700">{error}</p>}
           <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" className={secondary} onClick={() => setShowCreate(false)}>Cancel</button><button type="submit" className={primary} disabled={busy}>{busy ? "Saving…" : "Save quotation draft"}</button></div>
         </form>
