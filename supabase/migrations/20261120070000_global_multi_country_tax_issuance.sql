@@ -1,5 +1,5 @@
 -- Country-aware, server-recalculated Global tax invoice issuance.
--- US remains fail-closed until an address-level, maintained state/local rule source is integrated.
+-- US uses exact published state/county/city/postal jurisdiction rules; missing coverage fails closed.
 begin;
 
 alter table global.tax_rule_versions
@@ -8,7 +8,54 @@ alter table global.tax_rule_versions
   add constraint tax_rule_versions_treatment_check
   check (treatment in ('standard','reduced','zero-rated','gst-free','exempt','reverse-charge','out-of-scope'));
 
+-- Narrow official-source special-treatment catalogue. A category must still
+-- be explicitly selected and reviewed; this is not a blanket product classifier.
+insert into global.tax_rule_versions(
+  country_code,jurisdiction_id,currency_code,tax_code,version,treatment,
+  effective_from,effective_to,reviewed_on,reviewed_by,source_url,components,status
+) values
+('GB',NULL,'GBP','GB_ZERO_RATED_BOOKS','2026.11','zero-rated','2020-01-01',NULL,'2026-11-20','Plivex tax rule review',
+ 'https://www.gov.uk/guidance/zero-rating-books-and-printed-matter-for-vat-notice-70110',
+ '[{"id":"GB-VAT-ZERO","name":"VAT","rateBps":0}]'::jsonb,'verified'),
+('GB',NULL,'GBP','GB_EXEMPT_FINANCIAL_SERVICES','2026.11','exempt','1973-04-01',NULL,'2026-11-20','Plivex tax rule review',
+ 'https://www.gov.uk/guidance/vat-on-financial-services-notice-70149',
+ '[{"id":"GB-VAT-EXEMPT","name":"VAT","rateBps":0}]'::jsonb,'verified'),
+('GB',NULL,'GBP','GB_REDUCED_FUEL_POWER','2026.11','reduced','2011-01-04',NULL,'2026-11-20','Plivex tax rule review',
+ 'https://www.gov.uk/vat-rates',
+ '[{"id":"GB-VAT-REDUCED","name":"VAT","rateBps":500}]'::jsonb,'verified'),
+('AE',NULL,'AED','AE_ZERO_RATED_EXPORTS','2026.11','zero-rated','2018-01-01',NULL,'2026-11-20','Plivex tax rule review',
+ 'https://tax.gov.ae/en/faq.aspx?keyword=What+sectors+will+be+zero+rated%3F',
+ '[{"id":"AE-VAT-ZERO","name":"VAT","rateBps":0}]'::jsonb,'verified'),
+('AE',NULL,'AED','AE_EXEMPT_FINANCIAL_SERVICES','2026.11','exempt','2018-01-01',NULL,'2026-11-20','Plivex tax rule review',
+ 'https://tax.gov.ae/en/faq.aspx?keyword=exempt',
+ '[{"id":"AE-VAT-EXEMPT","name":"VAT","rateBps":0}]'::jsonb,'verified'),
+('AU',NULL,'AUD','AU_GST_FREE_BASIC_FOOD','2026.11','gst-free','2000-07-01',NULL,'2026-11-20','Plivex tax rule review',
+ 'https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/when-to-charge-gst-and-when-not-to/gst-free-sales',
+ '[{"id":"AU-GST-FREE","name":"GST","rateBps":0}]'::jsonb,'verified'),
+('AU',NULL,'AUD','AU_INPUT_TAXED_FINANCIAL_SERVICES','2026.11','exempt','2000-07-01',NULL,'2026-11-20','Plivex tax rule review',
+ 'https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/when-to-charge-gst-and-when-not-to/input-taxed-sales',
+ '[{"id":"AU-GST-INPUT-TAXED","name":"GST","rateBps":0}]'::jsonb,'verified'),
+('SG',NULL,'SGD','SG_ZERO_RATED_EXPORTS_INTERNATIONAL_SERVICES','2026.11','zero-rated','1994-04-01',NULL,'2026-11-20','Plivex tax rule review',
+ 'https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/charging-gst-%28output-tax%29/when-to-charge-goods-and-services-tax-%28gst%29',
+ '[{"id":"SG-GST-ZERO","name":"GST","rateBps":0}]'::jsonb,'verified'),
+('SG',NULL,'SGD','SG_EXEMPT_FINANCIAL_SERVICES','2026.11','exempt','1994-04-01',NULL,'2026-11-20','Plivex tax rule review',
+ 'https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/charging-gst-%28output-tax%29/when-is-gst-not-charged/supplies-exempt-from-gst',
+ '[{"id":"SG-GST-EXEMPT","name":"GST","rateBps":0}]'::jsonb,'verified'),
+('SG',NULL,'SGD','SG_OUT_OF_SCOPE_OVERSEAS_TO_OVERSEAS_GOODS','2026.11','out-of-scope','1994-04-01',NULL,'2026-11-20','Plivex tax rule review',
+ 'https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/basics-of-gst/goods-and-services-tax-%28gst%29-what-it-is-and-how-it-works',
+ '[{"id":"SG-GST-OUT-OF-SCOPE","name":"GST","rateBps":0}]'::jsonb,'verified')
+on conflict (country_code,jurisdiction_id,tax_code,version) do nothing;
 
+insert into global.tax_rule_versions(
+  country_code,jurisdiction_id,currency_code,tax_code,version,treatment,
+  effective_from,effective_to,reviewed_on,reviewed_by,source_url,components,status
+)
+select 'CA',province,'CAD','CA_ZERO_RATED_BASIC_GROCERIES','2026.11','zero-rated',
+  '1991-01-01',NULL,'2026-11-20','Plivex tax rule review',
+  'https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html',
+  '[{"id":"CA-GST-HST-ZERO","name":"GST/HST","rateBps":0}]'::jsonb,'verified'
+from unnest(array['AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT']) as province
+on conflict (country_code,jurisdiction_id,tax_code,version) do nothing;
 
 alter table global.invoice_items
   alter column tax_rate_bps type numeric(7,1)
