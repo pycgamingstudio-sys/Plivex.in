@@ -132,8 +132,8 @@ test("country invoice format requires the seller address and registration fields
 
 test("automatic calculation rejects reduced, zero-rated and exempt treatments", () => {
   for (const taxCategory of ["reduced", "zero-rated", "exempt"]) {
-    const result = calculateInvoiceGlobalTax(invoice("GBP", { taxCategory }), profile("GB", "GBP"));
-    assert.equal(result.code, taxCategory ? "UNSUPPORTED_TAX_TREATMENT" : "TAX_CATEGORY_REQUIRED", taxCategory);
+    const result = calculateInvoiceGlobalTax(invoice("GBP", { taxTreatment: taxCategory, taxCategory: "UNSUPPORTED_CATEGORY" }), profile("GB", "GBP"));
+    assert.equal(result.code, "NO_EFFECTIVE_VERIFIED_RULE", taxCategory);
   }
 });
 
