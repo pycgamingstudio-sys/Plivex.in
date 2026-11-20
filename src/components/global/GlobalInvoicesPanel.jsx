@@ -155,8 +155,8 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       if (!workspaceContext.ok) throw new Error("Your workspace country and base currency could not be verified. No fallback currency has been applied.");
       const isTaxInvoice = form.documentType === "tax";
       if (!sellerProfileReady) throw new Error("Complete the seller legal name and business address before issuing an invoice.");
-      if (isTaxInvoice && (!backendCapabilities.issuanceReady || createTaxPreview.ok !== true)) {
-        throw new Error(createTaxPreview.message || "Complete the verified country tax details before issuing this tax invoice.");
+      if (isTaxInvoice && (taxContext.taxTreatment !== "standard" || !backendCapabilities.issuanceReady || createTaxPreview.ok !== true)) {
+        throw new Error(createTaxPreview.message || "Only a server-verified standard-rate tax invoice can be issued with the current country rules.");
       }
       if (!isTaxInvoice && !backendCapabilities.commercialIssuanceReady) {
         throw new Error("The server commercial-issuance service is not ready yet.");
@@ -201,6 +201,10 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   };
 
   const issueInvoice = async () => {
+    if (taxContext.taxTreatment !== "standard") {
+      setError("This special tax treatment is preview-only until its server-side invoice rule is verified. Keep this invoice as a draft.");
+      return;
+    }
     if (!selected || selected.status !== "draft") return;
     setBusy(true); setError(""); setNotice("");
     try {
