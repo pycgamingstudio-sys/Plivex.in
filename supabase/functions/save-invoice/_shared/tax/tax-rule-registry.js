@@ -1,4 +1,3 @@
-// Bundled copy for the save-invoice Edge Function. Keep in sync with src/global/tax/tax-rule-registry.js.
 /**
  * Versioned, source-controlled tax rule catalogue for Plivex Global.
  *
@@ -232,6 +231,17 @@ const TREATMENT_RULES = Object.freeze([
     sourceAuthority: "UK HM Revenue & Customs",
     scope: "country", coverage: "reduced-rate-domestic-fuel-power-only",
     components: [{ id: "GB-VAT-REDUCED-DOMESTIC-FUEL-POWER", name: "VAT", rateBps: 500, source: "https://www.gov.uk/charge-reclaim-record-vat" }],
+  }),
+  freezeRule({
+    id: "GB-VAT-DOMESTIC-CONSTRUCTION-REVERSE-CHARGE-2026-11", version: "2026.11",
+    countryCode: "GB", currencyCode: "GBP", taxName: "VAT",
+    treatment: "reverse-charge", taxCategoryId: "GB_DOMESTIC_CONSTRUCTION_REVERSE_CHARGE",
+    rateBps: 2000, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2021-03-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.gov.uk/guidance/vat-domestic-reverse-charge-for-building-and-construction-services",
+    sourceAuthority: "UK HM Revenue & Customs",
+    scope: "country", coverage: "domestic-construction-services-standard-rate-only; buyer-registration-and-eligibility-confirmation-required",
+    components: [{ id: "GB-VAT-REVERSE-CHARGE", name: "VAT reverse charge", rateBps: 2000, source: "https://www.gov.uk/guidance/vat-domestic-reverse-charge-for-building-and-construction-services" }],
   }),
 ]);
 
