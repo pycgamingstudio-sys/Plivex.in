@@ -129,15 +129,21 @@ test("UAE, Australia and Singapore expose narrowly scoped verified special treat
   assert.equal(getTaxTreatmentRuleSet("AE", { treatment: "zero-rated", taxCategoryId: "wrong-category", asOfDate: "2026-11-20" }).ok, false);
 });
 
-test("Canada GST/HST standard rate is selected by province or territory and excludes separate PST/QST", () => {
-  const expected = { AB: 500, BC: 500, MB: 500, NB: 1500, NL: 1500, NS: 1400, NT: 500, NU: 500, ON: 1300, PE: 1500, QC: 500, SK: 500, YT: 500 };
+test("Canada provincial tax components are included only where verified; Quebec fails closed pending exact QST precision", () => {
+  const expected = { AB: 500, BC: 1200, MB: 1200, NB: 1500, NL: 1500, NS: 1400, NT: 500, NU: 500, ON: 1300, PE: 1500, SK: 1100, YT: 500 };
   for (const [jurisdictionId, rateBps] of Object.entries(expected)) {
     const result = getTaxRuleSet("CA", { jurisdictionId, asOfDate: "2026-11-20" });
     assert.equal(result.ok, true, jurisdictionId);
     assert.equal(result.rule.rateBps, rateBps, jurisdictionId);
     assert.equal(result.rule.jurisdictionId, jurisdictionId);
-    assert.equal(result.rule.coverage, "federal-gst-or-harmonized-hst-only-provincial-sales-taxes-excluded");
+    assert.equal(
+      result.rule.coverage,
+      ["BC", "MB", "SK"].includes(jurisdictionId)
+        ? "federal-gst-hst-plus-listed-provincial-pst-rst-components"
+        : "federal-gst-or-harmonized-hst-only",
+    );
   }
+  assert.equal(getTaxRuleSet("CA", { jurisdictionId: "QC", asOfDate: "2026-11-20" }).code, "CANADIAN_QST_PRECISION_ENGINE_REQUIRED");
   assert.equal(getTaxRuleSet("CA", { asOfDate: "2026-11-20" }).code, "CANADIAN_PROVINCE_REQUIRED");
   const zeroRated = getTaxTreatmentRuleSet("CA", { treatment: "zero-rated", taxCategoryId: "CA_ZERO_RATED_BASIC_GROCERIES", jurisdictionId: "QC", asOfDate: "2026-11-20" });
   assert.equal(zeroRated.ok, true);
