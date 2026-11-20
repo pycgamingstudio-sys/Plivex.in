@@ -79,7 +79,7 @@ const CA_PROVINCE_RULES = Object.freeze({
   ON: { name: "Ontario", components: [{ id: "CA-ON-HST", name: "HST", rateBps: 1300 }] },
   PE: { name: "Prince Edward Island", components: [{ id: "CA-PE-HST", name: "HST", rateBps: 1500 }] },
   SK: { name: "Saskatchewan", components: [{ id: "CA-SK-GST", name: "GST", rateBps: 500 }, { id: "CA-SK-PST", name: "PST", rateBps: 600 }] },
-  QC: { name: "Quebec", components: [{ id: "CA-QC-GST", name: "GST", rateBps: 500 }] },
+  QC: { name: "Quebec", components: [{ id: "CA-QC-GST", name: "GST", rateBps: 500 }, { id: "CA-QC-QST", name: "QST", rateBps: 997.5 }] },
   YT: { name: "Yukon", components: [{ id: "CA-YT-GST", name: "GST", rateBps: 500 }] },
 });
 const CA_RATE_SOURCE = "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html";
@@ -280,7 +280,6 @@ export function getTaxRuleSet(countryCode, options = {}) {
     const province = typeof options.jurisdictionId === "string" ? options.jurisdictionId.trim().toUpperCase() : "";
     const entry = CA_PROVINCE_RULES[province];
     if (!entry) return { ok: false, status: "jurisdiction_required", code: "CANADIAN_PROVINCE_REQUIRED", countryCode: code, profile: { ...profile }, catalogVersion: TAX_RULE_CATALOG_VERSION };
-    if (province === "QC") return { ok: false, status: "jurisdiction_required", code: "CANADIAN_QST_PRECISION_ENGINE_REQUIRED", countryCode: code, profile: { ...profile }, catalogVersion: TAX_RULE_CATALOG_VERSION };
     const asOfDate = options.asOfDate;
     if (asOfDate !== undefined && !validDate(asOfDate)) return { ok: false, status: "invalid_date", code: "INVALID_RULE_AS_OF_DATE", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION };
     if (asOfDate && asOfDate < "2025-04-01" && province === "NS") {
@@ -294,7 +293,7 @@ export function getTaxRuleSet(countryCode, options = {}) {
       treatment: "standard", jurisdictionId: province, rateBps,
       effectiveFrom: province === "NS" ? "2025-04-01" : "2025-04-01", effectiveTo: null,
       reviewedOn: "2026-11-20", source: CA_RATE_SOURCE, sourceAuthority: "Canada Revenue Agency",
-      scope: "province", coverage: ["BC", "MB", "SK"].includes(province) ? "federal-gst-hst-plus-listed-provincial-pst-rst-components" : "federal-gst-or-harmonized-hst-only",
+      scope: "province", coverage: ["BC", "MB", "SK"].includes(province) ? "federal-gst-hst-plus-listed-provincial-pst-rst-components" : province === "QC" ? "federal-gst-plus-quebec-qst" : "federal-gst-or-harmonized-hst-only",
       components,
     };
     return { ok: true, status: "rule_available", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION, profile: { ...profile }, rule };
@@ -390,7 +389,7 @@ export function validateTaxRuleSnapshot(rule) {
   let combinedRate = 0;
   for (const component of rule.components) {
     if (!snapshotIsRecord(component) || typeof component.id !== "string" || !component.id.trim() || ids.has(component.id)
-      || !Number.isInteger(component.rateBps) || component.rateBps < 0 || component.rateBps > 10000
+      || !Number.isFinite(component.rateBps) || !Number.isInteger(component.rateBps * 10) || component.rateBps < 0 || component.rateBps > 10000
       || (component.source && !snapshotOfficialSource(rule.countryCode, component.source))) return { ok: false, code: "INVALID_COMPONENT" };
     ids.add(component.id);
     combinedRate += component.rateBps;
