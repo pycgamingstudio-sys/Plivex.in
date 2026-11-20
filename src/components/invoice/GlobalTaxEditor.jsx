@@ -9,10 +9,9 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
   const countryCode = workspaceProfile?.countryCode || "";
   const format = getTaxInvoiceFormat(countryCode);
   const config = {
-    ...(invoice.globalTax || {
-      countryCode,
-      mode: countryCode === "US" ? "manual" : "automatic",
-      taxMode: "taxable",
+    countryCode,
+    mode: countryCode === "US" ? "manual" : "automatic",
+    taxMode: String(workspaceProfile?.registrationStatus || "unregistered").trim().toLowerCase() === "unregistered" ? "no_tax" : "taxable",
       noTaxConfirmed: false,
       priceMode: "exclusive",
       placeOfSupply: "",
@@ -23,7 +22,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
       collectionObligationAttested: false,
       destinationJurisdiction: { state: "", county: "", city: "", province: "" },
       components: [{ id: "manual-tax-1", name: "", rateBps: 0 }],
-    }),
+    ...(invoice.globalTax || {}),
     taxDetailsConfirmed: invoice.globalTax?.taxDetailsConfirmed === true,
   };
   const selectedMode = countryCode === "US" ? "manual" : (config.mode || "automatic");
@@ -56,13 +55,13 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary/70">Global tax</p>
-          <h3 className="mt-1 text-sm font-bold">{format?.title || "Tax invoice"} · {countryCode}</h3>
+          <h3 className="mt-1 text-sm font-bold">{noTax ? "Commercial invoice" : (format?.title || "Tax invoice")} · {countryCode}</h3>
           <p className="mt-1 text-xs text-muted-foreground">Country-specific tax preview. Registration details are business-supplied and are not independently verified by Plivex.</p>
         </div>
         <span className="rounded-full bg-muted px-2 py-1 text-[10px] font-semibold">{currency}</span>
       </div>
 
-      <div className="mt-3 rounded-lg bg-muted/40 p-3 text-[11px] text-muted-foreground"><strong>Tax treatment:</strong> Plivex records the choice you make here. It does not independently verify registration, tax obligations or exemptions.</div>
+      <div className="mt-3 rounded-lg bg-muted/40 p-3 text-[11px] text-muted-foreground"><strong>Choose the correct document:</strong> Unregistered businesses can prepare a commercial invoice when they are not required to charge this tax. Confirm the rules for this transaction before issuing. Plivex does not independently verify registration or tax obligations.</div>
       <label className={labelClass + " mt-4"}>How should tax be handled?
         <select data-testid="global-tax-mode" className={fieldClass} value={noTax ? "no_tax" : "taxable"} onChange={(e) => update({ taxMode: e.target.value, noTaxConfirmed: false })}>
           <option value="taxable">Tax applies · calculate tax</option>
@@ -71,8 +70,8 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
       </label>
       {noTax ? (
         <div className="mt-3 rounded-lg border p-3 text-xs">
-          <label className="flex items-start gap-2"><input data-testid="global-no-tax-confirm" type="checkbox" checked={config.noTaxConfirmed === true} onChange={(e) => update({ noTaxConfirmed: e.target.checked })} /><span>I confirm that I have checked the rules for this business and transaction and am not required to charge this tax. I understand this is not a zero-rated or tax-exempt classification.</span></label>
-          <p className="mt-2 text-[11px] text-muted-foreground">The invoice will show no tax added. Plivex does not decide whether your business or transaction legally qualifies.</p>
+          <label className="flex items-start gap-2"><input data-testid="global-no-tax-confirm" type="checkbox" checked={config.noTaxConfirmed === true} onChange={(e) => update({ noTaxConfirmed: e.target.checked })} /><span>I confirm that I have checked the rules for this business and this transaction, and I am not required to charge this country’s tax. I understand this is a commercial invoice, not a tax invoice, and this is not a zero-rated or tax-exempt classification.</span></label>
+          <p className="mt-2 text-[11px] text-muted-foreground">Your issued document will be titled Commercial Invoice, will not show a tax registration number as if one were required, and will clearly state that tax was not assessed by Plivex. If you are required to register or collect tax, switch to “Tax applies” and complete the tax details instead. Plivex does not decide whether your business or transaction legally qualifies.</p>
         </div>
       ) : (
       <>

@@ -437,19 +437,27 @@ function GlobalTaxInvoiceHeader({ invoice }) {
   if (!countryCode || countryCode === "IN") return null;
   const format = getTaxInvoiceFormat(countryCode);
   const profile = invoice.globalTaxProfileSnapshot || {};
+  const commercial = calculation?.ok === true && calculation.status === "not_applicable";
   return (
     <div className="border-b border-[#e4e1eb] bg-white px-8 py-5 text-[#28263a]" data-testid="global-tax-invoice-metadata">
-      <p className="text-[18px] font-bold">{format?.title || "Tax Invoice"}</p>
-      <div className="mt-2 grid gap-1 text-[11px] text-[#555267] sm:grid-cols-2">
-        <p>{format?.registrationLabel || "Tax registration"}: {profile.registrationNumber || "Not provided"}</p>
-        <p>Registration status: {profile.registrationStatus || "Not provided"} (business supplied)</p>
-        <p>Registration effective from: {profile.registrationEffectiveFrom || "—"}</p>
-        <p>Registered jurisdiction: {profile.registeredJurisdiction || "—"}</p>
-        <p>{format?.jurisdictionLabel || "Place of supply"}: {invoice.globalTax?.placeOfSupply || "—"}</p>
-        <p>{format?.classificationLabel || "Tax category"}: {invoice.globalTax?.taxCategory || "—"}</p>
-        <p>Price mode: {invoice.globalTax?.priceMode === "inclusive" ? "Tax inclusive" : "Tax exclusive"}</p>
-        {(invoice.globalTax?.destinationJurisdiction?.state || invoice.globalTax?.destinationJurisdiction?.province) && <p>Destination: {[invoice.globalTax.destinationJurisdiction.state, invoice.globalTax.destinationJurisdiction.county, invoice.globalTax.destinationJurisdiction.city, invoice.globalTax.destinationJurisdiction.province].filter(Boolean).join(", ")}</p>}
-      </div>
+      <p className="text-[18px] font-bold">{commercial ? "Commercial Invoice" : (format?.title || "Tax Invoice")}</p>
+      {commercial ? (
+        <div className="mt-2 space-y-1 text-[11px] text-[#555267]">
+          <p>Seller registration: Not provided / not declared for this commercial invoice.</p>
+          <p>No tax has been calculated or validated by Plivex. The seller confirms that no tax is being charged and remains responsible for the applicable tax treatment.</p>
+        </div>
+      ) : (
+        <div className="mt-2 grid gap-1 text-[11px] text-[#555267] sm:grid-cols-2">
+          <p>{format?.registrationLabel || "Tax registration"}: {profile.registrationNumber || "Not provided"}</p>
+          <p>Registration status: {profile.registrationStatus || "Not provided"} (business supplied)</p>
+          <p>Registration effective from: {profile.registrationEffectiveFrom || "—"}</p>
+          <p>Registered jurisdiction: {profile.registeredJurisdiction || "—"}</p>
+          <p>{format?.jurisdictionLabel || "Place of supply"}: {invoice.globalTax?.placeOfSupply || "—"}</p>
+          <p>{format?.classificationLabel || "Tax category"}: {invoice.globalTax?.taxCategory || "—"}</p>
+          <p>Price mode: {invoice.globalTax?.priceMode === "inclusive" ? "Tax inclusive" : "Tax exclusive"}</p>
+          {(invoice.globalTax?.destinationJurisdiction?.state || invoice.globalTax?.destinationJurisdiction?.province) && <p>Destination: {[invoice.globalTax.destinationJurisdiction.state, invoice.globalTax.destinationJurisdiction.county, invoice.globalTax.destinationJurisdiction.city, invoice.globalTax.destinationJurisdiction.province].filter(Boolean).join(", ")}</p>}
+        </div>
+      )}
       {calculation?.warning && <p className="mt-2 text-[10px] text-amber-800">{calculation.warning}</p>}
       {!calculation?.ok && <p className="mt-2 text-[10px] font-semibold text-amber-800">Draft only — tax calculation is incomplete and this invoice must not be finalized.</p>}
       {calculation?.ruleSnapshot?.source && <p className="mt-1 text-[10px]">Rule source: {calculation.ruleSnapshot.source}</p>}
