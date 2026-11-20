@@ -175,7 +175,7 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
     return fail("TAX_CATEGORY_REQUIRED", "Select the goods/services tax category.");
   }
   const selectedTreatment = String(config.taxTreatment || "standard").trim().toLowerCase();
-  if (!["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"].includes(selectedTreatment)) {
+  if (!["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope", "reverse-charge"].includes(selectedTreatment)) {
     return fail("UNSUPPORTED_TAX_TREATMENT", "This tax treatment is not supported. Keep the invoice as a draft.");
   }
   const normalizedTreatment = selectedTreatment === "standard" ? "standard-rated" : selectedTreatment;
@@ -256,7 +256,7 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
     }
     const lineTreatmentRaw = String(item.taxTreatment || selectedTreatment).trim().toLowerCase();
     const lineTreatment = lineTreatmentRaw === "standard-rated" ? "standard" : lineTreatmentRaw;
-    if (!["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"].includes(lineTreatment)) {
+    if (!["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope", "reverse-charge"].includes(lineTreatment)) {
       return fail("UNSUPPORTED_LINE_TREATMENT", "Invoice line " + (index + 1) + " has an unsupported tax treatment.");
     }
     const lineCategory = String(item.taxCategory || config.taxCategory || "").trim();
@@ -284,6 +284,7 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
         placeOfSupplyVerified: true, placeOfSupply: String(config.placeOfSupply).trim(),
         taxCategoryVerified: true, taxCategory: lineCategory,
         treatment: lineTreatment,
+        ...(lineTreatment === "reverse-charge" ? { reverseChargeEvidence: config.reverseChargeEvidence || {} } : {}),
         ...(countryCode === "CA" ? {
           jurisdictionId: String(config.destinationJurisdiction.province).trim().toUpperCase(),
           jurisdictionAttestedByUser: true,
@@ -299,6 +300,10 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
       description: String(item.description || "").slice(0, 500),
       amountMinor: line.amountMinor, taxableMinor: calculated.taxableMinor,
       taxMinor: calculated.taxMinor, totalMinor: calculated.totalMinor,
+      recipientTaxMinor: calculated.recipientTaxMinor || 0,
+      recipientTaxComponents: calculated.recipientTaxComponents || [],
+      recipientAccountingRequired: calculated.recipientAccountingRequired === true,
+      taxDisclosure: calculated.taxDisclosure || null,
       treatment: calculated.treatment || lineTreatment,
       taxCategory: lineCategory,
       ruleSnapshot: calculated.ruleSnapshot || null,
@@ -309,6 +314,7 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
 
   const taxableMinor = lineResults.reduce((sum, line) => sum + line.taxableMinor, 0);
   const taxMinor = lineResults.reduce((sum, line) => sum + line.taxMinor, 0);
+  const recipientTaxMinor = lineResults.reduce((sum, line) => sum + line.recipientTaxMinor, 0);
   const totalMinor = lineResults.reduce((sum, line) => sum + line.totalMinor, 0);
   if (![taxableMinor, taxMinor, totalMinor].every(Number.isSafeInteger)
     || totalMinor !== taxableMinor + taxMinor) {
@@ -325,6 +331,17 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
   if (components.reduce((sum, component) => sum + component.amountMinor, 0) !== taxMinor) {
     return fail("LINE_TAX_COMPONENT_MISMATCH", "Per-line tax components do not reconcile to the invoice tax total.");
   }
+  const recipientTaxMap = new Map();
+  for (const line of lineResults) for (const component of line.recipientTaxComponents) {
+    const key = [component.id, component.name, component.rateBps, component.source || ""].join("|");
+    const existing = recipientTaxMap.get(key) || { ...component, amountMinor: 0 };
+    existing.amountMinor += component.amountMinor;
+    recipientTaxMap.set(key, existing);
+  }
+  const recipientTaxComponents = [...recipientTaxMap.values()];
+  if (recipientTaxComponents.reduce((sum, component) => sum + component.amountMinor, 0) !== recipientTaxMinor) {
+    return fail("RECIPIENT_TAX_COMPONENT_MISMATCH", "Recipient reverse-charge components do not reconcile to the recipient tax amount.");
+  }
   const manual = lineResults.some((line) => line.calculationStatus === "manual_unverified");
   const commonRule = lineResults.every((line) => JSON.stringify(line.ruleSnapshot) === JSON.stringify(lineResults[0].ruleSnapshot))
     ? lineResults[0].ruleSnapshot : null;
@@ -338,10 +355,13 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
     currencyMinorUnits: MINOR_UNITS[currencyCode], priceMode: config.priceMode,
     treatment: commonTreatment, taxCategory: commonCategory,
     taxableMinor, taxMinor, totalMinor, components,
+    recipientTaxMinor, recipientTaxComponents,
+    recipientAccountingRequired: recipientTaxMinor > 0,
     lineTaxBreakdown: lineResults,
     ruleSnapshot: commonRule ? { ...commonRule, treatment: commonTreatment } : null,
     taxCharged: lineResults.some((line) => line.taxMinor > 0),
-    taxDisclosure: commonTreatment === "mixed" ? "Mixed tax treatments are recorded per invoice line." : undefined,
+    taxDisclosure: commonTreatment === "mixed" ? "Mixed tax treatments are recorded per invoice line."
+      : (lineResults.every((line) => line.taxDisclosure === lineResults[0].taxDisclosure) ? lineResults[0].taxDisclosure : undefined),
     registrationEvidence: "user-attested", format,
     warning: manual
       ? "One or more line rates were entered manually and are not independently verified. Confirm treatment and collection obligations with an appropriate tax professional or official source."
