@@ -282,7 +282,7 @@ BEGIN
     '66666666-6666-4666-8666-666666666666',
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     v_reduced_invoice_id,
-    '{"registration_confirmed":true,"place_of_supply_confirmed":true,"tax_category_confirmed":true,"tax_category":"GB_REDUCED_FUEL_POWER","tax_treatment":"reduced","mode":"automatic","price_mode":"exclusive","place_of_supply":"United Kingdom"}'::jsonb,
+    '{"registration_confirmed":true,"place_of_supply_confirmed":true,"tax_category_confirmed":true,"tax_category":"GB_REDUCED_DOMESTIC_FUEL_POWER","tax_treatment":"reduced","mode":"automatic","price_mode":"exclusive","place_of_supply":"United Kingdom"}'::jsonb,
     'a6666666-6666-4666-8666-666666666666'
   );
   IF v_reduced_issue->>'reason'<>'verified_special_treatment_rule_unavailable' THEN
@@ -293,7 +293,7 @@ BEGIN
     '66666666-6666-4666-8666-666666666666',
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     v_reduced_invoice_id,
-    '{"registration_confirmed":true,"place_of_supply_confirmed":true,"tax_category_confirmed":true,"tax_category":"GB_REDUCED_FUEL_POWER","tax_treatment":"reduced","mode":"automatic","price_mode":"exclusive","place_of_supply":"United Kingdom"}'::jsonb,
+    '{"registration_confirmed":true,"place_of_supply_confirmed":true,"tax_category_confirmed":true,"tax_category":"GB_REDUCED_DOMESTIC_FUEL_POWER","tax_treatment":"reduced","mode":"automatic","price_mode":"exclusive","place_of_supply":"United Kingdom"}'::jsonb,
     'a6666666-6666-4666-8666-666666666666'
   );
   IF v_reduced_issue->>'ok'<>'true'
