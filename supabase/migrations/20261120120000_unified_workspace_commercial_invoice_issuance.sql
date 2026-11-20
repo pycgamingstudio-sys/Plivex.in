@@ -80,6 +80,8 @@ begin
     if new.is_draft is distinct from false
       or new.workspace_id is distinct from old.workspace_id
       or new.created_by is distinct from old.created_by
+      or new.created_at is distinct from old.created_at
+      or (old.stock_applied is true and new.stock_applied is distinct from true)
       or new.number is distinct from old.number
       or new.client_id is distinct from old.client_id
       or new.client_name is distinct from old.client_name
@@ -120,12 +122,19 @@ language plpgsql
 set search_path = pg_catalog, public
 as $function$
 declare
-  v_invoice_id uuid := coalesce(new.invoice_id, old.invoice_id);
   v_is_draft boolean;
 begin
-  select is_draft into v_is_draft from public.invoices where id=v_invoice_id for update;
-  if v_is_draft is distinct from true then
-    raise exception using errcode='55000', message='Issued invoice lines are immutable';
+  if tg_op='UPDATE' or tg_op='DELETE' then
+    select is_draft into v_is_draft from public.invoices where id=old.invoice_id for update;
+    if v_is_draft is distinct from true then
+      raise exception using errcode='55000', message='Issued invoice lines are immutable';
+    end if;
+  end if;
+  if tg_op='INSERT' or tg_op='UPDATE' then
+    select is_draft into v_is_draft from public.invoices where id=new.invoice_id for update;
+    if v_is_draft is distinct from true then
+      raise exception using errcode='55000', message='Issued invoice lines are immutable';
+    end if;
   end if;
   if tg_op='DELETE' then return old; end if;
   return new;
