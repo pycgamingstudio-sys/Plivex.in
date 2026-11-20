@@ -48,12 +48,12 @@ export default function ClientDatabase() {
           ))}
         </div>
       )}
-      {editing && <ClientModal value={editing} onClose={() => setEditing(null)} onSave={save} registrationLabel={registrationLabel} phonePrefix={phonePrefix} />}
+      {editing && <ClientModal value={editing} onClose={() => setEditing(null)} onSave={save} registrationLabel={registrationLabel} phonePrefix={phonePrefix} isIndiaWorkspace={isIndiaWorkspace} />}
     </PageShell>
   );
 }
 
-function ClientModal({ value, onClose, onSave, registrationLabel, phonePrefix }) {
+function ClientModal({ value, onClose, onSave, registrationLabel, phonePrefix, isIndiaWorkspace }) {
   const [form, setForm] = useState(value);
   const dialogRef = useDialogA11y(true, onClose);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
