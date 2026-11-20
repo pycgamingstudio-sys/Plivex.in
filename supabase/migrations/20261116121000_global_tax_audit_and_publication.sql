@@ -126,7 +126,174 @@ begin
     or jsonb_array_length(v_rule.components)<1 or jsonb_array_length(v_rule.components)>8
     or exists (
       select 1 from jsonb_array_elements(v_rule.components) c
-      where coalesce(c->>'id','')='' or coalesce(c->>'rateBps','') !~ '^[0-9]+(\\.[0-9])?
+      where coalesce(c->>'id','')='' or coalesce(c->>'rateBps','') !~ '^[0-9]+(\\.[0-9])?        or (c->>'rateBps')::numeric > 10000
+    )
+    or (select coalesce(sum((c->>'rateBps')::numeric),0) from jsonb_array_elements(v_rule.components) c) > 10000
+    or (select count(*) from jsonb_array_elements(v_rule.components) c)
+       <> (select count(distinct c->>'id') from jsonb_array_elements(v_rule.components) c) then
+    return jsonb_build_object('ok',false,'code','RULE_SOURCE_OR_COMPONENT_INVALID');
+  end if;
+  if exists (
+    select 1 from global.tax_rule_versions other
+    where other.id<>v_rule.id and other.status='verified'
+      and other.country_code=v_rule.country_code
+      and coalesce(other.jurisdiction_id,'')=coalesce(v_rule.jurisdiction_id,'')
+      and other.tax_code=v_rule.tax_code and other.treatment=v_rule.treatment
+      and daterange(other.effective_from,coalesce(other.effective_to,'infinity'::date),'[]')
+        && daterange(v_rule.effective_from,coalesce(v_rule.effective_to,'infinity'::date),'[]')
+  ) then return jsonb_build_object('ok',false,'code','OVERLAPPING_VERIFIED_RULE'); end if;
+  update global.tax_rule_versions set status='verified',reviewed_on=current_date,reviewed_by=btrim(p_reviewer)
+    where id=p_rule_id;
+  return jsonb_build_object('ok',true,'ruleId',p_rule_id,'version',v_rule.version);
+end;
+$function$;
+
+create or replace function public.global_append_tax_calculation_audit(
+  p_user_id uuid, p_workspace_id uuid, p_invoice_id uuid, p_invoice_version integer,
+  p_snapshot jsonb
+) returns uuid
+language plpgsql security definer set search_path = pg_catalog, global
+as $function$
+declare v_id uuid; v_country text; v_currency text; v_rule_id uuid; v_rule_version text;
+  v_jurisdiction text; v_date date; v_taxable bigint; v_tax bigint; v_total bigint;
+begin
+  if coalesce(auth.role(),'') <> 'service_role' then raise exception 'service role required'; end if;
+  if p_user_id is null or p_workspace_id is null or p_invoice_id is null
+    or p_invoice_version is null or p_invoice_version<1
+    or p_snapshot is null or jsonb_typeof(p_snapshot)<>'object'
+    or octet_length(p_snapshot::text)>65536 then raise exception 'invalid tax audit snapshot'; end if;
+  if not exists (select 1 from global.workspace_members
+    where workspace_id=p_workspace_id and user_id=p_user_id and status='active') then
+    raise exception 'active workspace membership required';
+  end if;
+  if coalesce(p_snapshot->>'countryCode','') !~ '^[A-Z]{2}$'
+    or coalesce(p_snapshot->>'currencyCode','') !~ '^[A-Z]{3}$'
+    or coalesce(p_snapshot->>'ruleId','') !~ '^[0-9a-fA-F-]{36}$'
+    or coalesce(p_snapshot->>'ruleVersion','')=''
+    or coalesce(p_snapshot->>'invoiceDate','') !~ '^\d{4}-\d{2}-\d{2}$'
+    or coalesce(p_snapshot->>'taxableMinor','') !~ '^(0|[1-9][0-9]{0,15})$'
+    or coalesce(p_snapshot->>'taxMinor','') !~ '^(0|[1-9][0-9]{0,15})$'
+    or coalesce(p_snapshot->>'totalMinor','') !~ '^(0|[1-9][0-9]{0,15})$' then
+    raise exception 'incomplete tax audit snapshot';
+  end if;
+  v_country := p_snapshot->>'countryCode'; v_currency := p_snapshot->>'currencyCode';
+  v_rule_id := (p_snapshot->>'ruleId')::uuid; v_rule_version := p_snapshot->>'ruleVersion';
+  v_jurisdiction := p_snapshot->>'jurisdictionId'; v_date := (p_snapshot->>'invoiceDate')::date;
+  v_taxable := (p_snapshot->>'taxableMinor')::bigint; v_tax := (p_snapshot->>'taxMinor')::bigint;
+  v_total := (p_snapshot->>'totalMinor')::bigint;
+  if v_total <> v_taxable + v_tax or v_total > 9007199254740991
+    or not exists (select 1 from global.tax_rule_versions r
+    where r.id=v_rule_id and r.status='verified' and r.country_code=v_country
+      and r.currency_code=v_currency and r.version=v_rule_version
+      and coalesce(r.jurisdiction_id,'')=coalesce(v_jurisdiction,'')) then
+    raise exception 'tax rule snapshot does not match a verified rule';
+  end if;
+  insert into global.tax_calculation_audit(
+    workspace_id,invoice_id,invoice_version,country_code,jurisdiction_id,currency_code,
+    rule_id,rule_version,invoice_date,taxable_minor,tax_minor,total_minor,calculation_snapshot,created_by
+  ) values (
+    p_workspace_id,p_invoice_id,p_invoice_version,v_country,v_jurisdiction,v_currency,
+    v_rule_id,v_rule_version,v_date,v_taxable,v_tax,v_total,p_snapshot,p_user_id
+  ) returning id into v_id;
+  return v_id;
+end;
+$function$;
+
+revoke all on function public.global_publish_tax_rule_version(uuid,text) from public, anon, authenticated;
+revoke all on function public.global_append_tax_calculation_audit(uuid,uuid,uuid,integer,jsonb) from public, anon, authenticated;
+grant execute on function public.global_publish_tax_rule_version(uuid,text) to service_role;
+grant execute on function public.global_append_tax_calculation_audit(uuid,uuid,uuid,integer,jsonb) to service_role;
+grant select on global.tax_rule_versions to service_role;
+grant select on global.tax_calculation_audit to authenticated, service_role;
+revoke insert, update, delete on global.tax_calculation_audit from anon, authenticated;
+grant insert on global.tax_calculation_audit to service_role;
+
+commit;
+ or (c->>'rateBps')::numeric < 0
+        or (c->>'rateBps')::numeric > 10000
+    )
+    or (select coalesce(sum((c->>'rateBps')::numeric),0) from jsonb_array_elements(v_rule.components) c) > 10000
+    or (select count(*) from jsonb_array_elements(v_rule.components) c)
+       <> (select count(distinct c->>'id') from jsonb_array_elements(v_rule.components) c) then
+    return jsonb_build_object('ok',false,'code','RULE_SOURCE_OR_COMPONENT_INVALID');
+  end if;
+  if exists (
+    select 1 from global.tax_rule_versions other
+    where other.id<>v_rule.id and other.status='verified'
+      and other.country_code=v_rule.country_code
+      and coalesce(other.jurisdiction_id,'')=coalesce(v_rule.jurisdiction_id,'')
+      and other.tax_code=v_rule.tax_code and other.treatment=v_rule.treatment
+      and daterange(other.effective_from,coalesce(other.effective_to,'infinity'::date),'[]')
+        && daterange(v_rule.effective_from,coalesce(v_rule.effective_to,'infinity'::date),'[]')
+  ) then return jsonb_build_object('ok',false,'code','OVERLAPPING_VERIFIED_RULE'); end if;
+  update global.tax_rule_versions set status='verified',reviewed_on=current_date,reviewed_by=btrim(p_reviewer)
+    where id=p_rule_id;
+  return jsonb_build_object('ok',true,'ruleId',p_rule_id,'version',v_rule.version);
+end;
+$function$;
+
+create or replace function public.global_append_tax_calculation_audit(
+  p_user_id uuid, p_workspace_id uuid, p_invoice_id uuid, p_invoice_version integer,
+  p_snapshot jsonb
+) returns uuid
+language plpgsql security definer set search_path = pg_catalog, global
+as $function$
+declare v_id uuid; v_country text; v_currency text; v_rule_id uuid; v_rule_version text;
+  v_jurisdiction text; v_date date; v_taxable bigint; v_tax bigint; v_total bigint;
+begin
+  if coalesce(auth.role(),'') <> 'service_role' then raise exception 'service role required'; end if;
+  if p_user_id is null or p_workspace_id is null or p_invoice_id is null
+    or p_invoice_version is null or p_invoice_version<1
+    or p_snapshot is null or jsonb_typeof(p_snapshot)<>'object'
+    or octet_length(p_snapshot::text)>65536 then raise exception 'invalid tax audit snapshot'; end if;
+  if not exists (select 1 from global.workspace_members
+    where workspace_id=p_workspace_id and user_id=p_user_id and status='active') then
+    raise exception 'active workspace membership required';
+  end if;
+  if coalesce(p_snapshot->>'countryCode','') !~ '^[A-Z]{2}$'
+    or coalesce(p_snapshot->>'currencyCode','') !~ '^[A-Z]{3}$'
+    or coalesce(p_snapshot->>'ruleId','') !~ '^[0-9a-fA-F-]{36}$'
+    or coalesce(p_snapshot->>'ruleVersion','')=''
+    or coalesce(p_snapshot->>'invoiceDate','') !~ '^\d{4}-\d{2}-\d{2}$'
+    or coalesce(p_snapshot->>'taxableMinor','') !~ '^(0|[1-9][0-9]{0,15})$'
+    or coalesce(p_snapshot->>'taxMinor','') !~ '^(0|[1-9][0-9]{0,15})$'
+    or coalesce(p_snapshot->>'totalMinor','') !~ '^(0|[1-9][0-9]{0,15})$' then
+    raise exception 'incomplete tax audit snapshot';
+  end if;
+  v_country := p_snapshot->>'countryCode'; v_currency := p_snapshot->>'currencyCode';
+  v_rule_id := (p_snapshot->>'ruleId')::uuid; v_rule_version := p_snapshot->>'ruleVersion';
+  v_jurisdiction := p_snapshot->>'jurisdictionId'; v_date := (p_snapshot->>'invoiceDate')::date;
+  v_taxable := (p_snapshot->>'taxableMinor')::bigint; v_tax := (p_snapshot->>'taxMinor')::bigint;
+  v_total := (p_snapshot->>'totalMinor')::bigint;
+  if v_total <> v_taxable + v_tax or v_total > 9007199254740991
+    or not exists (select 1 from global.tax_rule_versions r
+    where r.id=v_rule_id and r.status='verified' and r.country_code=v_country
+      and r.currency_code=v_currency and r.version=v_rule_version
+      and coalesce(r.jurisdiction_id,'')=coalesce(v_jurisdiction,'')) then
+    raise exception 'tax rule snapshot does not match a verified rule';
+  end if;
+  insert into global.tax_calculation_audit(
+    workspace_id,invoice_id,invoice_version,country_code,jurisdiction_id,currency_code,
+    rule_id,rule_version,invoice_date,taxable_minor,tax_minor,total_minor,calculation_snapshot,created_by
+  ) values (
+    p_workspace_id,p_invoice_id,p_invoice_version,v_country,v_jurisdiction,v_currency,
+    v_rule_id,v_rule_version,v_date,v_taxable,v_tax,v_total,p_snapshot,p_user_id
+  ) returning id into v_id;
+  return v_id;
+end;
+$function$;
+
+revoke all on function public.global_publish_tax_rule_version(uuid,text) from public, anon, authenticated;
+revoke all on function public.global_append_tax_calculation_audit(uuid,uuid,uuid,integer,jsonb) from public, anon, authenticated;
+grant execute on function public.global_publish_tax_rule_version(uuid,text) to service_role;
+grant execute on function public.global_append_tax_calculation_audit(uuid,uuid,uuid,integer,jsonb) to service_role;
+grant select on global.tax_rule_versions to service_role;
+grant select on global.tax_calculation_audit to authenticated, service_role;
+revoke insert, update, delete on global.tax_calculation_audit from anon, authenticated;
+grant insert on global.tax_calculation_audit to service_role;
+
+commit;
+
         or (c->>'rateBps')::numeric > 10000
     )
     or (select coalesce(sum((c->>'rateBps')::numeric),0) from jsonb_array_elements(v_rule.components) c) > 10000
