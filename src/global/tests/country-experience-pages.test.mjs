@@ -54,12 +54,12 @@ test("regional account activity and reports use workspace locale metadata", asyn
 test("India-only tools are not rendered for non-India workspaces in Global and unified builds", async () => {
   const source = await read("../../App.jsx");
   assert.match(source, /APP_EDITION === "global" \|\| isUnifiedBuild/);
-  assert.match(source, /isUnifiedBuild && Boolean\(user\?\.country_code && user\.country_code !== "IN"\)/);
+  assert.doesNotMatch(source, /isUnifiedBuild && Boolean\(user\?\.country_code && user\.country_code !== "IN"\)/);
   assert.match(source, /user\?\.country_code && user\.country_code !== "IN"/);
   for (const feature of ["Shared invoice links", "Usage reports", "Quick templates", "Payment logs", "Service catalog", "Team management"]) {
     assert.ok(source.includes(`feature="${feature}"`), `missing Global gate for ${feature}`);
   }
-  assert.match(source, /Open Global invoices/);
+  assert.match(source, /Open invoices/);
 });
 
 
@@ -86,10 +86,11 @@ test("public legal copy describes country-dependent tax workflows rather than GS
 });
 
 
-test("Unified Global dashboard is rendered through HomeGate and remains behind TrialGate", async () => {
+test("all unified countries use the Main Workspace dashboard; legacy Global builds remain isolated", async () => {
   const gate = await read("../../components/HomeGate.jsx");
   const app = await read("../../App.jsx");
-  assert.match(gate, /isUnifiedBuild && Boolean\(user\?\.country_code && user\.country_code !== "IN"\)/);
+  assert.match(gate, /const isGlobalWorkspace = !isUnifiedBuild && APP_EDITION === "global"/);
+  assert.doesNotMatch(gate, /isUnifiedBuild && Boolean\(user\?\.country_code/);
   assert.match(gate, /<TrialGate><AppLayout><GlobalApp section="overview" \/><\/AppLayout><\/TrialGate>/);
   assert.match(app, /path="\/dashboard" element=\{<HomeGate \/>\}/);
 });
