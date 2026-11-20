@@ -90,6 +90,7 @@ begin
         or v_tax_result->>'currencyCode' is distinct from upper(coalesce(p_currency_code,''))
         or v_tax_context->>'countryCode' is distinct from v_country
         or v_tax_context->>'mode' <> 'automatic'
+        or v_tax_context->>'taxTreatment' <> 'standard'
         or v_tax_context->>'priceMode' <> 'exclusive'
         or v_tax_context->>'taxDetailsConfirmed' <> 'true'
         or (v_country = 'CA' and v_tax_context->>'collectionObligationAttested' <> 'true')
@@ -132,6 +133,12 @@ begin
         return jsonb_build_object('ok',false,'reason','unverified_tax_rule');
       end if;
 
+      if v_country = 'GB' and v_tax_context->>'placeOfSupply' is distinct from 'United Kingdom'
+        or v_country = 'AE' and v_tax_context->>'placeOfSupply' is distinct from 'United Arab Emirates'
+        or v_country = 'AU' and v_tax_context->>'placeOfSupply' is distinct from 'Australia'
+        or v_country = 'SG' and v_tax_context->>'placeOfSupply' is distinct from 'Singapore' then
+        return jsonb_build_object('ok',false,'reason','invalid_tax_snapshot');
+      end if;
       if v_country = 'CA' then
         v_province := upper(v_tax_context->'destinationJurisdiction'->>'province');
         if v_tax_result->>'jurisdictionId' is distinct from v_province then
@@ -149,6 +156,9 @@ begin
             return jsonb_build_object('ok',false,'reason','unverified_tax_components');
           end if;
         else
+          if v_tax_context->>'taxCategory' is distinct from 'standard-rated' then
+            return jsonb_build_object('ok',false,'reason','unverified_tax_components');
+          end if;
           v_expected_component_name := case when v_province in ('NB','NL','NS','ON','PE') then 'HST' else 'GST' end;
           if jsonb_array_length(v_tax_result->'components') <> 1
             or v_tax_result->'components'->0->>'name' <> v_expected_component_name
@@ -157,7 +167,9 @@ begin
           end if;
         end if;
       else
-        if jsonb_array_length(v_tax_result->'components') <> 1
+        if v_tax_context->>'taxCategory' is distinct from 'standard-rated'
+          or jsonb_array_length(v_tax_result->'components') <> 1
+          or v_tax_result->'components'->0->>'name' is distinct from case when v_country in ('GB','AE') then 'VAT' else 'GST' end
           or (v_tax_result->'components'->0->>'rateBps')::numeric <> v_expected_rate then
           return jsonb_build_object('ok',false,'reason','unverified_tax_components');
         end if;
@@ -177,7 +189,8 @@ begin
       end if;
       for v_component in select value from jsonb_array_elements(v_tax_result->'components') loop
         v_expected_component_minor := round(v_taxable * (v_component->>'rateBps')::numeric / 10000)::bigint;
-        if (v_component->>'amountMinor')::bigint <> v_expected_component_minor then
+        if v_component->>'source' is distinct from v_expected_source
+          or (v_component->>'amountMinor')::bigint <> v_expected_component_minor then
           return jsonb_build_object('ok',false,'reason','tax_component_rate_mismatch');
         end if;
         v_component_tax := v_component_tax + (v_component->>'amountMinor')::bigint;
