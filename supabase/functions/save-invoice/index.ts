@@ -98,7 +98,7 @@ Deno.serve(async (req: Request) => {
       if (!existingInvoice) return json({ error: "Invoice not found in this workspace." }, 404, origin);
       if (existingInvoice.is_draft !== true) return json({ error: "Only draft invoices can be edited from this workflow." }, 409, origin);
     }
-    const { items, id, invoiceId: _ignored, ...data } = body;
+    const { items, id, invoiceId: _ignored, issue_invoice: _issueInvoice, ...data } = body;
     const isNonIndiaInvoice = countryCode !== "IN";
     const safeItems = items.map((it: Record<string, unknown>) => ({
       description: typeof it?.description === "string" ? it.description.slice(0, 500) : "",
@@ -108,10 +108,26 @@ Deno.serve(async (req: Request) => {
         ? { gst_rate: Number.isFinite(Number(it.gst_rate)) ? Math.max(0, Number(it.gst_rate)) : 0 }
         : {}),
     }));
-    const { data: saved, error } = await db.rpc("save_invoice", { _data: data, _items: safeItems, _invoice_id: invoiceId });
-    if (error || !saved?.id) {
-      const status = error?.code === "42501" ? 403 : error?.code === "P0002" ? 404 : 400;
-      return json({ error: error?.message || "Could not save invoice." }, status, origin);
+    let saved: Record<string, unknown> | null = null;
+    let issueError: { code?: string; message?: string } | null = null;
+    if (isNonIndiaInvoice && body?.issue_invoice === true) {
+      const calculation = body?.invoice_snapshot?.globalTaxCalculation;
+      if (calculation?.ok !== true || calculation?.status !== "not_applicable") {
+        return json({ error: "This release can issue commercial invoices only after explicit no-tax confirmation. Tax invoices remain gated until their country adapter is verified." }, 409, origin);
+      }
+      const { data: issuedResult, error } = await db.rpc("save_and_issue_commercial_invoice", {
+        _data: data, _items: safeItems, _invoice_id: invoiceId,
+      });
+      issueError = error;
+      if (!error && issuedResult?.invoice?.id) saved = issuedResult.invoice;
+    } else {
+      const { data: savedDraft, error } = await db.rpc("save_invoice", { _data: data, _items: safeItems, _invoice_id: invoiceId });
+      issueError = error;
+      if (!error && savedDraft?.id) saved = savedDraft;
+    }
+    if (issueError || !saved?.id) {
+      const status = issueError?.code === "42501" ? 403 : issueError?.code === "P0002" ? 404 : 400;
+      return json({ error: issueError?.message || "Could not save invoice." }, status, origin);
     }
 
     // Keep non-India invoice drafts connected to the canonical CRM customer record.
