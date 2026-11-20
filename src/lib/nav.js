@@ -31,6 +31,12 @@ export const navItems = [
 ];
 
 export const MORE_NAV_ITEMS = [
+  // Keep the existing secondary workspace shortcuts in More.
+  { to: "/client-database", label: "Client database", icon: Users, roles: ["admin", "employee"] },
+  { to: "/usage-reports", label: "Usage reports", icon: BarChart3, roles: ["admin", "accountant"] },
+  { to: "/service-catalog", label: "Service catalog", icon: Package, roles: ["admin", "employee"] },
+  { to: "/payment-logs", label: "Payment logs", icon: CreditCard, roles: ["admin", "accountant"] },
+  // These six destinations were moved from primary navigation into More.
   { to: "/invoice-history", label: "Invoice history", icon: History, roles: ALL },
   { to: "/invoice-shares", label: "Shared invoice links", icon: Link2, roles: ["admin"] },
   { to: "/business-profile", label: "Business profile", icon: Store, roles: ["admin"] },
