@@ -69,13 +69,19 @@ returns trigger
 language plpgsql
 set search_path = pg_catalog, public
 as $function$
+declare
+  v_country text;
 begin
   if tg_op = 'DELETE' then
+    select country_code into v_country from public.workspace_settings where workspace_id=old.workspace_id;
+    if v_country='IN' then return old; end if;
     if old.is_draft is distinct from true then
       raise exception using errcode='55000', message='Issued invoices cannot be deleted';
     end if;
     return old;
   end if;
+  select country_code into v_country from public.workspace_settings where workspace_id=old.workspace_id;
+  if v_country='IN' then return new; end if;
   if old.is_draft is distinct from true then
     if new.is_draft is distinct from false
       or new.workspace_id is distinct from old.workspace_id
@@ -123,17 +129,22 @@ set search_path = pg_catalog, public
 as $function$
 declare
   v_is_draft boolean;
+  v_country text;
 begin
   if tg_op='UPDATE' or tg_op='DELETE' then
-    select is_draft into v_is_draft from public.invoices where id=old.invoice_id for update;
+    select i.is_draft,ws.country_code into v_is_draft,v_country
+    from public.invoices i left join public.workspace_settings ws on ws.workspace_id=i.workspace_id
+    where i.id=old.invoice_id for update of i;
     if not found and tg_op='DELETE' then return old; end if;
-    if v_is_draft is distinct from true then
+    if coalesce(v_country,'IN')<>'IN' and v_is_draft is distinct from true then
       raise exception using errcode='55000', message='Issued invoice lines are immutable';
     end if;
   end if;
   if tg_op='INSERT' or tg_op='UPDATE' then
-    select is_draft into v_is_draft from public.invoices where id=new.invoice_id for update;
-    if v_is_draft is distinct from true then
+    select i.is_draft,ws.country_code into v_is_draft,v_country
+    from public.invoices i left join public.workspace_settings ws on ws.workspace_id=i.workspace_id
+    where i.id=new.invoice_id for update of i;
+    if coalesce(v_country,'IN')<>'IN' and v_is_draft is distinct from true then
       raise exception using errcode='55000', message='Issued invoice lines are immutable';
     end if;
   end if;
