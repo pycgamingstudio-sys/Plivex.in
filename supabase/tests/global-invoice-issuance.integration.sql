@@ -12,6 +12,9 @@ DECLARE
   v_reconciliation jsonb;
   v_us_draft jsonb;
   v_us_issue jsonb;
+  v_discounted_draft jsonb;
+  v_discounted_issue jsonb;
+  v_discounted_invoice_id uuid;
   v_invoice_id uuid;
   v_payment_id uuid;
   v_invoice global.invoices%rowtype;
@@ -85,6 +88,50 @@ BEGIN
   SELECT * INTO v_line FROM global.invoice_items WHERE invoice_id=v_invoice_id LIMIT 1;
   IF v_line.tax_rate_bps<>2000 OR v_line.tax_minor<>2000 OR v_line.line_total_minor<>12000 THEN
     RAISE EXCEPTION 'GB invoice line VAT values are inconsistent: %',row_to_json(v_line);
+  END IF;
+
+  -- Line discounts are already netted by draft creation. Issuance must tax
+  -- each discounted line once, not tax gross lines or apply the discount twice.
+  v_discounted_draft := public.global_create_invoice_draft(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    'GBP','2026-11-15','2026-12-15','Discounted line VAT test',
+    jsonb_build_array(
+      jsonb_build_object('description','Line one','quantity',1,'unit_price_minor',10000,'discount_minor',1000),
+      jsonb_build_object('description','Line two','quantity',1,'unit_price_minor',20000,'discount_minor',3000)
+    ),
+    'a0000000-0000-4000-8000-000000000003'
+  );
+  IF v_discounted_draft->>'ok'<>'true'
+    OR (v_discounted_draft->'invoice'->>'subtotal_minor')::bigint<>30000
+    OR (v_discounted_draft->'invoice'->>'discount_minor')::bigint<>4000
+    OR (v_discounted_draft->'invoice'->>'total_minor')::bigint<>26000 THEN
+    RAISE EXCEPTION 'Discounted invoice draft totals are inconsistent: %',v_discounted_draft;
+  END IF;
+  v_discounted_invoice_id := (v_discounted_draft->'invoice'->>'id')::uuid;
+  v_discounted_issue := public.global_issue_invoice(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    v_discounted_invoice_id,
+    '{"registration_confirmed":true,"place_of_supply_confirmed":true,"tax_category_confirmed":true,"tax_category":"standard-rated","mode":"automatic","price_mode":"exclusive","place_of_supply":"United Kingdom"}'::jsonb,
+    'a5555555-5555-4555-8555-555555555555'
+  );
+  IF v_discounted_issue->>'ok'<>'true'
+    OR (v_discounted_issue->'invoice'->>'tax_minor')::bigint<>5200
+    OR (v_discounted_issue->'invoice'->>'total_minor')::bigint<>31200 THEN
+    RAISE EXCEPTION 'Discounted invoice tax was not calculated from net line amounts: %',v_discounted_issue;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM global.invoice_items
+    WHERE invoice_id=v_discounted_invoice_id AND description='Line one'
+      AND discount_minor=1000 AND tax_minor=1800 AND line_total_minor=10800
+  ) OR NOT EXISTS (
+    SELECT 1 FROM global.invoice_items
+    WHERE invoice_id=v_discounted_invoice_id AND description='Line two'
+      AND discount_minor=3000 AND tax_minor=3400 AND line_total_minor=20400
+  ) THEN
+    RAISE EXCEPTION 'Per-line discounted VAT breakdown is inconsistent';
   END IF;
 
   v_rejected := false;
