@@ -111,6 +111,7 @@ test("Australian GST-free disclosure is distinct from zero-rated and exempt", ()
     taxCharged: false, taxMinor: 0, totalMinor: 10000,
     ruleSnapshot: { ...rule, treatment: "gst-free", taxCategoryId: "AU_GST_FREE_BASIC_FOOD" },
     taxCategory: "AU_GST_FREE_BASIC_FOOD",
+    components: [{ id: "AU-GST-FREE", name: "GST", rateBps: 0, amountMinor: 0 }],
     countryCode: "AU", currencyCode: "AUD",
   } });
   assert.equal(gstFree.ok, true);
