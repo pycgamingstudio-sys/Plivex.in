@@ -34,10 +34,10 @@ const ACTIONS = [
 
 function DemoCard({ icon: Icon, label, value, sub, gradient }) {
   return (
-    <div className={`rounded-2xl bg-gradient-to-br ${gradient} p-4 text-white shadow-sm`}>
-      <div className="flex items-center justify-between"><span className="text-[11px] font-semibold uppercase tracking-wider text-white/75">{label}</span><Icon className="h-4 w-4 text-white/85" /></div>
-      <p className="mt-2 text-[20px] font-bold leading-none">{value}</p>
-      <p className="mt-1.5 text-[11px] text-white/80">{sub}</p>
+    <div className={`plivex-hover-lift min-w-0 rounded-2xl bg-gradient-to-br ${gradient} p-4 text-white shadow-sm ring-1 ring-black/[.035]`}>
+      <div className="flex items-center justify-between gap-2"><span className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/85">{label}</span><Icon className="h-4 w-4 text-white/85" /></div>
+      <p className="mt-2 break-words text-[clamp(1.1rem,2vw,1.4rem)] font-bold leading-tight tracking-[-0.035em]">{value}</p>
+      <p className="mt-1.5 break-words text-[10px] leading-relaxed text-white/85 sm:text-[11px]">{sub}</p>
     </div>
   );
 }
