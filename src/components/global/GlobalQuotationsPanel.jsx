@@ -255,6 +255,13 @@ export default function GlobalQuotationsPanel({ account }) {
         y += 12; doc.setFont(undefined, "normal"); doc.setFontSize(8); doc.setTextColor(100, 100, 100);
         const note = "Quotation only — not a tax invoice. Tax is an estimate based on the selected, source-backed rule and business-confirmed transaction details. Recheck tax treatment before issuing the invoice.";
         doc.text(doc.splitTextToSize(note, pageWidth - 32), 16, Math.min(y, 280));
+      } else if (quotation.tax_status === "not_applicable" && taxResult?.status === "not_applicable") {
+        doc.setFontSize(13); doc.setFont(undefined, "bold");
+        doc.text("No tax charged", 16, y); y += 9;
+        doc.setFont(undefined, "normal"); doc.setFontSize(8); doc.setTextColor(100, 100, 100);
+        doc.text("Total: " + formatMoney(quotation.total_minor, quotation.currency_code, locale), 16, y); y += 8;
+        const note = "Quotation only — not a tax invoice. No tax is charged based on the business's explicit confirmation. This is not a zero-rated or exempt treatment and has not been independently verified by Plivex.";
+        doc.text(doc.splitTextToSize(note, pageWidth - 32), 16, Math.min(y, 280));
       } else {
         const note = "TAX REVIEW REQUIRED — tax has not been calculated. The displayed total excludes tax. Do not send this quotation as a final tax-inclusive price. Complete the verified tax calculation before marking it as sent.";
         doc.setTextColor(170, 70, 20);
@@ -307,7 +314,7 @@ export default function GlobalQuotationsPanel({ account }) {
               {selected.quotation.tax_status === "calculated" && <div className="flex justify-between gap-3"><span className="text-slate-500">Taxable amount</span><span>{formatMoney(selected.quotation.taxable_minor, selected.quotation.currency_code, locale)}</span></div>}
               {selected.quotation.tax_status === "calculated" && (selected.quotation.tax_snapshot?.taxResult?.components || []).map((component) => <div key={component.id} className="flex justify-between gap-3"><span className="text-slate-500">{component.name} ({Number(component.rateBps) / 100}%)</span><span>{formatMoney(component.amountMinor, selected.quotation.currency_code, locale)}</span></div>)}
               {selected.quotation.tax_status === "calculated" && <div className="flex justify-between gap-3"><span className="text-slate-500">Total tax</span><span>{formatMoney(selected.quotation.tax_minor, selected.quotation.currency_code, locale)}</span></div>}
-              <div className="flex justify-between gap-3 font-bold"><span>Total {selected.quotation.tax_status === "calculated" ? "including tax" : "(tax review pending)"}</span><span>{formatMoney(selected.quotation.total_minor, selected.quotation.currency_code, locale)}</span></div>
+              <div className="flex justify-between gap-3 font-bold"><span>Total {selected.quotation.tax_status === "calculated" ? "including tax" : selected.quotation.tax_status === "not_applicable" ? "(no tax charged)" : "(tax review pending)"}</span><span>{formatMoney(selected.quotation.total_minor, selected.quotation.currency_code, locale)}</span></div>
             </div>
             {selected.quotation.notes && <p className="mt-3 text-xs leading-5 text-slate-600">{selected.quotation.notes}</p>}
             <button type="button" className={secondary + " mt-4 w-full"} onClick={() => downloadPdf(selected)}><Download className="h-4 w-4" /> Download PDF</button>
