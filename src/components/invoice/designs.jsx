@@ -31,6 +31,7 @@ function initials(name) {
 
 function itemTaxLabel(invoice, item) {
   const calculation = invoice.globalTaxCalculation;
+  if (calculation?.ok && calculation.status === "not_applicable") return "No tax charged · commercial invoice";
   if (calculation?.ok && calculation.status !== "india_legacy") return (calculation.components || []).map((component) => `${component.name} ${Number(component.rateBps) / 100}%`).join(" + ") || calculation.taxName || "Tax";
   if (invoice.globalTax?.countryCode && invoice.globalTax.countryCode !== "IN") return "Tax pending review";
   return `GST ${item.gstRate ?? invoice.taxRate}%`;
@@ -80,7 +81,7 @@ function Totals({ invoice, subtotal, discount, discountValue, taxValue, total, m
       {discountValue > 0 && <div className="flex justify-between text-[#77758a]"><span>Discount {invoice.discountType === "percent" ? `(${discount}%)` : ""}</span><span>-{money(discountValue, invoice.currency)}</span></div>}
       {calculation ? (
         <>
-          <div className="flex justify-between text-[#77758a]"><span>Taxable amount</span><span>{money(calculation.taxableMinor / 100, invoice.currency)}</span></div>
+          <div className="flex justify-between text-[#77758a]"><span>{calculation.status === "not_applicable" ? "Invoice amount (tax not assessed)" : "Taxable amount"}</span><span>{money(calculation.taxableMinor / 100, invoice.currency)}</span></div>
           {calculation.status === "not_applicable"
             ? <p className="text-[11px] text-amber-800">{calculation.disclosure || "Tax not assessed — commercial invoice."}</p>
             : (calculation.components || []).map((component) => <div key={component.id} className="flex justify-between text-[#77758a]"><span>{component.name} ({component.rateBps / 100}%)</span><span>{money(component.amountMinor / 100, invoice.currency)}</span></div>)}
