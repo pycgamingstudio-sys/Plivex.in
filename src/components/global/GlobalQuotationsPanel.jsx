@@ -240,11 +240,10 @@ export default function GlobalQuotationsPanel({ account }) {
       doc.text("Discount: " + formatMoney(quotation.discount_minor, quotation.currency_code, locale), 16, y); y += 8;
       doc.setFontSize(13); doc.setFont(undefined, "bold");
       doc.text((quotation.tax_status === "calculated" ? "Taxable amount: " : "Amount before tax: ") + formatMoney(quotation.taxable_minor ?? quotation.total_minor, quotation.currency_code, locale), 16, y);
-      y += 13; doc.setFont(undefined, "normal"); doc.setFontSize(8); doc.setTextColor(100, 100, 100);
+      y += 8; doc.setFont(undefined, "normal"); doc.setFontSize(8); doc.setTextColor(100, 100, 100);
       const taxSnapshot = quotation.tax_snapshot;
       const taxResult = taxSnapshot?.taxResult;
       if (quotation.tax_status === "calculated" && taxResult?.status === "calculated") {
-        doc.text("Taxable amount: " + formatMoney(quotation.taxable_minor, quotation.currency_code, locale), 16, y); y += 7;
         for (const component of taxResult.components || []) {
           doc.text(String(component.name || "Tax") + " (" + Number(component.rateBps) / 100 + "%): " + formatMoney(component.amountMinor, quotation.currency_code, locale), 16, y); y += 6;
         }
@@ -304,7 +303,8 @@ export default function GlobalQuotationsPanel({ account }) {
               <div className="flex justify-between gap-3"><span className="text-slate-500">Valid until</span><span>{selected.quotation.valid_until || "Not specified"}</span></div>
               <div className="flex justify-between gap-3"><span className="text-slate-500">Line items</span><span>{selected.items?.length || 0}</span></div>
               {selected.quotation.tax_status === "calculated" && <div className="flex justify-between gap-3"><span className="text-slate-500">Taxable amount</span><span>{formatMoney(selected.quotation.taxable_minor, selected.quotation.currency_code, locale)}</span></div>}
-              {selected.quotation.tax_status === "calculated" && <div className="flex justify-between gap-3"><span className="text-slate-500">Tax</span><span>{formatMoney(selected.quotation.tax_minor, selected.quotation.currency_code, locale)}</span></div>}
+              {selected.quotation.tax_status === "calculated" && (selected.quotation.tax_snapshot?.taxResult?.components || []).map((component) => <div key={component.id} className="flex justify-between gap-3"><span className="text-slate-500">{component.name} ({Number(component.rateBps) / 100}%)</span><span>{formatMoney(component.amountMinor, selected.quotation.currency_code, locale)}</span></div>)}
+              {selected.quotation.tax_status === "calculated" && <div className="flex justify-between gap-3"><span className="text-slate-500">Total tax</span><span>{formatMoney(selected.quotation.tax_minor, selected.quotation.currency_code, locale)}</span></div>}
               <div className="flex justify-between gap-3 font-bold"><span>Total {selected.quotation.tax_status === "calculated" ? "including tax" : "(tax review pending)"}</span><span>{formatMoney(selected.quotation.total_minor, selected.quotation.currency_code, locale)}</span></div>
             </div>
             {selected.quotation.notes && <p className="mt-3 text-xs leading-5 text-slate-600">{selected.quotation.notes}</p>}
@@ -342,7 +342,7 @@ export default function GlobalQuotationsPanel({ account }) {
             <p className="mt-1 text-xs leading-5 text-slate-500">Uses the same country tax engine as invoices. Tax is calculated only when the current verified rule, seller registration and supply details are available.</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <label className="text-xs font-semibold text-slate-600">Place of supply
-                {countryCode === "GB" ? <select className={field + " mt-1"} value={taxContext.placeOfSupply} onChange={(e) => setTaxContext((v) => ({ ...v, placeOfSupply: e.target.value, taxDetailsConfirmed: false }))}><option value="">Select place</option><option value="United Kingdom">United Kingdom</option></select> : <input className={field + " mt-1"} value={taxContext.placeOfSupply} maxLength={180} placeholder="Supply destination / place" onChange={(e) => setTaxContext((v) => ({ ...v, placeOfSupply: e.target.value, taxDetailsConfirmed: false }))} />}
+                {["GB","AE","AU","SG"].includes(countryCode) ? <select className={field + " mt-1"} value={taxContext.placeOfSupply} onChange={(e) => setTaxContext((v) => ({ ...v, placeOfSupply: e.target.value, taxDetailsConfirmed: false }))}><option value="">Select place</option>{countryCode === "GB" && <option value="United Kingdom">United Kingdom</option>}{countryCode === "AE" && <option value="United Arab Emirates">United Arab Emirates</option>}{countryCode === "AU" && <option value="Australia">Australia</option>}{countryCode === "SG" && <option value="Singapore">Singapore</option>}</select> : <input className={field + " mt-1"} value={taxContext.placeOfSupply} maxLength={180} placeholder="Supply destination / place" onChange={(e) => setTaxContext((v) => ({ ...v, placeOfSupply: e.target.value, taxDetailsConfirmed: false }))} />}
               </label>
               {countryCode === "CA" && <label className="text-xs font-semibold text-slate-600">Destination province / territory
                 <select className={field + " mt-1"} value={taxContext.destinationJurisdiction.province} onChange={(e) => setTaxContext((v) => ({ ...v, destinationJurisdiction: { ...v.destinationJurisdiction, province: e.target.value }, taxDetailsConfirmed: false }))}>
