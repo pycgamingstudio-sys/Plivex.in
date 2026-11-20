@@ -30,27 +30,21 @@ test("all countries in the unified build stay on the canonical Main Workspace ro
   assert.match(app, /Workspace country/);
   assert.doesNotMatch(app, />Global workspace</);
 });
-test("unified authentication resolves workspace country before selecting regional handlers", () => {
+test("unified authentication never resolves or activates a Global workspace", () => {
   const auth = read("../../lib/AuthContext.jsx");
   const backend = read("../../api/backendClient.js");
-  assert.match(auth, /resolveSignedInEdition\(currentUser\)/);
-  assert.match(auth, /resolveWorkspaceEdition\(countryCode, supportedCodes\)/);
-  assert.ok(auth.includes('setRuntimeEdition(edition, { verifiedGlobal: edition === "global" && Boolean(globalUser) });'));
-  const unifiedResolver = auth.slice(auth.indexOf("async function resolveSignedInEdition"), auth.indexOf("export const AuthProvider"));
-  assert.match(unifiedResolver, /if \(isUnifiedBuild\)[\s\S]*?global-auth-context/);
-  assert.match(unifiedResolver, /globalUser\.workspace_id/);
-  assert.match(unifiedResolver, /setRuntimeEdition\("global", \{ verifiedGlobal: true \}\)/);
-  assert.match(unifiedResolver, /globalUser\.id !== currentUser\?\.id/);
-  assert.match(unifiedResolver, /profileCountry === "IN"/);
-  assert.match(unifiedResolver, /Always resolve the server-owned Global membership/);
-  assert.ok(unifiedResolver.indexOf('supabase.functions.invoke("global-auth-context"') < unifiedResolver.indexOf('profileCountry === "IN"'));
-  assert.doesNotMatch(unifiedResolver, /if \(!countryCode \|\| countryCode === "IN"\)/);
+  const unifiedResolver = auth.slice(auth.indexOf("async function resolveSignedInEdition"), auth.indexOf("const existingCountry"));
+  assert.match(unifiedResolver, /if \(isUnifiedBuild\)/);
+  assert.doesNotMatch(unifiedResolver, /global-auth-context/);
+  assert.match(unifiedResolver, /setRuntimeEdition\("india"\)/);
+  assert.match(unifiedResolver, /currentUser\?\.country_code/);
+  assert.match(backend, /if \(isUnifiedBuild && edition === "global"\) return false/);
+  assert.match(auth, /const shouldResolveGlobal = APP_EDITION === "global" \|\| isUnifiedBuild \|\| countryCode !== 'IN'/);
+  assert.match(auth, /globalUser\.workspace_id/);
+  assert.match(auth, /setRuntimeEdition\("global", \{ verifiedGlobal: true \}\)/);
   assert.match(auth, /const wasGlobalWorkspace = APP_EDITION === 'global'/);
   assert.match(auth, /migrateLegacy: !wasGlobalWorkspace/);
-  assert.match(backend, /export let APP_EDITION/);
-  assert.match(backend, /export const isUnifiedBuild/);
 });
-
 test("Global country onboarding uses the shared Plivex brand", () => {
   const onboarding = read("../../components/global/GlobalCountryOnboarding.jsx");
   assert.match(onboarding, /<p className="text-sm font-semibold text-primary">Plivex<\/p>/);
