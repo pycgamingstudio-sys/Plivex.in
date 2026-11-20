@@ -77,7 +77,7 @@ test("Unified Main Workspace issues explicitly confirmed commercial invoices thr
   assert.match(unifiedMigration, /set_config\('plivex\.invoice_issuance','on',true\)/);
   assert.match(unifiedMigration, /Issued invoice content is immutable/);
   assert.match(home, /const issuedInvoice = saved\.issued/);
-  assert.match(home, /globalTaxCalculation\?\.status === "not_applicable"/);
+  assert.match(home, /globalTaxCalculation\.status === "not_applicable"/);
   assert.match(stores, /issue_invoice: isGlobalWorkspaceInvoice && issueInvoice/);
   assert.match(history, /isDraft/);
 });
