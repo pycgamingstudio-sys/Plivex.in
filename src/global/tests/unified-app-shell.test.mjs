@@ -16,26 +16,20 @@ test("payment callback routing preserves unconditional hook order", () => {
   assert.ok(component.indexOf("const { isLoadingAuth") < component.indexOf('if (window.location.pathname === "/payment-result")'));
 });
 
-test("India and Global experiences share the same Plivex application shell and navigation", () => {
+test("all countries in the unified build stay on the canonical Main Workspace routes", () => {
   const app = read("../../App.jsx");
   const backend = read("../../api/backendClient.js");
-  const layout = read("../../components/AppLayout.jsx");
-  const global = read("../../global/GlobalApp.jsx");
-  assert.doesNotMatch(app, /return <AppLayout><GlobalApp \/><\/AppLayout>/);
-  assert.match(app, /<AuthProvider>/);
-  assert.ok(app.includes('<Route path="/dashboard" element={<HomeGate />} />'));
   const homeGate = read("../../components/HomeGate.jsx");
-  assert.ok(homeGate.includes("<TrialGate><AppLayout><GlobalApp section=\"overview\" /></AppLayout></TrialGate>"));
+  const auth = read("../../lib/AuthContext.jsx");
+  assert.match(app, /const isGlobalWorkspace = !isUnifiedBuild && APP_EDITION === "global"/);
+  assert.match(homeGate, /const isGlobalWorkspace = !isUnifiedBuild && APP_EDITION === "global"/);
+  assert.match(auth, /if \(isUnifiedBuild\) \{[\\s\\S]*setRuntimeEdition\("india"\)/);
+  assert.match(backend, /if \(isUnifiedBuild && edition === "global"\) return false/);
   assert.ok(app.includes('<Route path="/invoice-history" element={isGlobalWorkspace ? <GlobalApp section="invoices" /> : <InvoiceHistory />} />'));
-  assert.match(layout, /GLOBAL_NAV/);
-  assert.match(layout, /Global Workspace/);
-  assert.ok(layout.includes('<NavLink key={item.to} to={item.to}'));
-  assert.doesNotMatch(layout, /useSearchParams|setSearchParams/);
-  assert.doesNotMatch(global, /useSearchParams|setSearchParams/);
-  assert.match(backend, /UNIFIED_EDITION_ID/);
-  assert.doesNotMatch(app, /window\.location\.hostname/);
+  assert.doesNotMatch(app, /isUnifiedBuild && Boolean\(user\?\.country_code && user\.country_code !== "IN"\)/);
+  assert.match(app, /Workspace country/);
+  assert.doesNotMatch(app, />Global workspace</);
 });
-
 test("unified authentication resolves workspace country before selecting regional handlers", () => {
   const auth = read("../../lib/AuthContext.jsx");
   const backend = read("../../api/backendClient.js");
