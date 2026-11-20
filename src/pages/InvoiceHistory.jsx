@@ -4,12 +4,13 @@ import { useAuth } from "@/lib/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { createRoot } from "react-dom/client";
 import { InvoicePreview } from "./Home";
-import { History, Trash2, Eye, Download } from "lucide-react";
+import { History, Trash2, Eye, Download, Share2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import PageShell from "@/components/PageShell";
 import { KEYS, loadList, removeItem, saveList, saveState } from "@/lib/stores";
 import { APP_EDITION, backend, supabase } from "@/api/backendClient";
 import GlobalInvoicesPanel from "@/components/global/GlobalInvoicesPanel";
+import { createInvoicePdfBlob, getInvoicePdfFilename } from "@/lib/invoicePdfShare";
 
 const money = (v, c = "INR") => formatMoney(Number(v) || 0, c);
 const dateLabel = (v, locale = "en-US") => (v ? new Date(v).toLocaleDateString(locale, { day: "2-digit", month: "short", year: "numeric" }) : "—");
@@ -115,6 +116,31 @@ export default function InvoiceHistory() {
       setReminderMessage(error?.message || "Could not save customer email.");
     } finally {
       setEmailSavingId("");
+    }
+  };
+  const shareInvoicePdf = async (it) => {
+    if (!it?.invoiceSnapshot && (!Array.isArray(it?.items) || it.items.length === 0)) {
+      setReminderMessage("This invoice does not contain enough saved details to create a PDF share.");
+      return;
+    }
+    try {
+      const blob = await createInvoicePdfBlob(it, user?.currency_code || "INR");
+      const file = new File([blob], getInvoicePdfFilename(it), { type: "application/pdf" });
+      const message = `Hello ${it.clientName || "there"}, your invoice ${it.number || ""} from ${it.businessName || "our business"} is ready.`;
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: `Invoice ${it.number || ""}`, text: message });
+        setReminderMessage("Choose WhatsApp, Gmail, or another app to send the invoice PDF.");
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = getInvoicePdfFilename(it);
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+      window.open(`https://wa.me/?text=${encodeURIComponent(message + " — The PDF is downloaded; please attach it to this message.")}`, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      if (error?.name !== "AbortError") setReminderMessage(error?.message || "Could not share this invoice.");
     }
   };
   const downloadOldInvoice = async (it) => {
@@ -268,6 +294,7 @@ export default function InvoiceHistory() {
               <div className="flex items-center gap-3">
                 <p className="text-[16px] font-bold tracking-[-0.03em]">{money(it.total, it.currency || user?.currency_code)}</p>
                 <button onClick={() => setView(it)} className="rounded-lg border p-2 hover:bg-secondary" aria-label="View invoice"><Eye className="h-4 w-4" /></button>\n                <button onClick={() => downloadOldInvoice(it)} disabled={!!downloadingId} className="rounded-lg border p-2 text-primary hover:bg-secondary disabled:opacity-50" aria-label="Download old invoice PDF" title="Download PDF"><Download className="h-4 w-4" /></button>
+                <button onClick={() => shareInvoicePdf(it)} className="rounded-lg border p-2 text-emerald-700 hover:bg-emerald-50" aria-label="Share invoice PDF" title="Share PDF"><Share2 className="h-4 w-4" /></button>
                 <button onClick={() => remove(it.id)} className="rounded-lg border p-2 text-destructive hover:bg-destructive/10" aria-label="Delete invoice"><Trash2 className="h-4 w-4" /></button>
               </div>
             </div>

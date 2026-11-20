@@ -48,6 +48,7 @@ import {
   RotateCcw,
   Scissors,
   Send,
+  Share2,
   Settings2,
   ShieldCheck,
   Sparkles,
@@ -164,12 +165,12 @@ function Sidebar({ onNew, onPricing }) {
   );
 }
 
-function Topbar({ isDark, isPremium, onToggleTheme, onDownload, onWhatsApp, onEmail, onSms, onPricing, onMenu, canDownload = true, canShare = true, planName = "Free", whatsappSending = false, manualShareBusy = false, pdfDownloading = false }) {
+function Topbar({ isDark, isPremium, onToggleTheme, onDownload, onWhatsApp, onEmail, onSms, onNativeShare, onPricing, onMenu, canDownload = true, canShare = true, planName = "Free", whatsappSending = false, manualShareBusy = false, pdfDownloading = false }) {
   return (
     <header className="app-chrome sticky top-0 z-20 flex min-w-0 items-center justify-between gap-1 border-b bg-background/90 px-2.5 backdrop-blur-xl sm:gap-3 sm:px-7">
       <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3"><button data-testid="button-mobile-menu" onClick={onMenu} className="rounded-md p-2 hover:bg-secondary md:hidden"><Menu className="h-5 w-5" /></button><div className="flex items-center gap-2 md:hidden"><Logo className="h-7 w-7" /><p className="text-[15px] font-bold tracking-[-0.04em]">Pli<span className="text-primary">vex</span></p></div><div className="hidden md:block"><div className="flex items-center gap-2 text-[11px] text-muted-foreground"><span>Workspace</span><span>/</span><span className="font-medium text-foreground">Invoice desk</span></div><h1 className="mt-0.5 text-[16px] font-bold tracking-[-0.03em]">New invoice <span className="ml-1 rounded-md bg-accent/20 px-1.5 py-0.5 font-mono-ui text-[9px] font-medium text-accent-foreground">DRAFT</span></h1></div></div>
       <div className="ml-auto flex min-w-0 shrink items-center gap-1 sm:gap-3"><div className="hidden items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-[11px] text-muted-foreground sm:flex"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Saved locally <span className="font-mono-ui text-[10px] text-foreground/70">just now</span></div><div data-testid="usage-badge" className="flex shrink-0 items-center gap-1 rounded-full border bg-card px-1.5 py-1.5 text-[10px] font-semibold sm:gap-1.5 sm:px-2.5 sm:text-[11px]"><Zap className="h-3.5 w-3.5 text-accent-foreground" /><span className="font-mono-ui">{isPremium ? "∞" : "Free"}</span><span className="hidden sm:inline text-muted-foreground">{isPremium ? planName : "Free plan"}</span></div><button data-testid="button-toggle-theme" onClick={onToggleTheme} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border bg-card text-muted-foreground sm:h-9 sm:w-9 transition-colors hover:border-primary/40 hover:text-primary" aria-label="Toggle dark mode">{isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button><button data-testid="button-pricing-topbar-mobile" onClick={onPricing} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border bg-card text-primary sm:h-9 sm:w-9 transition-colors hover:border-primary/45 sm:hidden" aria-label="Pricing plans"><Sparkles className="h-4 w-4" /></button>
-<button data-testid="button-pricing-topbar" onClick={onPricing} className="hidden rounded-lg border px-3 py-2 text-[12px] font-semibold text-foreground transition-colors hover:border-primary/45 hover:text-primary sm:block">{isPremium ? "Pro plan" : "Pricing"}</button><DropdownMenu><DropdownMenuTrigger asChild><button type="button" data-testid="button-more-sharing-options" aria-label="More invoice sharing options" title="More sharing options" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-60" disabled={manualShareBusy || whatsappSending || pdfDownloading}><MoreHorizontal className="h-4 w-4" /></button></DropdownMenuTrigger><DropdownMenuContent align="end" sideOffset={8} className="z-[60] w-52"><DropdownMenuItem data-testid="menu-share-whatsapp" onSelect={onWhatsApp} className="cursor-pointer py-2.5"><MessageCircle className="h-4 w-4 text-emerald-600" />Share via WhatsApp{!canShare && <LockKeyhole className="ml-auto h-3.5 w-3.5" />}</DropdownMenuItem><DropdownMenuItem data-testid="menu-share-gmail" onSelect={onEmail} className="cursor-pointer py-2.5"><Mail className="h-4 w-4 text-rose-600" />Share via Gmail{!canShare && <LockKeyhole className="ml-auto h-3.5 w-3.5" />}</DropdownMenuItem><DropdownMenuItem data-testid="menu-share-sms" onSelect={onSms} className="cursor-pointer py-2.5"><MessageSquareText className="h-4 w-4 text-blue-600" />Share via SMS{!canShare && <LockKeyhole className="ml-auto h-3.5 w-3.5" />}</DropdownMenuItem></DropdownMenuContent></DropdownMenu><button data-testid="button-download-topbar" onClick={onDownload} disabled={pdfDownloading} aria-live="polite" className={`flex shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-2.5 text-[12px] font-bold text-primary-foreground transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-80 sm:gap-2 sm:px-3.5 ${canDownload ? "bg-primary" : "bg-muted"}`}><Download className={`h-3.5 w-3.5 ${pdfDownloading ? "animate-pulse" : ""}`} /><span>{pdfDownloading ? "Preparing…" : <><span className="sm:hidden">PDF</span><span className="hidden sm:inline">Download PDF</span></>}</span>{!canDownload && !pdfDownloading && <LockKeyhole className="h-3.5 w-3.5" />}</button></div>
+<button data-testid="button-pricing-topbar" onClick={onPricing} className="hidden rounded-lg border px-3 py-2 text-[12px] font-semibold text-foreground transition-colors hover:border-primary/45 hover:text-primary sm:block">{isPremium ? "Pro plan" : "Pricing"}</button><DropdownMenu><DropdownMenuTrigger asChild><button type="button" data-testid="button-more-sharing-options" aria-label="More invoice sharing options" title="More sharing options" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-60" disabled={manualShareBusy || whatsappSending || pdfDownloading}><MoreHorizontal className="h-4 w-4" /></button></DropdownMenuTrigger><DropdownMenuContent align="end" sideOffset={8} className="z-[60] w-52"><DropdownMenuItem data-testid="menu-share-whatsapp" onSelect={onWhatsApp} className="cursor-pointer py-2.5"><MessageCircle className="h-4 w-4 text-emerald-600" />Share via WhatsApp{!canShare && <LockKeyhole className="ml-auto h-3.5 w-3.5" />}</DropdownMenuItem><DropdownMenuItem data-testid="menu-share-gmail" onSelect={onEmail} className="cursor-pointer py-2.5"><Mail className="h-4 w-4 text-rose-600" />Share via Gmail{!canShare && <LockKeyhole className="ml-auto h-3.5 w-3.5" />}</DropdownMenuItem><DropdownMenuItem data-testid="menu-share-sms" onSelect={onSms} className="cursor-pointer py-2.5"><MessageSquareText className="h-4 w-4 text-blue-600" />Share via SMS{!canShare && <LockKeyhole className="ml-auto h-3.5 w-3.5" />}</DropdownMenuItem></DropdownMenuContent></DropdownMenu><button type="button" data-testid="button-native-share-topbar" onClick={onNativeShare} disabled={manualShareBusy || whatsappSending || pdfDownloading} aria-label="Share invoice PDF" title="Share invoice PDF" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-card text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50 disabled:opacity-50"><Share2 className="h-4 w-4" /></button><button data-testid="button-download-topbar" onClick={onDownload} disabled={pdfDownloading} aria-live="polite" className={`flex shrink-0 items-center justify-center gap-1 rounded-lg px-2 py-2.5 text-[12px] font-bold text-primary-foreground transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-80 sm:gap-2 sm:px-3.5 ${canDownload ? "bg-primary" : "bg-muted"}`}><Download className={`h-3.5 w-3.5 ${pdfDownloading ? "animate-pulse" : ""}`} /><span>{pdfDownloading ? "Preparing…" : <><span className="sm:hidden">PDF</span><span className="hidden sm:inline">Download PDF</span></>}</span>{!canDownload && !pdfDownloading && <LockKeyhole className="h-3.5 w-3.5" />}</button></div>
     </header>
   );
 }
@@ -1032,6 +1033,46 @@ export default function Home() {
       setWhatsappSending(false);
     }
   };
+  const handleNativeShare = async () => {
+    if (!canAccess("whatsapp_share")) { openPaywall("Invoice file sharing is available on Pro."); return; }
+    if (manualShareBusy || whatsappSending || pdfDownloading) return;
+    if ((Number.isFinite(remaining("invoices_monthly")) && remaining("invoices_monthly") <= 0) || (Number.isFinite(remaining("invoices")) && remaining("invoices") <= 0)) { openPaywall("Invoice limit reached for your current plan."); return; }
+    if (!requireValid({ allowGlobalDraftExport: isGlobalWorkspace })) return;
+    setManualShareBusy(true);
+    notify("Saving invoice and preparing PDF…", "info", 0);
+    try {
+      const savedInvoice = await recordInvoice();
+      if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
+      if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
+        setInvoice((current) => ({ ...current, number: savedInvoice.number }));
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      }
+      const pdf = await renderPdfDocument();
+      if (!pdf) throw new Error("Invoice preview is not ready. Please try again.");
+      const safeNumber = savedInvoice?.number || invoice.number || "INV-000";
+      const safeFilename = `Plivex_${String(safeNumber).replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "")}.pdf`;
+      const blob = pdf.output("blob");
+      const file = new File([blob], safeFilename, { type: "application/pdf" });
+      if (typeof navigator.share === "function" && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: `Invoice ${safeNumber}`, text: `Invoice ${safeNumber} from ${invoice.business.name || "our business"} for ${money(computeTotal(invoiceForPreview), invoiceForPreview.currency)}.` });
+        recordActivity("Shared invoice PDF", "share");
+        notify("Invoice PDF shared. Choose the app and recipient in the share sheet.");
+      } else {
+        downloadPdfBlob(pdf, safeFilename);
+        notify("Your browser does not support file sharing here. The invoice PDF has been downloaded.");
+      }
+    } catch (error) {
+      if (error?.name === "AbortError") notify("Sharing cancelled. Your invoice is saved.", "info");
+      else {
+        const message = String(error?.message || "");
+        if (message.startsWith("PLAN_LIMIT_REACHED|")) openPaywall("Invoice limit reached: " + message.split("|").slice(1).join(" · "));
+        else if (message.startsWith("PLAN_FEATURE_LOCKED|")) openPaywall("This feature requires an upgrade: " + message.split("|").slice(1).join(" · "));
+        else notify(message || "Could not prepare invoice sharing. Please try again.", "error");
+      }
+    } finally {
+      setManualShareBusy(false);
+    }
+  };
   const shareViaEmailOrSms = async (channel) => {
     if (!canAccess("whatsapp_share")) { openPaywall("Gmail and SMS invoice sharing are available on Pro."); return; }
     if (manualShareBusy || whatsappSending || pdfDownloading) return;
@@ -1098,7 +1139,7 @@ export default function Home() {
     <div className="app-shell flex bg-background">
       <Sidebar onNew={newInvoice} onPricing={() => setPricingOpen(true)} />
       <div className="min-w-0 flex-1">
-        <Topbar isDark={isDark} isPremium={isPremium} onToggleTheme={() => setIsDark((value) => !value)} onDownload={download} onWhatsApp={handleWhatsApp} onEmail={() => shareViaEmailOrSms("email")} onSms={() => shareViaEmailOrSms("sms")} onPricing={() => setPricingOpen(true)} onMenu={() => setMobileMenuOpen(true)} canDownload={canAccess("download_pdf") && (!Number.isFinite(remaining("invoices_monthly")) || remaining("invoices_monthly") > 0) && (!Number.isFinite(remaining("invoices")) || remaining("invoices") > 0)} canShare={canAccess("whatsapp_share")} planName={planName} whatsappSending={whatsappSending} manualShareBusy={manualShareBusy} pdfDownloading={pdfDownloading} />
+        <Topbar isDark={isDark} isPremium={isPremium} onToggleTheme={() => setIsDark((value) => !value)} onDownload={download} onWhatsApp={handleWhatsApp} onEmail={() => shareViaEmailOrSms("email")} onSms={() => shareViaEmailOrSms("sms")} onNativeShare={handleNativeShare} onPricing={() => setPricingOpen(true)} onMenu={() => setMobileMenuOpen(true)} canDownload={canAccess("download_pdf") && (!Number.isFinite(remaining("invoices_monthly")) || remaining("invoices_monthly") > 0) && (!Number.isFinite(remaining("invoices")) || remaining("invoices") > 0)} canShare={canAccess("whatsapp_share")} planName={planName} whatsappSending={whatsappSending} manualShareBusy={manualShareBusy} pdfDownloading={pdfDownloading} />
         <MobileMenu open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} onNew={newInvoice} onPricing={() => { setMobileMenuOpen(false); setPricingOpen(true); }} />
         <main className="mx-auto w-full max-w-[1600px] min-w-0 p-3 sm:p-5 lg:p-7">
           <div className="mb-5 flex items-end justify-between gap-4 md:hidden"><div><p className="font-mono-ui text-[10px] uppercase tracking-widest text-primary">Invoice desk</p><h1 className="mt-1 text-[24px] font-bold tracking-[-0.05em]">Make it official.</h1></div><span className="rounded-full border bg-card px-2.5 py-1.5 text-[10px] text-muted-foreground"><span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />Autosaved</span></div>
