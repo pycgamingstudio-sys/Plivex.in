@@ -80,7 +80,7 @@ const CA_PROVINCE_RULES = Object.freeze({
   ON: { name: "Ontario", components: [{ id: "CA-ON-HST", name: "HST", rateBps: 1300 }] },
   PE: { name: "Prince Edward Island", components: [{ id: "CA-PE-HST", name: "HST", rateBps: 1500 }] },
   SK: { name: "Saskatchewan", components: [{ id: "CA-SK-GST", name: "GST", rateBps: 500 }, { id: "CA-SK-PST", name: "PST", rateBps: 600 }] },
-  QC: { name: "Quebec", components: [{ id: "CA-QC-GST", name: "GST", rateBps: 500 }, { id: "CA-QC-QST", name: "QST", rateBps: 997.5 }] },
+  QC: { name: "Quebec", components: [{ id: "CA-QC-GST", name: "GST", rateBps: 500 }] },
   YT: { name: "Yukon", components: [{ id: "CA-YT-GST", name: "GST", rateBps: 500 }] },
 });
 const CA_RATE_SOURCE = "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html";
@@ -281,6 +281,7 @@ export function getTaxRuleSet(countryCode, options = {}) {
     const province = typeof options.jurisdictionId === "string" ? options.jurisdictionId.trim().toUpperCase() : "";
     const entry = CA_PROVINCE_RULES[province];
     if (!entry) return { ok: false, status: "jurisdiction_required", code: "CANADIAN_PROVINCE_REQUIRED", countryCode: code, profile: { ...profile }, catalogVersion: TAX_RULE_CATALOG_VERSION };
+    if (province === "QC") return { ok: false, status: "jurisdiction_required", code: "CANADIAN_QST_PRECISION_ENGINE_REQUIRED", countryCode: code, profile: { ...profile }, catalogVersion: TAX_RULE_CATALOG_VERSION };
     const asOfDate = options.asOfDate;
     if (asOfDate !== undefined && !validDate(asOfDate)) return { ok: false, status: "invalid_date", code: "INVALID_RULE_AS_OF_DATE", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION };
     if (asOfDate && asOfDate < "2025-04-01" && province === "NS") {
