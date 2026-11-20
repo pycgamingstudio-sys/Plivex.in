@@ -10,6 +10,7 @@ const sharing = readFileSync(new URL("../../lib/invoiceShare.js", import.meta.ur
 const publicPage = readFileSync(new URL("../../pages/PublicInvoicePage.jsx", import.meta.url), "utf8");
 const sanitizer = readFileSync(new URL("../../../supabase/functions/_shared/public-invoice-sanitizer.mjs", import.meta.url), "utf8");
 const designs = readFileSync(new URL("../../components/invoice/designs.jsx", import.meta.url), "utf8");
+const shareEdge = readFileSync(new URL("../../../supabase/functions/invoice-share/index.ts", import.meta.url), "utf8");
 
 test("Main Workspace commercial issuance is limited to the six non-India country/currency pairs", () => {
   assert.match(migration, /v_settings\.country_code not in \('GB','US','AE','CA','AU','SG'\)/);
@@ -73,6 +74,7 @@ test("Public invoice links distinguish issued commercial invoices from drafts an
   assert.match(publicPage, /taxDisclosure/);
   assert.match(designs, /invoiceDocumentTitle\(invoice\)/);
   assert.match(designs, /Commercial Invoice/);
+  assert.match(shareEdge, /is_draft,subtotal,discount,tax_value/);
 });
 
 test("Unified invoice reminders are enabled for all Main Workspace countries and localized by currency", () => {
