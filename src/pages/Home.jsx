@@ -959,11 +959,11 @@ export default function Home() {
     try {
       // Persist first: the server assigns the official invoice number and deducts stock
       // exactly once. This prevents WhatsApp sharing from creating an unsaved invoice.
-      const savedInvoice = await recordInvoice();
+      const savedInvoice = await recordInvoice({ issueInvoice: isGlobalWorkspace && globalTaxCalculation?.ok === true && globalTaxCalculation.status === "not_applicable" });
       if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
       const shareLink = await createInvoiceShareLink(savedInvoice.id);
       if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
-        setInvoice((current) => ({ ...current, number: savedInvoice.number }));
+        setInvoice((current) => ({ ...current, id: savedInvoice.id, number: savedInvoice.number, documentStatus: savedInvoice.issued ? "issued" : current.documentStatus }));
         // Let React update the visible invoice preview before rasterizing it.
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       }
@@ -1050,7 +1050,7 @@ export default function Home() {
     try {
       const savedInvoice = await recordInvoice();
       if (!savedInvoice?.id) throw new Error("Invoice could not be saved. Please try again.");
-      const shareLink = await createInvoiceShareLink(savedInvoice.id, user?.workspace_id, isGlobalWorkspace);
+      const shareLink = await createInvoiceShareLink(savedInvoice.id);
       if (savedInvoice?.number && savedInvoice.number !== invoice.number) {
         setInvoice((current) => ({ ...current, number: savedInvoice.number }));
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
