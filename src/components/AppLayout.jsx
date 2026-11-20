@@ -40,21 +40,19 @@ export default function AppLayout({ children }) {
   });
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur-xl">
+      <header className="sticky top-0 z-20 border-b border-[#E8E7EF] bg-white/95 shadow-[0_1px_2px_rgba(24,24,40,.025)] backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
             <NavLink to="/" className="flex shrink-0 items-center gap-2">
               <Logo className="h-8 w-8" />
               <p className="text-[15px] font-bold tracking-[-0.04em]">Pli<span className="text-primary">vex</span></p>
             </NavLink>
-            {isGlobal ? (
-              <div className="hidden min-w-0 items-center gap-2 sm:flex">
-                <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-semibold text-violet-800">Global Workspace</span>
-                <span className="truncate text-[11px] text-muted-foreground">{user?.workspace_name} · {getCountryByCode(user?.country_code)?.name || user?.country_code} · {user?.currency_code}</span>
-              </div>
-            ) : (
-              <span className="hidden rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-semibold text-violet-800 sm:inline-flex">Workspace · {getCountryByCode(user?.country_code)?.name || "Choose country"}</span>
-            )}
+            <div className="hidden min-w-0 items-center gap-2 sm:flex">
+              <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-semibold text-violet-800">Workspace</span>
+              <span className="max-w-[22rem] truncate text-[11px] text-muted-foreground">
+                {[user?.workspace_name, getCountryByCode(user?.country_code)?.name || user?.country_code, user?.currency_code].filter(Boolean).join(" · ") || "Set up your workspace"}
+              </span>
+            </div>
           </div>
           {isGlobal ? (
             <div className="flex shrink-0 items-center gap-2">
