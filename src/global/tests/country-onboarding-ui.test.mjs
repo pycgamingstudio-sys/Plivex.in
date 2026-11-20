@@ -28,7 +28,7 @@ test("Global onboarding asks for a business name and omits a redundant single-la
   assert.match(onboarding, /full_name: businessName\.trim\(\)/);
 });
 
-test("Global settings hide the India-only Hindi language toggle", async () => {
+test("language availability remains country-aware inside the unified Plivex product", async () => {
   const settings = await read("../../pages/Settings.jsx");
   const switcher = await read("../../components/LanguageSwitcher.jsx");
   assert.match(settings, /showHindi=\{APP_EDITION !== "global"\}/);
