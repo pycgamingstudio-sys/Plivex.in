@@ -140,6 +140,12 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
     const components = Array.isArray(config.components) ? config.components : [];
     if (!components.length) return fail("MANUAL_COMPONENTS_REQUIRED", "Add at least one tax component and its rate.");
     if (components.some((item) => !String(item?.id || "").trim() || !String(item?.name || "").trim() || !Number.isInteger(Number(item.rateBps)) || Number(item.rateBps) <= 0 || Number(item.rateBps) > 10000)) return fail("MANUAL_COMPONENT_INVALID", "Every manual tax component needs a name and an explicit rate greater than 0% and no more than 100%. Zero-rated/exempt treatments need a separately verified rule.");
+    if (countryCode === "CA" && ["BC", "MB", "SK"].includes(String(config.destinationJurisdiction?.province || "").trim().toUpperCase())) {
+      const province = String(config.destinationJurisdiction.province).trim().toUpperCase();
+      if (config.taxCategory !== `CA_${province}_PST_TAXABLE_GOODS`) {
+        return fail("CANADIAN_PST_TAXABILITY_REQUIRED", "This province has a separate PST/RST. Confirm that every line is a taxable tangible good before adding the provincial component.");
+      }
+    }
     if (countryCode === "US" || countryCode === "CA") {
       const jurisdiction = config.destinationJurisdiction || {};
       const required = countryCode === "US"
