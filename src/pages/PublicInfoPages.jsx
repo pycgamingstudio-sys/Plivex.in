@@ -87,7 +87,7 @@ const FEATURES = [
 export function AboutPage() {
   return <PublicShell title="About Plivex" subtitle="Meet the people and purpose behind Plivex, one connected billing and business management workspace for teams wherever they operate.">
     <div className="rounded-3xl border border-[#E8E7EF] bg-white p-3.5 shadow-[0_12px_40px_rgba(36,24,72,.06)] sm:p-8">
-      <div className="mb-6 flex flex-col items-start gap-4 rounded-2xl bg-violet-50 p-5 sm:flex-row sm:items-center">
+      <div className="mb-6 flex flex-col items-start gap-4 rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-5 sm:flex-row sm:items-center">
         <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Developer of Plivex" width="88" height="88" loading="eager" className="h-20 w-20 rounded-full border-4 border-white object-cover shadow-sm sm:h-22 sm:w-22" />
         <div><p className="text-xs font-bold uppercase tracking-wider text-violet-700">Developer</p><h2 className="mt-1 text-xl font-bold">Yashvant Sharma</h2><p className="mt-1 text-sm text-slate-600">Developer of Plivex</p><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-700">Building practical business software to make everyday billing and business management simpler for small businesses.</p></div>
       </div>
