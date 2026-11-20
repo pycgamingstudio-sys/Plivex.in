@@ -46,7 +46,10 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const moreDialogRef = useDialogA11y(moreOpen, () => setMoreOpen(false));
-  useEffect(() => { try { localStorage.setItem("plivex-main-workspace-theme", isDark ? "dark" : "light"); } catch { /* preference storage is optional */ } }, [isDark]);
+  useEffect(() => {
+    try { localStorage.setItem("plivex-main-workspace-theme", isDark ? "dark" : "light"); } catch { /* preference storage is optional */ }
+    document.documentElement.dataset.plivexTheme = isDark ? "dark" : "light";
+  }, [isDark]);
   const navigate = useNavigate();
   const { isPremium, openPaywall, planName, plan, planLoading, canAccess } = usePaywall();
   const { user } = useAuth();
