@@ -135,6 +135,16 @@ const RULES = Object.freeze({
 
 const TREATMENT_RULES = Object.freeze([
   freezeRule({
+    id: "CA-GST-ZERO-RATED-BASIC-GROCERIES-2026-11", version: "2026.11",
+    countryCode: "CA", currencyCode: "CAD", taxName: "GST/HST",
+    treatment: "zero-rated", taxCategoryId: "CA_ZERO_RATED_BASIC_GROCERIES",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "1991-01-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html",
+    sourceAuthority: "Canada Revenue Agency", scope: "country", coverage: "basic-groceries-zero-rated-across-canada-only",
+    components: [{ id: "CA-GST-HST-ZERO", name: "GST/HST", rateBps: 0, source: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html" }],
+  }),
+  freezeRule({
     id: "AE-VAT-ZERO-RATED-EXPORTS-2026-11", version: "2026.11",
     countryCode: "AE", currencyCode: "AED", taxName: "VAT",
     treatment: "zero-rated", taxCategoryId: "AE_ZERO_RATED_EXPORTS",
@@ -159,7 +169,7 @@ const TREATMENT_RULES = Object.freeze([
   freezeRule({
     id: "AU-GST-FREE-BASIC-FOOD-2026-11", version: "2026.11",
     countryCode: "AU", currencyCode: "AUD", taxName: "GST",
-    treatment: "zero-rated", taxCategoryId: "AU_GST_FREE_BASIC_FOOD",
+    treatment: "gst-free", taxCategoryId: "AU_GST_FREE_BASIC_FOOD",
     rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
     effectiveFrom: "2000-07-01", effectiveTo: null, reviewedOn: "2026-11-20",
     source: "https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/when-to-charge-gst-and-when-not-to/gst-free-sales",
@@ -314,7 +324,7 @@ export function getTaxRuleSet(countryCode, options = {}) {
  */
 export function getTaxTreatmentRuleSet(countryCode, { treatment, taxCategoryId, asOfDate } = {}) {
   const code = normalizeTaxCountryCode(countryCode);
-  if (!code || !["reduced", "zero-rated", "exempt", "out-of-scope"].includes(treatment)
+  if (!code || !["reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"].includes(treatment)
     || typeof taxCategoryId !== "string" || !taxCategoryId.trim()) {
     return { ok: false, status: "invalid_treatment_rule_request", code: "TREATMENT_AND_CATEGORY_REQUIRED", catalogVersion: TAX_RULE_CATALOG_VERSION };
   }
