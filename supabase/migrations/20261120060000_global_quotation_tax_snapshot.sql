@@ -99,6 +99,7 @@ begin
         or v_tax_context->>'mode' is distinct from 'automatic'
         or v_treatment not in ('standard','reduced','zero-rated','gst-free','exempt','out-of-scope')
         or v_tax_context->>'taxTreatment' is distinct from v_treatment
+        or v_tax_result->>'taxCategory' is distinct from v_tax_context->>'taxCategory'
         or v_tax_context->>'priceMode' is distinct from 'exclusive'
         or v_tax_context->>'taxDetailsConfirmed' is distinct from 'true'
         or (v_country = 'CA' and v_tax_context->>'collectionObligationAttested' is distinct from 'true')
@@ -225,6 +226,10 @@ begin
         end if;
         v_province := upper(coalesce(v_tax_context->'destinationJurisdiction'->>'province',''));
         v_rule_jurisdiction := case when v_country='CA' then v_province else null end;
+        if v_country='CA' and (v_province not in ('AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT')
+          or v_tax_result->>'jurisdictionId' is distinct from v_province) then
+          return jsonb_build_object('ok',false,'reason','unverified_special_treatment_jurisdiction');
+        end if;
         select count(*)::integer into v_rule_count
         from global.tax_rule_versions r
         where r.country_code=v_country and r.currency_code=upper(p_currency_code)
