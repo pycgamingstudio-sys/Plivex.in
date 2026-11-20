@@ -13,7 +13,7 @@ const E_INVOICE = Object.freeze({
   SG: Object.freeze({ countryCode:"SG", status:"phased_requirement_provider_required", network:"InvoiceNow (Peppol)", submission:"disabled", note:"GST InvoiceNow obligations are phased by registration/cohort and implementation date. No InvoiceNow-ready access point is configured.", source:"https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/gst-invoicenow-requirement" }),
 });
 const COUNTRY_CURRENCY = Object.freeze({ IN:"INR", US:"USD", GB:"GBP", AE:"AED", CA:"CAD", AU:"AUD", SG:"SGD" });
-const TAX_TREATMENTS = new Set(["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"]);
+const TAX_TREATMENTS = new Set(["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope", "reverse-charge"]);
 const NO_CHARGE_TREATMENTS = new Set(["zero-rated", "gst-free", "exempt", "out-of-scope"]);
 const TAX_DISCLOSURES = Object.freeze({
   standard: "Tax charged at the verified standard rate.",
@@ -22,6 +22,7 @@ const TAX_DISCLOSURES = Object.freeze({
   "gst-free": "GST-free supply — no GST charged under the selected verified Australian GST-free category. This is distinct from input-taxed supplies.",
   exempt: "Exempt supply — no tax charged under the selected verified rule.",
   "out-of-scope": "Outside the scope of this tax system under the selected verified rule.",
+  "reverse-charge": "Reverse charge applies under the selected verified rule. The registered buyer accounts for the tax; it is not added to the seller's invoice payable total.",
 });
 const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const validDate = (value) => {
@@ -55,9 +56,10 @@ export function createGlobalInvoiceTaxSnapshot(input) {
     return fail("TAX_RESULT_NOT_ISSUABLE", "Only a successful, country-matched calculated tax result can be snapshotted. Manual estimates and review results remain drafts.");
   }
   if (result.currencyCode !== COUNTRY_CURRENCY[countryCode] || result.currencyMinorUnits !== 2) return fail("SNAPSHOT_CURRENCY_INVALID", "Tax snapshot currency and precision must match the workspace country.");
+  const isReverseCharge = result.treatment === "reverse-charge";
   if (!TAX_TREATMENTS.has(result.treatment) || result.taxDisclosure !== TAX_DISCLOSURES[result.treatment]
     || typeof result.taxCharged !== "boolean"
-    || (NO_CHARGE_TREATMENTS.has(result.treatment) !== (result.taxCharged === false))
+    || (result.taxCharged !== (!NO_CHARGE_TREATMENTS.has(result.treatment) && !isReverseCharge))
     || (!result.taxCharged && result.taxMinor !== 0)) {
     return fail("TAX_TREATMENT_SNAPSHOT_INVALID", "A supported tax treatment, its distinct disclosure and consistent tax-charged state are required.");
   }
@@ -78,20 +80,25 @@ export function createGlobalInvoiceTaxSnapshot(input) {
   }
   if (!Number.isSafeInteger(result.taxableMinor) || result.taxableMinor < 0
     || !Number.isSafeInteger(result.taxMinor) || result.taxMinor < 0
-    || !Number.isSafeInteger(result.totalMinor) || result.totalMinor !== result.taxableMinor + result.taxMinor
+    || !Number.isSafeInteger(result.totalMinor)
+    || result.totalMinor !== result.taxableMinor + result.taxMinor
+    || (isReverseCharge && (!Number.isSafeInteger(result.reverseChargeTaxMinor) || result.reverseChargeTaxMinor <= 0 || result.totalMinor !== result.taxableMinor))
+    || (!isReverseCharge && (result.reverseChargeTaxMinor || 0) !== 0)
     || !Array.isArray(result.components) || result.components.length < 1
     || result.components.some((item) => !isRecord(item) || !String(item.id || "").trim()
       || !Number.isSafeInteger(item.amountMinor) || item.amountMinor < 0)) {
     return fail("TAX_TOTALS_INVALID", "Tax totals and component amounts must be consistent integer minor-unit values.");
   }
   const componentTotal = result.components.reduce((sum, item) => sum + item.amountMinor, 0);
-  if (componentTotal !== result.taxMinor) return fail("TAX_COMPONENT_TOTAL_MISMATCH", "Tax component amounts do not match the calculated tax total.");
+  const expectedComponentTotal = isReverseCharge ? result.reverseChargeTaxMinor : result.taxMinor;
+  if (componentTotal !== expectedComponentTotal) return fail("TAX_COMPONENT_TOTAL_MISMATCH", "Tax component amounts do not match the calculated tax total.");
   const snapshot = {
     schemaVersion:"2", countryCode, invoiceDate:input.invoiceDate,
     currencyCode:result.currencyCode, currencyMinorUnits:result.currencyMinorUnits,
     engineVersion:result.engineVersion || null, rule:{ ...rule },
     treatment:result.treatment, taxDisclosure:result.taxDisclosure,
     taxCharged:result.taxCharged, taxCategory:result.taxCategory || rule.taxCategoryId || null,
+    reverseChargeBuyerAccounting:isReverseCharge, reverseChargeTaxMinor:isReverseCharge ? result.reverseChargeTaxMinor : 0,
     priceMode:result.priceMode,
     taxableMinor:result.taxableMinor, taxMinor:result.taxMinor, totalMinor:result.totalMinor,
     components:result.components.map((item) => ({ ...item })),
