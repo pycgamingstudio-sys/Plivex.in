@@ -201,10 +201,6 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   };
 
   const issueInvoice = async () => {
-    if (taxContext.taxTreatment !== "standard") {
-      setError("This special tax treatment is preview-only until its server-side invoice rule is verified. Keep this invoice as a draft.");
-      return;
-    }
     if (!selected || selected.status !== "draft") return;
     setBusy(true); setError(""); setNotice("");
     try {
@@ -222,8 +218,19 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
             price_mode:taxContext.priceMode || "",
             place_of_supply:taxContext.placeOfSupply || "",
             destination_jurisdiction:taxContext.destinationJurisdiction || {},
+            jurisdiction_id:countryCode === "US" ? [
+              "US",
+              String(taxContext.destinationJurisdiction?.state || "").toUpperCase(),
+              String(taxContext.destinationJurisdiction?.county || "").toUpperCase().replace(/[^A-Z0-9]+/g, ""),
+              String(taxContext.destinationJurisdiction?.city || "").toUpperCase().replace(/[^A-Z0-9]+/g, ""),
+              String(taxContext.destinationJurisdiction?.postal_code || "").trim(),
+            ].join("|") : undefined,
             collection_obligation_attested:taxContext.collectionObligationAttested === true,
             tax_details_confirmed:taxContext.taxDetailsConfirmed === true,
+            buyer_registration_confirmed:taxContext.buyerRegistrationConfirmed === true,
+            reverse_charge_conditions_confirmed:taxContext.reverseChargeConditionsConfirmed === true,
+            buyer_country_code:countryCode,
+            buyer_registration_number:clients.find((client) => client.id === selected.client_id)?.tax_registration_number || "",
           },
         },
       });
