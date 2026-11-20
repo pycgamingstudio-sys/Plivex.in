@@ -74,10 +74,10 @@ export default function AboutSection({ showFounderPhotos = true } = {}) {
               <p className="text-xs text-white/75">Developer, Plivex</p>
             </div>
           </div>
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
             {STATS.map((s) => (
-              <div key={s.label} className="rounded-2xl bg-white/10 px-4 py-3 text-center">
-                <p className="text-[22px] font-bold leading-none">{s.value}</p>
+              <div key={s.label} className="rounded-2xl border border-white/10 bg-white/[.12] px-3 py-3 text-center backdrop-blur-sm sm:px-4">
+                <p className="text-[21px] font-bold leading-none tracking-[-0.035em] sm:text-[22px]">{s.value}</p>
                 <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/70">{s.label}</p>
               </div>
             ))}
