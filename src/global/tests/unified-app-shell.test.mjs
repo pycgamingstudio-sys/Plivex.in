@@ -83,3 +83,8 @@ test("shared CRM, warehouse, transfers and procurement are gated by Workspace pr
   assert.match(nav, /label: "CRM & leads"/);
   assert.match(nav, /label: "Inventory & procurement"/);
 });
+
+test("unified non-India workspaces do not hit legacy Global-only feature gates", () => {
+  const app = read("../../App.jsx");
+  assert.match(app, /if \(!isUnifiedBuild && APP_EDITION === "global" && user\?\.country_code && user\.country_code !== "IN"\)/);
+});
