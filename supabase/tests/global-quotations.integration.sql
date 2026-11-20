@@ -11,7 +11,9 @@ DECLARE
   v_converted jsonb;
   v_convert_retry jsonb;
   v_unaccepted jsonb;
+  v_special_quote jsonb;
   v_quote_id uuid;
+  v_special_quote_id uuid;
   v_invoice_id uuid;
   v_invoice global.invoices%rowtype;
   v_key uuid := 'b1111111-1111-4111-8111-111111111111';
@@ -33,6 +35,46 @@ BEGIN
     RAISE EXCEPTION 'Global quotation creation or totals failed: %',v_created;
   END IF;
   v_quote_id := (v_created->'quotation'->>'id')::uuid;
+
+  -- Special treatment quotations must match a published server rule, not just
+  -- a browser-supplied zero/reduced rate.
+  v_special_quote := public.global_manage_quotation_with_tax(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'create',NULL,'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','GBP',
+    current_date,current_date+14,'UK reduced-rate quotation test',
+    jsonb_build_array(jsonb_build_object('description','Qualifying domestic fuel and power','quantity',1,'unit_price_minor',10000,'discount_minor',0)),
+    NULL,'b3333333-3333-4333-8333-333333333333',
+    jsonb_build_object(
+      'taxContext',jsonb_build_object(
+        'countryCode','GB','mode','automatic','priceMode','exclusive',
+        'taxTreatment','reduced','taxCategory','GB_REDUCED_DOMESTIC_FUEL_POWER',
+        'taxDetailsConfirmed',true,'placeOfSupply','United Kingdom'
+      ),
+      'taxResult',jsonb_build_object(
+        'ok',true,'status','calculated','mode','automatic','priceMode','exclusive',
+        'invoiceDate',current_date::text,'currencyCode','GBP','countryCode','GB',
+        'treatment','reduced','taxCategory','GB_REDUCED_DOMESTIC_FUEL_POWER',
+        'taxableMinor',10000,'taxMinor',500,'totalMinor',10500,
+        'ruleSnapshot',jsonb_build_object(
+          'id','GB-VAT-REDUCED-DOMESTIC-FUEL-POWER-2026-11','version','2026.11',
+          'treatment','reduced','taxCategoryId','GB_REDUCED_DOMESTIC_FUEL_POWER',
+          'source','https://www.gov.uk/vat-rates'
+        ),
+        'components',jsonb_build_array(jsonb_build_object(
+          'id','GB-VAT-REDUCED-DOMESTIC-FUEL-POWER','name','VAT',
+          'rateBps',500,'amountMinor',500,'source','https://www.gov.uk/vat-rates'
+        ))
+      )
+    )
+  );
+  IF v_special_quote->>'ok'<>'true'
+    OR (v_special_quote->'quotation'->>'tax_minor')::bigint<>500
+    OR (v_special_quote->'quotation'->>'total_minor')::bigint<>10500
+    OR v_special_quote->'quotation'->>'tax_status'<>'calculated' THEN
+    RAISE EXCEPTION 'Server did not validate and persist UK reduced-rate quotation tax: %',v_special_quote;
+  END IF;
+  v_special_quote_id := (v_special_quote->'quotation'->>'id')::uuid;
 
   v_retry := public.global_manage_quotation(
     '66666666-6666-4666-8666-666666666666',
