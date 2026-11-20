@@ -100,7 +100,7 @@ Deno.serve(async (req: Request) => {
       if (!existingInvoice) return json({ error: "Invoice not found in this workspace." }, 404, origin);
       if (existingInvoice.is_draft !== true) return json({ error: "Only draft invoices can be edited from this workflow." }, 409, origin);
     }
-    const { items, id, invoiceId: _ignored, issue_invoice: _issueInvoice, ...data } = body;
+    const { items, id, invoiceId: _ignored, issue_invoice: _issueInvoice, issue_idempotency_key: _issueKey, ...data } = body;
     const isNonIndiaInvoice = countryCode !== "IN";
     const safeItems = items.map((it: Record<string, unknown>) => ({
       description: typeof it?.description === "string" ? it.description.slice(0, 500) : "",
@@ -118,7 +118,7 @@ Deno.serve(async (req: Request) => {
         return json({ error: "This release can issue commercial invoices only after explicit no-tax confirmation. Tax invoices remain gated until their country adapter is verified." }, 409, origin);
       }
       const { data: issuedResult, error } = await db.rpc("save_and_issue_commercial_invoice", {
-        _data: data, _items: safeItems, _invoice_id: invoiceId,
+        _data: data, _items: safeItems, _idempotency_key: body.issue_idempotency_key, _invoice_id: invoiceId,
       });
       issueError = error;
       if (!error && issuedResult?.invoice?.id) saved = issuedResult.invoice;
