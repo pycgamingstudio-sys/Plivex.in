@@ -171,12 +171,13 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
       {(isUS || isCA) && (
         <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">
           <p className="font-bold">Jurisdiction-specific rates are not auto-filled.</p>
-          <p className="mt-1">US state/local rates still require exact address-level rules. Canadian provincial baseline rates are selected by province; product-specific PST exceptions and Quebec QST precision remain review-only. Manual rates are user-entered and unverified.</p>
+          <p className="mt-1">US issuance requires an exact published state/county/city/ZIP rule; a missing local rule blocks issuance. Canadian provincial baselines are selected by province; product-specific PST exceptions and Quebec QST precision remain review-only. Manual rates are user-entered and unverified.</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {isUS ? <>
               <label className={labelClass}>Destination state code<input className={fieldClass} maxLength={8} value={config.destinationJurisdiction?.state || ""} onChange={(e) => updateJurisdiction("state", e.target.value.toUpperCase())} placeholder="e.g. CA" /></label>
               <label className={labelClass}>Destination county<input className={fieldClass} maxLength={100} value={config.destinationJurisdiction?.county || ""} onChange={(e) => updateJurisdiction("county", e.target.value)} /></label>
               <label className={labelClass}>Destination city<input className={fieldClass} maxLength={100} value={config.destinationJurisdiction?.city || ""} onChange={(e) => updateJurisdiction("city", e.target.value)} /></label>
+              <label className={labelClass}>Destination ZIP code<input className={fieldClass} maxLength={10} value={config.destinationJurisdiction?.postal_code || ""} onChange={(e) => updateJurisdiction("postal_code", e.target.value)} placeholder="e.g. 90012" /></label>
             </> : <>
               <label className={labelClass}>Destination province / territory code<select className={fieldClass} value={config.destinationJurisdiction?.province || ""} onChange={(e) => updateJurisdiction("province", e.target.value)}>
                 <option value="">Select province / territory</option>
