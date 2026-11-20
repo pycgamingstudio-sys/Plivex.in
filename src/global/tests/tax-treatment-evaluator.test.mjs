@@ -20,6 +20,7 @@ const makeRule = (treatment, rateBps) => ({
   countryCode: "GB",
   currencyCode: "GBP",
   treatment,
+  taxCategoryId: "confirmed-supply-category",
   verified: true,
   reviewedBy: "Independent rule review",
   reviewedOn: "2026-11-01",
@@ -69,7 +70,7 @@ test("a zero rate cannot be mislabeled as standard or reduced and vice versa", (
   assert.equal(positiveAsExempt.code, "TREATMENT_RATE_MISMATCH");
 });
 
-test("treatment must match the verified rule and unsupported reverse charge fails closed", () => {
+test("non-standard treatments require an exact product/service tax category match", () => {\n  const missingCategory = calculateGlobalTax({\n    ...base, treatment: "reduced", rule: { ...makeRule("reduced", 500), taxCategoryId: "food-only" },\n  });\n  assert.equal(missingCategory.code, "TREATMENT_CATEGORY_RULE_REQUIRED");\n});\n\ntest("treatment must match the verified rule and unsupported reverse charge fails closed", () => {
   const mismatch = calculateGlobalTax({
     ...base, treatment: "reduced", rule: makeRule("standard", 2000),
   });
