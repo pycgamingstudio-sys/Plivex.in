@@ -354,15 +354,26 @@ const TREATMENT_RULES = Object.freeze([
     components: [{ id: "GB-VAT-RC-CONSTRUCTION-REDUCED", name: "Recipient-accounted VAT", rateBps: 500, source: "https://www.gov.uk/guidance/how-to-use-the-vat-reverse-charge-if-you-supply-building-and-construction-services" }],
   }),
   freezeRule({
+    id: "AE-VAT-REVERSE-CHARGE-PRECIOUS-METALS-2026-11", version: "2026.11",
+    countryCode: "AE", currencyCode: "AED", taxName: "VAT reverse charge",
+    treatment: "reverse-charge", taxCategoryId: "AE_REVERSE_CHARGE_PRECIOUS_METALS_STONES",
+    rateBps: 500, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2025-02-15", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://tax.gov.ae/Datafolder/Files/Legislation/Cabinet-Decision-No-127-of-2024-on-Reverse-Charge-Mechanism-for-Precious-Metals.pdf",
+    sourceAuthority: "UAE Federal Tax Authority", scope: "country",
+    coverage: "qualifying-precious-metals-stones-and-jewelry-only; recipient-registration-resale-or-manufacturing-intent-and-pre-supply-declarations-required",
+    components: [{ id: "AE-VAT-RC-PRECIOUS-METALS", name: "Recipient-accounted VAT", rateBps: 500, source: "https://tax.gov.ae/Datafolder/Files/Legislation/Cabinet-Decision-No-127-of-2024-on-Reverse-Charge-Mechanism-for-Precious-Metals.pdf" }],
+  }),
+  freezeRule({
     id: "AE-VAT-REVERSE-CHARGE-ELECTRONIC-DEVICES-2026-11", version: "2026.11",
     countryCode: "AE", currencyCode: "AED", taxName: "VAT reverse charge",
     treatment: "reverse-charge", taxCategoryId: "AE_REVERSE_CHARGE_ELECTRONIC_DEVICES",
     rateBps: 500, verified: true, reviewedBy: "Plivex tax rule review",
     effectiveFrom: "2023-10-30", effectiveTo: null, reviewedOn: "2026-11-20",
-    source: "https://mof.gov.ae/wp-content/uploads/2026/02/UAE-Electronic-Invoicing-Guidelines_V-1.0-23Feb2026.pdf",
+    source: "https://tax.gov.ae/Datafolder/Files/Legislation/Cabinet%20Decision%20No.%2091%20of%202023%20res%20-%20for%20publishing.pdf",
     sourceAuthority: "UAE Ministry of Finance", scope: "country",
     coverage: "specified-electronic-devices-supplied-between-registered-recipients-for-resale-or-production-only; recipient-declaration-required",
-    components: [{ id: "AE-VAT-RC-ELECTRONIC-DEVICES", name: "Recipient-accounted VAT", rateBps: 500, source: "https://mof.gov.ae/wp-content/uploads/2026/02/UAE-Electronic-Invoicing-Guidelines_V-1.0-23Feb2026.pdf" }],
+    components: [{ id: "AE-VAT-RC-ELECTRONIC-DEVICES", name: "Recipient-accounted VAT", rateBps: 500, source: "https://tax.gov.ae/Datafolder/Files/Legislation/Cabinet%20Decision%20No.%2091%20of%202023%20res%20-%20for%20publishing.pdf" }],
   }),
 ]);
 
