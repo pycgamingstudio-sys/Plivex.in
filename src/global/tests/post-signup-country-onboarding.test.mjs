@@ -45,7 +45,7 @@ test("unified runtime does not resolve a second Global workspace identity", asyn
   const auth = await read("../../lib/AuthContext.jsx");
   const app = await read("../../App.jsx");
   assert.match(auth, /if \(isUnifiedBuild\) \{[\s\S]*setRuntimeEdition\("india"\);[\s\S]*return currentUser;/);
-  assert.match(app, /\(!user\.workspace_id \|\| !user\.country_code \|\| !user\.workspace_type \|\| Number\(user\.onboarding_version \|\| 0\) < 1 \|\| user\.migration_status !== "ready" \|\| user\.legacy_review_required\)/);
+  assert.match(app, /\(!user\.workspace_id \|\| !user\.country_code \|\| !user\.workspace_type \|\| Number\(user\.onboarding_version \|\| 0\) < 1\)/);
 });
 
 test("Global owner provisioning rejects a missing country instead of defaulting to India", async () => {
@@ -161,7 +161,7 @@ test("existing signed-in workspaces must complete versioned onboarding before da
   const migration = await read("../../../supabase/migrations/20261118160000_plivex_one_mandatory_legacy_onboarding.sql");
   assert.match(auth, /Existing authenticated sessions must stop before hydrating business data/);
   assert.match(auth, /Number\(currentUser\?\.onboarding_version \|\| 0\) < 1/);
-  assert.match(auth, /currentUser\?\.migration_status !== "ready"/);
+  assert.doesNotMatch(auth, /currentUser\?\.migration_status|currentUser\?\.legacy_review_required/);
   assert.match(app, /Number\(user\.onboarding_version \|\| 0\) < 1/);
   assert.match(backend, /onboarding_version: Number\(workspaceSettings\?\.onboarding_version \|\| 0\)/);
   assert.match(migration, /migration_status in \('legacy_pending','review_required','ready'\)/);
