@@ -139,7 +139,7 @@ begin
 
   v_registration_type := upper(replace(coalesce(v_profile.tax_registration_type,''),' ',''));
   if (v_country in ('GB','AE') and v_registration_type <> 'VAT')
-    or (v_country = 'US' and v_registration_type not in ('SALES TAX','SALES TAX PERMIT','STATE SALES TAX','SALES TAX REGISTRATION'))
+    or (v_country = 'US' and v_registration_type not in ('SALESTAX','SALESTAXPERMIT','STATESALESTAX','SALESTAXREGISTRATION'))
     or (v_country = 'CA' and v_registration_type not in ('GST','GST/HST','HST','PST','QST','GST/HST/PST/QST'))
     or (v_country = 'AU' and v_registration_type not in ('ABN','GST'))
     or (v_country = 'SG' and v_registration_type <> 'GST') then
