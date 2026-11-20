@@ -40,6 +40,7 @@ test("Commercial issuance is atomic, idempotent and assigns a server-side countr
 
 test("Issued invoice header and lines cannot be edited or deleted", () => {
   assert.match(migration, /guard_issued_workspace_invoice/);
+  assert.match(migration, /current_user = 'postgres' and coalesce\\(current_setting\\('plivex\\.invoice_issuance'/);
   assert.match(migration, /Issued invoice content is immutable/);
   assert.match(migration, /guard_issued_workspace_invoice_items/);
   assert.match(migration, /Issued invoice lines are immutable/);
