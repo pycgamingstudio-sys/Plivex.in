@@ -78,7 +78,6 @@ const CA_PROVINCE_RULES = Object.freeze({
   NU: { name: "Nunavut", components: [{ id: "CA-NU-GST", name: "GST", rateBps: 500 }] },
   ON: { name: "Ontario", components: [{ id: "CA-ON-HST", name: "HST", rateBps: 1300 }] },
   PE: { name: "Prince Edward Island", components: [{ id: "CA-PE-HST", name: "HST", rateBps: 1500 }] },
-  QC: { name: "Quebec", components: [{ id: "CA-QC-GST", name: "GST", rateBps: 500 }, { id: "CA-QC-QST", name: "QST", rateBps: 997 }] },
   SK: { name: "Saskatchewan", components: [{ id: "CA-SK-GST", name: "GST", rateBps: 500 }] },
   QC: { name: "Quebec", components: [{ id: "CA-QC-GST", name: "GST", rateBps: 500 }] },
   YT: { name: "Yukon", components: [{ id: "CA-YT-GST", name: "GST", rateBps: 500 }] },
@@ -322,7 +321,7 @@ export function getTaxRuleSet(countryCode, options = {}) {
  * Resolve only an explicitly requested, category-matched non-standard rule.
  * No category inference or fallback to the standard rate is performed.
  */
-export function getTaxTreatmentRuleSet(countryCode, { treatment, taxCategoryId, asOfDate } = {}) {
+export function getTaxTreatmentRuleSet(countryCode, { treatment, taxCategoryId, asOfDate, jurisdictionId } = {}) {
   const code = normalizeTaxCountryCode(countryCode);
   if (!code || !["reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"].includes(treatment)
     || typeof taxCategoryId !== "string" || !taxCategoryId.trim()) {
@@ -337,7 +336,15 @@ export function getTaxTreatmentRuleSet(countryCode, { treatment, taxCategoryId, 
   if (matches.length !== 1) {
     return { ok: false, status: "rule_unavailable", code: matches.length ? "AMBIGUOUS_TREATMENT_RULE" : "NO_EFFECTIVE_VERIFIED_RULE", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION };
   }
-  return { ok: true, status: "rule_available", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION, rule: copyRule(matches[0]) };
+  const rule = copyRule(matches[0]);
+  if (code === "CA") {
+    const province = typeof jurisdictionId === "string" ? jurisdictionId.trim().toUpperCase() : "";
+    if (!Object.hasOwn(CA_PROVINCE_RULES, province)) {
+      return { ok: false, status: "jurisdiction_required", code: "CANADIAN_PROVINCE_REQUIRED", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION };
+    }
+    rule.jurisdictionId = province;
+  }
+  return { ok: true, status: "rule_available", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION, rule };
 }
 
 export function listTaxRuleSets() {
