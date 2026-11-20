@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const migration = readFileSync(new URL("../../../supabase/migrations/20261120120000_unified_workspace_commercial_invoice_issuance.sql", import.meta.url), "utf8");
+const migration = readFileSync(new URL("../../../supabase/migrations/20261120043115_unified_workspace_commercial_invoice_issuance.sql", import.meta.url), "utf8");
 const edge = readFileSync(new URL("../../../supabase/functions/save-invoice/index.ts", import.meta.url), "utf8");
 const home = readFileSync(new URL("../../pages/Home.jsx", import.meta.url), "utf8");
 const stores = readFileSync(new URL("../../lib/stores.js", import.meta.url), "utf8");
