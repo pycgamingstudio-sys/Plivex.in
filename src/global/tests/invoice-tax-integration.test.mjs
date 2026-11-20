@@ -224,7 +224,7 @@ test("US/Canada manual tax validates destination separately from seller registra
     taxCategory: "CA_BC_PST_TAXABLE_GOODS",
     destinationJurisdiction: { province: "BC" },
     components: [{ id: "gst", name: "GST", rateBps: 500 }, { id: "pst", name: "PST", rateBps: 700 }] }), profile("CA", "CAD", { registeredJurisdiction: "CA-ON" }));
-  assert.equal(ca.ok, true);
+  assert.equal(ca.ok, true, JSON.stringify(ca));
 });
 
 test("US/Canada manual rates require user attestation", () => {
