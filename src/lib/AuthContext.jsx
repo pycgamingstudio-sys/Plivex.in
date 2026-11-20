@@ -12,47 +12,25 @@ import { getPendingInviteCode, rememberPendingInviteCode, clearPendingInviteCode
 const AuthContext = createContext();
 
 // A single Supabase login is resolved to its workspace's country after sign-in.
-// Existing India accounts with no country stamp remain India; non-India accounts
-// must resolve to an explicitly supported country before Global handlers are used.
+// Every unified account keeps its canonical public workspace; the country stamp
+// selects regional settings without changing workspace identity or runtime.
 async function resolveSignedInEdition(currentUser) {
   // PLIVEX ONE has one runtime and one public workspace identity. The workspace
   // country controls regional settings; it never switches the user into a second app.
   if (isUnifiedBuild) {
-    const profileCountry = String(currentUser?.country_code || "").trim().toUpperCase();
-
-    // Always resolve the server-owned Global membership, even when the legacy
-    // India profile says country_code=IN. A user's India profile can coexist
-    // with their Global workspace, so it must never short-circuit this lookup.
-    const { data: globalContext, error: globalError } = await supabase.functions.invoke("global-auth-context", { body: {} });
-    const globalUser = globalContext?.user;
-    if (globalError || !globalUser?.id || globalUser.id !== currentUser?.id) {
-      throw new Error("Your workspace identity could not be verified. Your existing data has not been changed.");
+    // PLIVEX ONE: every country uses the same canonical public workspace
+    // identity. Country only selects regional settings; Global schema membership
+    // must never replace the user's public profile/workspace or runtime.
+    const countryCode = String(currentUser?.country_code || "").trim().toUpperCase();
+    const supportedCountries = new Set(listSelectableCountries().map((country) => country.code));
+    if (countryCode && !supportedCountries.has(countryCode)) {
+      throw new Error("This workspace country is not supported yet. Your existing data has not been changed.");
     }
-
-    if (globalUser.workspace_id) {
-      const verifiedCountry = String(globalUser.country_code || "").trim().toUpperCase();
-      if (!verifiedCountry || verifiedCountry === "IN") {
-        throw new Error("Your Global workspace country could not be verified. Your existing data has not been changed.");
-      }
-      setRuntimeEdition("global", { verifiedGlobal: true });
-      // Keep shared onboarding/migration fields from the India profile while
-      // replacing tenant identity and regional settings with verified Global data.
-      return { ...currentUser, ...globalUser };
-    }
-
-    // No Global membership: preserve existing India workspaces, including
-    // legacy profiles without a country stamp. New accounts continue through
-    // the shared country/workspace onboarding flow.
-    if (currentUser?.workspace_id && (!profileCountry || profileCountry === "IN")) {
-      setRuntimeEdition("india");
-      return { ...currentUser, country_code: profileCountry || "IN" };
-    }
-    if (!currentUser?.workspace_id && !currentUser?.role) {
-      setRuntimeEdition("india");
-      return currentUser;
-    }
-
-    throw new Error("Your Global workspace could not be verified. Your existing data has not been changed.");
+    setRuntimeEdition("india");
+    return {
+      ...currentUser,
+      ...(currentUser?.workspace_id && !countryCode ? { country_code: "IN" } : {}),
+    };
   }
   const existingCountry = String(currentUser?.country_code || "").trim().toUpperCase();
   if (!isUnifiedBuild && APP_EDITION !== "global" && (!existingCountry || existingCountry === "IN")) return currentUser;

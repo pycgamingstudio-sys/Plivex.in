@@ -102,7 +102,9 @@ const AuthenticatedApp = () => {
   if (APP_EDITION === "global" && isAuthenticated && user && !user.workspace_id && !getPendingInviteCode()) return <GlobalCountryOnboarding />;
 
   // Both editions resolve core business destinations through this shared React Router tree.
-  const isGlobalWorkspace = APP_EDITION === "global" || (isUnifiedBuild && Boolean(user?.country_code && user.country_code !== "IN"));
+  // Unified Plivex keeps every country on the same Main Workspace routes.
+  // Country selects regional settings, never a separate Global application.
+  const isGlobalWorkspace = !isUnifiedBuild && APP_EDITION === "global";
 
   // Render the shared application routes
   return (
@@ -175,13 +177,13 @@ function GlobalFeatureGate({ children, feature }) {
   if ((APP_EDITION === "global" || isUnifiedBuild) && user?.country_code && user.country_code !== "IN") {
     return (
       <main className="mx-auto max-w-xl rounded-2xl border bg-card p-6 text-center">
-        <p className="text-xs font-bold uppercase tracking-wider text-primary">Global workspace</p>
+        <p className="text-xs font-bold uppercase tracking-wider text-primary">Workspace country</p>
         <h1 className="mt-2 text-xl font-bold">{feature} is not available yet</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          This feature is still being adapted for your workspace country. We have hidden the India-only version so it cannot show incorrect tax, currency or business records.
+          This feature is not configured for your workspace country yet. The India-specific version is hidden so it cannot show incorrect tax, currency or business records.
         </p>
         <Link to="/invoice-history" className="mt-5 inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
-          Open Global invoices
+          Open invoices
         </Link>
       </main>
     );

@@ -13,7 +13,7 @@ import TrialGate from "@/components/TrialGate";
 // authenticated users land on their real workspace. Pending guest intents
 // (stored before sign-in) are resumed automatically.
 export default function HomeGate() {
-  const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings, user } = useAuth();
+  const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings } = useAuth();
   const location = useLocation();
   const [pending, setPending] = useState(null);
 
@@ -35,7 +35,9 @@ export default function HomeGate() {
   }
 
   if (!isAuthenticated) return <GuestDashboard />;
-  const isGlobalWorkspace = APP_EDITION === "global" || (isUnifiedBuild && Boolean(user?.country_code && user.country_code !== "IN"));
+  // A unified Plivex build always uses the canonical Main Workspace UI.
+  // Non-India country settings must never route an account into GlobalApp.
+  const isGlobalWorkspace = !isUnifiedBuild && APP_EDITION === "global";
 
   if (pending === "create-invoice") return <Navigate to="/invoice-builder" replace />;
   if (isGlobalWorkspace) return <TrialGate><AppLayout><GlobalApp section="overview" /></AppLayout></TrialGate>;
