@@ -13,7 +13,7 @@ const rule = {
 };
 const result = {
   ok: true, status: "calculated", countryCode: "GB", currencyCode: "GBP",
-  currencyMinorUnits: 2, engineVersion: "1.0.0", treatment: "standard",
+  currencyMinorUnits: 2, engineVersion: "1.0.0", treatment: "standard",\n  taxDisclosure: "Tax charged at the verified standard rate.", taxCharged: true, taxCategory: "general-goods",
   priceMode: "exclusive", taxableMinor: 10000, taxMinor: 2000, totalMinor: 12000,
   registrationEvidence: "user-attested", ruleSnapshot: rule,
   components: [{ id: "GB-VAT-STANDARD", name: "VAT", rateBps: 2000, amountMinor: 2000 }],
@@ -37,6 +37,10 @@ test("only calculated, source-backed, effective tax results can be frozen", () =
   assert.equal(created.ok, true);
   assert.equal(created.snapshot.totalMinor, 12000);
   assert.equal(created.snapshot.rule.id, rule.id);
+  assert.equal(created.snapshot.treatment, "standard");
+  assert.equal(created.snapshot.taxDisclosure, result.taxDisclosure);
+  assert.equal(created.snapshot.taxCharged, true);
+  assert.equal(created.snapshot.taxCategory, "general-goods");
   assert.equal(created.snapshot.immutable, true);
   assert.equal(Object.isFrozen(created.snapshot), true);
   assert.equal(Object.isFrozen(created.snapshot.components[0]), true);
@@ -64,4 +68,33 @@ test("e-invoice preparation never transmits without a configured provider", () =
   assert.equal(outcome.code, "EINVOICE_PROVIDER_NOT_CONFIGURED");
   assert.equal(outcome.transmissionEnabled, false);
   assert.equal(prepareEInvoiceSubmission("AE", { countryCode: "GB", immutable: true }).code, "ISSUED_INVOICE_SNAPSHOT_REQUIRED");
+});
+
+test("zero-rated and exempt treatment disclosures remain distinct in immutable snapshots", () => {
+  const baseZero = {
+    ...result, treatment: "zero-rated", taxDisclosure: "Zero-rated supply — 0% tax under the selected verified rule. This is not the same as exempt.",
+    taxCharged: false, taxMinor: 0, totalMinor: 10000,
+    ruleSnapshot: { ...rule, treatment: "zero-rated", taxCategoryId: "food-category" },
+    components: [{ id: "GB-VAT-ZERO", name: "VAT", rateBps: 0, amountMinor: 0 }],
+    taxCategory: "food-category",
+  };
+  const zero = makeSnapshot({ taxResult: baseZero });
+  const exempt = makeSnapshot({ taxResult: {
+    ...baseZero, treatment: "exempt", taxDisclosure: "Exempt supply — no tax charged under the selected verified rule.",
+    ruleSnapshot: { ...rule, treatment: "exempt", taxCategoryId: "medical-category" },
+    taxCategory: "medical-category",
+  } });
+  assert.equal(zero.ok, true);
+  assert.equal(exempt.ok, true);
+  assert.notEqual(zero.snapshot.taxDisclosure, exempt.snapshot.taxDisclosure);
+  assert.equal(zero.snapshot.taxCharged, false);
+  assert.equal(exempt.snapshot.taxCharged, false);
+  assert.equal(zero.snapshot.taxCategory, "food-category");
+  assert.equal(exempt.snapshot.taxCategory, "medical-category");
+});
+
+test("snapshot rejects inconsistent zero-charge treatment or missing disclosure", () => {
+  assert.equal(makeSnapshot({ taxResult: { ...result, treatment: "exempt", taxCharged: false } }).code, "TAX_TREATMENT_SNAPSHOT_INVALID");
+  assert.equal(makeSnapshot({ taxResult: { ...result, taxDisclosure: "", } }).code, "TAX_TREATMENT_SNAPSHOT_INVALID");
+  assert.equal(makeSnapshot({ taxResult: { ...result, treatment: "zero-rated", taxCharged: false, taxMinor: 100 } }).code, "TAX_TREATMENT_SNAPSHOT_INVALID");
 });
