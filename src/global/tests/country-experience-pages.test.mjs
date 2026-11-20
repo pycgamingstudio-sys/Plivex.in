@@ -51,9 +51,9 @@ test("regional account activity and reports use workspace locale metadata", asyn
 });
 
 
-test("India-only tools are not rendered for non-India workspaces in Global and unified builds", async () => {
+test("legacy Global feature restrictions do not block unified Main Workspace routes", async () => {
   const source = await read("../../App.jsx");
-  assert.match(source, /APP_EDITION === "global" \|\| isUnifiedBuild/);
+  assert.match(source, /!isUnifiedBuild && APP_EDITION === "global"/);
   assert.doesNotMatch(source, /isUnifiedBuild && Boolean\(user\?\.country_code && user\.country_code !== "IN"\)/);
   assert.match(source, /user\?\.country_code && user\.country_code !== "IN"/);
   for (const feature of ["Shared invoice links", "Usage reports", "Quick templates", "Payment logs", "Service catalog", "Team management"]) {
