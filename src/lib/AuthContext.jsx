@@ -12,8 +12,8 @@ import { getPendingInviteCode, rememberPendingInviteCode, clearPendingInviteCode
 const AuthContext = createContext();
 
 // A single Supabase login is resolved to its workspace's country after sign-in.
-// Existing India accounts with no country stamp remain India; non-India accounts
-// must resolve to an explicitly supported country before Global handlers are used.
+// Every unified account keeps its canonical public workspace; the country stamp
+// selects regional settings without changing workspace identity or runtime.
 async function resolveSignedInEdition(currentUser) {
   // PLIVEX ONE has one runtime and one public workspace identity. The workspace
   // country controls regional settings; it never switches the user into a second app.
