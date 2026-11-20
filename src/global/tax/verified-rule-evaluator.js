@@ -80,7 +80,7 @@ export function calculateVerifiedTaxRule(input) {
   const ids = new Set();
   for (const component of rule.components) {
     if (!record(component) || typeof component.id !== "string" || !component.id.trim()
-      || ids.has(component.id) || !Number.isInteger(component.rateBps) || component.rateBps < 0
+      || ids.has(component.id) || !Number.isFinite(component.rateBps) || !Number.isInteger(component.rateBps * 10) || component.rateBps < 0
       || component.rateBps > 10000 || !officialSource(countryCode, component.source || rule.source)) {
       return fail("INVALID_TAX_COMPONENT", "Each component needs a unique ID, valid rate and official source.");
     }
@@ -100,8 +100,8 @@ export function calculateVerifiedTaxRule(input) {
   const rateBps = rule.components.reduce((sum, component) => sum + component.rateBps, 0);
   if (rateBps > 10000) return fail("RATE_OR_AMOUNT_OUT_OF_RANGE", "Combined tax rate exceeds supported limits.");
   const amount = BigInt(input.amountMinor);
-  const rate = BigInt(rateBps);
-  const basis = 10000n;
+  const rate = BigInt(Math.round(rateBps * 10));
+  const basis = 100000n;
   const taxable = input.priceMode === "exclusive" ? amount : roundHalfUp(amount * basis, basis + rate);
   const total = input.priceMode === "exclusive" ? amount + roundHalfUp(amount * rate, basis) : amount;
   const tax = total - taxable;
@@ -112,7 +112,7 @@ export function calculateVerifiedTaxRule(input) {
 
   const components = rule.components.map((component) => ({
     id: component.id, name: component.name || component.id, rateBps: component.rateBps,
-    amountMinor: safeNumber(roundHalfUp(taxable * BigInt(component.rateBps), basis)),
+    amountMinor: safeNumber(roundHalfUp(taxable * BigInt(Math.round(component.rateBps * 10)), basis)),
     source: component.source || rule.source,
   }));
   if (components.some((component) => component.amountMinor === null)) return fail("AMOUNT_OUT_OF_RANGE", "Tax component exceeds safe integer limits.");
