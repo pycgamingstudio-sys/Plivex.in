@@ -264,6 +264,10 @@ begin
     ),
     'buyer',coalesce(_data->'invoice_snapshot'->'client','{}'::jsonb),
     'items',v_items,
+    'subtotal',v_invoice.subtotal,
+    'discount',v_invoice.discount,
+    'discountType',v_invoice.discount_type,
+    'total',v_invoice.total,
     'invoiceNumber',v_number,
     'issueDate',v_issue_date,
     'finalizedAt',now(),
@@ -274,7 +278,7 @@ begin
   update public.invoices set
     number=v_number,is_draft=false,status='Pending',
     tax_rate=0,tax_value=0,cgst=0,sgst=0,igst=0,
-    total=greatest(0,subtotal),
+    total=v_invoice.total,
     invoice_snapshot=v_snapshot,
     updated_at=now()
   where id=v_invoice.id and workspace_id=v_workspace
