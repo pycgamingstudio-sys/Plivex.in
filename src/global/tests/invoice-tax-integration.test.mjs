@@ -241,7 +241,9 @@ test("Australia GST-free category uses the exact verified GST-free rule", () => 
 
 
 test("invoice percentage discount is applied in integer minor units before VAT", () => {
-  const document = invoice("GBP", { discountType: "percent", discount: 10 });
+  const document = invoice("GBP");
+  document.discountType = "percent";
+  document.discount = 10;
   const result = calculateInvoiceGlobalTax(document, profile("GB", "GBP"));
   assert.equal(result.ok, true, result.message || result.code);
   assert.equal(result.taxableMinor, 9000);
@@ -250,7 +252,9 @@ test("invoice percentage discount is applied in integer minor units before VAT",
 });
 
 test("invoice fixed discount is applied before VAT and cannot exceed the subtotal", () => {
-  const document = invoice("GBP", { discountType: "fixed", discount: 10 });
+  const document = invoice("GBP");
+  document.discountType = "fixed";
+  document.discount = 10;
   const result = calculateInvoiceGlobalTax(document, profile("GB", "GBP"));
   assert.equal(result.ok, true, result.message || result.code);
   assert.equal(result.taxableMinor, 9000);
@@ -259,7 +263,9 @@ test("invoice fixed discount is applied before VAT and cannot exceed the subtota
 });
 
 test("invalid percentage discounts fail closed instead of being silently clamped", () => {
-  const document = invoice("GBP", { discountType: "percent", discount: 101 });
+  const document = invoice("GBP");
+  document.discountType = "percent";
+  document.discount = 101;
   const result = calculateInvoiceGlobalTax(document, profile("GB", "GBP"));
   assert.equal(result.ok, false);
   assert.equal(result.code, "INVALID_AMOUNT");
