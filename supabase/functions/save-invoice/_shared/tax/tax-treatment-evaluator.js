@@ -1,7 +1,6 @@
-// Bundled copy for the save-invoice Edge Function. Keep in sync with src/global/tax/tax-treatment-evaluator.js.
 import { calculateVerifiedTaxRule } from "./verified-rule-evaluator.js";
 
-const TREATMENTS = Object.freeze(["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"]);
+const TREATMENTS = Object.freeze(["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope", "reverse-charge"]);
 const NO_CHARGE_TREATMENTS = new Set(["zero-rated", "gst-free", "exempt", "out-of-scope"]);
 const DISCLOSURES = Object.freeze({
   standard: "Tax charged at the verified standard rate.",
@@ -10,6 +9,7 @@ const DISCLOSURES = Object.freeze({
   "gst-free": "GST-free supply — no GST charged under the selected verified Australian GST-free category. This is distinct from input-taxed supplies.",
   exempt: "Exempt supply — no tax charged under the selected verified rule.",
   "out-of-scope": "Outside the scope of this tax system under the selected verified rule.",
+  "reverse-charge": "Reverse charge applies under the selected verified rule. The registered buyer accounts for the tax; it is not added to the seller's invoice payable total.",
 });
 
 /**
@@ -18,8 +18,8 @@ const DISCLOSURES = Object.freeze({
  * product/service qualifies for a treatment; that classification must be
  * explicitly confirmed and represented by the selected rule snapshot.
  *
- * Reverse charge is intentionally excluded: seller/buyer accounting and
- * disclosure differ by jurisdiction and need a dedicated adapter.
+ * Reverse charge uses a separate buyer-accounted tax amount and is accepted
+ * only with explicit buyer-registration and transaction-eligibility evidence.
  */
 export function calculateVerifiedTaxTreatment(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -38,6 +38,21 @@ export function calculateVerifiedTaxTreatment(input) {
       ok: false, status: "needs_review", code: "TREATMENT_RULE_MISMATCH",
       message: "A verified rule matching the selected tax treatment is required.",
     };
+  }
+  if (treatment === "reverse-charge") {
+    const buyer = input.buyerRegistration;
+    if (input.priceMode !== "exclusive"
+      || input.buyerRegistrationConfirmed !== true
+      || input.reverseChargeConditionsConfirmed !== true
+      || String(input.buyerCountryCode || "").toUpperCase() !== String(input.countryCode || "").toUpperCase()
+      || !buyer || typeof buyer !== "object" || Array.isArray(buyer)
+      || buyer.status !== "registered" || buyer.attestedByUser !== true
+      || !String(buyer.registrationNumber || "").trim()) {
+      return {
+        ok: false, status: "needs_review", code: "REVERSE_CHARGE_BUYER_EVIDENCE_REQUIRED",
+        message: "Confirm the buyer's active tax registration and the exact reverse-charge conditions before calculating this invoice.",
+      };
+    }
   }
   if (treatment !== "standard" && (!String(rule.taxCategoryId || "").trim()
     || String(input.taxCategory || "").trim() !== rule.taxCategoryId)) {
@@ -70,12 +85,16 @@ export function calculateVerifiedTaxTreatment(input) {
   });
   if (!calculated.ok) return calculated;
 
+  const reverseCharge = treatment === "reverse-charge";
   return {
     ...calculated,
+    taxMinor: reverseCharge ? 0 : calculated.taxMinor,
+    totalMinor: reverseCharge ? calculated.taxableMinor : calculated.totalMinor,
+    reverseChargeTaxMinor: reverseCharge ? calculated.taxMinor : 0,
     treatment,
     taxCategory: input.taxCategory || rule.taxCategoryId || null,
     taxDisclosure: DISCLOSURES[treatment],
-    taxCharged: !NO_CHARGE_TREATMENTS.has(treatment),
+    taxCharged: !NO_CHARGE_TREATMENTS.has(treatment) && !reverseCharge,
     ruleSnapshot: {
       ...calculated.ruleSnapshot,
       treatment,
