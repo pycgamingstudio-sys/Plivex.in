@@ -78,15 +78,29 @@ test("non-standard treatments require an exact product/service tax category matc
   assert.equal(missingCategory.code, "TREATMENT_CATEGORY_RULE_REQUIRED");
 });
 
-test("treatment must match the verified rule and unsupported reverse charge fails closed", () => {
+test("treatment must match the verified rule and reverse charge is buyer-accounted", () => {
   const mismatch = calculateGlobalTax({
     ...base, treatment: "reduced", rule: makeRule("standard", 2000),
   });
+  const missingBuyerEvidence = calculateGlobalTax({
+    ...base, treatment: "reverse-charge", rule: makeRule("reverse-charge", 2000),
+  });
   const reverseCharge = calculateGlobalTax({
-    ...base, treatment: "reverse-charge", rule: makeRule("reverse-charge", 0),
+    ...base,
+    treatment: "reverse-charge",
+    rule: makeRule("reverse-charge", 2000),
+    buyerRegistration: { status:"registered", registrationNumber:"GB123456789", attestedByUser:true },
+    buyerRegistrationConfirmed: true,
+    reverseChargeConditionsConfirmed: true,
+    buyerCountryCode: "GB",
   });
   assert.equal(mismatch.code, "TREATMENT_RULE_MISMATCH");
-  assert.equal(reverseCharge.code, "TREATMENT_ADAPTER_REQUIRED");
+  assert.equal(missingBuyerEvidence.code, "REVERSE_CHARGE_BUYER_EVIDENCE_REQUIRED");
+  assert.equal(reverseCharge.ok, true);
+  assert.equal(reverseCharge.taxMinor, 0);
+  assert.equal(reverseCharge.reverseChargeTaxMinor, 2000);
+  assert.equal(reverseCharge.totalMinor, 10000);
+  assert.equal(reverseCharge.taxCharged, false);
 });
 
 test("US and Canada still require exact jurisdiction rules; no national rate is added", () => {
