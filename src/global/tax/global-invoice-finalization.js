@@ -56,25 +56,29 @@ export function createGlobalInvoiceTaxSnapshot(input) {
     return fail("TAX_RESULT_NOT_ISSUABLE", "Only a successful, country-matched calculated tax result can be snapshotted. Manual estimates and review results remain drafts.");
   }
   if (result.currencyCode !== COUNTRY_CURRENCY[countryCode] || result.currencyMinorUnits !== 2) return fail("SNAPSHOT_CURRENCY_INVALID", "Tax snapshot currency and precision must match the workspace country.");
-  if (!TAX_TREATMENTS.has(result.treatment) || result.taxDisclosure !== TAX_DISCLOSURES[result.treatment]
+  const mixed = result.treatment === "mixed";
+  if ((!TAX_TREATMENTS.has(result.treatment) && !mixed)
+    || (!mixed && result.taxDisclosure !== TAX_DISCLOSURES[result.treatment])
+    || (mixed && result.taxDisclosure !== "Mixed tax treatments are recorded per invoice line.")
     || typeof result.taxCharged !== "boolean"
-    || (NO_CHARGE_TREATMENTS.has(result.treatment) !== (result.taxCharged === false))
+    || (!mixed && (NO_CHARGE_TREATMENTS.has(result.treatment) !== (result.taxCharged === false)))
     || (!result.taxCharged && result.taxMinor !== 0)) {
     return fail("TAX_TREATMENT_SNAPSHOT_INVALID", "A supported tax treatment, its distinct disclosure and consistent tax-charged state are required.");
   }
   const rule = result.ruleSnapshot;
-  if (!isRecord(rule)) {
+  if (!mixed && !isRecord(rule)) {
     return fail("RULE_PROVENANCE_REQUIRED", "A source-backed, versioned rule effective on the invoice date is required.");
   }
-  if (rule.treatment !== result.treatment
+  if (mixed && rule !== null) return fail("MIXED_RULE_SNAPSHOT_INVALID", "Mixed invoice treatments must preserve their individual line rule snapshots.");
+  if (!mixed && (rule.treatment !== result.treatment
     || (result.treatment !== "standard" && (!String(rule.taxCategoryId || "").trim()
-      || result.taxCategory !== rule.taxCategoryId))) {
+      || result.taxCategory !== rule.taxCategoryId)))) {
     return fail("TAX_TREATMENT_RULE_MISMATCH", "The tax treatment and confirmed supply category must match the selected versioned rule.");
   }
-  if (!String(rule.id || "").trim() || !String(rule.version || "").trim()
+  if (!mixed && (!String(rule.id || "").trim() || !String(rule.version || "").trim()
     || !/^https:\/\//.test(String(rule.source || "")) || !validDate(rule.effectiveFrom)
     || input.invoiceDate < rule.effectiveFrom
-    || (rule.effectiveTo && (!validDate(rule.effectiveTo) || input.invoiceDate > rule.effectiveTo))) {
+    || (rule.effectiveTo && (!validDate(rule.effectiveTo) || input.invoiceDate > rule.effectiveTo)))) {
     return fail("RULE_PROVENANCE_REQUIRED", "A source-backed, versioned rule effective on the invoice date is required.");
   }
   const reverseCharge = result.treatment === "reverse-charge";
@@ -89,6 +93,56 @@ export function createGlobalInvoiceTaxSnapshot(input) {
   }
   const componentTotal = result.components.reduce((sum, item) => sum + item.amountMinor, 0);
   if (componentTotal !== result.taxMinor) return fail("TAX_COMPONENT_TOTAL_MISMATCH", "Tax component amounts do not match the calculated tax total.");
+  let lineRules = null;
+  if (mixed) {
+    if (!Array.isArray(result.lineTaxBreakdown) || result.lineTaxBreakdown.length < 1 || result.lineTaxBreakdown.length > 500) {
+      return fail("MIXED_LINE_RULES_REQUIRED", "Each invoice line must retain its own verified rule and calculation.");
+    }
+    let lineTaxable = 0, lineTax = 0, lineTotal = 0, lineRecipientTax = 0;
+    lineRules = [];
+    for (const line of result.lineTaxBreakdown) {
+      const lineRule = line?.ruleSnapshot;
+      const lineTreatment = line?.treatment;
+      if (!isRecord(lineRule) || !TAX_TREATMENTS.has(lineTreatment)
+        || lineRule.treatment !== lineTreatment
+        || (lineTreatment !== "standard" && (!String(lineRule.taxCategoryId || "").trim()
+          || line.taxCategory !== lineRule.taxCategoryId))
+        || !String(lineRule.id || "").trim() || !String(lineRule.version || "").trim()
+        || !/^https:\/\//.test(String(lineRule.source || "")) || !validDate(lineRule.effectiveFrom)
+        || input.invoiceDate < lineRule.effectiveFrom
+        || (lineRule.effectiveTo && (!validDate(lineRule.effectiveTo) || input.invoiceDate > lineRule.effectiveTo))
+        || !Number.isSafeInteger(line.taxableMinor) || line.taxableMinor < 0
+        || !Number.isSafeInteger(line.taxMinor) || line.taxMinor < 0
+        || !Number.isSafeInteger(line.totalMinor) || line.totalMinor !== line.taxableMinor + line.taxMinor
+        || !Array.isArray(line.components)
+        || line.components.reduce((sum, item) => sum + Number(item?.amountMinor || 0), 0) !== line.taxMinor) {
+        return fail("MIXED_LINE_RULE_INVALID", "A mixed-treatment invoice line has invalid rule provenance or totals.");
+      }
+      const recipientTax = Number(line.recipientTaxMinor || 0);
+      const recipientComponents = Array.isArray(line.recipientTaxComponents) ? line.recipientTaxComponents : [];
+      if (!Number.isSafeInteger(recipientTax) || recipientTax < 0
+        || recipientComponents.reduce((sum, item) => sum + Number(item?.amountMinor || 0), 0) !== recipientTax
+        || (lineTreatment === "reverse-charge" && (line.taxMinor !== 0 || recipientTax <= 0 || line.recipientAccountingRequired !== true))
+        || (lineTreatment !== "reverse-charge" && recipientTax !== 0)) {
+        return fail("MIXED_LINE_RECIPIENT_TAX_INVALID", "Recipient-side tax must be separately reconciled for reverse-charge lines.");
+      }
+      lineTaxable += line.taxableMinor; lineTax += line.taxMinor;
+      lineTotal += line.totalMinor; lineRecipientTax += recipientTax;
+      lineRules.push({
+        lineIndex: line.lineIndex, lineId: line.lineId || null,
+        treatment: lineTreatment, taxCategory: line.taxCategory || lineRule.taxCategoryId || null,
+        rule: { ...lineRule }, taxableMinor: line.taxableMinor,
+        taxMinor: line.taxMinor, totalMinor: line.totalMinor,
+        components: line.components.map((item) => ({ ...item })),
+        recipientTaxMinor: recipientTax,
+        recipientTaxComponents: recipientComponents.map((item) => ({ ...item })),
+      });
+    }
+    if (lineTaxable !== result.taxableMinor || lineTax !== result.taxMinor
+      || lineTotal !== result.totalMinor || lineRecipientTax !== Number(result.recipientTaxMinor || 0)) {
+      return fail("MIXED_LINE_TOTALS_MISMATCH", "Per-line tax totals do not reconcile to the invoice summary.");
+    }
+  }
   if (reverseCharge) {
     if (result.taxMinor !== 0 || result.taxCharged !== false
       || result.recipientAccountingRequired !== true
@@ -103,13 +157,14 @@ export function createGlobalInvoiceTaxSnapshot(input) {
   const snapshot = {
     schemaVersion:"2", countryCode, invoiceDate:input.invoiceDate,
     currencyCode:result.currencyCode, currencyMinorUnits:result.currencyMinorUnits,
-    engineVersion:result.engineVersion || null, rule:{ ...rule },
+    engineVersion:result.engineVersion || null, rule:mixed ? null : { ...rule },
+    ...(mixed ? { lineRules } : {}),
     treatment:result.treatment, taxDisclosure:result.taxDisclosure,
     taxCharged:result.taxCharged, taxCategory:result.taxCategory || rule.taxCategoryId || null,
     priceMode:result.priceMode,
     taxableMinor:result.taxableMinor, taxMinor:result.taxMinor, totalMinor:result.totalMinor,
     components:result.components.map((item) => ({ ...item })),
-    ...(reverseCharge ? { recipientAccountingRequired:true, recipientTaxMinor:result.recipientTaxMinor, recipientTaxComponents:result.recipientTaxComponents.map((item) => ({ ...item })) } : {}),
+    ...(reverseCharge || mixed ? { recipientAccountingRequired:result.recipientAccountingRequired === true, recipientTaxMinor:result.recipientTaxMinor || 0, recipientTaxComponents:(result.recipientTaxComponents || []).map((item) => ({ ...item })) } : {}),
     sellerRegistrationEvidence:result.registrationEvidence || "not_recorded",
     capturedAt:typeof input.capturedAt === "string" ? input.capturedAt : null,
     immutable:true,
