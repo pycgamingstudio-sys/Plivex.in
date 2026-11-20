@@ -4,10 +4,11 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 export const DEFAULT_GROQ_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"];
 // Use the live free-model router first, then current explicit free fallbacks.
+// Explicit free models with provider-side no-training policies. Avoid the
+// dynamic free router and providers that are incompatible with data_collection=deny.
 export const DEFAULT_OPENROUTER_MODELS = [
-  "openrouter/free",
-  "nvidia/nemotron-3-ultra-550b-a55b:free",
-  "baidu/ernie-5.5-flash-preview:free",
+  "google/gemma-4-31b-it:free",
+  "google/gemma-4-26b-a4b-it:free",
 ];
 
 function openAiMessages(geminiBody) {
@@ -42,15 +43,84 @@ export function toOpenAiChatPayload(geminiBody, model) {
   };
 }
 
+function assertJsonModelResult(result) {
+  const raw = result?.candidates?.[0]?.content?.parts
+    ?.map((part) => typeof part?.text === "string" ? part.text : "")
+    .join("")
+    .trim();
+  if (!raw) throw new Error("empty_model_response");
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    // Some compatible OpenAI-style free models return plain text despite
+    // response_format=json_object. Treat it as a read-only answer, never an action.
+    return { reply: raw.slice(0, 12000), actions: [], action: { type: "none", payload: {} } };
+  }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("invalid_model_response_schema");
+  }
+
+  const replyKeys = ["reply", "message", "response", "answer", "text", "content"];
+  let reply = "";
+  for (const key of replyKeys) {
+    if (typeof parsed[key] === "string" && parsed[key].trim()) {
+      reply = parsed[key].trim();
+      break;
+    }
+  }
+  if (!reply && parsed.output && typeof parsed.output === "object") {
+    for (const key of replyKeys) {
+      if (typeof parsed.output[key] === "string" && parsed.output[key].trim()) {
+        reply = parsed.output[key].trim();
+        break;
+      }
+    }
+  }
+  if (!reply) throw new Error("invalid_model_response_schema");
+
+  // Normalize every provider response to the exact JSON contract consumed by
+  // assistant-chat. Plain-text fallback answers are strictly read-only.
+  const actions = Array.isArray(parsed.actions) ? parsed.actions : [];
+  const normalized = {
+    ...parsed,
+    reply: reply.slice(0, 12000),
+    actions,
+    ...(parsed.action && typeof parsed.action === "object"
+      ? {}
+      : { action: { type: "none", payload: {} } }),
+  };
+  return { candidates: [{ content: { parts: [{ text: JSON.stringify(normalized) }] } }] };
+}
+
 export function normalizeOpenAiResult(result) {
-  const content = result?.choices?.[0]?.message?.content;
+  const choice = result?.choices?.[0] || {};
+  const message = choice?.message || {};
+  const content = message?.content ?? choice?.text ?? result?.output_text ?? "";
   const raw = typeof content === "string"
     ? content
     : Array.isArray(content)
-      ? content.map((part) => typeof part?.text === "string" ? part.text : "").join("")
+      ? content.map((part) => {
+          if (typeof part?.text === "string") return part.text;
+          if (typeof part?.content === "string") return part.content;
+          return "";
+        }).join("")
       : "";
-  if (!raw.trim()) throw new Error("empty_model_response");
-  return { candidates: [{ content: { parts: [{ text: raw.trim() }] } }] };
+  const fallback = typeof message?.refusal === "string" ? message.refusal : "";
+  const finalText = (raw || fallback).trim();
+  if (!finalText) {
+    const shape = {
+      hasChoices: Array.isArray(result?.choices),
+      choiceKeys: Object.keys(choice || {}).slice(0, 12),
+      messageKeys: Object.keys(message || {}).slice(0, 12),
+      finishReason: choice?.finish_reason || null,
+      hasOutputText: typeof result?.output_text === "string",
+    };
+    throw new Error("empty_model_response:" + JSON.stringify(shape));
+  }
+  return { candidates: [{ content: { parts: [{ text: finalText }] } }] };
 }
 
 export function isRetryableProviderStatus(status) {
@@ -70,7 +140,7 @@ async function callOpenAiProvider({ provider, model, key, body, fetchImpl, deadl
     method: "POST",
     headers,
     body: JSON.stringify(toOpenAiChatPayload(body, model)),
-    signal: AbortSignal.timeout(Math.min(4500, remaining)),
+    signal: AbortSignal.timeout(Math.min(6000, remaining)),
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -92,7 +162,7 @@ export async function generateWithFallback({
   openRouterKey,
   enableGroq = false,
   fetchImpl = fetch,
-  totalTimeoutMs = 25000,
+  totalTimeoutMs = 45000,
 }) {
   const body = JSON.parse(requestOptions.body);
   const deadline = Date.now() + totalTimeoutMs;
@@ -116,7 +186,7 @@ export async function generateWithFallback({
         const response = await fetchImpl(GEMINI_URL, {
           ...requestOptions,
           headers: { ...requestOptions.headers, "x-goog-api-key": geminiKey },
-          signal: AbortSignal.timeout(Math.min(10000, remaining)),
+          signal: AbortSignal.timeout(Math.min(20000, remaining)),
         });
         result = await response.json().catch(() => ({}));
         if (!response.ok) {
@@ -127,7 +197,7 @@ export async function generateWithFallback({
       } else {
         result = await callOpenAiProvider({ ...attempt, key: attempt.provider === "groq" ? groqKey : openRouterKey, body, fetchImpl, deadline });
       }
-      assertJsonModelResult(result);
+      result = assertJsonModelResult(result);
       return { ok: true, provider: attempt.provider, model: attempt.model, result };
     } catch (error) {
       lastStatus = Number(error?.status) || (error?.name === "TimeoutError" || error?.name === "AbortError" ? 504 : 503);
