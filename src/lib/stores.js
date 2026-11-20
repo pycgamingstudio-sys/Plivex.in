@@ -425,6 +425,7 @@ export async function saveInvoiceToServer(inv, { issueInvoice = false } = {}) {
     discount: num(inv.discount),
     is_draft: isGlobalWorkspaceInvoice && !issueInvoice,
     issue_invoice: isGlobalWorkspaceInvoice && issueInvoice,
+    issue_idempotency_key: isGlobalWorkspaceInvoice && issueInvoice ? (inv.globalDraftRequestId || crypto.randomUUID()) : null,
     status: "Pending",
     client_name: str(inv.client?.name), client_email: str(inv.client?.email), business_name: str(inv.business?.name),
     issue_date: dateOrNull(inv.issueDate) || new Date().toISOString().slice(0, 10),
