@@ -44,7 +44,7 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 94 || new Set(candidatePlan.map((x) => x.path)).size !== 92) {
+if (candidatePlan.length !== 94 || new Set(candidatePlan.map((x) => x.path)).size !== 94) {
   fail("Candidate replay plan must contain 35 recovered historical and all 59 current local migrations");
 }
 
