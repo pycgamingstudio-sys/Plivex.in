@@ -15,7 +15,7 @@ import AssistantWidget from "@/components/AssistantWidget";
 import ReconciliationTab from "@/components/dashboard/ReconciliationTab";
 import WelcomePopup from "@/components/WelcomePopup";
 import { seedDashboard } from "@/lib/dashboardData";
-import { navItems, HIDDEN_FROM_SIDEBAR } from "@/lib/nav";
+import { navItems, MORE_NAV_ITEMS, HIDDEN_FROM_SIDEBAR } from "@/lib/nav";
 import { usePaywall } from "@/lib/paywall";
 import { useAuth } from "@/lib/AuthContext";
 import { useRole, canAccessTab } from "@/lib/roles";
@@ -84,8 +84,14 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
     return true;
   };
   const primaryFeatureRoutes = ["/crm", "/client-database", "/inventory-procurement", "/usage-reports", "/tax-summary", "/payment-logs", "/templates", "/service-catalog"];
-  const pages = navItems.filter((i) => i.to !== "/" && !["/crm", "/inventory-procurement"].includes(i.to) && featureRouteEnabled(i.to) && (!HIDDEN_FROM_SIDEBAR.includes(i.to) || i.to === "/tax-summary") && (!i.roles || i.roles.includes(role)));
-  const morePages = navItems.filter((i) => i.to !== "/" && !primaryFeatureRoutes.includes(i.to) && featureRouteEnabled(i.to) && (!i.roles || i.roles.includes(role)));
+  const pages = [
+    ...navItems.filter((i) => i.to !== "/" && !["/crm", "/inventory-procurement"].includes(i.to) && featureRouteEnabled(i.to) && (!HIDDEN_FROM_SIDEBAR.includes(i.to) || i.to === "/tax-summary") && (!i.roles || i.roles.includes(role))),
+    ...MORE_NAV_ITEMS.filter((i) => featureRouteEnabled(i.to) && (!i.roles || i.roles.includes(role))),
+  ];
+  const morePages = [
+    ...MORE_NAV_ITEMS,
+    ...navItems.filter((i) => i.to === "/tax-summary"),
+  ].filter((i) => !primaryFeatureRoutes.includes(i.to) && featureRouteEnabled(i.to) && (!i.roles || i.roles.includes(role)));
   const teamUnlocked = canAccess("team_management");
 
   return (
