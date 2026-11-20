@@ -50,7 +50,9 @@ Deno.serve(async (req: Request) => {
     }
     let verifiedGlobalTaxResult: Record<string, unknown> | null = null;
     if (countryCode !== "IN") {
-      if (body?.is_draft !== true) return json({ error: "Non-India invoices remain drafts until a verified server-side issuance capability is enabled." }, 409, origin);
+      if (body?.is_draft !== true && body?.issue_invoice !== true) {
+        return json({ error: "Non-India invoices must be saved as drafts or issued through the verified commercial invoice workflow." }, 409, origin);
+      }
       if (!body?.invoice_snapshot || typeof body.invoice_snapshot !== "object") {
         return json({ error: "Invoice draft details are required." }, 422, origin);
       }
@@ -74,6 +76,12 @@ Deno.serve(async (req: Request) => {
       if (taxResult.ok === true) verifiedGlobalTaxResult = taxResult as unknown as Record<string, unknown>;
       body.invoice_snapshot = {
         ...taxInput,
+        documentType: "draft_invoice",
+        documentStatus: "draft",
+        document_type: "draft_invoice",
+        document_status: "draft",
+        country_code: countryCode,
+        currency_code: requestedCurrency,
         globalTaxCalculation: { ...taxResult, countryCode },
         globalTaxProfileSnapshot: {
           countryCode,
@@ -93,12 +101,14 @@ Deno.serve(async (req: Request) => {
     if (invoiceId !== null && (typeof invoiceId !== "string" || !/^[0-9a-f-]{36}$/i.test(invoiceId))) return json({ error: "Invalid invoice id." }, 400, origin);
     if (invoiceId !== null) {
       const { data: existingInvoice, error: existingInvoiceError } = await db.from("invoices")
-        .select("id,is_draft").eq("id", invoiceId).eq("workspace_id", userProfile.workspace_id).maybeSingle();
+        .select("id,is_draft,issue_request_key").eq("id", invoiceId).eq("workspace_id", userProfile.workspace_id).maybeSingle();
       if (existingInvoiceError) return json({ error: "Existing invoice could not be checked." }, 500, origin);
       if (!existingInvoice) return json({ error: "Invoice not found in this workspace." }, 404, origin);
-      if (existingInvoice.is_draft !== true) return json({ error: "Only draft invoices can be edited from this workflow." }, 409, origin);
+      if (existingInvoice.is_draft !== true && !(body?.issue_invoice === true && existingInvoice.issue_request_key === body?.issue_idempotency_key)) {
+        return json({ error: "Only draft invoices can be edited from this workflow." }, 409, origin);
+      }
     }
-    const { items, id, invoiceId: _ignored, ...data } = body;
+    const { items, id, invoiceId: _ignored, issue_invoice: _issueInvoice, issue_idempotency_key: _issueKey, ...data } = body;
     const isNonIndiaInvoice = countryCode !== "IN";
     const safeItems = items.map((it: Record<string, unknown>) => ({
       description: typeof it?.description === "string" ? it.description.slice(0, 500) : "",
@@ -108,14 +118,30 @@ Deno.serve(async (req: Request) => {
         ? { gst_rate: Number.isFinite(Number(it.gst_rate)) ? Math.max(0, Number(it.gst_rate)) : 0 }
         : {}),
     }));
-    const { data: saved, error } = await db.rpc("save_invoice", { _data: data, _items: safeItems, _invoice_id: invoiceId });
-    if (error || !saved?.id) {
-      const status = error?.code === "42501" ? 403 : error?.code === "P0002" ? 404 : 400;
-      return json({ error: error?.message || "Could not save invoice." }, status, origin);
+    let saved: any = null;
+    let issueError: { code?: string; message?: string } | null = null;
+    if (isNonIndiaInvoice && body?.issue_invoice === true) {
+      const calculation = body?.invoice_snapshot?.globalTaxCalculation;
+      if (calculation?.ok !== true || calculation?.status !== "not_applicable") {
+        return json({ error: "This release can issue commercial invoices only after explicit no-tax confirmation. Tax invoices remain gated until their country adapter is verified." }, 409, origin);
+      }
+      const { data: issuedResult, error } = await db.rpc("save_and_issue_commercial_invoice", {
+        _data: data, _items: safeItems, _idempotency_key: body.issue_idempotency_key, _invoice_id: invoiceId,
+      });
+      issueError = error;
+      if (!error && issuedResult?.invoice?.id) saved = issuedResult.invoice;
+    } else {
+      const { data: savedDraft, error } = await db.rpc("save_invoice", { _data: data, _items: safeItems, _invoice_id: invoiceId });
+      issueError = error;
+      if (!error && savedDraft?.id) saved = savedDraft;
+    }
+    if (issueError || !saved?.id) {
+      const status = issueError?.code === "42501" ? 403 : issueError?.code === "P0002" ? 404 : 400;
+      return json({ error: issueError?.message || "Could not save invoice." }, status, origin);
     }
 
     // Keep non-India invoice drafts connected to the canonical CRM customer record.
-    if (countryCode !== "IN") {
+    if (countryCode !== "IN" && body?.issue_invoice !== true) {
       const client = body?.invoice_snapshot?.client && typeof body.invoice_snapshot.client === "object"
         ? body.invoice_snapshot.client : {};
       const clientName = String(body.client_name || client.name || client.company || "").trim().slice(0, 160);
@@ -148,7 +174,14 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    if (verifiedGlobalTaxResult) {
+    if (isNonIndiaInvoice && body?.issue_invoice !== true && body?.invoice_snapshot) {
+      const { error: snapshotError } = await db.from("invoices").update({
+        invoice_snapshot: body.invoice_snapshot,
+      }).eq("id", saved.id).eq("workspace_id", userProfile.workspace_id).eq("is_draft", true);
+      if (snapshotError) return json({ error: "Draft saved, but its invoice snapshot could not be synchronized." }, 500, origin);
+    }
+
+    if (verifiedGlobalTaxResult && !(isNonIndiaInvoice && body?.issue_invoice === true)) {
       const taxMinor = Number(verifiedGlobalTaxResult.taxMinor);
       const totalMinor = Number(verifiedGlobalTaxResult.totalMinor);
       if (!Number.isSafeInteger(taxMinor) || !Number.isSafeInteger(totalMinor) || taxMinor < 0 || totalMinor < 0) {

@@ -29,7 +29,7 @@ test("Global help center does not show India GST or India-only phone support", a
 test("public Global invoice uses the selected country's registration label", async () => {
   const source = await read("../../pages/PublicInvoicePage.jsx");
   assert.match(source, /getCountryExperience\(countryCode\)/);
-  assert.match(source, /registrationLabel\}: \{business\.gstin\}/);
+  assert.match(source, /registrationLabel\}: \{business\.gstin\|\|seller\.tax_registration_number/);
   assert.doesNotMatch(source, /GSTIN: \{business\.gstin\}/);
 });
 

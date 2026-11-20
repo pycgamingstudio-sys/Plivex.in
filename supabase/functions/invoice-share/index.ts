@@ -35,7 +35,7 @@ Deno.serve(async (req:Request) => {
     if(error){console.error("invoice share tracking failed",error);return json({error:"Could not record invoice activity."},503,origin);}
     return json({ok:true},200,origin);
    }
-   const {data:invoice,error:invoiceError}=await admin.from("invoices").select("number,client_name,business_name,issue_date,due_date,currency,status,subtotal,cgst,sgst,igst,total,invoice_snapshot,invoice_items(id,description,quantity,rate)").eq("id",link.invoice_id).eq("workspace_id",link.workspace_id).maybeSingle();
+   const {data:invoice,error:invoiceError}=await admin.from("invoices").select("number,client_name,business_name,issue_date,due_date,currency,status,is_draft,subtotal,discount,tax_value,cgst,sgst,igst,total,invoice_snapshot,invoice_items(id,description,quantity,rate)").eq("id",link.invoice_id).eq("workspace_id",link.workspace_id).maybeSingle();
    if(invoiceError||!invoice) return json({error:"Invoice is no longer available."},404,origin);
    const {error:viewError}=await admin.rpc("record_invoice_share_view",{share_link_id:link.id});
    if(viewError){console.error("invoice share view tracking failed",viewError);return json({error:"Could not load invoice activity."},503,origin);}
