@@ -27,18 +27,34 @@ const validDate = (value) => {
 };
 
 function amountMinor(invoice) {
-  const subtotal = (invoice.items || []).reduce((sum, item) => {
-    const quantity = Number(item.quantity);
-    const rate = Number(item.rate);
+  // Convert each invoice line to integer minor units before applying discount.
+  // This avoids accumulating floating-point currency fractions across items.
+  const items = Array.isArray(invoice?.items) ? invoice.items : [];
+  if (!items.length) return NaN;
+  let subtotalMinor = 0;
+  for (const item of items) {
+    const quantity = Number(item?.quantity);
+    const rate = Number(item?.rate);
     if (!Number.isFinite(quantity) || !Number.isFinite(rate) || quantity < 0 || rate < 0) return NaN;
-    return sum + quantity * rate;
-  }, 0);
-  if (!Number.isFinite(subtotal) || !Number.isSafeInteger(Math.round(subtotal * 100))) return NaN;
-  const discount = Math.max(0, Number(invoice.discount) || 0);
-  const discountValue = invoice.discountType === "percent"
-    ? subtotal * Math.min(100, discount) / 100
-    : Math.min(subtotal, discount);
-  return Math.round(Math.max(0, subtotal - discountValue) * 100);
+    const lineMinor = Math.round(quantity * rate * 100);
+    if (!Number.isSafeInteger(lineMinor) || !Number.isSafeInteger(subtotalMinor + lineMinor)) return NaN;
+    subtotalMinor += lineMinor;
+  }
+
+  const rawDiscount = invoice?.discount === undefined || invoice?.discount === null || invoice.discount === ""
+    ? 0 : Number(invoice.discount);
+  if (!Number.isFinite(rawDiscount) || rawDiscount < 0) return NaN;
+  if (invoice.discountType === "percent") {
+    if (rawDiscount > 100) return NaN;
+    const discountBps = Math.round(rawDiscount * 100);
+    const product = subtotalMinor * discountBps;
+    if (!Number.isSafeInteger(product)) return NaN;
+    const discountMinor = Math.floor((product + 5000) / 10000);
+    return Math.max(0, subtotalMinor - discountMinor);
+  }
+  const fixedDiscountMinor = Math.round(rawDiscount * 100);
+  if (!Number.isSafeInteger(fixedDiscountMinor)) return NaN;
+  return Math.max(0, subtotalMinor - Math.min(subtotalMinor, fixedDiscountMinor));
 }
 
 /**
