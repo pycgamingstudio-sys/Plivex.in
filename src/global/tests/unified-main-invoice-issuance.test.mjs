@@ -7,6 +7,9 @@ const edge = readFileSync(new URL("../../../supabase/functions/save-invoice/inde
 const home = readFileSync(new URL("../../pages/Home.jsx", import.meta.url), "utf8");
 const stores = readFileSync(new URL("../../lib/stores.js", import.meta.url), "utf8");
 const sharing = readFileSync(new URL("../../lib/invoiceShare.js", import.meta.url), "utf8");
+const publicPage = readFileSync(new URL("../../pages/PublicInvoicePage.jsx", import.meta.url), "utf8");
+const sanitizer = readFileSync(new URL("../../../supabase/functions/_shared/public-invoice-sanitizer.mjs", import.meta.url), "utf8");
+const designs = readFileSync(new URL("../../components/invoice/designs.jsx", import.meta.url), "utf8");
 
 test("Main Workspace commercial issuance is limited to the six non-India country/currency pairs", () => {
   assert.match(migration, /v_settings\.country_code not in \('GB','US','AE','CA','AU','SG'\)/);
@@ -58,4 +61,24 @@ test("Main Workspace renders issued PDF state only after server confirms issuanc
 test("Unified invoice sharing uses the canonical public invoice ledger for every country", () => {
   assert.match(sharing, /invoke\("invoice-share"/);
   assert.doesNotMatch(sharing, /global-invoice-share/);
+});
+
+test("Public invoice links distinguish issued commercial invoices from drafts and show tax disclosure", () => {
+  assert.match(sanitizer, /"is_draft"/);
+  assert.match(sanitizer, /"document_type", "document_status", "tax_status", "tax_disclosure"/);
+  assert.match(publicPage, /DRAFT — NOT ISSUED/);
+  assert.match(publicPage, /COMMERCIAL INVOICE/);
+  assert.match(publicPage, /taxDisclosure/);
+  assert.match(designs, /invoiceDocumentTitle\(invoice\)/);
+  assert.match(designs, /Commercial Invoice/);
+});
+
+test("Unified invoice reminders are enabled for all Main Workspace countries and localized by currency", () => {
+  const history = readFileSync(new URL("../../pages/InvoiceHistory.jsx", import.meta.url), "utf8");
+  const scheduler = readFileSync(new URL("../../../supabase/functions/sweep-invoice-reminders/index.ts", import.meta.url), "utf8");
+  assert.match(history, /APP_EDITION === "global" \|\| !view\?\.id/);
+  assert.doesNotMatch(history, /user\?\.country_code !== "IN"/);
+  assert.match(scheduler, /localeForCurrency/);
+  assert.match(scheduler, /en-GB/);
+  assert.match(scheduler, /en-AE/);
 });
