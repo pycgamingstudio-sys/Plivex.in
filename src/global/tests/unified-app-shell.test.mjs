@@ -42,7 +42,7 @@ test("unified authentication never resolves or activates a Global workspace", ()
   assert.match(auth, /const shouldResolveGlobal = APP_EDITION === "global" \|\| isUnifiedBuild \|\| countryCode !== 'IN'/);
   const legacyResolver = auth.slice(auth.indexOf("const existingCountry"), auth.indexOf("export const AuthProvider"));
   assert.match(legacyResolver, /globalContext\?\.user\?\.id === currentUser\?\.id/);
-  assert.match(auth, /setRuntimeEdition\("global", \{ verifiedGlobal: true \}\)/);
+  assert.match(legacyResolver, /setRuntimeEdition\(edition, \{ verifiedGlobal:/);
   assert.match(auth, /const wasGlobalWorkspace = APP_EDITION === 'global'/);
   assert.match(auth, /migrateLegacy: !wasGlobalWorkspace/);
 });
