@@ -227,10 +227,10 @@ const TREATMENT_RULES = Object.freeze([
     rateBps: 500, verified: true, reviewedBy: "Plivex tax rule review",
     effectiveFrom: "2011-01-04", effectiveTo: null,
     reviewedOn: "2026-11-20",
-    source: "https://www.gov.uk/charge-reclaim-record-vat",
+    source: "https://www.gov.uk/vat-rates",
     sourceAuthority: "UK HM Revenue & Customs",
     scope: "country", coverage: "reduced-rate-domestic-fuel-power-only",
-    components: [{ id: "GB-VAT-REDUCED-DOMESTIC-FUEL-POWER", name: "VAT", rateBps: 500, source: "https://www.gov.uk/charge-reclaim-record-vat" }],
+    components: [{ id: "GB-VAT-REDUCED-DOMESTIC-FUEL-POWER", name: "VAT", rateBps: 500, source: "https://www.gov.uk/vat-rates" }],
   }),
   freezeRule({
     id: "GB-VAT-DOMESTIC-CONSTRUCTION-REVERSE-CHARGE-2026-11", version: "2026.11",
