@@ -15,6 +15,9 @@ DECLARE
   v_discounted_draft jsonb;
   v_discounted_issue jsonb;
   v_discounted_invoice_id uuid;
+  v_reduced_draft jsonb;
+  v_reduced_issue jsonb;
+  v_reduced_invoice_id uuid;
   v_invoice_id uuid;
   v_payment_id uuid;
   v_invoice global.invoices%rowtype;
@@ -259,6 +262,56 @@ BEGIN
   WHERE invoice_id=(v_us_draft->'invoice'->>'id')::uuid LIMIT 1;
   IF v_line.tax_rate_bps<>850 OR v_line.tax_minor<>850 OR v_line.line_total_minor<>10850 THEN
     RAISE EXCEPTION 'US server-recalculated line tax is inconsistent: %',row_to_json(v_line);
+  END IF;
+
+  -- Special treatments must use an exact published rule and are recalculated
+  -- on the server; a browser-selected treatment alone is never sufficient.
+  v_reduced_draft := public.global_create_invoice_draft(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    'GBP','2026-11-20',NULL,'UK reduced-rate tax test',
+    jsonb_build_array(jsonb_build_object('description','Domestic fuel supply','quantity',1,'unit_price_minor',10000)),
+    'a0000000-0000-4000-8000-000000000004'
+  );
+  v_reduced_invoice_id := (v_reduced_draft->'invoice'->>'id')::uuid;
+  v_reduced_issue := public.global_issue_invoice(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    v_reduced_invoice_id,
+    '{"registration_confirmed":true,"place_of_supply_confirmed":true,"tax_category_confirmed":true,"tax_category":"GB_REDUCED_FUEL_POWER","tax_treatment":"reduced","mode":"automatic","price_mode":"exclusive","place_of_supply":"United Kingdom"}'::jsonb,
+    'a6666666-6666-4666-8666-666666666666'
+  );
+  IF v_reduced_issue->>'reason'<>'verified_special_treatment_rule_unavailable' THEN
+    RAISE EXCEPTION 'Unpublished UK reduced-rate category did not fail closed: %',v_reduced_issue;
+  END IF;
+
+  INSERT INTO global.tax_rule_versions(
+    id,country_code,jurisdiction_id,currency_code,tax_code,version,treatment,
+    effective_from,effective_to,reviewed_on,reviewed_by,source_url,components,status,created_by
+  ) VALUES (
+    'aaaaaaa4-eeee-4aaa-8aaa-aaaaaaaaaaa4','GB',NULL,'GBP',
+    'GB_REDUCED_FUEL_POWER','2026.11','reduced','2011-01-04',NULL,'2026-11-20',
+    'pending-review','https://www.gov.uk/vat-rates',
+    '[{"id":"GB-VAT-REDUCED","name":"VAT","rateBps":500}]'::jsonb,
+    'draft','66666666-6666-4666-8666-666666666666'
+  );
+  v_reduced_issue := public.global_publish_tax_rule_version('aaaaaaa4-eeee-4aaa-8aaa-aaaaaaaaaaa4','candidate-review');
+  IF v_reduced_issue->>'ok'<>'true' THEN
+    RAISE EXCEPTION 'Could not publish the test UK reduced-rate rule: %',v_reduced_issue;
+  END IF;
+  v_reduced_issue := public.global_issue_invoice(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    v_reduced_invoice_id,
+    '{"registration_confirmed":true,"place_of_supply_confirmed":true,"tax_category_confirmed":true,"tax_category":"GB_REDUCED_FUEL_POWER","tax_treatment":"reduced","mode":"automatic","price_mode":"exclusive","place_of_supply":"United Kingdom"}'::jsonb,
+    'a6666666-6666-4666-8666-666666666666'
+  );
+  IF v_reduced_issue->>'ok'<>'true'
+    OR (v_reduced_issue->'invoice'->>'tax_minor')::bigint<>500
+    OR (v_reduced_issue->'invoice'->>'total_minor')::bigint<>10500
+    OR v_reduced_issue->'invoice'->'invoice_snapshot'->>'tax_treatment'<>'reduced' THEN
+    RAISE EXCEPTION 'Published UK reduced-rate rule was not applied server-side: %',v_reduced_issue;
   END IF;
 END
 $global_invoice_issuance$;
