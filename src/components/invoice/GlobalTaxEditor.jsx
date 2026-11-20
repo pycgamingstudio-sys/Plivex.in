@@ -137,7 +137,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
           <p className="font-bold">Buyer registration and reverse-charge eligibility</p>
           <p className="mt-1 text-muted-foreground">This category is limited to qualifying UK domestic construction services. Do not select it for an ordinary sale or where an exception applies.</p>
           <label className={labelClass + " mt-3"}>Buyer VAT registration number
-            <input className={fieldClass} maxLength={80} value={config.buyerRegistrationNumber || ""} onChange={(e) => update({ buyerRegistrationNumber: e.target.value, buyerRegistrationConfirmed: false })} placeholder="Enter buyer's VAT registration number" />
+            <input className={fieldClass} maxLength={80} value={config.buyerRegistrationNumber || invoice?.buyerRegistrationNumber || ""} onChange={(e) => update({ buyerRegistrationNumber: e.target.value, buyerRegistrationConfirmed: false })} placeholder="Enter buyer's VAT registration number" />
           </label>
           <label className="mt-3 flex items-start gap-2">
             <input type="checkbox" checked={config.buyerRegistrationConfirmed === true} onChange={(e) => update({ buyerRegistrationConfirmed: e.target.checked, buyerRegistrationStatus: e.target.checked ? "registered" : "unregistered" })} />
