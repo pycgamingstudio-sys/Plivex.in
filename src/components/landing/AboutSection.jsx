@@ -7,9 +7,9 @@ const PILLARS = [
   {
     icon: Receipt, title: "Smart Billing & Invoicing", tone: "from-[#6D28D9] to-[#7C3AED]",
     features: [
-      "India edition: GST & non-GST invoicing", "India edition: CGST/SGST/IGST auto-breakup", "Manual WhatsApp sharing where supported",
+      "GST and non-GST invoicing where supported", "Country-aware tax calculation for supported regions", "Manual WhatsApp sharing where supported",
       "Recurring bills & cycles", "Credit notes & adjustments", "Quotation → invoice convert",
-      "India edition: HSN autocomplete", "Country-based currency display (Global drafts)", "Print-perfect A4 PDFs", "India edition: dynamic UPI QR codes",
+      "Product and tax-code assistance where supported", "Workspace currency and locale-aware formatting", "Print-perfect A4 PDFs", "Payment QR options where supported",
     ],
   },
   {
@@ -23,15 +23,15 @@ const PILLARS = [
   {
     icon: Wallet, title: "Payments & Financial Tracking", tone: "from-[#059669] to-[#10B981]",
     features: [
-      "India edition: UPI QR code generation", "India payment provider: PayU checkout", "Payment tracking for supported workflows", "Partial payment tracking",
-      "India edition: expense & purchase ledger", "India edition: net profit calculation", "India edition: automatic payment reminders", "Reconciliation engine",
+      "Payment QR generation where supported", "Regional payment options where available", "Payment tracking for supported workflows", "Partial payment tracking",
+      "Expense and purchase tracking", "Recorded sales and expense summaries", "Payment reminder workflows where supported", "Reconciliation engine",
     ],
   },
   {
     icon: BarChart3, title: "Reports & Business Intelligence", tone: "from-[#D97706] to-[#F59E0B]",
     features: [
-      "India edition: revenue reports", "India edition: GSTR-1 ready exports", "India edition: CSV / Excel reports", "Country-aware tax capability summary",
-      "India edition: P&L statements", "India edition: sales trend charts", "India edition: staff performance metrics", "India edition: inventory valuation",
+      "Revenue and sales reports", "Tax exports where supported", "CSV and spreadsheet exports", "Country-aware tax capability summary",
+      "Financial summaries", "Sales trend visualisations", "Team activity insights", "Inventory valuation",
     ],
   },
   {
@@ -44,28 +44,28 @@ const PILLARS = [
   {
     icon: Plug, title: "Usability & Integrations", tone: "from-[#DB2777] to-[#EC4899]",
     features: [
-      "Mobile responsive PWA", "Bulk PDF export", "Connected web workspace", "India payment provider: PayU",
-      "Cancel & track invoices", "India UI: Hindi and English; Global UI: English", "India edition: multi-user team access", "Custom branding & logos",
+      "Mobile responsive PWA", "Bulk PDF export", "Connected web workspace", "Regional payment options where available",
+      "Cancel & track invoices", "Hindi and English interface options", "Workspace team access and role controls", "Custom branding & logos",
     ],
   },
 ];
 
 const STATS = [
   { value: "6", label: "Core capability areas" },
-  { value: "2", label: "India UI languages · Global UI in English" },
+  { value: "2", label: "Interface language options" },
   { value: "Free", label: "Plan to get started" },
   { value: "No card", label: "Needed to get started" },
 ];
 
 export default function AboutSection({ showFounderPhotos = true } = {}) {
   return (
-    <section id="about" className="fade-up scroll-mt-20">
-      <div className="overflow-hidden rounded-3xl border border-[#E5E7EB] bg-white shadow-sm">
+    <section id="about" className="plivex-public-section fade-up">
+      <div className="overflow-hidden rounded-3xl border border-[#E8E7EF] bg-white shadow-[0_12px_40px_rgba(36,24,72,.06)]">
         <div className="bg-gradient-to-br from-[#6D28D9] to-[#4c1d95] p-6 text-white sm:p-8">
           <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /><p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">About Plivex</p></div>
           <h2 className="mt-2 text-[22px] font-bold leading-tight sm:text-[28px]">Smart invoicing with your built-in AI Business Assistant.</h2>
           <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-white/85">
-            Plivex brings invoicing, quotations, customer records, expenses, inventory and business reports together in one web workspace. It is designed for retailers, wholesalers, distributors, freelancers, service providers and small teams that want everyday billing work organised in one place. India GST workflows are available today; Global capabilities are being introduced in stages.
+            Plivex brings invoicing, quotations, customer records, expenses, inventory and business reports together in one web workspace. It is designed for retailers, wholesalers, distributors, freelancers, service providers and small teams that want everyday billing work organised in one place. Tax rules, currency formats and available payment methods are configured for the workspace country. Plivex brings the same connected business workspace to teams wherever they operate.
           </p>
           <div className="mt-5 flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 p-3">
             {showFounderPhotos && <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Developer of Plivex" width="56" height="56" loading="lazy" decoding="async" className="h-14 w-14 shrink-0 rounded-full border-2 border-white/70 object-cover object-center" />}
@@ -89,7 +89,7 @@ export default function AboutSection({ showFounderPhotos = true } = {}) {
           <p className="mt-1 text-[12px] text-slate-500">Explore the main capability areas available in Plivex.</p>
           <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {PILLARS.map((p) => (
-              <div key={p.title} className="rounded-2xl border border-[#E5E7EB] bg-slate-50/60 p-4">
+              <div key={p.title} className="plivex-hover-lift rounded-2xl border border-[#E8E7EF] bg-gradient-to-br from-white to-[#FAF9FF] p-4 shadow-[0_1px_2px_rgba(24,24,40,.025)] transition-all">
                 <div className="flex items-center gap-2.5">
                   <span className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${p.tone} text-white`}><p.icon className="h-4.5 w-4.5" /></span>
                   <h4 className="text-[13px] font-bold text-slate-900">{p.title}</h4>
@@ -122,7 +122,7 @@ export default function AboutSection({ showFounderPhotos = true } = {}) {
               <div className="min-w-0">
                 <h3 className="text-[14px] font-bold text-slate-900">Yashvant Sharma</h3>
                 <p className="mt-0.5 text-[11px] font-semibold text-[#6D28D9]">Developer, Plivex</p>
-                <p className="mt-1 text-[12px] leading-relaxed text-slate-600">Building practical billing and business management tools for Indian small businesses.</p>
+                <p className="mt-1 text-[12px] leading-relaxed text-slate-600">Building practical billing and business management tools for businesses and teams.</p>
               </div>
             </div>
           </div>
