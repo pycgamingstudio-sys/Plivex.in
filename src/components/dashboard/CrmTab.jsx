@@ -104,8 +104,8 @@ export default function CrmTab({ intent, onConsumeIntent }) {
       </div>
 
       {sub === "clients" ? (
-        <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-[#E5E7EB] p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="plivex-hover-lift overflow-hidden rounded-2xl border border-[#E8E7EF] bg-white shadow-[0_1px_2px_rgba(24,24,40,.03),0_8px_24px_rgba(24,24,40,.035)]">
+          <div className="flex flex-col gap-3 border-b border-[#E8E7EF] bg-[#FCFBFE] p-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="relative max-w-xs flex-1">
               <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search clients…" aria-label="Search clients" className={`${inputCls} pl-9`} />
@@ -188,7 +188,7 @@ export default function CrmTab({ intent, onConsumeIntent }) {
               {rows.map((client) => {
                 const clientOpen = expanded === client.id;
                 const clientInvoices = invoices.filter((invoice) => invoice.clientName === client.name);
-                return <article key={client.id} className="rounded-xl border border-slate-200 p-3.5">
+                return <article key={client.id} className="rounded-xl border border-[#E8E7EF] bg-gradient-to-br from-white to-[#FAF9FF] p-3.5">
                   <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words text-[13px] font-bold text-slate-900">{client.name}</p><p className="mt-0.5 text-[10px] text-slate-500">{client.company || "Individual client"}</p><p className="mt-1 break-all text-[10px] text-slate-500">{client.email || "No email"}{client.phone ? " · " + client.phone : ""}</p></div><button type="button" onClick={() => setExpanded(clientOpen ? null : client.id)} className="shrink-0 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-slate-600">{clientOpen ? "Hide details" : "Details"}</button></div>
                   {clientOpen && <div className="mt-3 rounded-lg bg-slate-50 p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Invoice history · {clientInvoices.length}</p>{clientInvoices.length ? clientInvoices.slice(0, 5).map((invoice) => <div key={invoice.id} className="flex items-center justify-between gap-2 border-b border-slate-200 py-2 text-[10px] last:border-0"><span className="text-slate-600">{invoice.number} · {invoice.issueDate || "—"}</span><strong className="text-slate-800">{money2(invoice.total, invoice.currency || currencyCode)}</strong></div>) : <p className="mt-2 text-[11px] text-slate-500">No invoices recorded.</p>}{client.address && <p className="mt-2 text-[10px] text-slate-500">{client.address}</p>}</div>}
                   <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => invoiceFor(client)} className="min-h-9 rounded-lg bg-[#6D28D9] px-3 text-[11px] font-bold text-white">Create invoice</button><button type="button" onClick={() => setClientModal({ ...client })} className="min-h-9 rounded-lg border border-slate-200 px-3 text-[11px] font-semibold text-slate-700">Edit</button><button type="button" onClick={() => { if (window.confirm("Delete client " + client.name + "? This cannot be undone.")) persistClients(removeItem(KEYS.clients, client.id)); }} className="min-h-9 rounded-lg border border-rose-100 px-3 text-[11px] font-semibold text-rose-700">Delete</button></div>
@@ -253,7 +253,7 @@ function ClientModal({ value, onClose, onSave }) {
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-labelledby="client-modal-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-[440px] overflow-y-auto overscroll-contain rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-labelledby="client-modal-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-[440px] overflow-y-auto overscroll-contain rounded-2xl border border-[#E8E7EF] bg-white p-5 shadow-[0_24px_72px_rgba(15,23,42,.18)]" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between"><h3 id="client-modal-title" className="text-lg font-bold text-slate-900">{value.id ? "Edit client" : "Add client"}</h3><button type="button" onClick={onClose} aria-label="Close client form" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="block text-[12px] font-semibold text-slate-500">Name<input className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Client name" /></label>
@@ -274,7 +274,7 @@ function LeadModal({ currencyCode, onClose, onSave }) {
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-950/45 p-2 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
-      <section role="dialog" aria-modal="true" aria-labelledby="lead-modal-title" className="my-1 flex max-h-[calc(100dvh-0.5rem)] w-full max-w-[480px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:my-0 sm:max-h-[min(88dvh,760px)] sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
+      <section role="dialog" aria-modal="true" aria-labelledby="lead-modal-title" className="my-1 flex max-h-[calc(100dvh-0.5rem)] w-full max-w-[480px] flex-col overflow-hidden rounded-2xl border border-[#E8E7EF] bg-white shadow-[0_24px_72px_rgba(15,23,42,.18)] sm:my-0 sm:max-h-[min(88dvh,760px)] sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 sm:px-5">
           <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-700">Lead pipeline</p><h3 id="lead-modal-title" className="mt-0.5 text-lg font-bold text-slate-900">Add new lead</h3></div>
           <button type="button" onClick={onClose} aria-label="Close add lead" className="shrink-0 rounded-xl p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button>

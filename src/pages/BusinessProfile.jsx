@@ -10,7 +10,7 @@ import WorkspaceCountrySettings from "@/components/global/WorkspaceCountrySettin
 const defaults = { name: "", address: "", gstin: "", email: "", phone: "", logo: "", upiId: "" };
 
 function Field({ label, children }) {
-  return <label className="block text-[12px] font-semibold text-muted-foreground">{label}{children}</label>;
+  return <label className="block min-w-0 text-[12px] font-semibold leading-5 text-slate-600">{label}{children}</label>;
 }
 
 export default function BusinessProfile() {
@@ -26,7 +26,7 @@ export default function BusinessProfile() {
     <PageShell icon={Store} title="Business profile" subtitle="Saved defaults pulled in when you start a new invoice.">
       <div className="mb-5"><WorkspaceCountrySettings lockCountry={isUnifiedBuild || APP_EDITION === "global"} /></div>
       <div className="grid gap-5 lg:grid-cols-[1fr_240px]">
-        <div className="space-y-4 rounded-xl border bg-card p-5">
+        <div className="space-y-4 rounded-2xl border border-[#E8E7EF] bg-white p-4 shadow-[0_1px_2px_rgba(24,24,40,.03)] sm:p-5">
           <Field label="Business name"><input className={inputCls} value={profile.name} onChange={(e) => set("name", e.target.value)} placeholder="Your Business Name" /></Field>
           <div className="grid gap-3 sm:grid-cols-2">
             {isIndiaWorkspace && <Field label="GSTIN"><input className={inputCls} value={profile.gstin} onChange={(e) => set("gstin", e.target.value)} placeholder="22AAAAA0000A1Z5" /></Field>}

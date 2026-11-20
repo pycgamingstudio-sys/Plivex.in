@@ -23,9 +23,9 @@ export default function Settings() {
 
   return (
     <PageShell icon={SettingsIcon} title="Settings" subtitle="Defaults applied across your workspace.">
-      <div className="space-y-4 rounded-xl border bg-card p-5">
+      <div className="space-y-4 rounded-2xl border border-[#E8E7EF] bg-white p-4 shadow-[0_1px_2px_rgba(24,24,40,.03)] sm:p-5">
         {isUnifiedBuild || APP_EDITION === "global" ? (
-          <div className="rounded-lg border p-3">
+          <div className="rounded-xl border border-[#E8E7EF] bg-gradient-to-br from-white to-[#FAF9FF] p-4">
             <p className="text-[12px] font-semibold text-muted-foreground">Workspace base currency</p>
             <p className="mt-1 text-lg font-bold">{user?.currency_code || "—"}</p>
             <p className="text-[11px] text-muted-foreground">Controlled by the country you selected during Workspace setup. Currency conversion is never applied automatically.</p>
@@ -37,17 +37,17 @@ export default function Settings() {
             {user?.country_code && user.country_code !== "IN" && <p className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">Tax defaults are not enabled until verified tax rules are available for your workspace country.</p>}
           </>
         )}
-        <div className="flex items-center justify-between rounded-lg border p-3"><div><p className="text-[13px] font-semibold">Dark theme</p><p className="text-[11px] text-muted-foreground">Toggle the workspace appearance.</p></div><button onClick={() => setDark(!dark)} className={`relative h-6 w-11 rounded-full transition-colors ${dark ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${dark ? "left-[22px]" : "left-0.5"}`} /></button></div>
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#E8E7EF] bg-[#FAFAFC] p-3.5"><div><p className="text-[13px] font-semibold">Dark theme</p><p className="text-[11px] text-muted-foreground">Toggle the workspace appearance.</p></div><button onClick={() => setDark(!dark)} className={`relative h-6 w-11 rounded-full transition-colors ${dark ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${dark ? "left-[22px]" : "left-0.5"}`} /></button></div>
         <p className="flex items-center gap-1.5 text-[11px] text-emerald-600"><Check className="h-3.5 w-3.5" />Saved automatically</p>
       </div>
       <div className="mt-4"><DataImportExport /></div>
-      <div className="mt-4 rounded-2xl border border-border bg-card p-4">
+      <div className="mt-4 rounded-2xl border border-[#E8E7EF] bg-white p-4 shadow-[0_1px_2px_rgba(24,24,40,.03)]">
         <p className="text-sm font-semibold text-foreground">Language</p>
         <p className="mb-3 mt-1 text-xs text-muted-foreground">Choose the language of the app. You can change it any time in Settings.</p>
-        <LanguageSwitcher showHindi={APP_EDITION !== "global"} />
+        <LanguageSwitcher showHindi />
       </div>
       <div className="mt-4"><WorkspaceCountrySettings lockCountry={true} /></div>
-      {APP_EDITION === "global" || user?.country_code !== "IN" ? <div className="mt-4 rounded-xl border bg-card p-4"><p className="text-sm font-semibold">Email integrations</p><p className="mt-1 text-xs text-muted-foreground">Automated invoice payment reminders are not enabled for this Workspace country yet.</p></div> : <div className="mt-4"><EmailSettingsCard /></div>}
+      {APP_EDITION === "global" || user?.country_code !== "IN" ? <div className="mt-4 rounded-2xl border border-[#E8E7EF] bg-white p-4 shadow-[0_1px_2px_rgba(24,24,40,.03)]"><p className="text-sm font-semibold">Email integrations</p><p className="mt-1 text-xs text-muted-foreground">Automated invoice payment reminders are not enabled for this Workspace country yet.</p></div> : <div className="mt-4"><EmailSettingsCard /></div>}
     </PageShell>
   );
 }

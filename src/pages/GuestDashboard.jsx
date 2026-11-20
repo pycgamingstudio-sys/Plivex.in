@@ -34,10 +34,10 @@ const ACTIONS = [
 
 function DemoCard({ icon: Icon, label, value, sub, gradient }) {
   return (
-    <div className={`rounded-2xl bg-gradient-to-br ${gradient} p-4 text-white shadow-sm`}>
-      <div className="flex items-center justify-between"><span className="text-[11px] font-semibold uppercase tracking-wider text-white/75">{label}</span><Icon className="h-4 w-4 text-white/85" /></div>
-      <p className="mt-2 text-[20px] font-bold leading-none">{value}</p>
-      <p className="mt-1.5 text-[11px] text-white/80">{sub}</p>
+    <div className={`plivex-hover-lift min-w-0 rounded-2xl bg-gradient-to-br ${gradient} p-4 text-white shadow-sm ring-1 ring-black/[.035]`}>
+      <div className="flex items-center justify-between gap-2"><span className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/85">{label}</span><Icon className="h-4 w-4 text-white/85" /></div>
+      <p className="mt-2 break-words text-[clamp(1.1rem,2vw,1.4rem)] font-bold leading-tight tracking-[-0.035em]">{value}</p>
+      <p className="mt-1.5 break-words text-[10px] leading-relaxed text-white/85 sm:text-[11px]">{sub}</p>
     </div>
   );
 }
@@ -51,9 +51,9 @@ export default function GuestDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#faf9ff_0%,#f8f7fc_42%,#f8fafc_100%)] text-slate-900">
       <header className="sticky top-0 z-30 border-b border-[#E5E7EB] bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-2.5">
             <Logo className="h-9 w-9" rounded="rounded-xl" />
             <div className="min-w-0"><p className="text-[15px] font-bold tracking-[-0.03em]">Plivex</p><p className="hidden text-[10px] text-slate-400 sm:block">Smart Invoicing &amp; Business OS</p></div>
@@ -65,22 +65,22 @@ export default function GuestDashboard() {
             <Link to="/contact-us" className="text-sm font-semibold text-slate-600 hover:text-[#6D28D9]">Contact</Link>
           </nav>
           <div className="flex items-center gap-2">
-            <LanguageSwitcher className="hidden sm:inline-flex" showHindi={false} />
+            <LanguageSwitcher className="hidden sm:inline-flex" showHindi />
             <button onClick={() => setAuthAction("")} className="rounded-xl border border-[#E5E7EB] px-3 py-2 text-[12px] font-bold text-slate-700 hover:bg-slate-50">Sign in</button>
             <Link to="/register" className="rounded-xl bg-[#6D28D9] px-3 py-2 text-[12px] font-bold text-white hover:bg-[#7C3AED]">Get started</Link>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl space-y-6 px-4 pb-16 pt-6 sm:pt-8">
-        <section className="fade-up overflow-hidden rounded-3xl border border-[#E9E5F2] bg-white text-slate-900 shadow-sm">
-          <div className="grid items-center gap-7 p-6 sm:p-9 lg:grid-cols-[1.1fr_0.9fr] lg:p-12">
+      <main className="mx-auto max-w-6xl space-y-7 px-3 pb-16 pt-5 sm:space-y-8 sm:px-4 sm:pt-8">
+        <section className="fade-up overflow-hidden rounded-3xl border border-[#E8E7EF] bg-white text-slate-900 shadow-[0_16px_48px_rgba(36,24,72,.07)]">
+          <div className="grid items-center gap-7 p-5 sm:p-9 lg:grid-cols-[1.08fr_.92fr] lg:gap-9 lg:p-12">
             <div>
               <p className="inline-flex items-center gap-2 rounded-full border border-violet-100 bg-violet-50 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-violet-700"><Sparkles className="h-3.5 w-3.5" />Smart business workspace</p>
-              <h1 className="mt-4 text-3xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">Less paperwork.<br/><span className="text-[#6D28D9]">More business.</span></h1>
-              <p className="mt-4 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">Bring invoices, customers, stock, expenses and reports into one connected business workspace. Your workspace uses the country and regional settings you select when you create your account. Start with the Free plan and upgrade only when you need more.</p>
+              <h1 className="mt-4 max-w-[13ch] text-balance text-[clamp(2rem,5vw,3.35rem)] font-extrabold leading-[1.08] tracking-[-0.045em] text-slate-900">Less paperwork.<br/><span className="text-[#6D28D9]">More business.</span></h1>
+              <p className="mt-4 max-w-xl text-[13px] leading-6 text-slate-600 sm:text-[15px]">Bring invoices, customers, stock, expenses and reports into one connected business workspace. Your workspace uses the country and regional settings you select when you create your account. Start with the Free plan and upgrade only when you need more.</p>
               <div className="mt-5 flex flex-wrap gap-3">
-                <Link to="/register" className="inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#5B21B6]">Create your free account <span aria-hidden="true">→</span></Link>
+                <Link to="/register" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#6D28D9] px-5 py-3 text-sm font-bold text-white shadow-[0_6px_16px_rgba(109,40,217,.18)] transition-all hover:-translate-y-0.5 hover:bg-[#5B21B6]">Create your free account <span aria-hidden="true">→</span></Link>
                 <a href="#features" className="inline-flex items-center rounded-xl border border-violet-200 px-5 py-3 text-sm font-bold text-violet-700 hover:bg-violet-50">Explore features</a>
               </div>
               <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs font-medium text-slate-500"><span>✓ Free plan available</span><span>✓ No card required</span><span>✓ Hindi &amp; English</span></div>
