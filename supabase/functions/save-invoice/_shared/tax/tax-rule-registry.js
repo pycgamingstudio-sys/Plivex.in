@@ -68,6 +68,23 @@ const COUNTRY_PROFILES = Object.freeze({
   }),
 });
 
+const CA_PROVINCE_RULES = Object.freeze({
+  AB: { name: "Alberta", components: [{ id: "CA-AB-GST", name: "GST", rateBps: 500 }] },
+  BC: { name: "British Columbia", components: [{ id: "CA-BC-GST", name: "GST", rateBps: 500 }, { id: "CA-BC-PST", name: "PST", rateBps: 700 }] },
+  MB: { name: "Manitoba", components: [{ id: "CA-MB-GST", name: "GST", rateBps: 500 }, { id: "CA-MB-RST", name: "RST", rateBps: 700 }] },
+  NB: { name: "New Brunswick", components: [{ id: "CA-NB-HST", name: "HST", rateBps: 1500 }] },
+  NL: { name: "Newfoundland and Labrador", components: [{ id: "CA-NL-HST", name: "HST", rateBps: 1500 }] },
+  NS: { name: "Nova Scotia", components: [{ id: "CA-NS-HST", name: "HST", rateBps: 1400 }] },
+  NT: { name: "Northwest Territories", components: [{ id: "CA-NT-GST", name: "GST", rateBps: 500 }] },
+  NU: { name: "Nunavut", components: [{ id: "CA-NU-GST", name: "GST", rateBps: 500 }] },
+  ON: { name: "Ontario", components: [{ id: "CA-ON-HST", name: "HST", rateBps: 1300 }] },
+  PE: { name: "Prince Edward Island", components: [{ id: "CA-PE-HST", name: "HST", rateBps: 1500 }] },
+  QC: { name: "Quebec", components: [{ id: "CA-QC-GST", name: "GST", rateBps: 500 }, { id: "CA-QC-QST", name: "QST", rateBps: 997 }] },
+  SK: { name: "Saskatchewan", components: [{ id: "CA-SK-GST", name: "GST", rateBps: 500 }, { id: "CA-SK-PST", name: "PST", rateBps: 600 }] },
+  YT: { name: "Yukon", components: [{ id: "CA-YT-GST", name: "GST", rateBps: 500 }] },
+});
+const CA_RATE_SOURCE = "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html";
+
 const RULES = Object.freeze({
   GB: freezeRule({
     id: "GB-VAT-STANDARD-2026-11", version: "2026.11",
@@ -247,8 +264,30 @@ export function getTaxRuleSet(countryCode, options = {}) {
   if (profile.ruleMode === "india_legacy") {
     return { ok: false, status: "india_legacy", code: "INDIA_LEGACY_ADAPTER_REQUIRED", countryCode: code, profile: { ...profile }, catalogVersion: TAX_RULE_CATALOG_VERSION };
   }
-  if (profile.ruleMode === "jurisdiction_required") {
+  if (profile.ruleMode === "jurisdiction_required" && code !== "CA") {
     return { ok: false, status: "jurisdiction_required", code: "JURISDICTION_RULE_REQUIRED", countryCode: code, profile: { ...profile }, catalogVersion: TAX_RULE_CATALOG_VERSION };
+  }
+  if (code === "CA") {
+    const province = typeof options.jurisdictionId === "string" ? options.jurisdictionId.trim().toUpperCase() : "";
+    const entry = CA_PROVINCE_RULES[province];
+    if (!entry) return { ok: false, status: "jurisdiction_required", code: "CANADIAN_PROVINCE_REQUIRED", countryCode: code, profile: { ...profile }, catalogVersion: TAX_RULE_CATALOG_VERSION };
+    const asOfDate = options.asOfDate;
+    if (asOfDate !== undefined && !validDate(asOfDate)) return { ok: false, status: "invalid_date", code: "INVALID_RULE_AS_OF_DATE", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION };
+    if (asOfDate && asOfDate < "2025-04-01" && province === "NS") {
+      return { ok: false, status: "no_effective_rule", code: "HISTORIC_NOVA_SCOTIA_RATE_REQUIRES_TRANSITION_REVIEW", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION };
+    }
+    const components = entry.components.map((component) => ({ ...component, source: CA_RATE_SOURCE }));
+    const rateBps = components.reduce((sum, component) => sum + component.rateBps, 0);
+    const rule = {
+      id: `CA-${province}-GST-HST-PST-2025-04`, version: "2025.04",
+      countryCode: "CA", currencyCode: "CAD", taxName: components.map((component) => component.name).join(" + "),
+      treatment: "standard", jurisdictionId: province, rateBps,
+      effectiveFrom: province === "NS" ? "2025-04-01" : "2025-04-01", effectiveTo: null,
+      reviewedOn: "2026-11-20", source: CA_RATE_SOURCE, sourceAuthority: "Canada Revenue Agency",
+      scope: "province", coverage: "published-province-gst-hst-and-pst-baseline-not-product-taxability",
+      components,
+    };
+    return { ok: true, status: "rule_available", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION, profile: { ...profile }, rule };
   }
 
   const asOfDate = options.asOfDate;
