@@ -139,4 +139,8 @@ test("Canada GST/HST standard rate is selected by province or territory and excl
     assert.equal(result.rule.coverage, "federal-gst-or-harmonized-hst-only-provincial-sales-taxes-excluded");
   }
   assert.equal(getTaxRuleSet("CA", { asOfDate: "2026-11-20" }).code, "CANADIAN_PROVINCE_REQUIRED");
+  const zeroRated = getTaxTreatmentRuleSet("CA", { treatment: "zero-rated", taxCategoryId: "CA_ZERO_RATED_BASIC_GROCERIES", jurisdictionId: "QC", asOfDate: "2026-11-20" });
+  assert.equal(zeroRated.ok, true);
+  assert.equal(zeroRated.rule.jurisdictionId, "QC");
+  assert.equal(zeroRated.rule.components[0].rateBps, 0);
 });
