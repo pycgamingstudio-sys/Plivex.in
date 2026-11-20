@@ -38,7 +38,7 @@ export default function AppLayout({ children }) {
     if (path === "/inventory-procurement") return workspaceFeatures.includes("inventoryWorkspace");
     if (path === "/usage-reports" || path === "/tax-summary" || path === "/account-activity") return workspaceFeatures.includes("reports");
     if (path === "/payment-logs") return workspaceFeatures.includes("expenses");
-    if (path === "/templates") return workspaceFeatures.includes("quotations");
+    if (path === "/templates" || path === "/service-catalog") return workspaceFeatures.includes("quotations");
     return true;
   };
 
