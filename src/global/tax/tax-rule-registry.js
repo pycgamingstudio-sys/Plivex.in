@@ -14,7 +14,7 @@
  * - Do not promote a rule to active until its scope and effective dates are
  *   reviewed. This code catalogue is not a live database or legal advice.
  */
-export const TAX_RULE_CATALOG_VERSION = "2026.11.1";
+export const TAX_RULE_CATALOG_VERSION = "2026.11.2";
 export const TAX_ENGINE_VERSION = "1.0.0";
 
 const freezeRule = (rule) => Object.freeze({
@@ -38,8 +38,8 @@ const COUNTRY_PROFILES = Object.freeze({
   GB: Object.freeze({
     countryCode: "GB", taxSystem: "VAT", currencyCode: "GBP",
     ruleMode: "standard_rate_baseline", issuance: "code_ready_database_migration_pending",
-    coverage: "standard-rate-only",
-    note: "Only the source-backed standard-rate baseline is catalogued. Reduced, zero-rated, exempt, reverse-charge and special treatments are not covered.",
+    coverage: "standard-and-narrow-reduced-rate-baseline",
+    note: "Standard VAT plus one narrowly scoped reduced-rate category for domestic fuel or power; other special treatments are not covered.",
   }),
   AE: Object.freeze({
     countryCode: "AE", taxSystem: "VAT", currencyCode: "AED",
@@ -114,6 +114,22 @@ const RULES = Object.freeze({
   }),
 });
 
+
+const TREATMENT_RULES = Object.freeze([
+  freezeRule({
+    id: "GB-VAT-REDUCED-DOMESTIC-FUEL-POWER-2026-11", version: "2026.11",
+    countryCode: "GB", currencyCode: "GBP", taxName: "VAT",
+    treatment: "reduced", taxCategoryId: "GB_REDUCED_DOMESTIC_FUEL_POWER",
+    rateBps: 500, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2011-01-04", effectiveTo: null,
+    reviewedOn: "2026-11-20",
+    source: "https://www.gov.uk/charge-reclaim-record-vat",
+    sourceAuthority: "UK HM Revenue & Customs",
+    scope: "country", coverage: "reduced-rate-domestic-fuel-power-only",
+    components: [{ id: "GB-VAT-REDUCED-DOMESTIC-FUEL-POWER", name: "VAT", rateBps: 500, source: "https://www.gov.uk/charge-reclaim-record-vat" }],
+  }),
+]);
+
 const validDate = (value) => {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(value + "T00:00:00.000Z");
@@ -172,6 +188,29 @@ export function getTaxRuleSet(countryCode, options = {}) {
     profile: { ...profile },
     rule: copyRule(rule),
   };
+}
+
+
+/**
+ * Resolve only an explicitly requested, category-matched non-standard rule.
+ * No category inference or fallback to the standard rate is performed.
+ */
+export function getTaxTreatmentRuleSet(countryCode, { treatment, taxCategoryId, asOfDate } = {}) {
+  const code = normalizeTaxCountryCode(countryCode);
+  if (!code || !["reduced", "zero-rated", "exempt", "out-of-scope"].includes(treatment)
+    || typeof taxCategoryId !== "string" || !taxCategoryId.trim()) {
+    return { ok: false, status: "invalid_treatment_rule_request", code: "TREATMENT_AND_CATEGORY_REQUIRED", catalogVersion: TAX_RULE_CATALOG_VERSION };
+  }
+  if (asOfDate !== undefined && !validDate(asOfDate)) {
+    return { ok: false, status: "invalid_date", code: "INVALID_RULE_AS_OF_DATE", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION };
+  }
+  const matches = TREATMENT_RULES.filter((rule) => rule.countryCode === code
+    && rule.treatment === treatment && rule.taxCategoryId === taxCategoryId
+    && (!asOfDate || (asOfDate >= rule.effectiveFrom && (!rule.effectiveTo || asOfDate <= rule.effectiveTo))));
+  if (matches.length !== 1) {
+    return { ok: false, status: "rule_unavailable", code: matches.length ? "AMBIGUOUS_TREATMENT_RULE" : "NO_EFFECTIVE_VERIFIED_RULE", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION };
+  }
+  return { ok: true, status: "rule_available", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION, rule: copyRule(matches[0]) };
 }
 
 export function listTaxRuleSets() {
