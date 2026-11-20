@@ -208,8 +208,8 @@ Deno.serve(async (req: Request) => {
       return globalJson({
         ok: true,
         ledger_ready: ledgerReady,
-        issuance_ready: ledgerReady && taxFunctionReady && data?.country_code === "GB",
-        issuance_countries: ["GB"],
+        issuance_ready: ledgerReady && taxFunctionReady && ["GB","AE","CA","AU","SG"].includes(data?.country_code),
+        issuance_countries: ["GB","AE","CA","AU","SG"],
         commercial_issuance_ready: ledgerReady && commercialFunctionReady && commercialCountries.includes(data?.country_code),
         commercial_issuance_countries: commercialCountries,
         country_code: data?.country_code || null,
