@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { useState } from "react";
 import PresenceBeacon from "@/components/PresenceBeacon";
 import Logo from "@/components/Logo";
 import { navItems, MORE_NAV_ITEMS, HIDDEN_FROM_SIDEBAR } from "@/lib/nav";
@@ -30,6 +31,7 @@ export default function AppLayout({ children }) {
   const { features: workspaceFeatures } = useWorkspaceFeatures(user?.workspace_id);
   const { canAccess, openPaywall } = usePaywall();
   const isGlobal = APP_EDITION === "global";
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const isFeatureAvailable = (path) => {
     if (path === "/crm" || path === "/client-database") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
@@ -112,19 +114,32 @@ export default function AppLayout({ children }) {
               );
             })}
           </div>
-          <details className="group relative shrink-0">
-            <summary className="flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-[12px] font-bold text-violet-800 shadow-sm transition-colors hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
-              <MoreHorizontal className="h-4 w-4" />More<ChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" />
-            </summary>
-            <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-60 rounded-2xl border border-[#E8E7EF] bg-white p-2 shadow-[0_14px_40px_rgba(25,18,48,.16)]">
-              <p className="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Workspace & account</p>
-              {moreItems.map((item) => (
-                <NavLink key={item.to} to={item.to} onClick={(event) => { const details = event.currentTarget.closest("details"); if (details) details.open = false; }} className={({ isActive }) => `flex min-h-10 items-center gap-2.5 rounded-xl px-3 py-2 text-[12px] font-semibold transition-colors ${isActive ? "bg-violet-50 text-violet-800" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}>
-                  <item.icon className="h-4 w-4 shrink-0" />{item.label}
-                </NavLink>
-              ))}
-            </div>
-          </details>
+          <div className="relative z-50 shrink-0">
+            <button
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={moreOpen}
+              onClick={() => setMoreOpen((open) => !open)}
+              className="flex min-h-10 items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-[12px] font-bold text-violet-800 shadow-sm transition-colors hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            >
+              <MoreHorizontal className="h-4 w-4" />More
+              <ChevronDown className={`h-3 w-3 transition-transform ${moreOpen ? "rotate-180" : ""}`} />
+            </button>
+            {moreOpen && (
+              <>
+                <button type="button" aria-label="Close More menu" className="fixed inset-0 z-40 cursor-default bg-transparent" onClick={() => setMoreOpen(false)} />
+                <div role="menu" className="absolute right-0 top-[calc(100%+8px)] z-50 max-h-[min(70vh,28rem)] w-64 overflow-y-auto rounded-2xl border border-[#E8E7EF] bg-white p-2 shadow-[0_14px_40px_rgba(25,18,48,.16)]">
+                  <p className="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Workspace & account</p>
+                  {moreItems.map((item) => (
+                    <NavLink key={item.to} to={item.to} role="menuitem" onClick={() => setMoreOpen(false)} className={({ isActive }) => `flex min-h-10 items-center gap-2.5 rounded-xl px-3 py-2 text-[12px] font-semibold transition-colors ${isActive ? "bg-violet-50 text-violet-800" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}>
+                      <item.icon className="h-4 w-4 shrink-0" />{item.label}
+                    </NavLink>
+                  ))}
+                  {moreItems.length === 0 && <p className="px-3 py-3 text-xs text-slate-500">No additional sections are available for this role.</p>}
+                </div>
+              </>
+            )}
+          </div>
         </nav>
       </header>
       <main className={`mx-auto max-w-6xl px-4 py-6 ${isGlobal ? "min-h-[calc(100vh-120px)] bg-[#F8F7FC]" : ""}`}>{children ?? <Outlet />}</main>
