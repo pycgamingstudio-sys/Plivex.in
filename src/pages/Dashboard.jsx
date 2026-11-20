@@ -16,6 +16,7 @@ import ReconciliationTab from "@/components/dashboard/ReconciliationTab";
 import WelcomePopup from "@/components/WelcomePopup";
 import { seedDashboard } from "@/lib/dashboardData";
 import { navItems, MORE_NAV_ITEMS, HIDDEN_FROM_SIDEBAR } from "@/lib/nav";
+import { useDialogA11y } from "@/lib/useDialogA11y";
 import { usePaywall } from "@/lib/paywall";
 import { useAuth } from "@/lib/AuthContext";
 import { useRole, canAccessTab } from "@/lib/roles";
@@ -44,6 +45,7 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
   const [intent, setIntent] = useState(initialIntent || null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const moreDialogRef = useDialogA11y(moreOpen, () => setMoreOpen(false));
   useEffect(() => { try { localStorage.setItem("plivex-main-workspace-theme", isDark ? "dark" : "light"); } catch { /* preference storage is optional */ } }, [isDark]);
   const navigate = useNavigate();
   const { isPremium, openPaywall, planName, plan, planLoading, canAccess } = usePaywall();
@@ -182,7 +184,7 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
                 {user?.profilePicture ? <img src={user.profilePicture} alt="avatar" className="h-7 w-7 rounded-full object-cover" /> : <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#6D28D9] text-[11px] font-bold text-white">{(user?.full_name || user?.email || "U").charAt(0).toUpperCase()}</div>}
                 <span className="hidden text-[11px] font-semibold text-slate-700 sm:inline">{user?.full_name?.split(" ")[0] || "Account"}</span>
               </button>
-              <button onClick={() => setMoreOpen(true)} className="flex h-9 items-center gap-1 rounded-lg border border-[#E5E7EB] px-2 text-[11px] font-bold text-slate-600 hover:bg-slate-50 md:hidden"><LayoutGrid className="h-4 w-4" /><span>More</span></button>
+              <button type="button" onClick={() => setMoreOpen(true)} aria-haspopup="dialog" aria-expanded={moreOpen} className="flex h-9 items-center gap-1 rounded-lg border border-[#E5E7EB] px-2 text-[11px] font-bold text-slate-600 hover:bg-slate-50 md:hidden"><LayoutGrid className="h-4 w-4" /><span>More</span></button>
             </div>
           </div>
           <div data-testid="mobile-workspace-identity" className="flex min-w-0 items-center gap-2 border-t border-slate-100 px-3 py-2 sm:px-6 md:hidden">
@@ -218,7 +220,7 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
 
       {moreOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-4" onClick={() => setMoreOpen(false)}>
-          <section role="dialog" aria-modal="true" aria-labelledby="workspace-pages-title" className="flex max-h-[min(86dvh,760px)] w-full max-w-[560px] flex-col overflow-hidden rounded-t-2xl border border-[#E5E7EB] bg-white shadow-2xl sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
+          <section ref={moreDialogRef} role="dialog" aria-modal="true" aria-labelledby="workspace-pages-title" tabIndex={-1} className="flex max-h-[min(86dvh,760px)] w-full max-w-[560px] flex-col overflow-hidden rounded-t-2xl border border-[#E5E7EB] bg-white shadow-2xl sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
               <div><h3 id="workspace-pages-title" className="text-[15px] font-bold tracking-tight text-slate-900">Workspace tools</h3><p className="mt-0.5 text-[11px] text-slate-500">Open a workspace area or explore available tools.</p></div>
               <button type="button" onClick={() => setMoreOpen(false)} aria-label="Close workspace tools" className="rounded-lg border border-slate-200 p-2 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"><X className="h-4 w-4" /></button>
