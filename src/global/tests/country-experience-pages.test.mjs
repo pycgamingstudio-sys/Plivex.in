@@ -63,14 +63,14 @@ test("India-only tools are not rendered for non-India workspaces in Global and u
 });
 
 
-test("public marketing copy distinguishes Global availability from India-only features", async () => {
+test("public marketing presents one Plivex workspace with country-aware capabilities", async () => {
   const pages = await read("../../pages/PublicInfoPages.jsx");
   const about = await read("../../components/landing/AboutSection.jsx");
   assert.doesNotMatch(pages, /platform for Indian small businesses/);
   assert.match(pages, /tax fields and invoice issuance depend on the selected country/i);
-  assert.match(about, /India edition: CGST\/SGST\/IGST auto-breakup/);
-  assert.match(about, /Global UI: English/);
-  assert.match(about, /Global capabilities are being introduced in stages/);
+  assert.match(about, /Country-aware tax calculation for supported regions/);
+  assert.match(about, /same connected business workspace/i);
+  assert.doesNotMatch(about, /India edition|Global UI|Global capabilities are being introduced in stages/);
 });
 
 
