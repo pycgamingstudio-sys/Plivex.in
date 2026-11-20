@@ -199,7 +199,7 @@ function ModernDesign({ invoice, subtotal, discount, discountValue, taxValue, to
             </div>
           </div>
           <div className="text-right">
-            <p className="font-mono-ui text-[13px] uppercase tracking-[0.2em] text-white/70">Invoice</p>
+            <p className="font-mono-ui text-[13px] uppercase tracking-[0.2em] text-white/70">{invoiceDocumentTitle(invoice)}</p>
             <p className="mt-1 text-[22px] font-bold tracking-[-0.03em]">{invoice.number || "INV-000"}</p>
           </div>
         </div>
@@ -266,7 +266,7 @@ function MinimalDesign({ invoice, subtotal, discount, discountValue, taxValue, t
           </div>
         </div>
         <div className="text-right">
-          <p className="text-[26px] font-light uppercase leading-none tracking-[0.3em] text-[#28263a]">Invoice</p>
+          <p className="text-[26px] font-light uppercase leading-none tracking-[0.3em] text-[#28263a]">{invoiceDocumentTitle(invoice)}</p>
           <p className="mt-2 font-mono-ui text-[13px] tracking-[0.06em] text-[#8b889b]">{invoice.number || "INV-000"}</p>
         </div>
       </div>
@@ -325,7 +325,7 @@ function ExecutiveDesign({ invoice, subtotal, discount, discountValue, taxValue,
         <p className="text-[13px] text-white/55">{invoice.business.phone}</p>
         {invoice.business.gstin && <p className="mt-2 font-mono-ui text-[13px] tracking-[0.08em] text-white/45">{registrationLabel(invoice)} {invoice.business.gstin}</p>}
         <div className="mt-7 border-t border-white/15 pt-5">
-          <p className="font-mono-ui text-[13px] uppercase tracking-[0.24em] text-[#c9a24a]">Invoice</p>
+          <p className="font-mono-ui text-[13px] uppercase tracking-[0.24em] text-[#c9a24a]">{invoiceDocumentTitle(invoice)}</p>
           <p className="mt-2 text-[20px] font-bold tracking-[-0.03em]">{invoice.number || "INV-000"}</p>
           <p className="mt-3 text-[13px] text-white/60">Issued <span className="font-medium text-white">{dateLabel(invoice.issueDate)}</span></p>
           <p className="mt-1 text-[13px] text-white/60">Due <span className="font-medium text-white">{dateLabel(invoice.dueDate)}</span></p>
@@ -372,7 +372,7 @@ function ElegantDesign({ invoice, subtotal, discount, discountValue, taxValue, t
     <div className="p-8 sm:p-14">
       <div className="border-b-4 border-double border-[#b9a86a] pb-6 text-center">
         <p className="font-display text-[26px] font-normal tracking-[-0.02em] text-[#28263a]">{invoice.business.name || "Your business"}</p>
-        <p className="mt-2 text-[13px] uppercase tracking-[0.32em] text-[#8b889b]">Invoice</p>
+        <p className="mt-2 text-[13px] uppercase tracking-[0.32em] text-[#8b889b]">{invoiceDocumentTitle(invoice)}</p>
       </div>
       <div className="mt-8 grid grid-cols-3 gap-6 text-[13px]">
         <div>
