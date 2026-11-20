@@ -11,7 +11,7 @@ alter table global.quotations
   drop constraint if exists global_quotations_tax_status_check;
 alter table global.quotations
   add constraint global_quotations_tax_status_check
-  check (tax_status in ('calculated','review_required'));
+  check (tax_status in ('calculated','review_required','not_applicable'));
 
 create or replace function public.global_manage_quotation_with_tax(
   p_user_id uuid,
@@ -57,6 +57,7 @@ declare
   v_component_rate numeric := 0;
   v_component_count integer := 0;
   v_expected_component_minor bigint;
+  v_tax_status text := 'calculated';
   v_expected_component_name text;
   v_expected_component_rate numeric;
 begin
@@ -82,6 +83,7 @@ begin
       v_tax_context := p_tax_snapshot->'taxContext';
       v_rule := v_tax_result->'ruleSnapshot';
       v_country := upper(coalesce(v_tax_result->>'countryCode',''));
+      if v_tax_result->>'status' is distinct from 'not_applicable' then
       if v_tax_result->>'ok' is distinct from 'true'
         or v_tax_result->>'status' is distinct from 'calculated'
         or v_tax_result->>'mode' is distinct from 'automatic'
@@ -200,14 +202,40 @@ begin
       if v_component_tax <> v_tax or v_component_rate <> v_expected_rate then
         return jsonb_build_object('ok',false,'reason','tax_component_total_mismatch');
       end if;
+      v_tax_status := 'calculated';
+      else
+        if v_tax_result->>'ok' is distinct from 'true'
+          or v_tax_result->>'status' is distinct from 'not_applicable'
+          or v_tax_result->>'mode' is distinct from 'no_tax'
+          or v_tax_result->>'invoiceDate' is distinct from p_issue_date::text
+          or v_tax_result->>'currencyCode' is distinct from upper(coalesce(p_currency_code,''))
+          or v_tax_context->>'countryCode' is distinct from v_country
+          or v_tax_context->>'taxMode' is distinct from 'no_tax'
+          or v_tax_context->>'noTaxConfirmed' is distinct from 'true'
+          or jsonb_typeof(v_tax_result->'components') is distinct from 'array'
+          or jsonb_array_length(v_tax_result->'components') <> 0 then
+          return jsonb_build_object('ok',false,'reason','invalid_no_tax_attestation');
+        end if;
+        for v_item in select value from jsonb_array_elements(coalesce(p_items,'[]'::jsonb)) loop
+          v_line := round((v_item->>'quantity')::numeric * (v_item->>'unit_price_minor')::numeric)::bigint;
+          v_discount := coalesce(nullif(v_item->>'discount_minor','')::bigint,0);
+          v_pre_tax := v_pre_tax + v_line - v_discount;
+        end loop;
+        v_taxable := (v_tax_result->>'taxableMinor')::bigint;
+        v_tax := (v_tax_result->>'taxMinor')::bigint;
+        v_total := (v_tax_result->>'totalMinor')::bigint;
+        if v_taxable <> v_pre_tax or v_tax <> 0 or v_total <> v_pre_tax then
+          return jsonb_build_object('ok',false,'reason','invalid_no_tax_attestation');
+        end if;
+        v_tax_status := 'not_applicable';
+      end if;
     end if;
-  end if;
 
   if p_action = 'status' and p_status = 'sent' then
     select * into v_quote from global.quotations
     where id=p_quotation_id and workspace_id=p_workspace_id for update;
     if v_quote.id is null then return jsonb_build_object('ok',false,'reason','quotation_not_found'); end if;
-    if v_quote.tax_status <> 'calculated' then
+    if v_quote.tax_status not in ('calculated','not_applicable') then
       return jsonb_build_object('ok',false,'reason','quotation_tax_review_required');
     end if;
   end if;
@@ -231,7 +259,7 @@ begin
     else
       update global.quotations
       set taxable_minor=v_taxable,tax_minor=v_tax,total_minor=v_total,
-          tax_status='calculated',tax_snapshot=p_tax_snapshot,updated_at=now()
+          tax_status=v_tax_status,tax_snapshot=p_tax_snapshot,updated_at=now()
       where id=v_quote.id and workspace_id=p_workspace_id
       returning * into v_quote;
     end if;
