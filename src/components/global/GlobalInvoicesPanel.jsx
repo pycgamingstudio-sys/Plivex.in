@@ -153,10 +153,10 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
     try {
       if (!workspaceContext.ok) throw new Error("Your workspace country and base currency could not be verified. No fallback currency has been applied.");
-      const isTaxInvoice = form.documentType === "tax" && countryCode === "GB";
+      const isTaxInvoice = form.documentType === "tax";
       if (!sellerProfileReady) throw new Error("Complete the seller legal name and business address before issuing an invoice.");
       if (isTaxInvoice && (!backendCapabilities.issuanceReady || createTaxPreview.ok !== true)) {
-        throw new Error(createTaxPreview.message || "Complete the verified UK VAT details before issuing this tax invoice.");
+        throw new Error(createTaxPreview.message || "Complete the verified country tax details before issuing this tax invoice.");
       }
       if (!isTaxInvoice && !backendCapabilities.commercialIssuanceReady) {
         throw new Error("The server commercial-issuance service is not ready yet.");
@@ -465,12 +465,13 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     status:selected?.status,
     sellerProfileReady,
   });
-  const canIssue = backendCapabilities.issuanceReady && countryCode === "GB" && selected?.status === "draft" && taxPreview.ok === true;
+  const canIssueTaxTreatment = taxContext.taxTreatment === "standard";
+  const canIssue = backendCapabilities.issuanceReady && ["GB","AE","CA","AU","SG"].includes(countryCode) && selected?.status === "draft" && taxPreview.ok === true && canIssueTaxTreatment;
 
   return (
     <section className="mt-6 space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h1 className="text-2xl font-bold">Global invoices</h1><p className="mt-1 text-sm text-slate-500">Create and issue commercial invoices in your verified {currency || "workspace"} base currency. Tax invoices are separately enabled only where country rules and seller evidence are verified.</p></div>
+        <div><h1 className="text-2xl font-bold">Global invoices</h1><p className="mt-1 text-sm text-slate-500">Create and issue commercial invoices in your verified {currency || "workspace"} base currency. Standard-rate tax invoices are enabled for supported country rules; special treatments and US local sales tax remain separately gated.</p></div>
         <button className={button} onClick={() => { setShowCreate((v)=>!v); setError(""); setNotice(""); }}> {showCreate ? "Close" : "Create invoice"} </button>
       </div>
       {notice && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
@@ -517,7 +518,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
               </span>
             </label>
             {countryCode==="GB" && form.documentType==="tax" && <div className="sm:col-span-2"><GlobalTaxEditor invoice={createPreviewInvoice} setInvoice={(updater)=>setTaxContext((old)=>typeof updater==="function"?updater({globalTax:old}).globalTax:updater.globalTax)} workspaceProfile={workspaceProfile} calculation={createTaxPreview} allowNoTax={false}/></div>}
-            <div className="sm:col-span-2 flex items-center justify-between gap-3"><span className="text-sm text-slate-500">Invoice amount: {money(minor(Number(form.quantity||0)*Number(form.unitPrice||0),currency),currency)}</span><button disabled={busy || !sellerProfileReady || (form.documentType==="tax" ? !backendCapabilities.issuanceReady : !backendCapabilities.commercialIssuanceReady)} className={button}>Create final invoice</button></div>
+            <div className="sm:col-span-2 flex items-center justify-between gap-3"><span className="text-sm text-slate-500">Invoice amount: {money(minor(Number(form.quantity||0)*Number(form.unitPrice||0),currency),currency)}</span><button disabled={busy || !sellerProfileReady || (form.documentType==="tax" ? (!backendCapabilities.issuanceReady || !canIssueTaxTreatment) : !backendCapabilities.commercialIssuanceReady)} className={button}>Create final invoice</button></div>
           </form>
         </div>
       )}
