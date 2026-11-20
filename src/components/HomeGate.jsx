@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { APP_EDITION, isUnifiedBuild } from "@/api/backendClient";
-import AppLayout from "@/components/AppLayout";
+import AppLayout from "@/components/AppLayout";\nimport Logo from "@/components/Logo";
 import { lazy } from "react";
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const GlobalApp = lazy(() => import("@/global/GlobalApp"));
