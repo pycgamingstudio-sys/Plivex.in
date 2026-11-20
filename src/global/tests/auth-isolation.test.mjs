@@ -27,7 +27,7 @@ test("unified build keeps one public workspace identity and provisions through c
   const unifiedAuth = authContext.slice(authContext.indexOf("if (isUnifiedBuild)"), authContext.indexOf("const existingCountry"));
   assert.doesNotMatch(unifiedAuth, /global-auth-context/);
   assert.match(unifiedAuth, /currentUser\?\.country_code/);
-  assert.match(app, /\(!user\.workspace_id \|\| !user\.country_code \|\| !user\.workspace_type \|\| Number\(user\.onboarding_version \|\| 0\) < 1 \|\| user\.migration_status !== "ready" \|\| user\.legacy_review_required\)/);
+  assert.match(app, /\(!user\.workspace_id \|\| !user\.country_code \|\| !user\.workspace_type \|\| Number\(user\.onboarding_version \|\| 0\) < 1\)/);
   assert.match(onboarding, /ensureOwnerRole/);
   assert.doesNotMatch(onboarding, /globalEnsureOwner/);
   assert.match(backend, /workspace_settings/);
