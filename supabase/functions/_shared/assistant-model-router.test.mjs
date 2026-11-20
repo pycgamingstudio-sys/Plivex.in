@@ -28,7 +28,8 @@ test("Gemini messages and inline images map to OpenAI-compatible messages", () =
   assert.equal(payload.messages[2].role, "assistant");
   assert.equal(payload.max_tokens, 900);
   assert.deepEqual(payload.response_format, { type: "json_object" });
-  assert.deepEqual(payload.provider, { data_collection: "deny", zdr: true });
+  assert.deepEqual(payload.provider, { data_collection: "deny" });
+  assert.equal("zdr" in payload.provider, false);
 });
 
 test("OpenAI-compatible results normalize to the Gemini candidate shape", () => {
