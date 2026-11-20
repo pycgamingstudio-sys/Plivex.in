@@ -10,7 +10,7 @@ import WorkspaceCountrySettings from "@/components/global/WorkspaceCountrySettin
 const defaults = { name: "", address: "", gstin: "", email: "", phone: "", logo: "", upiId: "" };
 
 function Field({ label, children }) {
-  return <label className="block text-[12px] font-semibold text-muted-foreground">{label}{children}</label>;
+  return <label className="block min-w-0 text-[12px] font-semibold leading-5 text-slate-600">{label}{children}</label>;
 }
 
 export default function BusinessProfile() {
