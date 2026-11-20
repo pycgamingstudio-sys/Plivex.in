@@ -209,6 +209,7 @@ begin
           or v_tax_result->>'mode' is distinct from 'no_tax'
           or v_tax_result->>'invoiceDate' is distinct from p_issue_date::text
           or v_tax_result->>'currencyCode' is distinct from upper(coalesce(p_currency_code,''))
+          or v_tax_result->>'countryCode' is distinct from v_country
           or v_tax_context->>'countryCode' is distinct from v_country
           or v_tax_context->>'taxMode' is distinct from 'no_tax'
           or v_tax_context->>'noTaxConfirmed' is distinct from 'true'
