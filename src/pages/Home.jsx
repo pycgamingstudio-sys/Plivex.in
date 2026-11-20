@@ -749,20 +749,20 @@ export default function Home() {
     }
     return valid;
   };
-  const recordInvoice = async () => {
+  const recordInvoice = async ({ issueInvoice = false } = {}) => {
     const total = computeTotal(invoiceForPreview);
     const taxValue = globalTaxCalculation?.ok && globalTaxCalculation.status !== "india_legacy"
       ? globalTaxCalculation.taxMinor / 100
       : Math.max(0, total - invoice.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.rate) || 0), 0));
-    const savedInvoice = await saveInvoiceToServer({ ...invoiceForPreview, total, taxValue });
+    const savedInvoice = await saveInvoiceToServer({ ...invoiceForPreview, total, taxValue }, { issueInvoice });
     await refreshAccessStatus();
-    const isGlobalDraft = isGlobalWorkspace;
+    const isGlobalDraft = isGlobalWorkspace && !savedInvoice.issued;
     trackStaffAction({
       label: isGlobalDraft
         ? `Draft invoice ${savedInvoice.number || "DRAFT"} saved for ${invoice.client.name || "client"}`
         : `Invoice ${savedInvoice.number || invoice.number || "INV"} generated for ${invoice.client.name || "client"}`,
       type: isGlobalDraft ? "invoice-draft" : "invoice",
-      ...(isGlobalDraft ? {} : { revenue: total }),
+      ...(!isGlobalDraft ? { revenue: total } : {}),
     });
     return savedInvoice;
   };
@@ -833,23 +833,19 @@ export default function Home() {
       notify("Preparing invoice PDF… please wait.", "info", 0);
       const isGlobalDraft = isGlobalWorkspace;
       if (isGlobalDraft) {
-        const saved = await recordInvoice();
-        const issueKey = invoice.globalIssueInvoiceId === saved.id && /^[0-9a-f-]{36}$/i.test(invoice.globalIssueRequestId || "")
-          ? invoice.globalIssueRequestId
-          : crypto.randomUUID();
+        const canIssueCommercial = globalTaxCalculation?.ok === true && globalTaxCalculation.status === "not_applicable";
+        const saved = await recordInvoice({ issueInvoice: canIssueCommercial });
         setInvoice((current) => ({
           ...current,
           id: saved.id,
           number: saved.number,
-          globalDraftRequestId: saved.idempotencyKey || current.globalDraftRequestId,
-          globalIssueInvoiceId: saved.id,
-          globalIssueRequestId: issueKey,
-          documentStatus: "draft",
+          globalDraftRequestId: current.globalDraftRequestId,
+          documentStatus: saved.issued ? "issued" : "draft",
         }));
 
-        // PLIVEX ONE stores non-India invoices in the same canonical ledger as drafts.
-        // Issuance stays disabled until a verified country rule and server capability are active.
-        const issuedInvoice = null;
+        // Commercial issuance is atomic and server-validated. Tax invoices remain
+        // draft-only until a country-specific tax adapter is enabled end to end.
+        const issuedInvoice = saved.issued ? { invoice_number: saved.number } : null;
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const pdf = await renderPdfDocument();
         if (!pdf) return;
