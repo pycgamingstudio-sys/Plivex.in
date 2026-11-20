@@ -22,7 +22,7 @@ export function calculateGlobalTax(input) {
   }
   const treatment = input.treatment || "standard";
   let rule = input.rule || null;
-  if (!rule && treatment === "standard") rule = getCountryStandardRateRule(countryCode);
+  if (!rule && treatment === "standard") rule = getCountryStandardRateRule(countryCode, { jurisdictionId: input.jurisdictionId, asOfDate: input.invoiceDate });
   if (!rule && treatment !== "standard") {
     const resolvedTreatment = getTaxTreatmentRuleSet(countryCode, {
       treatment,
@@ -37,7 +37,7 @@ export function calculateGlobalTax(input) {
       catalogVersion: resolvedTreatment.catalogVersion,
     };
   }
-  if ((countryCode === "US" || countryCode === "CA") && !input.rule) {
+  if ((countryCode === "US" || (countryCode === "CA" && !input.jurisdictionId)) && !rule) {
     return { ok: false, status: "needs_review", code: "JURISDICTION_RULE_REQUIRED", message: "A verified US state/local or Canadian province tax rule is required; no national rate is assumed." };
   }
   return calculateVerifiedTaxTreatment({ ...input, countryCode, rule });
