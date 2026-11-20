@@ -331,6 +331,40 @@ const TREATMENT_RULES = Object.freeze([
     coverage: "qualifying-investment-precious-metals-only; statutory-purity-and-market-trading-conditions-apply",
     components: [{ id: "SG-GST-EXEMPT-IPM", name: "GST", rateBps: 0, source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/charging-gst-%28output-tax%29/when-to-charge-goods-and-services-tax-%28gst%29" }],
   }),
+  freezeRule({
+    id: "GB-VAT-REVERSE-CHARGE-CONSTRUCTION-STANDARD-2026-11", version: "2026.11",
+    countryCode: "GB", currencyCode: "GBP", taxName: "VAT reverse charge",
+    treatment: "reverse-charge", taxCategoryId: "GB_REVERSE_CHARGE_CONSTRUCTION_STANDARD",
+    rateBps: 2000, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2021-03-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.gov.uk/guidance/how-to-use-the-vat-reverse-charge-if-you-supply-building-and-construction-services",
+    sourceAuthority: "UK HM Revenue & Customs", scope: "country",
+    coverage: "standard-rated-construction-industry-scheme-supplies-only; recipient-vat-registration-cis-and-end-user-conditions-apply",
+    components: [{ id: "GB-VAT-RC-CONSTRUCTION", name: "Recipient-accounted VAT", rateBps: 2000, source: "https://www.gov.uk/guidance/how-to-use-the-vat-reverse-charge-if-you-supply-building-and-construction-services" }],
+  }),
+  freezeRule({
+    id: "GB-VAT-REVERSE-CHARGE-CONSTRUCTION-REDUCED-2026-11", version: "2026.11",
+    countryCode: "GB", currencyCode: "GBP", taxName: "VAT reverse charge",
+    treatment: "reverse-charge", taxCategoryId: "GB_REVERSE_CHARGE_CONSTRUCTION_REDUCED",
+    rateBps: 500, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2021-03-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.gov.uk/guidance/how-to-use-the-vat-reverse-charge-if-you-supply-building-and-construction-services",
+    sourceAuthority: "UK HM Revenue & Customs", scope: "country",
+    coverage: "reduced-rated-construction-industry-scheme-supplies-only; recipient-vat-registration-cis-and-end-user-conditions-apply",
+    components: [{ id: "GB-VAT-RC-CONSTRUCTION-REDUCED", name: "Recipient-accounted VAT", rateBps: 500, source: "https://www.gov.uk/guidance/how-to-use-the-vat-reverse-charge-if-you-supply-building-and-construction-services" }],
+  }),
+  freezeRule({
+    id: "AE-VAT-REVERSE-CHARGE-ELECTRONIC-DEVICES-2026-11", version: "2026.11",
+    countryCode: "AE", currencyCode: "AED", taxName: "VAT reverse charge",
+    treatment: "reverse-charge", taxCategoryId: "AE_REVERSE_CHARGE_ELECTRONIC_DEVICES",
+    rateBps: 500, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2023-10-30", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://mof.gov.ae/wp-content/uploads/2026/02/UAE-Electronic-Invoicing-Guidelines_V-1.0-23Feb2026.pdf",
+    sourceAuthority: "UAE Ministry of Finance", scope: "country",
+    coverage: "specified-electronic-devices-supplied-between-registered-recipients-for-resale-or-production-only; recipient-declaration-required",
+    components: [{ id: "AE-VAT-RC-ELECTRONIC-DEVICES", name: "Recipient-accounted VAT", rateBps: 500, source: "https://mof.gov.ae/wp-content/uploads/2026/02/UAE-Electronic-Invoicing-Guidelines_V-1.0-23Feb2026.pdf" }],
+  }),
+  }),
 ]);
 
 const validDate = (value) => {
@@ -423,7 +457,7 @@ export function getTaxRuleSet(countryCode, options = {}) {
  */
 export function getTaxTreatmentRuleSet(countryCode, { treatment, taxCategoryId, asOfDate, jurisdictionId } = {}) {
   const code = normalizeTaxCountryCode(countryCode);
-  if (!code || !["reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"].includes(treatment)
+  if (!code || !["reduced", "zero-rated", "gst-free", "exempt", "out-of-scope", "reverse-charge"].includes(treatment)
     || typeof taxCategoryId !== "string" || !taxCategoryId.trim()) {
     return { ok: false, status: "invalid_treatment_rule_request", code: "TREATMENT_AND_CATEGORY_REQUIRED", catalogVersion: TAX_RULE_CATALOG_VERSION };
   }
