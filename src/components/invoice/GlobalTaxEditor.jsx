@@ -128,7 +128,6 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
             {countryCode === "SG" && config.taxTreatment === "exempt" && <option value="SG_EXEMPT_FINANCIAL_SERVICES">Qualifying exempt financial services</option>}
             {countryCode === "SG" && config.taxTreatment === "out-of-scope" && <option value="SG_OUT_OF_SCOPE_OVERSEAS_TO_OVERSEAS_GOODS">Goods delivered overseas to overseas</option>}
             {countryCode === "GB" && config.taxTreatment === "reverse-charge" && <option value="GB_DOMESTIC_CONSTRUCTION_REVERSE_CHARGE">Eligible domestic construction services (buyer must be VAT registered)</option>}
-            {countryCode === "GB" && config.taxTreatment === "reverse-charge" && <option value="GB_DOMESTIC_CONSTRUCTION_REVERSE_CHARGE">Eligible domestic construction services (buyer must be VAT registered)</option>}
           </select>
         </label>
       </div>
