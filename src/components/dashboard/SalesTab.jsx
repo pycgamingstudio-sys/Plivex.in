@@ -107,6 +107,8 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
         logo: profile.logo || "",
       },
       design: qt.design || draft.design || "classic",
+      countryCode: user?.country_code || "IN",
+      locale: user?.locale_code || "en",
     });
   };
   const downloadQuotation = async (qt) => {

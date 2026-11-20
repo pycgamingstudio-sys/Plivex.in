@@ -12,7 +12,6 @@ export const INVOICE_DESIGNS = [
 ];
 
 export const DEFAULT_DESIGN_ID = "classic";
-export const QUOTATION_DESIGN_DOCUMENT = true;
 
 export function isPremiumDesign(id) {
   return Boolean(INVOICE_DESIGNS.find((design) => design.id === id)?.premium);
@@ -27,7 +26,7 @@ function itemTaxLabel(invoice, item) {
   const calculation = invoice.globalTaxCalculation;
   if (calculation?.ok && calculation.status !== "india_legacy") return (calculation.components || []).map((component) => `${component.name} ${Number(component.rateBps) / 100}%`).join(" + ") || calculation.taxName || "Tax";
   if (invoice.globalTax?.countryCode && invoice.globalTax.countryCode !== "IN") return "Tax pending review";
-  return `GST ${item.gstRate ?? invoice.taxRate}%`;
+  return invoice.taxLabel || `GST ${item.gstRate ?? invoice.taxRate}%`;
 }
 
 function itemClassificationLabel(invoice, item) {
@@ -82,7 +81,7 @@ function Totals({ invoice, subtotal, discount, discountValue, taxValue, total, m
         <p className="text-[11px] text-amber-800">Tax calculation needs review: {invoice.globalTaxCalculation?.message || "Complete the tax details before finalizing."}</p>
       ) : (
         <>
-          <div className="flex justify-between text-[#77758a]"><span>{invoice.taxMode === "split" ? "CGST + SGST" : "IGST"} ({invoice.taxRate}%)</span><span>{money(taxValue, invoice.currency)}</span></div>
+          <div className="flex justify-between text-[#77758a]"><span>{invoice.taxLabel || `${invoice.taxMode === "split" ? "CGST + SGST" : "IGST"} (${invoice.taxRate}%)`}</span><span>{money(taxValue, invoice.currency)}</span></div>
           {invoice.taxMode === "split" && <div className="flex justify-between text-[#8b889b]"><span>CGST / SGST</span><span>{money(taxValue / 2, invoice.currency)} each</span></div>}
         </>
       )}

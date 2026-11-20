@@ -29,6 +29,7 @@ export async function createQuotationPdfBlob(quotation) {
   const taxValue = Math.max(0, itemSubtotal - discountValue) * (Number(quotation.taxRate) || 0) / 100;
   const invoiceModel = {
     documentTitle: "Quotation",
+    taxLabel: quotation.countryCode && quotation.countryCode !== "IN" ? "Tax (not calculated)" : "",
     documentSubtitle: "Price proposal",
     issueDateLabel: "Quotation date",
     expiryDateLabel: "Valid until",
@@ -84,7 +85,7 @@ export async function createQuotationPdfBlob(quotation) {
       upiValid: false,
       qrUrl: "",
       money,
-      dateLabel: (value) => value ? new Date(`${value}T00:00:00`).toLocaleDateString() : "—",
+      dateLabel: (value) => value ? new Date(`${value}T00:00:00`).toLocaleDateString(quotation.locale || "en") : "—",
       amountInWords: (value, currency) => amountInWords(value, currency),
     })));
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
