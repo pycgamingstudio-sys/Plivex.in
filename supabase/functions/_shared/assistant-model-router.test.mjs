@@ -105,3 +105,33 @@ test("provider status classification includes throttling and upstream outages", 
   for (const status of [408, 409, 425, 429, 500, 502, 503, 504, 401, 402, 403, 404]) assert.equal(isRetryableProviderStatus(status), true);
   assert.equal(isRetryableProviderStatus(400), false);
 });
+
+
+test("Gemini timeout fails over immediately without a second long wait", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push(url);
+    if (url.includes("generativelanguage.googleapis.com")) return response(504, { error: { message: "upstream timeout" } });
+    return response(200, { choices: [{ message: { content: "Fast backup answer" } }] });
+  };
+  const result = await generateWithFallback({ requestOptions, geminiKey: "test", openRouterKey: "test", fetchImpl, totalTimeoutMs: 10000 });
+  assert.equal(result.ok, true);
+  assert.equal(result.provider, "openrouter");
+  assert.equal(calls.length, 2);
+});
+
+test("Gemini retries one fast 503 response before accepting a recovery", async () => {
+  let geminiCalls = 0;
+  const fetchImpl = async (url) => {
+    if (url.includes("generativelanguage.googleapis.com")) {
+      geminiCalls += 1;
+      if (geminiCalls === 1) return response(503, { error: { message: "temporary capacity" } });
+      return response(200, { candidates: [{ content: { parts: [{ text: JSON.stringify({ reply: "Recovered", actions: [] }) }] } }] });
+    }
+    throw new Error("OpenRouter should not be called");
+  };
+  const result = await generateWithFallback({ requestOptions, geminiKey: "test", openRouterKey: "test", fetchImpl, totalTimeoutMs: 10000 });
+  assert.equal(result.ok, true);
+  assert.equal(result.provider, "gemini");
+  assert.equal(geminiCalls, 2);
+});
