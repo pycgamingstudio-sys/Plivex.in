@@ -47,9 +47,9 @@ export default function PricingSection() {
           {isAuthenticated && <p className="mt-2 text-[11px] font-semibold text-violet-700">Current plan: {planName || "Free"} · Workspace billing currency is shown below.</p>}
         </div>
 
-        <div className="mx-auto mt-5 flex max-w-xs flex-col gap-1.5 text-left">
+        <div className="mx-auto mt-5 flex w-full max-w-sm flex-col gap-1.5 text-left">
           <label htmlFor="pricing-country" className="text-xs font-semibold text-slate-700">{isAuthenticated ? "Workspace country and billing currency" : "Select country to see pricing"}</label>
-          <select id="pricing-country" disabled={isAuthenticated} value={activeCountryCode} onChange={(event) => changeCountry(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800">
+          <select id="pricing-country" disabled={isAuthenticated} value={activeCountryCode} onChange={(event) => changeCountry(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-[0_1px_2px_rgba(15,23,42,.025)] focus:border-[#6D28D9] focus:outline-none focus:ring-2 focus:ring-[#6D28D9]/10">
             <option value="">🌍 Select your country</option>{COUNTRY_REGISTRY.filter(({ code }) => GLOBAL_BILLING[code]).map((entry) => <option key={entry.code} value={entry.code}>{getCountryFlag(entry.code)}  {entry.name} · {entry.currencyCode}</option>)}
           </select>
         </div>
