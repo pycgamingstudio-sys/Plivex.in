@@ -37,6 +37,13 @@ export function calculateVerifiedTaxTreatment(input) {
       message: "A verified rule matching the selected tax treatment is required.",
     };
   }
+  if (treatment !== "standard" && (!String(rule.taxCategoryId || "").trim()
+    || String(input.taxCategory || "").trim() !== rule.taxCategoryId)) {
+    return {
+      ok: false, status: "needs_review", code: "TREATMENT_CATEGORY_RULE_REQUIRED",
+      message: "Reduced, zero-rated, exempt and out-of-scope rules must match an explicitly confirmed product/service tax category.",
+    };
+  }
   if (!Array.isArray(rule.components) || rule.components.length < 1
     || rule.components.some((component) => !component || !Number.isInteger(component.rateBps) || component.rateBps < 0)) {
     return { ok: false, status: "needs_review", code: "INVALID_TAX_COMPONENTS", message: "Verified tax components are required." };
