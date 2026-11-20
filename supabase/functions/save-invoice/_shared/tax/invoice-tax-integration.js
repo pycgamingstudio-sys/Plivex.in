@@ -1,4 +1,3 @@
-// Bundled copy for the save-invoice Edge Function. Keep in sync with src/global/tax/invoice-tax-integration.js.
 import { calculateGlobalTax } from "./global-tax-engine.js";
 import { createGlobalInvoiceTaxSnapshot, getEInvoiceReadiness } from "./global-invoice-finalization.js";
 import { calculateManualTax } from "./manual-tax-calculator.js";
@@ -116,7 +115,7 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
     return fail("TAX_CATEGORY_REQUIRED", "Select the goods/services tax category.");
   }
   const selectedTreatment = String(config.taxTreatment || "standard").trim().toLowerCase();
-  if (!["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"].includes(selectedTreatment)) {
+  if (!["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope", "reverse-charge"].includes(selectedTreatment)) {
     return fail("UNSUPPORTED_TAX_TREATMENT", "This tax treatment is not supported. Keep the invoice as a draft.");
   }
   const normalizedTreatment = selectedTreatment === "standard" ? "standard-rated" : selectedTreatment;
@@ -235,6 +234,16 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
     taxCategoryVerified: true,
     taxCategory: String(config.taxCategory).trim(),
     treatment: selectedTreatment,
+    ...(selectedTreatment === "reverse-charge" ? {
+      buyerRegistration: {
+        status: config.buyerRegistrationStatus || "registered",
+        registrationNumber: String(config.buyerRegistrationNumber || invoice?.buyerRegistrationNumber || "").trim(),
+        attestedByUser: config.buyerRegistrationConfirmed === true,
+      },
+      buyerRegistrationConfirmed: config.buyerRegistrationConfirmed === true,
+      reverseChargeConditionsConfirmed: config.reverseChargeConditionsConfirmed === true,
+      buyerCountryCode: String(config.buyerCountryCode || countryCode).toUpperCase(),
+    } : {}),
     ...(countryCode === "CA" ? {
       jurisdictionId: String(config.destinationJurisdiction.province).trim().toUpperCase(),
       jurisdictionAttestedByUser: true,
