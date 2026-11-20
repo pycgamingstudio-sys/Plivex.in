@@ -137,7 +137,7 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
       <PlanStatusCard />
       {canConfirmReminders && (reminderItems.length > 0 || reminderLoading || reminderNotice) && (
         <section className="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm sm:p-5" aria-label="Payment reminder centre">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><BellRing className="h-4 w-4" /></span>
               <div><h3 className="text-sm font-bold text-slate-900">Payment Reminder Centre</h3><p className="text-[11px] text-slate-500">Review unpaid invoices before sending an email.</p></div>
@@ -168,7 +168,7 @@ export default function DashboardTab({ onNavigate, onCreateInvoice, role, teamUn
         })}
       </section>
       {pct < 100 && (
-      <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-gradient-to-br from-[#6D28D9] to-[#7C3AED] p-6 text-white shadow-sm">
+      <div className="plivex-hover-lift overflow-hidden rounded-2xl border border-violet-300/20 bg-gradient-to-br from-[#6D28D9] to-[#7C3AED] p-5 text-white shadow-[0_12px_32px_rgba(109,40,217,.16)] sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">Getting started</p>
