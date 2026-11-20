@@ -15,7 +15,7 @@ const shareEdge = readFileSync(new URL("../../../supabase/functions/invoice-shar
 test("Main Workspace commercial issuance is limited to the six non-India country/currency pairs", () => {
   assert.match(migration, /v_settings\.country_code not in \('GB','US','AE','CA','AU','SG'\)/);
   for (const [country, currency] of [["GB","GBP"],["US","USD"],["AE","AED"],["CA","CAD"],["AU","AUD"],["SG","SGD"]]) {
-    assert.match(migration, new RegExp(`when '${country}' then '${currency}'`));
+    assert.ok(migration.includes("v_settings.country_code='" + country + "' and v_settings.currency_code<>'" + currency + "'"));
   }
   assert.doesNotMatch(migration, /v_settings\.country_code not in \([^)]*'IN'/);
 });
