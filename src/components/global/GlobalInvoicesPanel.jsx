@@ -501,10 +501,10 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
           <h2 className="font-semibold">New final invoice</h2>
           <form onSubmit={createDraft} className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="text-xs font-semibold text-slate-600">Customer<select className={field+" mt-1"} value={form.clientId} onChange={(e)=>setForm((v)=>({...v,clientId:e.target.value}))}><option value="">No customer selected</option>{clients.map((c)=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-            {countryCode==="GB" && <label className="text-xs font-semibold text-slate-600">Document type
+            {["GB","AE","CA","AU","SG"].includes(countryCode) && <label className="text-xs font-semibold text-slate-600">Document type
               <select className={field+" mt-1"} value={form.documentType} onChange={(e)=>setForm((v)=>({...v,documentType:e.target.value}))}>
                 <option value="commercial">Commercial invoice · tax not assessed</option>
-                <option value="tax">UK VAT tax invoice · calculate VAT</option>
+                <option value="tax">Tax invoice · verified standard rate</option>
               </select>
             </label>}
             <label className="text-xs font-semibold text-slate-600">Issue date<input required type="date" className={field+" mt-1"} value={form.issueDate} onChange={(e)=>setForm((v)=>({...v,issueDate:e.target.value}))}/></label>
@@ -517,7 +517,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
                 <input required min="0" step="0.01" type="number" className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm outline-none" value={form.unitPrice} onChange={(e)=>setForm((v)=>({...v,unitPrice:e.target.value}))}/>
               </span>
             </label>
-            {countryCode==="GB" && form.documentType==="tax" && <div className="sm:col-span-2"><GlobalTaxEditor invoice={createPreviewInvoice} setInvoice={(updater)=>setTaxContext((old)=>typeof updater==="function"?updater({globalTax:old}).globalTax:updater.globalTax)} workspaceProfile={workspaceProfile} calculation={createTaxPreview} allowNoTax={false}/></div>}
+            {["GB","AE","CA","AU","SG"].includes(countryCode) && form.documentType==="tax" && <div className="sm:col-span-2"><GlobalTaxEditor invoice={createPreviewInvoice} setInvoice={(updater)=>setTaxContext((old)=>typeof updater==="function"?updater({globalTax:old}).globalTax:updater.globalTax)} workspaceProfile={workspaceProfile} calculation={createTaxPreview} allowNoTax={false}/></div>}
             <div className="sm:col-span-2 flex items-center justify-between gap-3"><span className="text-sm text-slate-500">Invoice amount: {money(minor(Number(form.quantity||0)*Number(form.unitPrice||0),currency),currency)}</span><button disabled={busy || !sellerProfileReady || (form.documentType==="tax" ? (!backendCapabilities.issuanceReady || !canIssueTaxTreatment) : !backendCapabilities.commercialIssuanceReady)} className={button}>Create final invoice</button></div>
           </form>
         </div>
