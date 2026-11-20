@@ -11,7 +11,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
   const config = {
     ...(invoice.globalTax || {
       countryCode,
-      mode: ["US", "CA"].includes(countryCode) ? "manual" : "automatic",
+      mode: countryCode === "US" ? "manual" : "automatic",
       taxMode: "taxable",
       noTaxConfirmed: false,
       priceMode: "exclusive",
@@ -26,7 +26,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
     }),
     taxDetailsConfirmed: invoice.globalTax?.taxDetailsConfirmed === true,
   };
-  const selectedMode = ["US", "CA"].includes(countryCode) ? "manual" : (config.mode || "automatic");
+  const selectedMode = countryCode === "US" ? "manual" : (config.mode || "automatic");
   const update = (patch) => setInvoice((old) => ({
     ...old,
     globalTax: { ...config, mode: selectedMode, ...patch, countryCode },
@@ -84,7 +84,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className={labelClass}>Calculation method
           <select className={fieldClass} value={selectedMode} onChange={(e) => update({ mode: e.target.value })}>
-            {!isUS && !isCA && <option value="automatic">Automatic · source-backed country rate</option>}
+            {!isUS && <option value="automatic">Automatic · source-backed country rate</option>}
             <option value="manual">Manual · user-entered rate</option>
           </select>
         </label>
@@ -107,7 +107,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
         <label className={labelClass}>Tax treatment
           <select className={fieldClass} value={config.taxTreatment || "standard"} onChange={(e) => update({ taxTreatment: e.target.value, taxCategory: "", taxCategoryConfirmed: false, taxDetailsConfirmed: false })}>
             <option value="standard">Standard-rated</option>
-            {["AE","SG"].includes(countryCode) && <option value="zero-rated">Zero-rated · 0%</option>}{countryCode === "AU" && <option value="gst-free">GST-free · 0%</option>}{countryCode === "CA" && <option value="zero-rated">Zero-rated · 0%</option>}
+            {["AE","SG","CA"].includes(countryCode) && <option value="zero-rated">Zero-rated · 0%</option>}{countryCode === "GB" && <option value="reduced">Reduced-rated · 5%</option>}{countryCode === "AU" && <option value="gst-free">GST-free · 0%</option>}{countryCode === "CA" && <option value="zero-rated">Zero-rated · 0%</option>}
             {["AE","AU","SG"].includes(countryCode) && <option value="exempt">Exempt · no tax charged</option>}
             {countryCode === "SG" && <option value="out-of-scope">Out of scope</option>}
           </select>
@@ -157,7 +157,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
             </> : <>
               <label className={labelClass}>Destination province / territory code<select className={fieldClass} value={config.destinationJurisdiction?.province || ""} onChange={(e) => updateJurisdiction("province", e.target.value)}>
                 <option value="">Select province / territory</option>
-                {["AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","SK","YT"].map((code) => <option key={code} value={code}>{code}</option>)}
+                {["AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","QC","SK","YT"].map((code) => <option key={code} value={code}>{code}</option>)}
               </select></label>
             </>}
             <label className={labelClass}>{isUS ? "Seller registered state / jurisdiction" : "Seller registered province / jurisdiction"}
@@ -191,7 +191,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
       <div className="mt-4 rounded-lg border p-3" aria-live="polite">
         {result?.ok ? (
           <>
-            <p className="flex items-center gap-2 text-xs font-bold text-emerald-700"><CheckCircle2 className="h-4 w-4" />{result.status === "not_applicable" ? "No tax charged · commercial invoice" : result.status === "manual_unverified" ? "Manual calculation · unverified" : "Standard-rate calculation"}</p>
+            <p className="flex items-center gap-2 text-xs font-bold text-emerald-700"><CheckCircle2 className="h-4 w-4" />{result.status === "not_applicable" ? "No tax charged · commercial invoice" : result.status === "manual_unverified" ? "Manual calculation · unverified" : "Verified tax treatment calculation"}</p>
             <p className="mt-2 text-sm font-semibold">Tax: {(result.taxMinor / 100).toFixed(2)} {currency} · Total: {(result.totalMinor / 100).toFixed(2)} {currency}</p>
             {(result.warning || result.disclosure) && <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{result.warning || result.disclosure}</p>}
             {result.ruleSnapshot?.source && <a className="mt-2 inline-block text-[11px] text-primary underline" href={result.ruleSnapshot.source} target="_blank" rel="noreferrer">View tax rule source</a>}
