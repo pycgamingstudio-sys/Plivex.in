@@ -116,6 +116,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
           <select className={fieldClass} value={config.taxCategory || ""} onChange={(e) => update({ taxCategory: e.target.value, taxCategoryConfirmed: false })}>
             <option value="">Select supported treatment</option>
             <option value="standard-rated">Standard-rated taxable supply</option>
+            {countryCode === "CA" && ["BC", "MB", "SK"].includes(String(config.destinationJurisdiction?.province || "").toUpperCase()) && <option value={`CA_${String(config.destinationJurisdiction.province).toUpperCase()}_PST_TAXABLE_GOODS`}>Taxable tangible goods subject to provincial PST/RST</option>}
             {countryCode === "AE" && config.taxTreatment === "zero-rated" && <option value="AE_ZERO_RATED_EXPORTS">Qualifying exports outside GCC</option>}
             {countryCode === "AE" && config.taxTreatment === "exempt" && <option value="AE_EXEMPT_FINANCIAL_SERVICES">Qualifying financial services</option>}
             {countryCode === "AU" && config.taxTreatment === "gst-free" && <option value="AU_GST_FREE_BASIC_FOOD">Qualifying basic food</option>}{countryCode === "CA" && config.taxTreatment === "zero-rated" && <option value="CA_ZERO_RATED_BASIC_GROCERIES">Qualifying basic groceries</option>}
