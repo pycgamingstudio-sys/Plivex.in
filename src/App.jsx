@@ -175,7 +175,7 @@ function WorkspaceFeatureGate({ children, feature, anyOf = [], businessOnly = fa
 
 function GlobalFeatureGate({ children, feature }) {
   const { user } = useAuth();
-  if ((APP_EDITION === "global" || isUnifiedBuild) && user?.country_code && user.country_code !== "IN") {
+  if (!isUnifiedBuild && APP_EDITION === "global" && user?.country_code && user.country_code !== "IN") {
     return (
       <main className="mx-auto max-w-xl rounded-2xl border bg-card p-6 text-center">
         <p className="text-xs font-bold uppercase tracking-wider text-primary">Workspace country</p>
