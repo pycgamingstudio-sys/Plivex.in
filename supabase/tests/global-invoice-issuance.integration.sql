@@ -317,20 +317,15 @@ BEGIN
     'a0000000-0000-4000-8000-000000000005'
   );
   v_reverse_invoice_id := (v_reverse_draft->'invoice'->>'id')::uuid;
-  INSERT INTO global.tax_rule_versions(
-    id,country_code,jurisdiction_id,currency_code,tax_code,version,treatment,
-    effective_from,effective_to,reviewed_on,reviewed_by,source_url,components,status,created_by
-  ) VALUES (
-    'aaaaaaa5-eeee-4aaa-8aaa-aaaaaaaaaaa5','GB',NULL,'GBP',
-    'GB_DOMESTIC_CONSTRUCTION_REVERSE_CHARGE','2026.11','reverse-charge',
-    '2021-03-01',NULL,'2026-11-20','pending-review',
-    'https://www.gov.uk/guidance/vat-domestic-reverse-charge-for-building-and-construction-services',
-    '[{"id":"GB-VAT-REVERSE-CHARGE","name":"VAT reverse charge","rateBps":2000}]'::jsonb,
-    'draft','66666666-6666-4666-8666-666666666666'
+  v_reverse_issue := public.global_issue_invoice(
+    '66666666-6666-4666-8666-666666666666',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    v_reverse_invoice_id,
+    '{"registration_confirmed":true,"place_of_supply_confirmed":true,"tax_category_confirmed":true,"tax_category":"GB_DOMESTIC_CONSTRUCTION_REVERSE_CHARGE","tax_treatment":"reverse-charge","mode":"automatic","price_mode":"exclusive","place_of_supply":"United Kingdom"}'::jsonb,
+    'a7777777-7777-4777-8777-777777777777'
   );
-  v_reverse_issue := public.global_publish_tax_rule_version('aaaaaaa5-eeee-4aaa-8aaa-aaaaaaaaaaa5','candidate-review');
-  IF v_reverse_issue->>'ok'<>'true' THEN
-    RAISE EXCEPTION 'Could not publish test reverse-charge rule: %',v_reverse_issue;
+  IF v_reverse_issue->>'reason'<>'reverse_charge_buyer_evidence_required' THEN
+    RAISE EXCEPTION 'Reverse charge did not require buyer evidence: %',v_reverse_issue;
   END IF;
   v_reverse_issue := public.global_issue_invoice(
     '66666666-6666-4666-8666-666666666666',
