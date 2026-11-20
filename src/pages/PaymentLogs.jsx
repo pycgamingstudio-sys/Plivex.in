@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { useAuth } from "@/lib/AuthContext";
+import { formatMoney, isSupportedCurrency } from "@/lib/currency";
+import { useDialogA11y } from "@/lib/useDialogA11y";
 import { CreditCard, Plus, Trash2, X } from "lucide-react";
 import PageShell from "@/components/PageShell";
 import { KEYS, loadList, saveList, genId } from "@/lib/stores";
 import { inputCls, btnPrimary, btnGhost } from "@/lib/ui";
 
-const sym = (c) => ({ INR: "₹", USD: "$", EUR: "€" }[c] || c);
-const money = (v, c = "INR") => `${sym(c)} ${(Number(v) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const STATUS = { paid: "bg-emerald-100 text-emerald-700", pending: "bg-amber-100 text-amber-700", failed: "bg-red-100 text-red-700" };
 const blank = { invoiceNumber: "", client: "", amount: "", status: "pending", date: new Date().toISOString().slice(0, 10) };
 
@@ -15,6 +16,9 @@ function Stat({ label, value, tone }) {
 }
 
 export default function PaymentLogs() {
+  const { user } = useAuth();
+  const currencyCode = isSupportedCurrency(user?.currency_code) ? user.currency_code : "INR";
+  const money = (value, currency = currencyCode) => formatMoney(Number(value) || 0, currency);
   const [logs, setLogs] = useState(() => loadList(KEYS.paymentLogs));
   const [adding, setAdding] = useState(false);
   const persist = (next) => { setLogs(next); saveList(KEYS.paymentLogs, next); };
@@ -41,7 +45,7 @@ export default function PaymentLogs() {
             <div key={l.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
               <div><p className="text-[13px] font-bold">{l.invoiceNumber || "INV"} · {l.client || "Client"}</p><p className="text-[11px] text-muted-foreground">{l.date}</p></div>
               <div className="flex items-center gap-3">
-                <p className="text-[14px] font-bold">{money(l.amount)}</p>
+                <p className="text-[14px] font-bold">{money(l.amount, l.currency || currencyCode)}</p>
                 <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${STATUS[l.status]}`}>{l.status}</span>
                 <select value={l.status} onChange={(e) => cycle(l.id, e.target.value)} className="rounded-md border bg-background px-2 py-1 text-[11px]"><option value="paid">paid</option><option value="pending">pending</option><option value="failed">failed</option></select>
                 <button onClick={() => remove(l.id)} className="rounded-md p-1.5 text-destructive hover:bg-destructive/10" aria-label="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
@@ -50,23 +54,24 @@ export default function PaymentLogs() {
           ))}
         </div>
       )}
-      {adding && <LogModal onClose={() => setAdding(false)} onSave={(entry) => { persist([{ ...entry, id: genId("pay"), amount: Number(entry.amount) || 0 }, ...logs]); setAdding(false); }} />}
+      {adding && <LogModal onClose={() => setAdding(false)} onSave={(entry) => { persist([{ ...entry, id: genId("pay"), amount: Number(entry.amount) || 0, currency: currencyCode }, ...logs]); setAdding(false); }} />}
     </PageShell>
   );
 }
 
 function LogModal({ onClose, onSave }) {
   const [form, setForm] = useState(blank);
+  const dialogRef = useDialogA11y(true, onClose);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-[440px] rounded-2xl border bg-card p-5 text-card-foreground shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between"><h3 className="text-lg font-bold">Log a payment</h3><button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button></div>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="payment-log-dialog-title" tabIndex={-1} className="max-h-[min(88dvh,700px)] w-full max-w-[440px] overflow-y-auto overscroll-contain rounded-2xl border bg-card p-5 text-card-foreground shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between"><h3 id="payment-log-dialog-title" className="text-lg font-bold">Log a payment</h3><button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button></div>
         <div className="mt-4 grid gap-3">
           <label className="block text-[12px] font-semibold text-muted-foreground">Invoice no.<input className={inputCls} value={form.invoiceNumber} onChange={(e) => set("invoiceNumber", e.target.value)} placeholder="INV-0001" /></label>
           <label className="block text-[12px] font-semibold text-muted-foreground">Client<input className={inputCls} value={form.client} onChange={(e) => set("client", e.target.value)} placeholder="Client name" /></label>
           <div className="grid grid-cols-2 gap-3">
-            <label className="block text-[12px] font-semibold text-muted-foreground">Amount (₹)<input type="number" className={inputCls} value={form.amount} onChange={(e) => set("amount", e.target.value)} placeholder="0.00" /></label>
+            <label className="block text-[12px] font-semibold text-muted-foreground">Amount ({currencyCode})<input type="number" className={inputCls} value={form.amount} onChange={(e) => set("amount", e.target.value)} placeholder="0.00" /></label>
             <label className="block text-[12px] font-semibold text-muted-foreground">Status<select className={inputCls} value={form.status} onChange={(e) => set("status", e.target.value)}><option value="paid">paid</option><option value="pending">pending</option><option value="failed">failed</option></select></label>
           </div>
           <label className="block text-[12px] font-semibold text-muted-foreground">Date<input type="date" className={inputCls} value={form.date} onChange={(e) => set("date", e.target.value)} /></label>
