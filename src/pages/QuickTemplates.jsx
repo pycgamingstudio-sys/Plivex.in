@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDialogA11y } from "@/lib/useDialogA11y";
 import { LayoutTemplate, Plus, Trash2, ArrowRight, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import PageShell from "@/components/PageShell";
@@ -41,11 +42,12 @@ export default function QuickTemplates() {
 
 function TemplateModal({ onClose, onSave }) {
   const [form, setForm] = useState(blank);
+  const dialogRef = useDialogA11y(true, onClose);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-[440px] rounded-2xl border bg-card p-5 text-card-foreground shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between"><h3 className="text-lg font-bold">New template</h3><button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button></div>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="template-dialog-title" tabIndex={-1} className="max-h-[min(88dvh,700px)] w-full max-w-[440px] overflow-y-auto overscroll-contain rounded-2xl border bg-card p-5 text-card-foreground shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between"><h3 id="template-dialog-title" className="text-lg font-bold">New template</h3><button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button></div>
         <div className="mt-4 grid gap-3">
           <label className="block text-[12px] font-semibold text-muted-foreground">Template name<input className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Consulting retainer" /></label>
           <div className="grid grid-cols-2 gap-3">
