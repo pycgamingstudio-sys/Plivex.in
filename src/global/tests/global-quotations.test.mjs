@@ -70,6 +70,8 @@ test("quotation tax snapshots use the invoice tax engine and are verified before
   assert.match(migration, /add column if not exists tax_snapshot jsonb/);
   assert.match(migration, /global_manage_quotation_with_tax/);
   assert.match(migration, /quotation_tax_review_required/);
+  assert.match(migration, /not_applicable/);
+  assert.match(migration, /noTaxConfirmed/);
   assert.match(migration, /unverified_tax_rule/);
   assert.match(edge, /global_manage_quotation_with_tax/);
   assert.match(edge, /p_tax_snapshot: body\.tax_snapshot/);
@@ -77,6 +79,8 @@ test("quotation tax snapshots use the invoice tax engine and are verified before
   assert.match(panel, /tax_snapshot:/);
   assert.match(panel, /Total including tax/);
   assert.match(panel, /cannot be marked as sent/);
+  assert.match(panel, /No tax charged — business confirmed/);
+  assert.match(panel, /not a zero-rated or exempt treatment/);
 });
 
 test("mobile onboarding keeps progress, step content and actions within the phone viewport", async () => {
