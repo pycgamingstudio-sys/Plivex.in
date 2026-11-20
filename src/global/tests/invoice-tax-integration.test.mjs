@@ -273,7 +273,9 @@ test("invalid percentage discounts fail closed instead of being silently clamped
 
 
 test("mixed UK invoice lines calculate separate verified rates after exact percentage discount allocation", () => {
-  const mixed = invoice("GBP", { discountType: "percent", discount: 10 });
+  const mixed = invoice("GBP");
+  mixed.discountType = "percent";
+  mixed.discount = 10;
   mixed.items = [
     { id: "standard-line", description: "Standard goods", quantity: 1, rate: 100 },
     {
@@ -312,7 +314,9 @@ test("line-level tax overrides require explicit treatment and category confirmat
 });
 
 test("fixed invoice discount allocation across unequal lines reconciles exactly", () => {
-  const mixed = invoice("GBP", { discountType: "fixed", discount: 1.01 });
+  const mixed = invoice("GBP");
+  mixed.discountType = "fixed";
+  mixed.discount = 1.01;
   mixed.items = [
     { id: "a", quantity: 1, rate: 1 },
     { id: "b", quantity: 2, rate: 1 },
