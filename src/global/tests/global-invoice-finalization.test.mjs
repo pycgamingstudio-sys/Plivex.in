@@ -105,11 +105,11 @@ test("snapshot rejects inconsistent zero-charge treatment or missing disclosure"
 
 
 test("Australian GST-free disclosure is distinct from zero-rated and exempt", () => {
-  const gstFree = makeSnapshot({ taxResult: {
+  const gstFree = makeSnapshot({ countryCode: "AU", taxResult: {
     ...result, treatment: "gst-free",
     taxDisclosure: "GST-free supply — no GST charged under the selected verified Australian GST-free category. This is distinct from input-taxed supplies.",
     taxCharged: false, taxMinor: 0, totalMinor: 10000,
-    ruleSnapshot: { ...rule, treatment: "gst-free", taxCategoryId: "AU_GST_FREE_BASIC_FOOD" },
+    ruleSnapshot: { ...rule, treatment: "gst-free", taxCategoryId: "AU_GST_FREE_BASIC_FOOD", source: "https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/when-to-charge-gst-and-when-not-to/gst-free-sales", sourceAuthority: "Australian Taxation Office" },
     taxCategory: "AU_GST_FREE_BASIC_FOOD",
     components: [{ id: "AU-GST-FREE", name: "GST", rateBps: 0, amountMinor: 0 }],
     countryCode: "AU", currencyCode: "AUD",
