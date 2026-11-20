@@ -270,3 +270,58 @@ test("invalid percentage discounts fail closed instead of being silently clamped
   assert.equal(result.ok, false);
   assert.equal(result.code, "INVALID_AMOUNT");
 });
+
+
+test("mixed UK invoice lines calculate separate verified rates after exact percentage discount allocation", () => {
+  const mixed = invoice("GBP", { discountType: "percent", discount: 10 });
+  mixed.items = [
+    { id: "standard-line", description: "Standard goods", quantity: 1, rate: 100 },
+    {
+      id: "reduced-line", description: "Domestic fuel and power", quantity: 1, rate: 100,
+      taxTreatment: "reduced",
+      taxCategory: "GB_REDUCED_DOMESTIC_FUEL_POWER",
+      taxTreatmentConfirmed: true,
+      taxCategoryConfirmed: true,
+    },
+  ];
+  const result = calculateInvoiceGlobalTax(mixed, profile("GB", "GBP"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.status, "calculated");
+  assert.equal(result.taxableMinor, 18000);
+  assert.equal(result.taxMinor, 2250);
+  assert.equal(result.totalMinor, 20250);
+  assert.equal(result.lineTaxBreakdown.length, 2);
+  assert.equal(result.lineTaxBreakdown[0].taxMinor, 1800);
+  assert.equal(result.lineTaxBreakdown[1].taxMinor, 450);
+  assert.equal(result.lineTaxBreakdown[0].treatment, "standard");
+  assert.equal(result.lineTaxBreakdown[1].treatment, "reduced");
+  assert.equal(result.taxSnapshot, null);
+});
+
+test("line-level tax overrides require explicit treatment and category confirmation", () => {
+  const mixed = invoice("GBP");
+  mixed.items = [{
+    id: "special-line", quantity: 1, rate: 100,
+    taxTreatment: "reduced",
+    taxCategory: "GB_REDUCED_DOMESTIC_FUEL_POWER",
+    taxTreatmentConfirmed: true,
+  }];
+  const result = calculateInvoiceGlobalTax(mixed, profile("GB", "GBP"));
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "LINE_TAX_CONFIRMATION_REQUIRED");
+});
+
+test("fixed invoice discount allocation across unequal lines reconciles exactly", () => {
+  const mixed = invoice("GBP", { discountType: "fixed", discount: 1.01 });
+  mixed.items = [
+    { id: "a", quantity: 1, rate: 1 },
+    { id: "b", quantity: 2, rate: 1 },
+    { id: "c", quantity: 3, rate: 1 },
+  ];
+  const result = calculateInvoiceGlobalTax(mixed, profile("GB", "GBP"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.taxableMinor, 499);
+  assert.equal(result.taxMinor, 100);
+  assert.equal(result.totalMinor, 599);
+  assert.equal(result.lineTaxBreakdown.reduce((sum, line) => sum + line.amountMinor, 0), 499);
+});
