@@ -122,7 +122,7 @@ test("UAE, Australia and Singapore expose narrowly scoped verified special treat
     ["CA", "zero-rated", "CA_ZERO_RATED_BASIC_GROCERIES"],
   ];
   for (const [countryCode, treatment, taxCategoryId] of cases) {
-    const resolved = getTaxTreatmentRuleSet(countryCode, { treatment, taxCategoryId, asOfDate: "2026-11-20" });
+    const resolved = getTaxTreatmentRuleSet(countryCode, { treatment, taxCategoryId, ...(countryCode === "CA" ? { jurisdictionId: "QC" } : {}), asOfDate: "2026-11-20" });
     assert.equal(resolved.ok, true, taxCategoryId);
     assert.equal(resolved.rule.components[0].rateBps, 0, taxCategoryId);
   }
