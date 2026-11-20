@@ -209,3 +209,28 @@ test("US/Canada manual rates require user attestation", () => {
     components: [{ id: "state", name: "State tax", rateBps: 500 }] }), profile("US", "USD"));
   assert.equal(result.code, "COLLECTION_OBLIGATION_ATTESTATION_REQUIRED");
 });
+
+
+test("Canada automatic GST/HST uses selected destination province and a confirmed collection obligation", () => {
+  const result = calculateInvoiceGlobalTax(invoice("CAD", {
+    mode: "automatic",
+    destinationJurisdiction: { province: "ON" },
+    collectionObligationAttested: true,
+  }), profile("CA", "CAD"));
+  assert.equal(result.ok, true);
+  assert.equal(result.taxMinor, 1300);
+  assert.equal(result.totalMinor, 11300);
+  assert.equal(result.jurisdictionEvidence, "user-attested");
+});
+
+test("Australia GST-free category uses the exact verified GST-free rule", () => {
+  const result = calculateInvoiceGlobalTax(invoice("AUD", {
+    mode: "automatic",
+    taxTreatment: "gst-free",
+    taxCategory: "AU_GST_FREE_BASIC_FOOD",
+  }), profile("AU", "AUD"));
+  assert.equal(result.ok, true);
+  assert.equal(result.treatment, "gst-free");
+  assert.equal(result.taxMinor, 0);
+  assert.match(result.taxDisclosure, /GST-free supply/);
+});
