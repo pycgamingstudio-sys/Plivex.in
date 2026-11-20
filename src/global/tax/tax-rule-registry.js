@@ -364,7 +364,6 @@ const TREATMENT_RULES = Object.freeze([
     coverage: "specified-electronic-devices-supplied-between-registered-recipients-for-resale-or-production-only; recipient-declaration-required",
     components: [{ id: "AE-VAT-RC-ELECTRONIC-DEVICES", name: "Recipient-accounted VAT", rateBps: 500, source: "https://mof.gov.ae/wp-content/uploads/2026/02/UAE-Electronic-Invoicing-Guidelines_V-1.0-23Feb2026.pdf" }],
   }),
-  }),
 ]);
 
 const validDate = (value) => {
