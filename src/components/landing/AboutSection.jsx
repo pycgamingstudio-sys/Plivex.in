@@ -7,7 +7,7 @@ const PILLARS = [
   {
     icon: Receipt, title: "Smart Billing & Invoicing", tone: "from-[#6D28D9] to-[#7C3AED]",
     features: [
-      "GST and non-GST invoicing where supported", "Country-aware tax calculation for supported regions", "Manual WhatsApp sharing where supported",
+      "GST and non-GST invoicing where supported", "Country-aware tax calculation for supported regions", "Invoice sharing through supported channels",
       "Recurring bills & cycles", "Credit notes & adjustments", "Quotation → invoice convert",
       "Product and tax-code assistance where supported", "Workspace currency and locale-aware formatting", "Print-perfect A4 PDFs", "Payment QR options where supported",
     ],
@@ -23,7 +23,7 @@ const PILLARS = [
   {
     icon: Wallet, title: "Payments & Financial Tracking", tone: "from-[#059669] to-[#10B981]",
     features: [
-      "Payment QR generation where supported", "Regional payment options where available", "Payment tracking for supported workflows", "Partial payment tracking",
+      "Payment QR options where supported", "Regional payment options where available", "Payment tracking for supported workflows", "Partial payment tracking",
       "Expense and purchase tracking", "Recorded sales and expense summaries", "Payment reminder workflows where supported", "Reconciliation engine",
     ],
   },
@@ -45,7 +45,7 @@ const PILLARS = [
     icon: Plug, title: "Usability & Integrations", tone: "from-[#DB2777] to-[#EC4899]",
     features: [
       "Mobile responsive PWA", "Bulk PDF export", "Connected web workspace", "Regional payment options where available",
-      "Cancel & track invoices", "Hindi and English interface options", "Workspace team access and role controls", "Custom branding & logos",
+      "Cancel & track invoices", "Available interface language options", "Workspace team access and role controls", "Custom branding & logos",
     ],
   },
 ];
