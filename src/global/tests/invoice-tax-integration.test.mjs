@@ -407,3 +407,33 @@ test("UAE precious-metals reverse charge uses the effective 2025 rule and pre-su
   assert.equal(result.recipientTaxMinor, 500);
   assert.equal(result.taxSnapshot.rule.id, "AE-VAT-REVERSE-CHARGE-PRECIOUS-METALS-2026-11");
 });
+
+
+test("mixed standard and reverse-charge lines reconcile seller and recipient tax separately", () => {
+  const document = invoice("GBP", { taxTreatment: "standard" });
+  document.items = [
+    { id: "standard", description: "Standard supply", quantity: 1, rate: 100 },
+    {
+      id: "construction", description: "CIS construction service", quantity: 1, rate: 100,
+      taxTreatment: "reverse-charge",
+      taxCategory: "GB_REVERSE_CHARGE_CONSTRUCTION_STANDARD",
+      taxTreatmentConfirmed: true,
+      taxCategoryConfirmed: true,
+    },
+  ];
+  document.globalTax.reverseChargeEvidence = {
+    recipientVatRegisteredConfirmed: true,
+    constructionIndustrySchemeConfirmed: true,
+    recipientNotEndUserConfirmed: true,
+    supplyWithinConstructionIndustryScheme: true,
+    employmentBusinessExcluded: true,
+  };
+  const result = calculateInvoiceGlobalTax(document, profile("GB", "GBP"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.taxMinor, 2000);
+  assert.equal(result.recipientTaxMinor, 2000);
+  assert.equal(result.totalMinor, 22000);
+  assert.equal(result.taxSnapshot.immutable, true);
+  assert.equal(result.taxSnapshot.treatment, "mixed");
+  assert.equal(result.taxSnapshot.lineRules.length, 2);
+});
