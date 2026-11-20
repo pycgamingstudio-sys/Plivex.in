@@ -59,6 +59,16 @@ declare
   v_expected_component_name text;
   v_expected_component_rate numeric;
 begin
+  if p_user_id is null or p_workspace_id is null then
+    return jsonb_build_object('ok',false,'reason','invalid_identity');
+  end if;
+  if not exists (
+    select 1 from global.workspace_members
+    where workspace_id=p_workspace_id and user_id=p_user_id and status='active'
+  ) then
+    return jsonb_build_object('ok',false,'reason','access_denied');
+  end if;
+
   if p_action = 'create' then
     if p_tax_snapshot is not null then
       if jsonb_typeof(p_tax_snapshot) <> 'object'
@@ -112,7 +122,7 @@ begin
         when 'GB' then 'https://www.gov.uk/vat-rates'
         when 'AE' then 'https://mof.gov.ae/en/public-finance/tax/value-added-tax-vat/'
         when 'AU' then 'https://www.ato.gov.au/Business/GST/'
-        when 'SG' then 'https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/basics-of-gst/current-gst-rates'
+        when 'SG' then 'https://www.iras.gov.sg/taxes/goods-services-tax-(gst)/basics-of-gst/current-gst-rates'
         when 'CA' then 'https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html'
         else null end;
       if v_expected_rate is null
@@ -126,7 +136,8 @@ begin
         if v_province in ('BC','MB','SK','QC') then
           v_expected_component_name := case v_province when 'BC' then 'PST' when 'MB' then 'RST' when 'SK' then 'PST' else 'QST' end;
           v_expected_component_rate := case v_province when 'BC' then 700 when 'MB' then 700 when 'SK' then 600 else 997.5 end;
-          if jsonb_array_length(v_tax_result->'components') <> 2
+          if v_tax_context->>'taxCategory' is distinct from 'CA_' || v_province || '_PST_TAXABLE_GOODS'
+            or jsonb_array_length(v_tax_result->'components') <> 2
             or v_tax_result->'components'->0->>'name' <> 'GST'
             or (v_tax_result->'components'->0->>'rateBps')::numeric <> 500
             or v_tax_result->'components'->1->>'name' <> v_expected_component_name
