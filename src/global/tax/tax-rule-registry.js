@@ -331,7 +331,6 @@ const TREATMENT_RULES = Object.freeze([
     coverage: "qualifying-investment-precious-metals-only; statutory-purity-and-market-trading-conditions-apply",
     components: [{ id: "SG-GST-EXEMPT-IPM", name: "GST", rateBps: 0, source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/charging-gst-%28output-tax%29/when-to-charge-goods-and-services-tax-%28gst%29" }],
   }),
-  }),
 ]);
 
 const validDate = (value) => {
