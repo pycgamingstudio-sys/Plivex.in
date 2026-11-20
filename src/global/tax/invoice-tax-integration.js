@@ -141,8 +141,15 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
     if (components.some((item) => !String(item?.id || "").trim() || !String(item?.name || "").trim() || !Number.isInteger(Number(item.rateBps)) || Number(item.rateBps) <= 0 || Number(item.rateBps) > 10000)) return fail("MANUAL_COMPONENT_INVALID", "Every manual tax component needs a name and an explicit rate greater than 0% and no more than 100%. Zero-rated/exempt treatments need a separately verified rule.");
     if (countryCode === "CA" && ["BC", "MB", "SK"].includes(String(config.destinationJurisdiction?.province || "").trim().toUpperCase())) {
       const province = String(config.destinationJurisdiction.province).trim().toUpperCase();
+      const provincialComponent = province === "MB" ? "RST" : "PST";
+      const provincialRate = province === "SK" ? 600 : 700;
       if (config.taxCategory !== `CA_${province}_PST_TAXABLE_GOODS`) {
         return fail("CANADIAN_PST_TAXABILITY_REQUIRED", "This province has a separate PST/RST. Confirm that every line is a taxable tangible good before adding the provincial component.");
+      }
+      if (components.length !== 2
+        || !components.some((item) => item.name === "GST" && Number(item.rateBps) === 500)
+        || !components.some((item) => item.name === provincialComponent && Number(item.rateBps) === provincialRate)) {
+        return fail("CANADIAN_PST_COMPONENTS_REQUIRED", "Include the exact CRA-listed GST and province-specific PST/RST components for this destination.");
       }
     }
     if (countryCode === "US" || countryCode === "CA") {
