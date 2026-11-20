@@ -126,7 +126,7 @@ begin
     or jsonb_array_length(v_rule.components)<1 or jsonb_array_length(v_rule.components)>8
     or exists (
       select 1 from jsonb_array_elements(v_rule.components) c
-      where coalesce(c->>'id','')='' or coalesce(c->>'rateBps','') !~ '^[0-9]+(\\.[0-9])?        or (c->>'rateBps')::numeric > 10000
+      where coalesce(c->>'id','')='' or coalesce(c->>'rateBps','') !~ '^[0-9]+(\.[0-9])?$'
     )
     or (select coalesce(sum((c->>'rateBps')::numeric),0) from jsonb_array_elements(v_rule.components) c) > 10000
     or (select count(*) from jsonb_array_elements(v_rule.components) c)
