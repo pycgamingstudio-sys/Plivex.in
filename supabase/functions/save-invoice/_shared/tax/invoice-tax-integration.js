@@ -375,7 +375,7 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
     eInvoiceReadiness: getEInvoiceReadiness(countryCode),
     taxSnapshot: null,
   };
-  if (!manual && commonRule && commonTreatment !== "mixed" && commonCategory !== "mixed") {
+  if (!manual && lineResults.every((line) => line.ruleSnapshot)) {
     const finalized = createGlobalInvoiceTaxSnapshot({ countryCode, invoiceDate: issueDate, taxResult: result });
     if (finalized.ok) result.taxSnapshot = finalized.snapshot;
   }
