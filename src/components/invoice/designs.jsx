@@ -17,6 +17,13 @@ export function isPremiumDesign(id) {
   return Boolean(INVOICE_DESIGNS.find((design) => design.id === id)?.premium);
 }
 
+function invoiceDocumentTitle(invoice) {
+  if (invoice.documentStatus === "draft" || invoice.documentType === "draft_invoice") return "Draft Invoice";
+  if (invoice.documentType === "commercial_invoice") return "Commercial Invoice";
+  if (invoice.documentType === "tax_invoice") return "Tax Invoice";
+  return "Invoice";
+}
+
 function initials(name) {
   const parts = String(name || "Your business").trim().split(/\s+/).filter(Boolean);
   return (parts.map((word) => word[0]).slice(0, 2).join("") || "P").toUpperCase();
@@ -74,7 +81,9 @@ function Totals({ invoice, subtotal, discount, discountValue, taxValue, total, m
       {calculation ? (
         <>
           <div className="flex justify-between text-[#77758a]"><span>Taxable amount</span><span>{money(calculation.taxableMinor / 100, invoice.currency)}</span></div>
-          {(calculation.components || []).map((component) => <div key={component.id} className="flex justify-between text-[#77758a]"><span>{component.name} ({component.rateBps / 100}%)</span><span>{money(component.amountMinor / 100, invoice.currency)}</span></div>)}
+          {calculation.status === "not_applicable"
+            ? <p className="text-[11px] text-amber-800">{calculation.disclosure || "Tax not assessed — commercial invoice."}</p>
+            : (calculation.components || []).map((component) => <div key={component.id} className="flex justify-between text-[#77758a]"><span>{component.name} ({component.rateBps / 100}%)</span><span>{money(component.amountMinor / 100, invoice.currency)}</span></div>)}
           {calculation.status === "manual_unverified" && <p className="text-[10px] text-amber-700">Manual rates · not independently verified</p>}
         </>
       ) : (invoice.globalTax?.countryCode && invoice.globalTax.countryCode !== "IN") || (invoice.globalTaxCalculation && invoice.globalTaxCalculation.status !== "india_legacy") ? (
@@ -146,7 +155,7 @@ function ClassicDesign({ invoice, subtotal, discount, discountValue, taxValue, t
           </div>
         </div>
         <div className="text-right">
-          <p className="font-mono-ui text-[13px] uppercase tracking-[0.17em] text-[#77758a]">Invoice</p>
+          <p className="font-mono-ui text-[13px] uppercase tracking-[0.17em] text-[#77758a]">{invoiceDocumentTitle(invoice)}</p>
           <p className="mt-1 text-[19px] font-bold tracking-[-0.04em] text-[#2e2857]">{invoice.number || "INV-000"}</p>
           <div className="mt-3 grid grid-cols-2 gap-x-5 gap-y-1 text-[13px]">
             <span className="text-[#77758a]">Issued</span><span className="font-medium">{dateLabel(invoice.issueDate)}</span>
