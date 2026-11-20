@@ -856,7 +856,7 @@ export default function Home() {
         downloadPdfBlob(pdf, exportFilename);
         recordActivity(issuedInvoice ? "Workspace invoice issued and PDF exported" : "Workspace invoice draft exported");
         if (issuedInvoice) {
-          notify(`UK VAT invoice ${issuedInvoice.invoice_number} issued and PDF downloaded. Payment-provider collection is not connected yet.`);
+          notify(`Commercial invoice ${issuedInvoice.invoice_number} issued and PDF downloaded. Payment-provider collection is not connected yet.`);
         } else {
           const reason = activeWorkspaceCountry === "GB" && !globalTaxCalculation?.ok
             ? "Tax details are incomplete, so this document remains a draft."
