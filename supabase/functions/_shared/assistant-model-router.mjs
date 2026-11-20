@@ -135,7 +135,7 @@ export function parseRetryAfterSeconds(headers, now = Date.now()) {
   const reset = headers?.get?.("x-ratelimit-reset-requests");
   if (reset) {
     const value = String(reset).trim();
-    const parts = [...value.matchAll(/(\\d+(?:\\.\\d+)?)(ms|s|m|h)/g)];
+    const parts = [...value.matchAll(/(\d+(?:\.\d+)?)(ms|s|m|h)/g)];
     if (parts.length) {
       const total = parts.reduce((sum, part) => sum + Number(part[1]) * ({ ms: 0.001, s: 1, m: 60, h: 3600 }[part[2]]), 0);
       if (Number.isFinite(total)) return Math.ceil(total);
