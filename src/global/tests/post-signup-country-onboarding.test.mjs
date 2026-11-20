@@ -194,15 +194,16 @@ test("invited non-owner members wait for owner setup instead of entering owner o
   const app = await read("../../App.jsx");
   assert.match(app, /const canProvisionWorkspace = !user\.workspace_id \|\| !user\.role \|\| user\.role === "admin" \|\| user\.role === "user"/);
   assert.match(app, /Workspace setup is pending/);
-  assert.match(app, /Your workspace owner needs to complete the mandatory Workspace review/);
+  assert.match(app, /Workspace setup is incomplete/);
   assert.match(app, /onClick=\{\(\) => logout\(\)\}/);
 });
 
 
-test("existing workspace owners cannot bypass mandatory onboarding with a stale invite token", async () => {
+test("legacy review metadata does not gate existing workspace access while incomplete onboarding stays role-aware", async () => {
   const app = await read("../../App.jsx");
-  assert.ok(app.includes('user.legacy_review_required) && (!getPendingInviteCode() || Boolean(user.workspace_id))'));
+  assert.doesNotMatch(app, /migration_status|legacy_review_required/);
   assert.ok(app.includes('const canProvisionWorkspace = !user.workspace_id || !user.role || user.role === "admin" || user.role === "user"'));
+  assert.ok(app.includes("!getPendingInviteCode() || Boolean(user.workspace_id)"));
 });
 
 test("mobile onboarding keeps long steps in the page scroll flow while desktop keeps its inner scroller", async () => {
