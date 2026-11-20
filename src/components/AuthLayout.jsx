@@ -5,7 +5,7 @@ import Logo from "@/components/Logo";
 export default function AuthLayout({ icon: Icon, title, subtitle, footer, children }) {
   return (
     <div className="plivex-auth-shell flex min-h-dvh items-start justify-center px-4 py-6 sm:min-h-screen sm:items-center sm:py-10">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-[27rem]">
         <div className="mb-7 text-center sm:mb-8">
           <Logo className="mx-auto mb-4 h-12 w-12" />
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary mb-4">
