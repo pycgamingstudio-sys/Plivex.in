@@ -9,10 +9,9 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
   const countryCode = workspaceProfile?.countryCode || "";
   const format = getTaxInvoiceFormat(countryCode);
   const config = {
-    ...(invoice.globalTax || {
-      countryCode,
-      mode: countryCode === "US" ? "manual" : "automatic",
-      taxMode: String(workspaceProfile?.registrationStatus || "unregistered").trim().toLowerCase() === "unregistered" ? "no_tax" : "taxable",
+    countryCode,
+    mode: countryCode === "US" ? "manual" : "automatic",
+    taxMode: String(workspaceProfile?.registrationStatus || "unregistered").trim().toLowerCase() === "unregistered" ? "no_tax" : "taxable",
       noTaxConfirmed: false,
       priceMode: "exclusive",
       placeOfSupply: "",
@@ -23,7 +22,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
       collectionObligationAttested: false,
       destinationJurisdiction: { state: "", county: "", city: "", province: "" },
       components: [{ id: "manual-tax-1", name: "", rateBps: 0 }],
-    }),
+    ...(invoice.globalTax || {}),
     taxDetailsConfirmed: invoice.globalTax?.taxDetailsConfirmed === true,
   };
   const selectedMode = countryCode === "US" ? "manual" : (config.mode || "automatic");
@@ -72,7 +71,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
       {noTax ? (
         <div className="mt-3 rounded-lg border p-3 text-xs">
           <label className="flex items-start gap-2"><input data-testid="global-no-tax-confirm" type="checkbox" checked={config.noTaxConfirmed === true} onChange={(e) => update({ noTaxConfirmed: e.target.checked })} /><span>I confirm that I have checked the rules for this business and this transaction, and I am not required to charge this country’s tax. I understand this is a commercial invoice, not a tax invoice, and this is not a zero-rated or tax-exempt classification.</span></label>
-          <p className="mt-2 text-[11px] text-muted-foreground">Your issued document will be titled Commercial Invoice, will not show a tax registration number as if one were required, and will clearly state that tax was not assessed by Plivex. If you are required to register or collect tax, switch to “Tax applies” and complete the tax details instead.</p>
+          <p className="mt-2 text-[11px] text-muted-foreground">Your issued document will be titled Commercial Invoice, will not show a tax registration number as if one were required, and will clearly state that tax was not assessed by Plivex. If you are required to register or collect tax, switch to “Tax applies” and complete the tax details instead. Plivex does not decide whether your business or transaction legally qualifies.</p>
         </div>
       ) : (
       <>
