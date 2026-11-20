@@ -47,7 +47,7 @@ export default function InvoiceHistory() {
   }, []);
   useEffect(() => {
     let active = true;
-    if (APP_EDITION === "global" || user?.country_code !== "IN" || !view?.id) { setReminderEvents([]); return undefined; }
+    if (APP_EDITION === "global" || !view?.id) { setReminderEvents([]); return undefined; }
     setEventsLoading(true);
     supabase.from("invoice_reminder_events").select("id,stage,scheduled_for,status,sent_at,recipient_email,failure_reason")
       .eq("invoice_id", view.id).order("scheduled_for", { ascending: true })
