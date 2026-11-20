@@ -9,14 +9,15 @@ const home = readFileSync(new URL("../../pages/Home.jsx", import.meta.url), "utf
 const history = readFileSync(new URL("../../pages/InvoiceHistory.jsx", import.meta.url), "utf8");
 const stores = readFileSync(new URL("../../lib/stores.js", import.meta.url), "utf8");
 
-test("Global invoice issuance is server-authoritative and initially GB-only", () => {
-  assert.match(migration, /v_workspace\.country_code <> 'GB'/);
-  assert.match(migration, /v_workspace\.currency_code <> 'GBP'/);
-  assert.match(migration, /upper\(coalesce\(v_profile\.tax_registration_type,''\)\) <> 'VAT'/);
-  assert.match(migration, /tax_category','standard-rated'/);
-  assert.match(migration, /'rate_bps',2000/);
-  assert.match(migration, /round\(v_line_base::numeric \* 2000 \/ 10000\)/);
-  assert.match(migration, /round\(v_line_base::numeric \* 2000 \/ 12000\)/);
+test("Global tax invoice issuance is server-authoritative for five standard-rate countries and fails closed for US", () => {
+  const multiCountry = readFileSync(new URL("../../../supabase/migrations/20261120070000_global_multi_country_tax_issuance.sql", import.meta.url), "utf8");
+  assert.match(multiCountry, /v_country not in \('GB','AE','CA','AU','SG'\)/);
+  assert.match(multiCountry, /v_country = 'US'/);
+  assert.match(multiCountry, /jurisdiction_rule_required/);
+  assert.match(multiCountry, /v_tax_category <> 'CA_' \|\| v_province \|\| '_PST_TAXABLE_GOODS'/);
+  assert.match(multiCountry, /rateBps',997\.5/);
+  assert.match(multiCountry, /tax_rate_bps type numeric\(7,1\)/);
+  assert.match(multiCountry, /v_invoice_number := 'INV-' \|\| v_country/);
 });
 
 test("Official invoice numbers are serialized and unique per workspace/year", () => {
@@ -24,7 +25,8 @@ test("Official invoice numbers are serialized and unique per workspace/year", ()
   assert.match(migration, /primary key \(workspace_id, invoice_year\)/);
   assert.match(migration, /pg_advisory_xact_lock/);
   assert.match(migration, /on conflict\(workspace_id,invoice_year\) do update/);
-  assert.match(migration, /INV-GB-/);
+  const multiCountry = readFileSync(new URL("../../../supabase/migrations/20261120070000_global_multi_country_tax_issuance.sql", import.meta.url), "utf8");
+  assert.match(multiCountry, /v_invoice_number := 'INV-' \|\| v_country/);
 });
 
 test("Issued invoice headers, lines, and refund ledger are immutable", () => {
