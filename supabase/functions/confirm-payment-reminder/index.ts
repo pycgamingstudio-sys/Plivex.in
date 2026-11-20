@@ -44,8 +44,9 @@ Deno.serve(async(req:Request)=>{
    await admin.from("invoice_reminder_events").update({status:"failed",failure_reason:"Email delivery is not configured.",updated_at:new Date().toISOString()}).eq("id",eventId);
    return json({error:"Email delivery is not configured."},503,origin);
   }
-  const due=invoice.due_date?new Date(invoice.due_date+"T00:00:00.000Z").toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric",timeZone:"UTC"}):"";
-  const amount=Number(invoice.total||0).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const locale=({INR:"en-IN",USD:"en-US",GBP:"en-GB",AED:"en-AE",CAD:"en-CA",AUD:"en-AU",SGD:"en-SG"} as Record<string,string>)[String(invoice.currency||"")]||"en";
+  const due=invoice.due_date?new Date(invoice.due_date+"T00:00:00.000Z").toLocaleDateString(locale,{day:"2-digit",month:"short",year:"numeric",timeZone:"UTC"}):"";
+  const amount=Number(invoice.total||0).toLocaleString(locale,{minimumFractionDigits:2,maximumFractionDigits:2});
   const hindi=invoice.reminder_language==="hi";
   const html=hindi
     ? `<!doctype html><html lang="hi"><body style="margin:0;background:#fff;font-family:Arial,sans-serif;color:#171717"><div style="max-width:560px;margin:auto;padding:24px"><h2>भुगतान अनुस्मारक</h2><p>नमस्ते ${esc(String(invoice.client_name||"ग्राहक"))},</p><p>यह invoice <b>${esc(String(invoice.number||""))}</b> के भुगतान के लिए एक विनम्र अनुस्मारक है। हमारे रिकॉर्ड में भुगतान अभी लंबित दिख रहा है।</p><p>देय राशि: <b>${esc(String(invoice.currency==="INR"?"₹":invoice.currency||"₹"))} ${esc(amount)}</b></p>${due?`<p>देय तिथि: <b>${esc(due)}</b></p>`:""}<p>यदि आपने भुगतान पहले ही कर दिया है, तो कृपया इस संदेश को अनदेखा करें और रिकॉर्ड अपडेट कराने के लिए हमसे संपर्क करें।</p><p>धन्यवाद।</p></div></body></html>`
