@@ -360,51 +360,74 @@ button, a, [role="button"], input[type="checkbox"], input[type="radio"] {
 .plivex-onboarding-card :where(input, select, textarea) { border-radius: .75rem; }
 .plivex-onboarding :where(button:focus-visible, input:focus-visible, select:focus-visible) { outline: 2px solid #6D28D9; outline-offset: 2px; }
 
+/* Shared responsive table treatment: keep wide data inside its own scroll region. */
+.app-shell :where(table),
+.plivex-dashboard :where(table) {
+  border-collapse: separate;
+  border-spacing: 0;
+  max-width: 100%;
+}
+.app-shell :where(thead th),
+.plivex-dashboard :where(thead th) {
+  color: #647084;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .045em;
+  white-space: nowrap;
+}
+.app-shell :where(tbody tr),
+.plivex-dashboard :where(tbody tr) { transition: background-color 140ms ease; }
+.app-shell :where(tbody tr:hover),
+.plivex-dashboard :where(tbody tr:hover) { background-color: #fbfaff; }
+.app-shell :where(tbody td),
+.plivex-dashboard :where(tbody td) { border-color: #efedf4; }
+.app-shell :where(.table-responsive, [data-table-scroll]),
+.plivex-dashboard :where(.table-responsive, [data-table-scroll]) {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
 
-/* Plivex Phase 3 — shared product finishing layer */
-:root {
-  --plivex-surface: #ffffff;
-  --plivex-surface-soft: #faf9ff;
-  --plivex-border-soft: #e8e7ef;
-  --plivex-shadow-card: 0 1px 2px rgb(24 24 40 / .035), 0 8px 24px rgb(24 24 40 / .035);
-  --plivex-shadow-hover: 0 10px 28px rgb(46 32 86 / .09);
+/* Main Workspace dark theme. The light Plivex palette remains the default. */
+.plivex-dashboard.dark {
+  color-scheme: dark;
+  background: #111827;
+  color: #f8fafc;
 }
-:where(table) { border-collapse: separate; border-spacing: 0; }
-:where(thead th) { color: #647084; font-size: 10px; font-weight: 700; letter-spacing: .045em; }
-:where(tbody tr) { transition: background-color 140ms ease; }
-:where(tbody tr:hover) { background-color: #fbfaff; }
-:where(tbody td) { border-color: #efedf4; }
-:where(button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible) {
-  outline-color: #6D28D9;
-  outline-offset: 2px;
+.plivex-dashboard.dark [class~="bg-white"],
+.plivex-dashboard.dark [class~="bg-white/90"],
+.plivex-dashboard.dark [class~="bg-white/95"] { background-color: #1f2937 !important; }
+.plivex-dashboard.dark [class~="bg-slate-50"] { background-color: #111827 !important; }
+.plivex-dashboard.dark [class~="bg-slate-100"] { background-color: #273449 !important; }
+.plivex-dashboard.dark [class~="bg-slate-200"] { background-color: #334155 !important; }
+.plivex-dashboard.dark [class~="text-slate-900"],
+.plivex-dashboard.dark [class~="text-slate-800"] { color: #f1f5f9 !important; }
+.plivex-dashboard.dark [class~="text-slate-700"],
+.plivex-dashboard.dark [class~="text-slate-600"] { color: #cbd5e1 !important; }
+.plivex-dashboard.dark [class~="text-slate-500"],
+.plivex-dashboard.dark [class~="text-slate-400"] { color: #94a3b8 !important; }
+.plivex-dashboard.dark [class~="border-[#E5E7EB]"],
+.plivex-dashboard.dark [class~="border-slate-100"],
+.plivex-dashboard.dark [class~="border-slate-200"] { border-color: #374151 !important; }
+.plivex-dashboard.dark [class~="bg-violet-50"] { background-color: #312e45 !important; }
+.plivex-dashboard.dark [class~="text-violet-800"] { color: #ddd6fe !important; }
+.plivex-dashboard.dark [class~="bg-emerald-50"] { background-color: #12352d !important; }
+.plivex-dashboard.dark [class~="bg-amber-50"] { background-color: #3b2f16 !important; }
+.plivex-dashboard.dark [class~="bg-rose-50"],
+.plivex-dashboard.dark [class~="bg-red-50"] { background-color: #3b2028 !important; }
+.plivex-dashboard.dark .plivex-bottom-nav { background: #1f2937; border-color: #374151; }
+.plivex-dashboard.dark :where(input, select, textarea) {
+  color-scheme: dark;
+  background-color: #1f2937;
+  border-color: #475569;
+  color: #f8fafc;
 }
-.plivex-dashboard-tab :where(h1,h2,h3,h4) { text-wrap: balance; }
-.plivex-dashboard-tab :where(.rounded-xl.border, .rounded-2xl.border) { border-color: var(--plivex-border-soft); }
-.plivex-dashboard-tab :where(button, a) { transition-duration: 160ms; transition-timing-function: ease-out; }
-.plivex-modal-panel {
-  width: min(100%, 42rem);
-  max-height: min(88dvh, 52rem);
-  overflow: auto;
-  overscroll-behavior: contain;
-  border: 1px solid var(--plivex-border-soft);
-  border-radius: 1.1rem;
-  background: var(--plivex-surface);
-  box-shadow: 0 24px 80px rgb(15 23 42 / .18);
-}
-.plivex-empty-state { display: grid; justify-items: center; gap: .55rem; padding: clamp(1.5rem, 4vw, 2.5rem) 1rem; text-align: center; }
-.plivex-auth-shell {
-  background: radial-gradient(ellipse at 12% 8%, rgb(109 40 217 / .09), transparent 34rem),
-    radial-gradient(ellipse at 92% 88%, rgb(59 130 246 / .07), transparent 30rem), hsl(var(--background));
-}
-.plivex-auth-card { box-shadow: 0 16px 48px rgb(36 24 72 / .07), 0 2px 8px rgb(36 24 72 / .035); }
-.plivex-public-section { scroll-margin-top: 5rem; }
-.plivex-onboarding-card :where(input, select, textarea) { border-radius: .75rem; }
-.plivex-onboarding :where(button:focus-visible, input:focus-visible, select:focus-visible) { outline: 2px solid #6D28D9; outline-offset: 2px; }
+.plivex-dashboard.dark :where(table) { color: #e2e8f0; }
+.plivex-dashboard.dark :where(thead th) { background: #1f2937; color: #cbd5e1; }
+.plivex-dashboard.dark :where(tbody td) { border-color: #374151; }
+.plivex-dashboard.dark :where(tbody tr:hover) { background-color: #273449; }
 @media (max-width: 640px) {
-  .plivex-modal-panel { max-height: calc(100dvh - 1rem); border-radius: 1rem; }
-  .plivex-auth-card { padding: 1.1rem; }
-  :where(table) { font-size: 11px; }
-}
-@media (hover: hover) and (pointer: fine) {
-  .plivex-hover-lift:hover { transform: translateY(-2px); box-shadow: var(--plivex-shadow-hover); }
+  .app-shell :where(.table-responsive, [data-table-scroll]),
+  .plivex-dashboard :where(.table-responsive, [data-table-scroll]) { margin-inline: 0; }
 }
