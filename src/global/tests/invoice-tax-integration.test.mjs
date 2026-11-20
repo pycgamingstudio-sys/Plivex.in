@@ -190,7 +190,8 @@ test("Canadian PST provinces require an explicit taxable-goods classification be
     }),
     issueDate: "2026-11-20",
   };
-  assert.equal(calculateInvoiceGlobalTax(confirmed, caProfile).ok, true);
+  const confirmedResult = calculateInvoiceGlobalTax(confirmed, caProfile);
+  assert.equal(confirmedResult.ok, true, JSON.stringify(confirmedResult));
 });
 
 test("workspace country always selects its required invoice currency, including after country changes", () => {
