@@ -14,7 +14,7 @@ export function sanitizePublicInvoice(invoice) {
   return {
     ...pick(invoice, [
       "number", "client_name", "business_name", "issue_date", "due_date", "is_draft",
-      "currency", "status", "subtotal", "cgst", "sgst", "igst", "total",
+      "currency", "status", "is_draft", "subtotal", "discount", "tax_value", "cgst", "sgst", "igst", "total",
     ]),
     invoice_snapshot: {
       business: pick(business, ["name", "address", "gstin", "locale", "countryLocale", "taxRegistrationNumber", "taxRegistrationType", "taxRegistrationStatus", "taxRegistrationEffectiveFrom", "registeredJurisdiction"]),
