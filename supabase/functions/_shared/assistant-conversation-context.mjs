@@ -20,8 +20,7 @@ export function buildConversationRoutingText(messages, maxUserTurns = 4) {
   if (userTurns.length === 1) return latest;
 
   const previous = userTurns.slice(0, -1).join(" ");
-  const isContinuation = CONTINUATION_CUE.test(latest)
-    || (/^(?:overdue|pending|due|status|balance|total|amount)\\b/i.test(latest) && BUSINESS_CONTEXT_PATTERN.test(previous));
+  const isContinuation = CONTINUATION_CUE.test(latest);
 
   return isContinuation ? userTurns.join("\n") : latest;
 }
