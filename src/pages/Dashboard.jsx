@@ -83,7 +83,6 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
     if (path === "/templates" || path === "/service-catalog") return workspaceFeatures.includes("quotations");
     return true;
   };
-  const primaryFeatureRoutes = ["/crm", "/client-database", "/inventory-procurement", "/usage-reports", "/tax-summary", "/payment-logs", "/templates", "/service-catalog"];
   // Keep secondary destinations exclusively in More. Tax summary remains a Workspace destination.
   const pages = navItems.filter((i) =>
     i.to !== "/" &&
