@@ -102,3 +102,18 @@ test("snapshot rejects inconsistent zero-charge treatment or missing disclosure"
   assert.equal(makeSnapshot({ taxResult: { ...result, ruleSnapshot: { ...rule, treatment: "exempt" } } }).code, "TAX_TREATMENT_RULE_MISMATCH");
   assert.equal(makeSnapshot({ taxResult: { ...result, treatment: "zero-rated", taxCharged: false, taxMinor: 100 } }).code, "TAX_TREATMENT_SNAPSHOT_INVALID");
 });
+
+
+test("Australian GST-free disclosure is distinct from zero-rated and exempt", () => {
+  const gstFree = makeSnapshot({ taxResult: {
+    ...result, treatment: "gst-free",
+    taxDisclosure: "GST-free supply — no GST charged under the selected verified Australian GST-free category. This is distinct from input-taxed supplies.",
+    taxCharged: false, taxMinor: 0, totalMinor: 10000,
+    ruleSnapshot: { ...rule, treatment: "gst-free", taxCategoryId: "AU_GST_FREE_BASIC_FOOD" },
+    taxCategory: "AU_GST_FREE_BASIC_FOOD",
+    countryCode: "AU", currencyCode: "AUD",
+  } });
+  assert.equal(gstFree.ok, true);
+  assert.equal(gstFree.snapshot.treatment, "gst-free");
+  assert.equal(gstFree.snapshot.taxCharged, false);
+});
