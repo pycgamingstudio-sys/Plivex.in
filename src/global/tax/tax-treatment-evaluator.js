@@ -18,8 +18,8 @@ const DISCLOSURES = Object.freeze({
  * product/service qualifies for a treatment; that classification must be
  * explicitly confirmed and represented by the selected rule snapshot.
  *
- * Reverse charge is intentionally excluded: seller/buyer accounting and
- * disclosure differ by jurisdiction and need a dedicated adapter.
+ * Reverse charge uses dedicated country/category evidence and records
+ * recipient-side tax separately from the seller's invoice payable amount.
  */
 export function calculateVerifiedTaxTreatment(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
