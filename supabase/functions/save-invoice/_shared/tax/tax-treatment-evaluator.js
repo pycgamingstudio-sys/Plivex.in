@@ -47,7 +47,7 @@ export function calculateVerifiedTaxTreatment(input) {
     };
   }
   if (!Array.isArray(rule.components) || rule.components.length < 1
-    || rule.components.some((component) => !component || !Number.isInteger(component.rateBps) || component.rateBps < 0)) {
+    || rule.components.some((component) => !component || !Number.isFinite(component.rateBps) || !Number.isInteger(component.rateBps * 10) || component.rateBps < 0)) {
     return { ok: false, status: "needs_review", code: "INVALID_TAX_COMPONENTS", message: "Verified tax components are required." };
   }
   const combinedRate = rule.components.reduce((sum, component) => sum + component.rateBps, 0);
