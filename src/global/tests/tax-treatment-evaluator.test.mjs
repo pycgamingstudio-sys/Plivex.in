@@ -177,6 +177,7 @@ test("verified UK and UAE reverse-charge rules resolve only for their explicit c
     ["GB", "GB_REVERSE_CHARGE_CONSTRUCTION_STANDARD", 2000],
     ["GB", "GB_REVERSE_CHARGE_CONSTRUCTION_REDUCED", 500],
     ["AE", "AE_REVERSE_CHARGE_ELECTRONIC_DEVICES", 500],
+    ["AE", "AE_REVERSE_CHARGE_PRECIOUS_METALS_STONES", 500],
   ];
   for (const [countryCode, taxCategoryId, rateBps] of cases) {
     const resolved = getTaxTreatmentRuleSet(countryCode, {
