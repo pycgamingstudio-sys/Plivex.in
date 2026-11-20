@@ -43,7 +43,7 @@ test("Issued invoice header and lines cannot be edited or deleted", () => {
   assert.match(migration, /guard_issued_workspace_invoice_items/);
   assert.match(migration, /Issued invoice lines are immutable/);
   assert.match(migration, /if v_country='IN' then return new/);
-  assert.match(migration, /coalesce\\(v_country,\\s*''\\)\\s*<>\\s*'IN'/);
+  assert.ok(migration.includes("coalesce(v_country,'')<>'IN'"));
 });
 
 test("Edge Function issues only a server-validated commercial invoice and keeps tax invoices fail-closed", () => {
