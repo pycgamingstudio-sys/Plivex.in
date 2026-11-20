@@ -18,7 +18,7 @@ const [app, auth, backend, onboarding, worker, vite, layout, globalApp, roleGuar
 test("India and Global use the same origin, authentication provider and responsive workspace shell", async () => {
   assert.ok(app.includes('import GlobalApp from "@/global/GlobalApp";'));
   assert.doesNotMatch(app, /const GlobalApp = lazy/);
-  assert.match(app, /const isGlobalWorkspace = APP_EDITION === "global"/);
+  assert.match(app, /const isGlobalWorkspace = !isUnifiedBuild && APP_EDITION === "global"/);
   assert.ok(app.includes('<Route path="/dashboard" element={<HomeGate />} />'));
   assert.ok((await read("../../components/HomeGate.jsx")).includes("<TrialGate><AppLayout><GlobalApp section=\"overview\" /></AppLayout></TrialGate>"));
   assert.ok(app.includes('<Route path="/invoice-history" element={isGlobalWorkspace ? <GlobalApp section="invoices" /> : <InvoiceHistory />} />'));
