@@ -3,7 +3,7 @@ import { backend as db } from '@/api/backendClient';
 
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Eye, Trash2, MessageCircle, ArrowRight, X, Search, ChevronDown, ChevronRight, Paperclip, PenLine, FileText, CheckCircle2, Clock, Receipt as ReceiptIcon, RotateCcw, Bell } from "lucide-react";
+import { Plus, Eye, Trash2, MessageCircle, ArrowRight, X, Search, ChevronDown, ChevronRight, Paperclip, PenLine, FileText, CheckCircle2, Clock, Receipt as ReceiptIcon, RotateCcw, Bell, Download, Share2, Printer } from "lucide-react";
 import { KEYS, loadList, saveList, removeItem, genId, loadState, saveState } from "@/lib/stores";
 import { inputCls, btnGhost } from "@/lib/ui";
 import { money2, dateLabel, btnAccent, subPill, statusBadge } from "@/lib/dashboardData";
@@ -13,6 +13,7 @@ import { useRole } from "@/lib/roles";
 
 import { trackStaffAction } from "@/lib/staffTracking";
 import SummaryCard from "@/components/dashboard/SummaryCard";
+import { createQuotationPdfBlob } from "@/lib/quotationPdf";
 
 const BANKS = ["HDFC Bank · 501000123456789", "ICICI Bank · 623400987654321", "State Bank of India · 30012345678901", "Axis Bank · 910000456789012"];
 
@@ -90,6 +91,67 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
   };
   const convert = (qt) => { if (!requestAction()) return; const draft = loadState(KEYS.draft, {}); saveState(KEYS.draft, { ...draft, client: { ...draft.client, name: qt.clientName }, number: qt.number, items: qt.items || draft.items, taxRate: qt.taxRate ?? draft.taxRate }); navigate("/invoice-builder"); };
+
+  const quotationPdfFilename = (qt) => `Plivex_${String(qt.number || "QUOTATION").replace(/[^a-zA-Z0-9]+/g, "-")}.pdf`;
+  const getQuotationPdf = async (qt) => {
+    const profile = loadState(KEYS.businessProfile, {}) || {};
+    const draft = loadState(KEYS.draft, {}) || {};
+    return createQuotationPdfBlob({
+      ...qt,
+      business: {
+        name: profile.name || user?.business_name || user?.full_name || "Your business",
+        email: profile.email || user?.email || "",
+        phone: profile.phone || "",
+        gstin: profile.gstin || "",
+        address: profile.address || "",
+        logo: profile.logo || "",
+      },
+      design: qt.design || draft.design || "classic",
+      countryCode: user?.country_code || "IN",
+      locale: user?.locale_code || "en",
+    });
+  };
+  const downloadQuotation = async (qt) => {
+    try {
+      const blob = await getQuotationPdf(qt);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url; link.download = quotationPdfFilename(qt); link.rel = "noopener";
+      document.body.appendChild(link); link.click(); link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error) { alert(error?.message || "Could not prepare the quotation PDF."); }
+  };
+  const shareQuotation = async (qt) => {
+    try {
+      const blob = await getQuotationPdf(qt);
+      const file = new File([blob], quotationPdfFilename(qt), { type: "application/pdf" });
+      const message = `Quotation ${qt.number || ""} from ${qt.business?.name || user?.full_name || "our business"} · ${amountInRecordedCurrency(qt.total, recordedCurrency(qt))}`;
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: `Quotation ${qt.number || ""}`, text: message });
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url; link.download = quotationPdfFilename(qt); link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+      window.open(`https://wa.me/?text=${encodeURIComponent(message + " — I have downloaded the PDF and will attach it here.")}`, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      if (error?.name !== "AbortError") alert(error?.message || "Could not share the quotation.");
+    }
+  };
+  const printQuotation = async (qt) => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) { alert("Allow pop-ups to open the quotation PDF for printing."); return; }
+    try {
+      const blob = await getQuotationPdf(qt);
+      const url = URL.createObjectURL(blob);
+      printWindow.location.href = url;
+      window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+    } catch (error) {
+      printWindow.close();
+      alert(error?.message || "Could not prepare the quotation for printing.");
+    }
+  };
   const saveQuotation = (qt) => {
     if (!requestAction()) return;
     const next = [qt, ...quotations];
@@ -225,7 +287,12 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
                               {statusOf(it) === "Pending" && <button onClick={() => sendReminder(it)} className="rounded-lg border border-[#E5E7EB] p-1.5 text-[#6D28D9] hover:bg-slate-50" aria-label="Send payment reminder"><Bell className="h-3.5 w-3.5" /></button>}
                               </>
                             ) : (
-                              <button onClick={() => convert(it)} className="inline-flex items-center gap-1 rounded-lg bg-[#6D28D9] px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-[#7C3AED]"><ArrowRight className="h-3 w-3" />Convert</button>
+                              <>
+                                <button onClick={() => downloadQuotation(it)} title="Download quotation PDF" aria-label="Download quotation PDF" className="rounded-lg border border-[#E5E7EB] p-1.5 text-slate-600 hover:bg-violet-50"><Download className="h-3.5 w-3.5" /></button>
+                                <button onClick={() => shareQuotation(it)} title="Share quotation PDF" aria-label="Share quotation PDF" className="rounded-lg border border-[#E5E7EB] p-1.5 text-emerald-700 hover:bg-emerald-50"><Share2 className="h-3.5 w-3.5" /></button>
+                                <button onClick={() => printQuotation(it)} title="Print quotation PDF" aria-label="Print quotation PDF" className="rounded-lg border border-[#E5E7EB] p-1.5 text-slate-600 hover:bg-slate-50"><Printer className="h-3.5 w-3.5" /></button>
+                                <button onClick={() => convert(it)} className="inline-flex items-center gap-1 rounded-lg bg-[#6D28D9] px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-[#7C3AED]"><ArrowRight className="h-3 w-3" />Convert</button>
+                              </>
                             )}
                             <button onClick={() => (sub === "invoices" ? delInv(it.id) : delQuo(it.id))} title={sub === "invoices" ? "Delete invoice" : "Delete quotation"} className="rounded-lg border border-[#E5E7EB] p-1.5 text-red-500 hover:bg-red-50" aria-label={sub === "invoices" ? "Delete invoice" : "Delete quotation"}><Trash2 className="h-3.5 w-3.5" /></button>
                           </div>
@@ -275,7 +342,7 @@ export default function SalesTab({ intent, initialSub, onConsumeIntent }) {
           </div>
         )}
 
-        {list.length > 0 && <div className="space-y-2.5 p-3 md:hidden">{rows.map((it) => { const open = expanded === it.id; const logs = paylog.filter((l) => l.invoiceNumber === it.number); const status = sub === "invoices" ? statusOf(it) : (it.status === "sent" ? "Sent" : "Draft"); return <article key={it.id} className="rounded-xl border border-[#E8E7EF] bg-gradient-to-br from-white to-[#FAF9FF] p-3.5 shadow-[0_1px_2px_rgba(24,24,40,.03)]"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words text-[13px] font-bold text-slate-900">{it.clientName || "Client"}</p><p className="mt-0.5 font-mono-ui text-[10px] text-slate-500">{it.number || "—"}</p></div><p className="shrink-0 text-right text-[13px] font-bold tabular-nums text-slate-900">{invoiceAmount(it)}</p></div><div className="mt-2.5 flex flex-wrap items-center justify-between gap-2"><span className="text-[11px] text-slate-600">{dateLabel(sub === "invoices" ? it.issueDate : it.date)}</span><button onClick={() => toggleStatus(it)} title="Change status" className={statusBadge(status) + " cursor-pointer"}>{status}</button></div><div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">{sub === "invoices" ? <><button onClick={() => setView(it)} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-slate-700"><Eye className="h-3.5 w-3.5" />View</button><button onClick={() => share(it)} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-emerald-700"><MessageCircle className="h-3.5 w-3.5" />Share</button>{status === "Pending" && <button onClick={() => sendReminder(it)} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-violet-700"><Bell className="h-3.5 w-3.5" />Reminder</button>}</> : <button onClick={() => convert(it)} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-[#6D28D9] px-2.5 py-1.5 text-[10px] font-bold text-white"><ArrowRight className="h-3 w-3" />Convert</button>}<button onClick={() => (sub === "invoices" ? delInv(it.id) : delQuo(it.id))} className="ml-auto inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-rose-100 px-2.5 py-1.5 text-[10px] font-semibold text-rose-700"><Trash2 className="h-3.5 w-3.5" />Delete</button></div>{open && <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3"><div><p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Line items</p>{(it.items || []).map((li, index) => <div key={index} className="flex items-center justify-between gap-3 py-1 text-[11px]"><span className="min-w-0 text-slate-700">{li.description || "Item"}</span><span className="shrink-0 font-semibold text-slate-900">{li.quantity || 1} × {amountInRecordedCurrency(li.rate, recordedCurrency(it))}</span></div>)}{(!it.items || it.items.length === 0) && <p className="text-[11px] text-slate-500">No item breakdown stored.</p>}</div>{sub === "invoices" && <div><p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Payment history</p>{logs.length ? logs.map((log) => <div key={log.id} className="flex justify-between gap-3 py-1 text-[11px]"><span className="text-slate-700">{dateLabel(log.date)} · {log.method || "—"}</span><span className={statusBadge(log.status === "paid" ? "Paid" : "Pending")}>{log.status}</span></div>) : <p className="text-[11px] text-slate-500">No payments recorded yet.</p>}</div>}</div>}<button onClick={() => setExpanded(open ? null : it.id)} className="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-[#6D28D9]">{open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}{open ? "Hide details" : "Show details"}</button></article>; })}</div>}
+        {list.length > 0 && <div className="space-y-2.5 p-3 md:hidden">{rows.map((it) => { const open = expanded === it.id; const logs = paylog.filter((l) => l.invoiceNumber === it.number); const status = sub === "invoices" ? statusOf(it) : (it.status === "sent" ? "Sent" : "Draft"); return <article key={it.id} className="rounded-xl border border-[#E8E7EF] bg-gradient-to-br from-white to-[#FAF9FF] p-3.5 shadow-[0_1px_2px_rgba(24,24,40,.03)]"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words text-[13px] font-bold text-slate-900">{it.clientName || "Client"}</p><p className="mt-0.5 font-mono-ui text-[10px] text-slate-500">{it.number || "—"}</p></div><p className="shrink-0 text-right text-[13px] font-bold tabular-nums text-slate-900">{invoiceAmount(it)}</p></div><div className="mt-2.5 flex flex-wrap items-center justify-between gap-2"><span className="text-[11px] text-slate-600">{dateLabel(sub === "invoices" ? it.issueDate : it.date)}</span><button onClick={() => toggleStatus(it)} title="Change status" className={statusBadge(status) + " cursor-pointer"}>{status}</button></div><div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">{sub === "invoices" ? <><button onClick={() => setView(it)} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-slate-700"><Eye className="h-3.5 w-3.5" />View</button><button onClick={() => share(it)} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-emerald-700"><MessageCircle className="h-3.5 w-3.5" />Share</button>{status === "Pending" && <button onClick={() => sendReminder(it)} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-violet-700"><Bell className="h-3.5 w-3.5" />Reminder</button>}</> : <><button onClick={() => downloadQuotation(it)} aria-label="Download quotation PDF" className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-slate-700"><Download className="h-3.5 w-3.5" />PDF</button><button onClick={() => shareQuotation(it)} aria-label="Share quotation PDF" className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-emerald-700"><Share2 className="h-3.5 w-3.5" />Share</button><button onClick={() => printQuotation(it)} aria-label="Print quotation PDF" className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-slate-700"><Printer className="h-3.5 w-3.5" />Print</button><button onClick={() => convert(it)} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-[#6D28D9] px-2.5 py-1.5 text-[10px] font-bold text-white"><ArrowRight className="h-3 w-3" />Convert</button></>}<button onClick={() => (sub === "invoices" ? delInv(it.id) : delQuo(it.id))} className="ml-auto inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-rose-100 px-2.5 py-1.5 text-[10px] font-semibold text-rose-700"><Trash2 className="h-3.5 w-3.5" />Delete</button></div>{open && <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3"><div><p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Line items</p>{(it.items || []).map((li, index) => <div key={index} className="flex items-center justify-between gap-3 py-1 text-[11px]"><span className="min-w-0 text-slate-700">{li.description || "Item"}</span><span className="shrink-0 font-semibold text-slate-900">{li.quantity || 1} × {amountInRecordedCurrency(li.rate, recordedCurrency(it))}</span></div>)}{(!it.items || it.items.length === 0) && <p className="text-[11px] text-slate-500">No item breakdown stored.</p>}</div>{sub === "invoices" && <div><p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Payment history</p>{logs.length ? logs.map((log) => <div key={log.id} className="flex justify-between gap-3 py-1 text-[11px]"><span className="text-slate-700">{dateLabel(log.date)} · {log.method || "—"}</span><span className={statusBadge(log.status === "paid" ? "Paid" : "Pending")}>{log.status}</span></div>) : <p className="text-[11px] text-slate-500">No payments recorded yet.</p>}</div>}</div>}<button onClick={() => setExpanded(open ? null : it.id)} className="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-[#6D28D9]">{open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}{open ? "Hide details" : "Show details"}</button></article>; })}</div>}
 
         <div className="flex items-center justify-between border-t border-[#E5E7EB] px-4 py-3 text-[11px] text-slate-500">
           <span>{list.length} record{list.length !== 1 ? "s" : ""}</span>
@@ -331,7 +398,7 @@ function QuotationModal({ onClose, onSave, currencyCode, countryCode }) {
 
   const save = () => {
     if (!form.clientName.trim()) return;
-    onSave({ id: genId("quo"), number: `QTN-${String(Date.now()).slice(-4)}`, clientName: form.clientName, clientEmail: form.clientEmail, date: new Date().toISOString().slice(0, 10), total, currency: currencyCode, status: "sent", taxRate: isIndia ? Number(form.taxRate) : 0, items: form.items, shipping, flatDiscount: flatDisc, pctDiscount: Number(form.pctDiscount) || 0, terms: form.terms, bank: form.bank, notes: form.notes, attachmentName: form.attachmentName, signature: form.signature });
+    onSave({ id: genId("quo"), number: `QTN-${String(Date.now()).slice(-4)}`, clientName: form.clientName, clientEmail: form.clientEmail, date: new Date().toISOString().slice(0, 10), total, currency: currencyCode, status: "sent", taxRate: isIndia ? Number(form.taxRate) : 0, items: form.items, shipping, flatDiscount: flatDisc, pctDiscount: Number(form.pctDiscount) || 0, terms: form.terms, bank: form.bank, notes: form.notes, attachmentName: form.attachmentName, signature: form.signature, design: loadState(KEYS.draft, {})?.design || "classic", business: loadState(KEYS.businessProfile, {}) || {} });
   };
 
   return (
