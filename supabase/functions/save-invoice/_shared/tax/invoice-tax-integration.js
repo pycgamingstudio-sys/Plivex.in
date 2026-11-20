@@ -191,6 +191,12 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
   if (countryCode === "CA" && config.collectionObligationAttested !== true) {
     return fail("COLLECTION_OBLIGATION_ATTESTATION_REQUIRED", "Confirm that you have checked whether your business must collect GST/HST in the selected destination province.");
   }
+  if (countryCode === "CA" && ["BC", "MB", "SK"].includes(String(config.destinationJurisdiction?.province || "").trim().toUpperCase())) {
+    const province = String(config.destinationJurisdiction.province).trim().toUpperCase();
+    if (config.taxCategory !== `CA_${province}_PST_TAXABLE_GOODS`) {
+      return fail("CANADIAN_PST_TAXABILITY_REQUIRED", "This province has a separate PST/RST. Confirm that every line is a taxable tangible good before Plivex applies that provincial component.");
+    }
+  }
 
   const result = calculateGlobalTax({
     countryCode,
