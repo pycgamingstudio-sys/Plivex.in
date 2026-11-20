@@ -8,6 +8,7 @@ import { validateGlobalProductAction } from "../_shared/assistant-global-product
 import { normalizeAssistantActionBatch } from "../_shared/assistant-tool-registry.mjs";
 import { buildBusinessIntentHints } from "../_shared/assistant-intent-planner.mjs";
 import { buildAssistantBusinessAnalytics, groupNumericTotals } from "../_shared/assistant-business-analytics.mjs";
+import { detectSupplementaryContextNeeds } from "../_shared/assistant-context-intent.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
 import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
 import { validateWarehouseAction } from "../_shared/assistant-warehouse-validation.mjs";
@@ -23,7 +24,7 @@ const ALLOWED_ORIGINS = new Set([
 const corsHeaders = {
   "Access-Control-Allow-Origin": "https://plivex.in",
   "Vary": "Origin",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-api-version, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
@@ -37,29 +38,52 @@ const number = (value: unknown, fallback = 0) => {
 const allowedCategories = ["Rent", "Raw Materials", "Utilities", "Salary", "Logistics", "Software", "Marketing", "Other"];
 const SUPPORTED_CURRENCIES = new Set(["INR", "USD", "EUR", "GBP", "AED", "CAD", "AUD", "SGD"]);
 
-async function loadLiveContext(supabase: any, workspaceId: string) {
+async function loadLiveContext(supabase: any, workspaceId: string, userText = "") {
+  const {
+    overviewRequest,
+    wantsInvoiceItems,
+    wantsLeadActivities,
+    wantsReceiptItems,
+    wantsReminders,
+    wantsStockAllocations,
+    wantsAccounting,
+    wantsWorkspaceSettings,
+    wantsMembers,
+  } = detectSupplementaryContextNeeds(userText);
   const results = await Promise.all([
-    supabase.from("invoices").select("number,client_name,issue_date,due_date,status,subtotal,tax_value,total,currency,is_draft,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
+    supabase.from("invoices").select("id,number,client_name,issue_date,due_date,status,subtotal,tax_value,total,currency,is_draft,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("clients").select("name,company,email,phone,gstin,address,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("stock").select("id,name,sku,quantity,unit,price,low_stock,warehouse_id,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("expenses").select("vendor,category,amount,date,status,method,notes,created_at").eq("workspace_id", workspaceId).order("date", { ascending: false }).limit(500),
     supabase.from("quotations").select("number,client_name,date,total,status,tax_rate,items,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
-    supabase.from("leads").select("name,phone,requirement,value,stage,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
+    supabase.from("leads").select("id,name,phone,requirement,value,stage,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("services").select("name,rate,gst_rate,description").eq("workspace_id", workspaceId).limit(500),
     supabase.from("business_profile").select("name,email,phone,gstin,address,upi_id,logo_url,country_code,tax_registration_number,tax_registration_type,tax_registration_status,tax_registration_effective_from,tax_jurisdiction_code").eq("workspace_id", workspaceId).maybeSingle(),
     supabase.from("warehouses").select("id,name,code,address,is_default,is_active,created_at").eq("workspace_id", workspaceId).eq("is_active", true).order("created_at", { ascending: false }).limit(200),
     supabase.from("purchase_orders").select("id,supplier_name,supplier_reference,status,order_date,expected_date,currency_code,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(200),
     supabase.from("purchase_order_items").select("id,purchase_order_id,stock_id,quantity_ordered,quantity_received,unit_cost,currency_code").eq("workspace_id", workspaceId).limit(1000),
-    supabase.from("purchase_receipts").select("purchase_order_id,warehouse_id,received_at").eq("workspace_id", workspaceId).order("received_at", { ascending: false }).limit(200),
+    supabase.from("purchase_receipts").select("id,purchase_order_id,warehouse_id,received_at").eq("workspace_id", workspaceId).order("received_at", { ascending: false }).limit(200),
     supabase.from("stock_movements").select("stock_id,warehouse_id,movement_type,quantity_delta,reference_type,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("inventory_batches").select("id,warehouse_id,stock_id,batch_number,quantity,expires_on,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
     supabase.from("stock_transfers").select("id,from_warehouse_id,to_warehouse_id,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(200),
     supabase.from("stock_transfer_items").select("transfer_id,source_stock_id,destination_stock_id,quantity").eq("workspace_id", workspaceId).limit(1000),
+    wantsLeadActivities ? supabase.from("lead_activities").select("id,lead_id,activity_type,body,due_at,completed_at,created_by,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(300) : Promise.resolve({ data: [], error: null }),
+    wantsReceiptItems ? supabase.from("purchase_receipt_items").select("id,receipt_id,purchase_order_item_id,stock_id,quantity,batch_number,expires_on").eq("workspace_id", workspaceId).limit(500) : Promise.resolve({ data: [], error: null }),
+    wantsReminders ? supabase.from("invoice_reminder_events").select("id,invoice_id,stage,scheduled_for,status,sent_at,attempt_count,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(300) : Promise.resolve({ data: [], error: null }),
+    wantsStockAllocations ? supabase.from("invoice_stock_allocations").select("id,invoice_id,invoice_item_id,stock_id,batch_id,quantity,reversed_at,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500) : Promise.resolve({ data: [], error: null }),
+    wantsAccounting ? supabase.from("accounting_accounts").select("id,code,name,account_type,normal_balance,is_system,is_active").eq("workspace_id", workspaceId).eq("is_active", true).limit(300) : Promise.resolve({ data: [], error: null }),
+    wantsWorkspaceSettings ? supabase.from("workspace_settings").select("country_code,locale_code,currency_code,workspace_type,optional_features,settings_version,onboarding_version,onboarding_completed_at,legacy_review_required").eq("workspace_id", workspaceId).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    wantsMembers ? supabase.from("workspace_members").select("id,name,role,status,invited_at,accepted_at,activated_at,removed_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(200) : Promise.resolve({ data: [], error: null }),
   ]);
-  const names = ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile", "warehouses", "purchase_orders", "purchase_order_items", "purchase_receipts", "stock_movements", "inventory_batches", "stock_transfers", "stock_transfer_items"];
+  const names = ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile", "warehouses", "purchase_orders", "purchase_order_items", "purchase_receipts", "stock_movements", "inventory_batches", "stock_transfers", "stock_transfer_items", "lead_activities", "purchase_receipt_items", "invoice_reminder_events", "invoice_stock_allocations", "accounting_accounts", "workspace_settings", "workspace_members"];
   const rows: Record<string, any> = Object.fromEntries(names.map((name, i) => [name, results[i].data ?? (name === "business_profile" ? null : [])]));
   const errors = names.filter((name, i) => results[i].error).map((name) => name);
   const invoices = rows.invoices || [];
+  const invoiceItemsResult = wantsInvoiceItems && invoices.length
+    ? await supabase.from("invoice_items").select("id,invoice_id,description,quantity,rate,gst_rate,created_at").in("invoice_id", invoices.map((item: any) => item.id)).limit(1500)
+    : { data: [], error: null };
+  const invoiceItems = invoiceItemsResult.data || [];
+  if (invoiceItemsResult.error) errors.push("invoice_items");
   const clients = rows.clients || [];
   const stock = rows.stock || [];
   const expenses = rows.expenses || [];
@@ -73,6 +97,13 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
   const inventoryBatches = rows.inventory_batches || [];
   const stockTransfers = rows.stock_transfers || [];
   const stockTransferItems = rows.stock_transfer_items || [];
+  const leadActivities = rows.lead_activities || [];
+  const purchaseReceiptItems = rows.purchase_receipt_items || [];
+  const invoiceReminderEvents = rows.invoice_reminder_events || [];
+  const invoiceStockAllocations = rows.invoice_stock_allocations || [];
+  const accountingAccounts = rows.accounting_accounts || [];
+  const workspaceSettings = rows.workspace_settings || null;
+  const workspaceMembers = rows.workspace_members || [];
   const stockById = new Map<string, any>(stock.map((item: any) => [item.id, item]));
   const warehouseById = new Map<string, any>(warehouses.map((item: any) => [item.id, item]));
   const batchesWithNames = inventoryBatches.map((batch: any) => ({ ...batch, stock_name: stockById.get(batch.stock_id)?.name || null, warehouse_name: warehouseById.get(batch.warehouse_id)?.name || null }));
@@ -125,6 +156,14 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
       stockMovements: { loadedRecords: stockMovements.length, movementTypes: stockMovements.reduce((counts: Record<string, number>, item: any) => { const key = String(item.movement_type || "unknown"); counts[key] = (counts[key] || 0) + 1; return counts; }, {}) },
       inventoryBatches: { loadedRecords: inventoryBatches.length, expired: businessAnalytics.inventory.expiredBatchCount, expiringWithin30Days: businessAnalytics.inventory.expiringWithin30DaysCount },
       stockTransfers: { loadedTransfers: stockTransfers.length, loadedTransferLines: stockTransferItems.length },
+      leadActivities: { loadedRecords: leadActivities.length },
+      purchaseReceiptItems: { loadedRecords: purchaseReceiptItems.length },
+      invoiceReminders: { loadedRecords: invoiceReminderEvents.length, pending: invoiceReminderEvents.filter((item: any) => !["sent", "cancelled", "failed"].includes(String(item.status).toLowerCase())).length },
+      invoiceStockAllocations: { loadedRecords: invoiceStockAllocations.length, activeAllocations: invoiceStockAllocations.filter((item: any) => !item.reversed_at).length },
+      invoiceItems: { loadedRecords: invoiceItems.length },
+      accountingAccounts: { activeCount: accountingAccounts.length, byType: accountingAccounts.reduce((counts: Record<string, number>, item: any) => { const key = String(item.account_type || "other"); counts[key] = (counts[key] || 0) + 1; return counts; }, {}) },
+      workspaceSettings: workspaceSettings ? { country_code: workspaceSettings.country_code, locale_code: workspaceSettings.locale_code, currency_code: workspaceSettings.currency_code, workspace_type: workspaceSettings.workspace_type, optional_features: workspaceSettings.optional_features, onboarding_completed_at: workspaceSettings.onboarding_completed_at, legacy_review_required: workspaceSettings.legacy_review_required } : null,
+      workspaceMembers: { visibleToCurrentUser: workspaceMembers.length },
       warehouses: { activeCount: warehouses.length, defaultWarehouse: warehouses.find((item: any) => item.is_default)?.name || null },
       purchasing: {
         loadedOrders: purchaseOrders.length,
@@ -152,8 +191,16 @@ async function loadLiveContext(supabase: any, workspaceId: string) {
       stock_movements: stockMovements.slice(0, 30),
       recent_inventory_batches: batchesWithNames.slice(0, 100),
       recent_stock_transfers: transfersWithDetails,
+      invoice_items: invoiceItems.slice(0, 250),
+      lead_activities: leadActivities.slice(0, 100),
+      purchase_receipt_items: purchaseReceiptItems.slice(0, 150),
+      invoice_reminder_events: invoiceReminderEvents.slice(0, 100),
+      invoice_stock_allocations: invoiceStockAllocations.slice(0, 150),
+      accounting_accounts: accountingAccounts.slice(0, 100),
+      workspace_settings: workspaceSettings,
+      workspace_members_visible_to_current_user: workspaceMembers.slice(0, 100),
     },
-    limitNote: "For each module, loaded records are capped (500 for core records, 200 for warehouses/orders/receipts, 1,000 purchase-order and stock-transfer lines, 500 inventory batches); record lists are recent samples. Summaries are calculated only from loaded rows. A missing module in this context is not proof that the workspace has no records.",
+    limitNote: "Workspace data is read through the signed-in user's existing Row Level Security and role permissions. Per-module records are capped and lists are recent samples; invoice items are scoped only to invoices already loaded from this workspace. Workspace members are limited by the current user's membership policy. Subscription, payment gateway, authentication secrets, invite codes and private system configuration are intentionally excluded.",
   };
 }
 
@@ -539,11 +586,15 @@ async function handleRequest(req: Request) {
     // Image analysis and record creation do not need a 500-row workspace snapshot.
     const hasReadQueryIntent = /(due|balance|ledger|pending|kitna|kitne|baki|baaki|outstanding|total|report|dikha|bata|show|list|how many|how much)/i.test(String(latestUserText));
     const needsPurchasingContext = /purchase\s*order|purchase|receipt|receive|stock\s*receive|warehouse|godown|maal\s*(aaya|aa\s*gaya)/i.test(String(latestUserText));
+    // Do not query up to 16 workspace tables for greetings or ordinary conversation.
+    // Load business records only when the latest message actually needs business context.
+    const needsWorkspaceContext = hasReadQueryIntent || needsPurchasingContext ||
+      /\b(invoice|invoices|bill|billing|client|customer|grahak|stock|inventory|product|item|expense|kharcha|quotation|quote|lead|service|warehouse|supplier|purchase|receipt|payment|paid|received|reconciliation|ledger|balance|outstanding|sales|revenue|gst|tax|business profile|my business|business report|workspace|work space|my data|my records|all records|all data|team|member|accounting|reminder|activity|receipt item|stock allocation)\b|ग्राहक|स्टॉक|माल|खर्च|बिल|इनवॉइस|भुगतान|गोदाम|खरीद|बकाया|बिक्री|जीएसटी|कर|कार्यक्षेत्र|मेरा डेटा|मेरे रिकॉर्ड|सभी रिकॉर्ड/i.test(String(latestUserText));
     const liveContextPromise: Promise<any> = isGlobalWorkspace
       ? Promise.resolve({ business: null, summaries: {}, records: {}, unavailableModules: ["legacy_public_workspace_tables"], limitNote: "Global workspace mode is active. Public India tables are intentionally not used as a substitute for Global workspace data." })
-      : image && !hasReadQueryIntent && !needsPurchasingContext
-        ? Promise.resolve({ business: null, summaries: {}, records: {}, limitNote: "Live workspace data was not needed for this receipt-only request." })
-        : loadLiveContext(supabase, workspaceId);
+      : !needsWorkspaceContext || (image && !hasReadQueryIntent && !needsPurchasingContext)
+        ? Promise.resolve({ business: null, summaries: {}, records: {}, limitNote: "Live workspace data was not needed for this conversational request." })
+        : loadLiveContext(supabase, workspaceId, String(latestUserText));
     // Global workspaces use the isolated global schema and authenticated edge
     // functions, not the legacy public-table snapshot above. Reuse the user's
     // JWT through the Supabase client; the Global function re-checks membership.
@@ -631,7 +682,7 @@ async function handleRequest(req: Request) {
     const systemInstruction = [
       "You are Plivex Nova (Plivex Intelligence), the AI business manager for the signed-in user's own workspace. Refer to yourself as Nova when a name is useful; do not claim unsupported capabilities.",
       "DETERMINISTIC USER-INTENT HINTS (ADVISORY ONLY): " + JSON.stringify(deterministicIntentHints) + ". These hints are fallible and never authorize a write; follow the user's actual meaning, ask when ambiguous, and use only server-validated tools.",
-      "Answer briefly and directly in the user's language (Hindi/Hinglish or English), usually 1–4 short sentences. Use the LIVE DATA JSON below to answer questions about their invoices, clients, stock, expenses, quotations, leads, services, business profile, active warehouses, purchase orders, purchase-order lines, recent goods receipts, inventory batches and stock transfers.",
+      "Answer briefly and directly in the user's language (Hindi/Hinglish or English), usually 1–4 short sentences. Use the LIVE DATA JSON below to answer questions about all available workspace business modules: invoices and line items, clients, stock and allocations, expenses, quotations, leads and lead activities, services, business profile, workspace settings, visible team memberships, accounting accounts, reminders, warehouses, purchase orders and lines, goods receipts and receipt items, inventory batches, stock movements and transfers. Access is restricted to the signed-in user’s workspace and existing role/RLS permissions.",
       "PROACTIVE BUSINESS INSIGHTS: Use businessAnalytics.insights to highlight overdue receivables, low stock, expired or soon-to-expire batches, and overdue purchase orders when relevant. These are operational indicators derived only from loaded rows, not guarantees or accounting balances. Never claim an issue is absent when its source module is unavailable.",
       "Do not invent facts or totals. Distinguish an empty result from an unavailable module: if unavailableModules lists a module, its empty records/default zero are NOT evidence that the workspace has no records or a zero balance. Tell the user that module could not be read and do not calculate or assert its totals. The lists are recent samples and summaries are calculated only from successfully loaded rows; disclose the stated limit when relevant.",
       "IMAGE-ONLY REQUESTS: If the user attaches a photo without any instruction, do not assume it is an expense, payment or inventory request. Briefly identify what the image appears to show, extract useful visible business information with uncertainty clearly stated, and ask what the user wants to do next. Never create or propose a record from an image alone unless the user clearly asks for that action.",
@@ -1047,7 +1098,7 @@ Deno.serve(async (req: Request) => {
   const headers = new Headers(response.headers);
   headers.set("Access-Control-Allow-Origin", origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://plivex.in");
   headers.set("Vary", "Origin");
-  headers.set("Access-Control-Allow-Headers", "authorization, x-client-info, apikey, content-type");
+  headers.set("Access-Control-Allow-Headers", "authorization, x-client-info, apikey, content-type, x-supabase-api-version, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version");
   headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 });
