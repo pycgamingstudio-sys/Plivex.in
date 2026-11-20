@@ -405,7 +405,7 @@ export function InvoicePreview({ invoice, design }) {
     <div className="p-2 sm:p-4">
       <ScaledPreview>
       <div data-testid="invoice-preview" className="relative print-invoice w-[794px] overflow-hidden bg-white text-[#28263a] shadow-[0_18px_60px_rgba(34,31,62,0.12)]">
-        {invoice.documentStatus === "draft" && <div className="absolute right-6 top-5 z-10 rounded border-2 border-amber-600 px-3 py-1 text-[11px] font-black tracking-widest text-amber-700">DRAFT · NOT A TAX INVOICE</div>}
+        {invoice.documentStatus === "draft" && <div className="absolute right-6 top-5 z-10 rounded border-2 border-amber-600 px-3 py-1 text-[11px] font-black tracking-widest text-amber-700">DRAFT · NOT ISSUED</div>}
         <InvoiceDesign
           design={design}
           invoice={invoice}
