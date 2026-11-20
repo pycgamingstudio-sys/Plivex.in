@@ -306,6 +306,20 @@ begin
   where id=v_invoice.id and workspace_id=v_workspace
   returning * into v_invoice;
 
+  -- Match the existing India invoice stock behavior: deduct only matching
+  -- workspace stock names, once, after the invoice has been issued.
+  if not v_invoice.stock_applied then
+    update public.stock s set quantity = greatest(0, s.quantity - q.qty)
+    from (
+      select lower(trim(description)) d, sum(greatest(0, quantity)) qty
+      from public.invoice_items where invoice_id = v_invoice.id group by 1
+    ) q
+    where s.workspace_id = v_workspace and lower(trim(s.name)) = q.d;
+    update public.invoices set stock_applied = true
+    where id = v_invoice.id and workspace_id = v_workspace
+    returning * into v_invoice;
+  end if;
+
   return jsonb_build_object('invoice',to_jsonb(v_invoice),'issued',true);
 end;
 $function$;
