@@ -68,7 +68,7 @@ test("US manual invoice requires state, county, city and collection-obligation c
 });
 
 test("Canada manual inclusive GST/PST preserves the entered gross total", () => {
-  const result = calculateInvoiceGlobalTax(invoice("CAD", {
+  const result = calculateInvoiceGlobalTax(invoice("CAD", { issueDate: "2026-11-20",
     mode: "manual", priceMode: "inclusive",
     collectionObligationAttested: true,
     destinationJurisdiction: { province: "ON" },
@@ -77,7 +77,7 @@ test("Canada manual inclusive GST/PST preserves the entered gross total", () => 
       { id: "pst", name: "PST", rateBps: 800 },
     ],
   }), profile("CA", "CAD"));
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, result.message || result.code);
   assert.equal(result.taxMinor, 1150);
   assert.equal(result.totalMinor, 10000);
 });
@@ -224,12 +224,12 @@ test("Canada automatic GST/HST uses selected destination province and a confirme
 });
 
 test("Australia GST-free category uses the exact verified GST-free rule", () => {
-  const result = calculateInvoiceGlobalTax(invoice("AUD", {
+  const result = calculateInvoiceGlobalTax(invoice("AUD", { issueDate: "2026-11-20",
     mode: "automatic",
     taxTreatment: "gst-free",
     taxCategory: "AU_GST_FREE_BASIC_FOOD",
   }), profile("AU", "AUD"));
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, result.message || result.code);
   assert.equal(result.treatment, "gst-free");
   assert.equal(result.taxMinor, 0);
   assert.match(result.taxDisclosure, /GST-free supply/);
