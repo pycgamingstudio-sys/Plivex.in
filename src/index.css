@@ -392,6 +392,15 @@ button, a, [role="button"], input[type="checkbox"], input[type="radio"] {
 /* Main Workspace dark theme. The light Plivex palette remains the default. */
 .plivex-dashboard.dark {
   color-scheme: dark;
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+  --card: 217 33% 17%;
+  --card-foreground: 210 40% 98%;
+  --border: 215 25% 27%;
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+  --secondary: 217 33% 17%;
+  --secondary-foreground: 210 40% 98%;
   background: #111827;
   color: #f8fafc;
 }
