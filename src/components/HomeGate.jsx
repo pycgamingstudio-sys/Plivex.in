@@ -35,7 +35,9 @@ export default function HomeGate() {
   }
 
   if (!isAuthenticated) return <GuestDashboard />;
-  const isGlobalWorkspace = APP_EDITION === "global" || (isUnifiedBuild && Boolean(user?.country_code && user.country_code !== "IN"));
+  // A unified Plivex build always uses the canonical Main Workspace UI.
+  // Non-India country settings must never route an account into GlobalApp.
+  const isGlobalWorkspace = !isUnifiedBuild && APP_EDITION === "global";
 
   if (pending === "create-invoice") return <Navigate to="/invoice-builder" replace />;
   if (isGlobalWorkspace) return <TrialGate><AppLayout><GlobalApp section="overview" /></AppLayout></TrialGate>;
