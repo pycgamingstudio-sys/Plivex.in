@@ -138,7 +138,7 @@ create or replace function public.save_and_issue_commercial_invoice(
 )
 returns jsonb
 language plpgsql
-security invoker
+security definer
 set search_path = public, pg_temp
 as $function$
 declare
