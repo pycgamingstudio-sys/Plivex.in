@@ -50,7 +50,9 @@ Deno.serve(async (req: Request) => {
     }
     let verifiedGlobalTaxResult: Record<string, unknown> | null = null;
     if (countryCode !== "IN") {
-      if (body?.is_draft !== true) return json({ error: "Non-India invoices remain drafts until a verified server-side issuance capability is enabled." }, 409, origin);
+      if (body?.is_draft !== true && body?.issue_invoice !== true) {
+        return json({ error: "Non-India invoices must be saved as drafts or issued through the verified commercial invoice workflow." }, 409, origin);
+      }
       if (!body?.invoice_snapshot || typeof body.invoice_snapshot !== "object") {
         return json({ error: "Invoice draft details are required." }, 422, origin);
       }
