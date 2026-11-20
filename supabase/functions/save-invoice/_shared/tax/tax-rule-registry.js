@@ -1,4 +1,3 @@
-// Bundled copy for the save-invoice Edge Function. Keep in sync with src/global/tax/tax-rule-registry.js.
 /**
  * Versioned, source-controlled tax rule catalogue for Plivex Global.
  *
@@ -70,8 +69,8 @@ const COUNTRY_PROFILES = Object.freeze({
 
 const CA_PROVINCE_RULES = Object.freeze({
   AB: { name: "Alberta", components: [{ id: "CA-AB-GST", name: "GST", rateBps: 500 }] },
-  BC: { name: "British Columbia", components: [{ id: "CA-BC-GST", name: "GST", rateBps: 500 }] },
-  MB: { name: "Manitoba", components: [{ id: "CA-MB-GST", name: "GST", rateBps: 500 }] },
+  BC: { name: "British Columbia", components: [{ id: "CA-BC-GST", name: "GST", rateBps: 500 }, { id: "CA-BC-PST", name: "PST", rateBps: 700, source: "https://www2.gov.bc.ca/gov/content/taxes/sales-taxes/pst" }] },
+  MB: { name: "Manitoba", components: [{ id: "CA-MB-GST", name: "GST", rateBps: 500 }, { id: "CA-MB-RST", name: "RST", rateBps: 700, source: "https://www.gov.mb.ca/finance/taxation/taxes/retail.html" }] },
   NB: { name: "New Brunswick", components: [{ id: "CA-NB-HST", name: "HST", rateBps: 1500 }] },
   NL: { name: "Newfoundland and Labrador", components: [{ id: "CA-NL-HST", name: "HST", rateBps: 1500 }] },
   NS: { name: "Nova Scotia", components: [{ id: "CA-NS-HST", name: "HST", rateBps: 1400 }] },
@@ -79,8 +78,8 @@ const CA_PROVINCE_RULES = Object.freeze({
   NU: { name: "Nunavut", components: [{ id: "CA-NU-GST", name: "GST", rateBps: 500 }] },
   ON: { name: "Ontario", components: [{ id: "CA-ON-HST", name: "HST", rateBps: 1300 }] },
   PE: { name: "Prince Edward Island", components: [{ id: "CA-PE-HST", name: "HST", rateBps: 1500 }] },
-  SK: { name: "Saskatchewan", components: [{ id: "CA-SK-GST", name: "GST", rateBps: 500 }] },
-  QC: { name: "Quebec", components: [{ id: "CA-QC-GST", name: "GST", rateBps: 500 }] },
+  SK: { name: "Saskatchewan", components: [{ id: "CA-SK-GST", name: "GST", rateBps: 500 }, { id: "CA-SK-PST", name: "PST", rateBps: 600, source: "https://www.saskatchewan.ca/business/taxes-licensing-and-reporting/provincial-taxes-policies-and-bulletins/provincial-sales-tax" }] },
+  QC: { name: "Quebec", components: [{ id: "CA-QC-GST", name: "GST", rateBps: 500 }, { id: "CA-QC-QST", name: "QST", rateBps: 997.5, source: "https://www.revenuquebec.ca/en/businesses/consumption-taxes/gsthst-and-qst/collecting-gst-and-qst/calculating-the-taxes/" }] },
   YT: { name: "Yukon", components: [{ id: "CA-YT-GST", name: "GST", rateBps: 500 }] },
 });
 const CA_RATE_SOURCE = "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html";
@@ -286,7 +285,7 @@ export function getTaxRuleSet(countryCode, options = {}) {
     if (asOfDate && asOfDate < "2025-04-01" && province === "NS") {
       return { ok: false, status: "no_effective_rule", code: "HISTORIC_NOVA_SCOTIA_RATE_REQUIRES_TRANSITION_REVIEW", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION };
     }
-    const components = entry.components.map((component) => ({ ...component, source: CA_RATE_SOURCE }));
+    const components = entry.components.map((component) => ({ ...component, source: component.source || CA_RATE_SOURCE }));
     const rateBps = components.reduce((sum, component) => sum + component.rateBps, 0);
     const rule = {
       id: `CA-${province}-GST-HST-PST-2025-04`, version: "2025.04",
@@ -294,7 +293,7 @@ export function getTaxRuleSet(countryCode, options = {}) {
       treatment: "standard", jurisdictionId: province, rateBps,
       effectiveFrom: province === "NS" ? "2025-04-01" : "2025-04-01", effectiveTo: null,
       reviewedOn: "2026-11-20", source: CA_RATE_SOURCE, sourceAuthority: "Canada Revenue Agency",
-      scope: "province", coverage: "federal-gst-or-harmonized-hst-only-provincial-sales-taxes-excluded",
+      scope: "province", coverage: "federal-gst-hst-and-general-provincial-sales-tax-baselines; product-specific-exceptions-not-included",
       components,
     };
     return { ok: true, status: "rule_available", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION, profile: { ...profile }, rule };
