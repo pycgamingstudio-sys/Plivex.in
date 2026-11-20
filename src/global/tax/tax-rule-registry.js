@@ -14,7 +14,7 @@
  * - Do not promote a rule to active until its scope and effective dates are
  *   reviewed. This code catalogue is not a live database or legal advice.
  */
-export const TAX_RULE_CATALOG_VERSION = "2026.11.2";
+export const TAX_RULE_CATALOG_VERSION = "2026.11.3";
 export const TAX_ENGINE_VERSION = "1.0.0";
 
 const freezeRule = (rule) => Object.freeze({
@@ -44,8 +44,8 @@ const COUNTRY_PROFILES = Object.freeze({
   AE: Object.freeze({
     countryCode: "AE", taxSystem: "VAT", currencyCode: "AED",
     ruleMode: "standard_rate_baseline", issuance: "disabled",
-    coverage: "standard-rate-only",
-    note: "Only the source-backed standard-rate baseline is catalogued. Special zones, designated zones, zero-rating, exemptions and reverse-charge are not covered.",
+    coverage: "standard-and-narrow-special-treatment-baselines",
+    note: "Standard VAT plus narrowly scoped export zero-rating and exempt-category rules; designated-zone, reverse-charge and other special cases remain unsupported.",
   }),
   CA: Object.freeze({
     countryCode: "CA", taxSystem: "GST/HST/PST/QST", currencyCode: "CAD",
@@ -56,14 +56,14 @@ const COUNTRY_PROFILES = Object.freeze({
   AU: Object.freeze({
     countryCode: "AU", taxSystem: "GST", currencyCode: "AUD",
     ruleMode: "standard_rate_baseline", issuance: "disabled",
-    coverage: "standard-rate-only",
-    note: "Only the source-backed standard-rate baseline is catalogued. GST-free, input-taxed, import and special treatments are not covered.",
+    coverage: "standard-and-narrow-special-treatment-baselines",
+    note: "Standard GST plus narrowly scoped GST-free and input-taxed categories; other special cases remain unsupported.",
   }),
   SG: Object.freeze({
     countryCode: "SG", taxSystem: "GST", currencyCode: "SGD",
     ruleMode: "standard_rate_baseline", issuance: "disabled",
-    coverage: "standard-rate-only",
-    note: "Only the source-backed standard-rate baseline is catalogued. Zero-rated, exempt, reverse-charge and special schemes are not covered.",
+    coverage: "standard-and-narrow-special-treatment-baselines",
+    note: "Standard GST plus narrowly scoped zero-rated, exempt and out-of-scope categories; reverse-charge and special schemes remain unsupported.",
   }),
 });
 
@@ -116,6 +116,83 @@ const RULES = Object.freeze({
 
 
 const TREATMENT_RULES = Object.freeze([
+  freezeRule({
+    id: "AE-VAT-ZERO-RATED-EXPORTS-2026-11", version: "2026.11",
+    countryCode: "AE", currencyCode: "AED", taxName: "VAT",
+    treatment: "zero-rated", taxCategoryId: "AE_ZERO_RATED_EXPORTS",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2018-01-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://tax.gov.ae/en/faq.aspx?keyword=What+sectors+will+be+zero+rated%3F",
+    sourceAuthority: "UAE Federal Tax Authority",
+    scope: "country", coverage: "export-of-goods-and-services-outside-gcc-only",
+    components: [{ id: "AE-VAT-ZERO", name: "VAT", rateBps: 0, source: "https://tax.gov.ae/en/faq.aspx?keyword=What+sectors+will+be+zero+rated%3F" }],
+  }),
+  freezeRule({
+    id: "AE-VAT-EXEMPT-FINANCIAL-SERVICES-2026-11", version: "2026.11",
+    countryCode: "AE", currencyCode: "AED", taxName: "VAT",
+    treatment: "exempt", taxCategoryId: "AE_EXEMPT_FINANCIAL_SERVICES",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2018-01-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://tax.gov.ae/en/faq.aspx?keyword=exempt",
+    sourceAuthority: "UAE Federal Tax Authority",
+    scope: "country", coverage: "financial-services-exemption-category-only",
+    components: [{ id: "AE-VAT-EXEMPT", name: "VAT", rateBps: 0, source: "https://tax.gov.ae/en/faq.aspx?keyword=exempt" }],
+  }),
+  freezeRule({
+    id: "AU-GST-FREE-BASIC-FOOD-2026-11", version: "2026.11",
+    countryCode: "AU", currencyCode: "AUD", taxName: "GST",
+    treatment: "zero-rated", taxCategoryId: "AU_GST_FREE_BASIC_FOOD",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2000-07-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/when-to-charge-gst-and-when-not-to/gst-free-sales",
+    sourceAuthority: "Australian Taxation Office",
+    scope: "country", coverage: "basic-food-gst-free-category-only",
+    components: [{ id: "AU-GST-FREE", name: "GST", rateBps: 0, source: "https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/when-to-charge-gst-and-when-not-to/gst-free-sales" }],
+  }),
+  freezeRule({
+    id: "AU-GST-INPUT-TAXED-FINANCIAL-SERVICES-2026-11", version: "2026.11",
+    countryCode: "AU", currencyCode: "AUD", taxName: "GST",
+    treatment: "exempt", taxCategoryId: "AU_INPUT_TAXED_FINANCIAL_SERVICES",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2000-07-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/when-to-charge-gst-and-when-not-to/input-taxed-sales",
+    sourceAuthority: "Australian Taxation Office",
+    scope: "country", coverage: "input-taxed-financial-services-category-only",
+    components: [{ id: "AU-GST-INPUT-TAXED", name: "GST", rateBps: 0, source: "https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/when-to-charge-gst-and-when-not-to/input-taxed-sales" }],
+  }),
+  freezeRule({
+    id: "SG-GST-ZERO-RATED-EXPORTS-2026-11", version: "2026.11",
+    countryCode: "SG", currencyCode: "SGD", taxName: "GST",
+    treatment: "zero-rated", taxCategoryId: "SG_ZERO_RATED_EXPORTS_INTERNATIONAL_SERVICES",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "1994-04-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/charging-gst-%28output-tax%29/when-to-charge-goods-and-services-tax-%28gst%29",
+    sourceAuthority: "Singapore Inland Revenue Authority",
+    scope: "country", coverage: "exports-of-goods-and-qualifying-international-services-only",
+    components: [{ id: "SG-GST-ZERO", name: "GST", rateBps: 0, source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/charging-gst-%28output-tax%29/when-to-charge-goods-and-services-tax-%28gst%29" }],
+  }),
+  freezeRule({
+    id: "SG-GST-EXEMPT-FINANCIAL-SERVICES-2026-11", version: "2026.11",
+    countryCode: "SG", currencyCode: "SGD", taxName: "GST",
+    treatment: "exempt", taxCategoryId: "SG_EXEMPT_FINANCIAL_SERVICES",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "1994-04-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/charging-gst-%28output-tax%29/when-is-gst-not-charged/supplies-exempt-from-gst",
+    sourceAuthority: "Singapore Inland Revenue Authority",
+    scope: "country", coverage: "exempt-financial-services-category-only",
+    components: [{ id: "SG-GST-EXEMPT", name: "GST", rateBps: 0, source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/charging-gst-%28output-tax%29/when-is-gst-not-charged/supplies-exempt-from-gst" }],
+  }),
+  freezeRule({
+    id: "SG-GST-OUT-OF-SCOPE-OVERSEAS-GOODS-2026-11", version: "2026.11",
+    countryCode: "SG", currencyCode: "SGD", taxName: "GST",
+    treatment: "out-of-scope", taxCategoryId: "SG_OUT_OF_SCOPE_OVERSEAS_TO_OVERSEAS_GOODS",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "1994-04-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/basics-of-gst/goods-and-services-tax-%28gst%29-what-it-is-and-how-it-works",
+    sourceAuthority: "Singapore Inland Revenue Authority",
+    scope: "country", coverage: "goods-delivered-from-overseas-to-overseas-only",
+    components: [{ id: "SG-GST-OUT-OF-SCOPE", name: "GST", rateBps: 0, source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/basics-of-gst/goods-and-services-tax-%28gst%29-what-it-is-and-how-it-works" }],
+  }),
   freezeRule({
     id: "GB-VAT-REDUCED-DOMESTIC-FUEL-POWER-2026-11", version: "2026.11",
     countryCode: "GB", currencyCode: "GBP", taxName: "VAT",
