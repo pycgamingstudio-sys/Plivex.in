@@ -51,6 +51,48 @@ test("India, US and Canada never receive an invented national Global rate", () =
   assert.equal(getCountryStandardRateRule("CA"), null);
 });
 
+test("Canadian province rules include federal and general provincial sales-tax components", () => {
+  const expected = {
+    AB: 500, BC: 1200, MB: 1200, NB: 1500, NL: 1500, NS: 1400,
+    NT: 500, NU: 500, ON: 1300, PE: 1500, QC: 1497.5, SK: 1100, YT: 500,
+  };
+  for (const [province, rateBps] of Object.entries(expected)) {
+    const result = getTaxRuleSet("CA", { jurisdictionId: province, asOfDate: "2026-11-20" });
+    assert.equal(result.ok, true, province);
+    assert.equal(result.rule.rateBps, rateBps, province);
+    assert.equal(result.rule.jurisdictionId, province);
+    assert.ok(result.rule.components.every((component) => component.source.startsWith("https://")));
+  }
+  assert.deepEqual(
+    getTaxRuleSet("CA", { jurisdictionId: "BC", asOfDate: "2026-11-20" }).rule.components.map((item) => [item.name, item.rateBps]),
+    [["GST", 500], ["PST", 700]],
+  );
+  assert.deepEqual(
+    getTaxRuleSet("CA", { jurisdictionId: "QC", asOfDate: "2026-11-20" }).rule.components.map((item) => [item.name, item.rateBps]),
+    [["GST", 500], ["QST", 997.5]],
+  );
+});
+
+test("Canadian fractional QST rate calculates exactly with integer minor-unit arithmetic", () => {
+  const result = calculateGlobalTax({
+    countryCode: "CA", jurisdictionId: "QC", jurisdictionAttestedByUser: true,
+    collectionObligationAttestedByUser: true,
+    currencyCode: "CAD", currencyMinorUnits: 2, amountMinor: 10000,
+    invoiceDate: "2026-11-20",
+    sellerRegistration: {
+      verified: false, attestedByUser: true, status: "registered",
+      registrationNumber: "CA-QC-123", effectiveFrom: "2026-01-01",
+    },
+    placeOfSupplyVerified: true, placeOfSupply: "QC",
+    taxCategoryVerified: true, taxCategory: "standard-rated",
+    treatment: "standard", priceMode: "exclusive",
+  });
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.taxMinor, 1498);
+  assert.equal(result.totalMinor, 11498);
+  assert.deepEqual(result.components.map((item) => item.rateBps), [500, 997.5]);
+});
+
 test("unsupported and malformed country codes fail closed", () => {
   assert.equal(getTaxRuleSet("DE").code, "COUNTRY_TAX_NOT_CONFIGURED");
   assert.equal(getTaxRuleSet("ZZ").code, "COUNTRY_TAX_NOT_CONFIGURED");
