@@ -95,6 +95,27 @@ test("zero-rated and exempt treatment disclosures remain distinct in immutable s
   assert.equal(exempt.snapshot.taxCategory, "medical-category");
 });
 
+test("reverse-charge snapshots keep buyer tax separate from seller payable totals", () => {
+  const reverseResult = {
+    ...result,
+    treatment: "reverse-charge",
+    taxDisclosure: "Reverse charge applies under the selected verified rule. The registered buyer accounts for the tax; it is not added to the seller's invoice payable total.",
+    taxCharged: false,
+    taxMinor: 0,
+    totalMinor: 10000,
+    reverseChargeTaxMinor: 2000,
+    ruleSnapshot: { ...rule, treatment: "reverse-charge", taxCategoryId: "GB_DOMESTIC_CONSTRUCTION_REVERSE_CHARGE" },
+    taxCategory: "GB_DOMESTIC_CONSTRUCTION_REVERSE_CHARGE",
+    components: [{ id: "GB-VAT-REVERSE-CHARGE", name: "VAT reverse charge", rateBps: 2000, amountMinor: 2000 }],
+  };
+  const created = makeSnapshot({ taxResult: reverseResult });
+  assert.equal(created.ok, true);
+  assert.equal(created.snapshot.taxMinor, 0);
+  assert.equal(created.snapshot.totalMinor, 10000);
+  assert.equal(created.snapshot.reverseChargeTaxMinor, 2000);
+  assert.equal(created.snapshot.reverseChargeBuyerAccounting, true);
+});
+
 test("snapshot rejects inconsistent zero-charge treatment or missing disclosure", () => {
   assert.equal(makeSnapshot({ taxResult: { ...result, treatment: "exempt", taxCharged: false } }).code, "TAX_TREATMENT_SNAPSHOT_INVALID");
   assert.equal(makeSnapshot({ taxResult: { ...result, taxDisclosure: "", } }).code, "TAX_TREATMENT_SNAPSHOT_INVALID");
