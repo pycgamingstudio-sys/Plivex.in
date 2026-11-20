@@ -69,8 +69,8 @@ const COUNTRY_PROFILES = Object.freeze({
 
 const CA_PROVINCE_RULES = Object.freeze({
   AB: { name: "Alberta", components: [{ id: "CA-AB-GST", name: "GST", rateBps: 500 }] },
-  BC: { name: "British Columbia", components: [{ id: "CA-BC-GST", name: "GST", rateBps: 500 }, { id: "CA-BC-PST", name: "PST", rateBps: 700 }] },
-  MB: { name: "Manitoba", components: [{ id: "CA-MB-GST", name: "GST", rateBps: 500 }, { id: "CA-MB-RST", name: "RST", rateBps: 700 }] },
+  BC: { name: "British Columbia", components: [{ id: "CA-BC-GST", name: "GST", rateBps: 500 }] },
+  MB: { name: "Manitoba", components: [{ id: "CA-MB-GST", name: "GST", rateBps: 500 }] },
   NB: { name: "New Brunswick", components: [{ id: "CA-NB-HST", name: "HST", rateBps: 1500 }] },
   NL: { name: "Newfoundland and Labrador", components: [{ id: "CA-NL-HST", name: "HST", rateBps: 1500 }] },
   NS: { name: "Nova Scotia", components: [{ id: "CA-NS-HST", name: "HST", rateBps: 1400 }] },
@@ -79,7 +79,8 @@ const CA_PROVINCE_RULES = Object.freeze({
   ON: { name: "Ontario", components: [{ id: "CA-ON-HST", name: "HST", rateBps: 1300 }] },
   PE: { name: "Prince Edward Island", components: [{ id: "CA-PE-HST", name: "HST", rateBps: 1500 }] },
   QC: { name: "Quebec", components: [{ id: "CA-QC-GST", name: "GST", rateBps: 500 }, { id: "CA-QC-QST", name: "QST", rateBps: 997 }] },
-  SK: { name: "Saskatchewan", components: [{ id: "CA-SK-GST", name: "GST", rateBps: 500 }, { id: "CA-SK-PST", name: "PST", rateBps: 600 }] },
+  SK: { name: "Saskatchewan", components: [{ id: "CA-SK-GST", name: "GST", rateBps: 500 }] },
+  QC: { name: "Quebec", components: [{ id: "CA-QC-GST", name: "GST", rateBps: 500 }] },
   YT: { name: "Yukon", components: [{ id: "CA-YT-GST", name: "GST", rateBps: 500 }] },
 });
 const CA_RATE_SOURCE = "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html";
@@ -283,7 +284,7 @@ export function getTaxRuleSet(countryCode, options = {}) {
       treatment: "standard", jurisdictionId: province, rateBps,
       effectiveFrom: province === "NS" ? "2025-04-01" : "2025-04-01", effectiveTo: null,
       reviewedOn: "2026-11-20", source: CA_RATE_SOURCE, sourceAuthority: "Canada Revenue Agency",
-      scope: "province", coverage: "published-province-gst-hst-and-pst-baseline-not-product-taxability",
+      scope: "province", coverage: "federal-gst-or-harmonized-hst-only-provincial-sales-taxes-excluded",
       components,
     };
     return { ok: true, status: "rule_available", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION, profile: { ...profile }, rule };
