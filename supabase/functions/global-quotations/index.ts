@@ -40,7 +40,9 @@ Deno.serve(async (req: Request) => {
         || (body.valid_until !== null && body.valid_until !== undefined && !validDate(body.valid_until))
         || (body.client_id !== null && body.client_id !== undefined && (typeof body.client_id !== "string" || !UUID.test(body.client_id)))
         || (body.notes !== null && body.notes !== undefined && (typeof body.notes !== "string" || body.notes.length > 4000))
-        || !Array.isArray(body.items) || body.items.length < 1 || body.items.length > 100) {
+        || !Array.isArray(body.items) || body.items.length < 1 || body.items.length > 100
+        || (body.tax_snapshot !== null && body.tax_snapshot !== undefined
+          && (!isObject(body.tax_snapshot) || new TextEncoder().encode(JSON.stringify(body.tax_snapshot)).byteLength > 64 * 1024))) {
         return globalJson({ error: "Quotation details are invalid. Check the customer, dates and line items." }, 400, origin);
       }
       for (const [index, item] of body.items.entries()) {
@@ -60,7 +62,7 @@ Deno.serve(async (req: Request) => {
       return globalJson({ error: "Choose a valid quotation status." }, 400, origin);
     }
 
-    const { data, error } = await auth.admin.rpc("global_manage_quotation", {
+    const { data, error } = await auth.admin.rpc("global_manage_quotation_with_tax", {
       p_user_id: auth.user.id,
       p_workspace_id: body.workspace_id,
       p_action: action,
@@ -73,6 +75,7 @@ Deno.serve(async (req: Request) => {
       p_items: Array.isArray(body.items) ? body.items : [],
       p_status: body.status || null,
       p_idempotency_key: body.idempotency_key || null,
+      p_tax_snapshot: body.tax_snapshot || null,
     });
     if (error) {
       console.error("Global quotation RPC failed", { code: error.code });
@@ -94,6 +97,12 @@ Deno.serve(async (req: Request) => {
         invalid_item_values: "A quotation line has invalid values.",
         invalid_item_discount: "A line discount cannot exceed its line amount.",
         quotation_total_limit: "The quotation total exceeds the supported limit.",
+        quotation_tax_review_required: "Complete the verified tax calculation before marking this quotation as sent.",
+        invalid_tax_snapshot: "The tax calculation could not be verified for this quotation. Review the tax details.",
+        unverified_tax_rule: "The selected tax rule is not in the verified country catalogue.",
+        unverified_tax_components: "The tax components do not match the verified country rates.",
+        tax_total_mismatch: "The quotation tax total does not match the verified taxable amount.",
+        tax_component_total_mismatch: "The tax components do not add up to the tax total.",
       };
       const status = ["access_denied", "forbidden"].includes(reason) ? 403
         : reason === "quotation_not_found" ? 404
