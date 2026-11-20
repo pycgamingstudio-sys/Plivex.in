@@ -1,10 +1,10 @@
-import { calculateVerifiedTaxRule } from "./verified-rule-evaluator.js";
+import { calculateVerifiedTaxTreatment } from "./tax-treatment-evaluator.js";
 import { getCountryStandardRateRule } from "./standard-rate-rules.js";
 import { resolveTaxRuleSnapshot } from "./tax-rule-registry.js";
 
 /**
- * Country router for the seven selectable Global workspaces.
- * India is intentionally delegated to the existing GST implementation.
+ * Country router for the seven selectable Main Workspace countries.
+ * India is intentionally delegated to the established GST implementation.
  * US/Canada require a verified jurisdiction-specific rule snapshot.
  */
 export function calculateGlobalTax(input) {
@@ -16,18 +16,19 @@ export function calculateGlobalTax(input) {
     return { ok: false, status: "needs_review", code: "INDIA_LEGACY_ADAPTER_REQUIRED", message: "Use the existing India GST invoice calculation and reporting path." };
   }
   if (!["US", "GB", "AE", "CA", "AU", "SG"].includes(countryCode)) {
-    return { ok: false, status: "needs_review", code: "UNSUPPORTED_COUNTRY", message: "Country is not enabled in Plivex Global." };
+    return { ok: false, status: "needs_review", code: "UNSUPPORTED_COUNTRY", message: "Country is not enabled in Plivex Main Workspace." };
   }
   const rule = input.rule || getCountryStandardRateRule(countryCode);
   if ((countryCode === "US" || countryCode === "CA") && !input.rule) {
     return { ok: false, status: "needs_review", code: "JURISDICTION_RULE_REQUIRED", message: "A verified US state/local or Canadian province tax rule is required; no national rate is assumed." };
   }
-  return calculateVerifiedTaxRule({ ...input, countryCode, rule });
+  return calculateVerifiedTaxTreatment({ ...input, countryCode, rule });
 }
 
 /**
- * Resolve a maintained, verified rule for the exact jurisdiction and invoice
- * date before calculating. No default or nearest-jurisdiction fallback exists.
+ * Resolve a maintained, verified rule for the exact jurisdiction, treatment
+ * and invoice date before calculating. No default or nearest-jurisdiction
+ * fallback exists.
  */
 export function calculateGlobalTaxWithRegistry(input, rules) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
