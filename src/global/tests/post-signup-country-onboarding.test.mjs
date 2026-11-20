@@ -154,13 +154,12 @@ test("PLIVEX ONE cannot reset or delete a workspace to change country", async ()
   assert.match(migration, /revoke all on function public\.reset_workspace_country_atomic\(uuid, text, text, text, text\) from public, anon, authenticated, service_role/);
 });
 
-test("existing signed-in workspaces must complete versioned onboarding before data hydration", async () => {
+test("existing signed-in workspaces with legacy review flags hydrate through Main Workspace", async () => {
   const auth = await read("../../lib/AuthContext.jsx");
   const app = await read("../../App.jsx");
   const backend = await read("../../api/backendClient.js");
   const migration = await read("../../../supabase/migrations/20261118160000_plivex_one_mandatory_legacy_onboarding.sql");
-  assert.match(auth, /Existing authenticated sessions must stop before hydrating business data/);
-  assert.match(auth, /Number\(currentUser\?\.onboarding_version \|\| 0\) < 1/);
+  assert.doesNotMatch(auth, /currentUser\?\.migration_status|currentUser\?\.legacy_review_required/);
   assert.doesNotMatch(auth, /currentUser\?\.migration_status|currentUser\?\.legacy_review_required/);
   assert.match(app, /Number\(user\.onboarding_version \|\| 0\) < 1/);
   assert.match(backend, /onboarding_version: Number\(workspaceSettings\?\.onboarding_version \|\| 0\)/);
