@@ -1,12 +1,13 @@
 // Bundled copy for the save-invoice Edge Function. Keep in sync with src/global/tax/tax-treatment-evaluator.js.
 import { calculateVerifiedTaxRule } from "./verified-rule-evaluator.js";
 
-const TREATMENTS = Object.freeze(["standard", "reduced", "zero-rated", "exempt", "out-of-scope"]);
-const NO_CHARGE_TREATMENTS = new Set(["zero-rated", "exempt", "out-of-scope"]);
+const TREATMENTS = Object.freeze(["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"]);
+const NO_CHARGE_TREATMENTS = new Set(["zero-rated", "gst-free", "exempt", "out-of-scope"]);
 const DISCLOSURES = Object.freeze({
   standard: "Tax charged at the verified standard rate.",
   reduced: "Tax charged at the verified reduced rate for the confirmed supply category.",
   "zero-rated": "Zero-rated supply — 0% tax under the selected verified rule. This is not the same as exempt.",
+  "gst-free": "GST-free supply — no GST charged under the selected verified Australian GST-free category. This is distinct from input-taxed supplies.",
   exempt: "Exempt supply — no tax charged under the selected verified rule.",
   "out-of-scope": "Outside the scope of this tax system under the selected verified rule.",
 });
