@@ -107,7 +107,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
         <label className={labelClass}>Tax treatment
           <select className={fieldClass} value={config.taxTreatment || "standard"} onChange={(e) => update({ taxTreatment: e.target.value, taxCategory: "", taxCategoryConfirmed: false, taxDetailsConfirmed: false })}>
             <option value="standard">Standard-rated</option>
-            {["AE","AU","SG"].includes(countryCode) && <option value="zero-rated">Zero-rated · 0%</option>}
+            {["AE","SG"].includes(countryCode) && <option value="zero-rated">Zero-rated · 0%</option>}{countryCode === "AU" && <option value="gst-free">GST-free · 0%</option>}{countryCode === "CA" && <option value="zero-rated">Zero-rated · 0%</option>}
             {["AE","AU","SG"].includes(countryCode) && <option value="exempt">Exempt · no tax charged</option>}
             {countryCode === "SG" && <option value="out-of-scope">Out of scope</option>}
           </select>
@@ -118,7 +118,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
             <option value="standard-rated">Standard-rated taxable supply</option>
             {countryCode === "AE" && config.taxTreatment === "zero-rated" && <option value="AE_ZERO_RATED_EXPORTS">Qualifying exports outside GCC</option>}
             {countryCode === "AE" && config.taxTreatment === "exempt" && <option value="AE_EXEMPT_FINANCIAL_SERVICES">Qualifying financial services</option>}
-            {countryCode === "AU" && config.taxTreatment === "zero-rated" && <option value="AU_GST_FREE_BASIC_FOOD">Qualifying basic food</option>}
+            {countryCode === "AU" && config.taxTreatment === "gst-free" && <option value="AU_GST_FREE_BASIC_FOOD">Qualifying basic food</option>}{countryCode === "CA" && config.taxTreatment === "zero-rated" && <option value="CA_ZERO_RATED_BASIC_GROCERIES">Qualifying basic groceries</option>
             {countryCode === "AU" && config.taxTreatment === "exempt" && <option value="AU_INPUT_TAXED_FINANCIAL_SERVICES">Qualifying input-taxed financial services</option>}
             {countryCode === "SG" && config.taxTreatment === "zero-rated" && <option value="SG_ZERO_RATED_EXPORTS_INTERNATIONAL_SERVICES">Qualifying exports / international services</option>}
             {countryCode === "SG" && config.taxTreatment === "exempt" && <option value="SG_EXEMPT_FINANCIAL_SERVICES">Qualifying exempt financial services</option>}
