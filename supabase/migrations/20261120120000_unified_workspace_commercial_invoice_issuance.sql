@@ -3,6 +3,10 @@
 -- India GST remains on the existing save_invoice path.
 begin;
 
+alter table public.invoices add column if not exists issue_request_key uuid;
+create unique index if not exists invoices_workspace_issue_request_key_idx
+  on public.invoices(workspace_id, issue_request_key) where issue_request_key is not null;
+
 create table if not exists public.workspace_invoice_number_sequences (
   workspace_id text not null,
   invoice_year integer not null check (invoice_year between 2000 and 9999),
@@ -96,7 +100,8 @@ begin
       or new.sgst is distinct from old.sgst
       or new.igst is distinct from old.igst
       or new.total is distinct from old.total
-      or new.invoice_snapshot is distinct from old.invoice_snapshot then
+      or new.invoice_snapshot is distinct from old.invoice_snapshot
+      or new.issue_request_key is distinct from old.issue_request_key then
       raise exception using errcode='55000', message='Issued invoice content is immutable; create a correction document';
     end if;
   end if;
@@ -134,6 +139,7 @@ for each row execute function public.guard_issued_workspace_invoice_items();
 create or replace function public.save_and_issue_commercial_invoice(
   _data jsonb,
   _items jsonb,
+  _idempotency_key uuid,
   _invoice_id uuid default null
 )
 returns jsonb
@@ -150,6 +156,7 @@ declare
   v_invoice public.invoices%rowtype;
   v_saved public.invoices%rowtype;
   v_client_id uuid;
+  v_existing public.invoices%rowtype;
   v_snapshot jsonb;
   v_items jsonb;
   v_year integer;
@@ -158,12 +165,27 @@ declare
   v_issue_date date;
 begin
   if v_user is null then raise exception using errcode='42501', message='Please sign in'; end if;
+  if _idempotency_key is null then raise exception using errcode='22023', message='An invoice issue request key is required'; end if;
   select workspace_id, role into v_workspace, v_role from public.profiles where id=v_user;
   if v_workspace is null or v_role not in ('admin','manager') then
     raise exception using errcode='42501', message='Only workspace admins or managers can issue invoices';
   end if;
   select * into v_settings from public.workspace_settings where workspace_id=v_workspace;
   select * into v_profile from public.business_profile where workspace_id=v_workspace;
+  perform pg_advisory_xact_lock(hashtextextended(v_workspace || ':commercial-invoice:' || _idempotency_key::text,0));
+  select * into v_existing from public.invoices
+  where workspace_id=v_workspace and issue_request_key=_idempotency_key
+  for update;
+  if found then
+    if _invoice_id is not null and _invoice_id <> v_existing.id then
+      raise exception using errcode='23505', message='Invoice issue request key is already assigned to another invoice';
+    end if;
+    if v_existing.is_draft then
+      raise exception using errcode='55000', message='The previous invoice issue request is incomplete; keep this invoice as a draft and retry with a new request';
+    end if;
+    return jsonb_build_object('invoice',to_jsonb(v_existing),'issued',true,'duplicate',true);
+  end if;
+
   if v_settings.country_code not in ('GB','US','AE','CA','AU','SG') then
     raise exception using errcode='22023', message='Commercial issuance is not enabled for this workspace country';
   end if;
@@ -276,7 +298,7 @@ begin
 
   perform set_config('plivex.invoice_issuance','on',true);
   update public.invoices set
-    number=v_number,is_draft=false,status='Pending',
+    number=v_number,is_draft=false,status='Pending',issue_request_key=_idempotency_key,
     tax_rate=0,tax_value=0,cgst=0,sgst=0,igst=0,
     total=v_invoice.total,
     invoice_snapshot=v_snapshot,
@@ -288,10 +310,10 @@ begin
 end;
 $function$;
 
-revoke all on function public.save_and_issue_commercial_invoice(jsonb,jsonb,uuid) from public, anon;
-grant execute on function public.save_and_issue_commercial_invoice(jsonb,jsonb,uuid) to authenticated;
+revoke all on function public.save_and_issue_commercial_invoice(jsonb,jsonb,uuid,uuid) from public, anon;
+grant execute on function public.save_and_issue_commercial_invoice(jsonb,jsonb,uuid,uuid) to authenticated;
 
-comment on function public.save_and_issue_commercial_invoice(jsonb,jsonb,uuid) is
+comment on function public.save_and_issue_commercial_invoice(jsonb,jsonb,uuid,uuid) is
   'Atomically saves and issues a non-India commercial invoice only after explicit no-tax attestation. Does not issue tax invoices.';
 
 commit;
