@@ -8,8 +8,8 @@ export default function AuthLayout({ icon: Icon, title, subtitle, footer, childr
       <div className="w-full max-w-[27rem]">
         <div className="mb-7 text-center sm:mb-8">
           <Logo className="mx-auto mb-4 h-12 w-12" />
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary mb-4">
-            <Icon className="w-7 h-7 text-primary-foreground" aria-hidden="true" />
+          <div className="mx-auto mb-4 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-violet-100 bg-gradient-to-br from-violet-50 to-indigo-50 text-primary">
+            <Icon className="h-4 w-4" aria-hidden="true" />
           </div>
           <h1 className="text-balance text-[25px] font-bold tracking-[-0.04em] text-foreground sm:text-[29px]">{title}</h1>
           {subtitle && <p className="text-muted-foreground mt-2">{subtitle}</p>}
