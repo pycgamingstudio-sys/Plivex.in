@@ -350,3 +350,12 @@ button, a, [role="button"], input[type="checkbox"], input[type="radio"] {
     box-shadow: var(--plivex-shadow-hover);
   }
 }
+
+.plivex-dashboard-tab :where(table) { border-collapse: separate; border-spacing: 0; }
+.plivex-dashboard-tab :where(thead th) { background: #faf9fc; color: #647084; font-size: 10px; font-weight: 700; letter-spacing: .045em; }
+.plivex-dashboard-tab :where(tbody tr) { transition: background-color 140ms ease; }
+.plivex-dashboard-tab :where(tbody tr:hover) { background-color: #fbfaff; }
+.plivex-dashboard-tab :where(tbody td) { border-color: #efedf4; }
+.plivex-dashboard-tab :where(.rounded-xl.border, .rounded-2xl.border) { box-shadow: 0 1px 2px rgb(24 24 40 / .025); }
+.plivex-onboarding-card :where(input, select, textarea) { border-radius: .75rem; }
+.plivex-onboarding :where(button:focus-visible, input:focus-visible, select:focus-visible) { outline: 2px solid #6D28D9; outline-offset: 2px; }
