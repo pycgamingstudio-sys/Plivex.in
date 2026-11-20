@@ -5,8 +5,8 @@
  */
 import { getTaxRuleSet } from "./tax-rule-registry.js";
 
-export function getCountryStandardRateRule(countryCode) {
-  const result = getTaxRuleSet(countryCode);
+export function getCountryStandardRateRule(countryCode, options = {}) {
+  const result = getTaxRuleSet(countryCode, options);
   if (!result.ok) return null;
   const rule = result.rule;
   return {

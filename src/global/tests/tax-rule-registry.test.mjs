@@ -46,7 +46,7 @@ test("only four previously reviewed standard-rate baselines are available", () =
 test("India, US and Canada never receive an invented national Global rate", () => {
   assert.equal(getTaxRuleSet("IN").code, "INDIA_LEGACY_ADAPTER_REQUIRED");
   assert.equal(getTaxRuleSet("US").code, "JURISDICTION_RULE_REQUIRED");
-  assert.equal(getTaxRuleSet("CA").code, "JURISDICTION_RULE_REQUIRED");
+  assert.equal(getTaxRuleSet("CA").code, "CANADIAN_PROVINCE_REQUIRED");
   assert.equal(getCountryStandardRateRule("US"), null);
   assert.equal(getCountryStandardRateRule("CA"), null);
 });

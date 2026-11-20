@@ -114,9 +114,13 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
   if (!String(config.taxCategory || "").trim()) {
     return fail("TAX_CATEGORY_REQUIRED", "Select the goods/services tax category.");
   }
-  const normalizedTreatment = normalizeManualTaxTreatment(config.taxCategory);
-  if (normalizedTreatment !== "standard-rated" || (mode === "manual" && !isSupportedManualTaxTreatment(config.taxCategory))) {
-    return fail("UNSUPPORTED_TAX_TREATMENT", "Only the explicitly supported standard-rated treatment is available. Unknown, blank and special-scheme labels are rejected.");
+  const selectedTreatment = String(config.taxTreatment || "standard").trim().toLowerCase();
+  if (!["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"].includes(selectedTreatment)) {
+    return fail("UNSUPPORTED_TAX_TREATMENT", "This tax treatment is not supported. Keep the invoice as a draft.");
+  }
+  const normalizedTreatment = selectedTreatment === "standard" ? "standard-rated" : selectedTreatment;
+  if (mode === "manual" && (normalizedTreatment !== "standard-rated" || !isSupportedManualTaxTreatment(config.taxCategory))) {
+    return fail("UNSUPPORTED_TAX_TREATMENT", "Manual rates support standard-rated tax only. Special treatments require an exact verified country/category rule.");
   }
 
   const amount = amountMinor(invoice);
@@ -177,8 +181,14 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
   }
 
   if (mode !== "automatic") return fail("TAX_MODE_REQUIRED", "Choose automatic standard-rate calculation or enter manual rates.");
-  if (countryCode === "US" || countryCode === "CA") {
-    return fail("JURISDICTION_RULE_REQUIRED", "Automatic US/Canada rates are not enabled because a verified address-level jurisdiction provider is not configured. Enter reviewed rates manually or leave this invoice unfinalized.");
+  if (countryCode === "US") {
+    return fail("JURISDICTION_RULE_REQUIRED", "US state, county, city and special-district rates require an exact verified destination rule. Enter reviewed rates manually or leave this invoice unfinalized.");
+  }
+  if (countryCode === "CA" && !String(config.destinationJurisdiction?.province || "").trim()) {
+    return fail("DESTINATION_JURISDICTION_REQUIRED", "Select the Canadian province or territory for the place-of-supply rate.");
+  }
+  if (countryCode === "CA" && config.collectionObligationAttested !== true) {
+    return fail("COLLECTION_OBLIGATION_ATTESTATION_REQUIRED", "Confirm that you have checked whether your business must collect GST/HST in the selected destination province.");
   }
 
   const result = calculateGlobalTax({
@@ -193,13 +203,21 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
       status: registrationStatus,
       registrationNumber,
       effectiveFrom: registrationEffectiveFrom,
-      jurisdictions: workspaceProfile?.registeredJurisdiction ? [workspaceProfile.registeredJurisdiction] : [],
+      jurisdictions: [
+        ...(workspaceProfile?.registeredJurisdiction ? [workspaceProfile.registeredJurisdiction] : []),
+        
+      ],
     },
     placeOfSupplyVerified: true,
     placeOfSupply: String(config.placeOfSupply).trim(),
     taxCategoryVerified: true,
     taxCategory: String(config.taxCategory).trim(),
-    treatment: "standard",
+    treatment: selectedTreatment,
+    ...(countryCode === "CA" ? {
+      jurisdictionId: String(config.destinationJurisdiction.province).trim().toUpperCase(),
+      jurisdictionAttestedByUser: true,
+      collectionObligationAttestedByUser: config.collectionObligationAttested === true,
+    } : {}),
     priceMode: config.priceMode,
   });
   if (!result.ok) return result;

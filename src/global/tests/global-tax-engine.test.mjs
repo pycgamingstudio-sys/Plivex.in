@@ -28,7 +28,7 @@ test("router calculates standard-rated GB, AE, AU and SG with country-specific b
 
 test("router never invents US or Canadian jurisdiction rates", () => {
   assert.equal(calculateGlobalTax({ ...base, countryCode: "US", currencyCode: "USD" }).code, "JURISDICTION_RULE_REQUIRED");
-  assert.equal(calculateGlobalTax({ ...base, countryCode: "CA", currencyCode: "CAD" }).code, "JURISDICTION_RULE_REQUIRED");
+  assert.equal(calculateGlobalTax({ ...base, countryCode: "CA", currencyCode: "CAD" }).code, "CANADIAN_PROVINCE_REQUIRED");
 });
 
 test("India remains delegated to the established GST path", () => {

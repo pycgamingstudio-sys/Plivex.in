@@ -68,7 +68,7 @@ test("US manual invoice requires state, county, city and collection-obligation c
 });
 
 test("Canada manual inclusive GST/PST preserves the entered gross total", () => {
-  const result = calculateInvoiceGlobalTax(invoice("CAD", {
+  const result = calculateInvoiceGlobalTax(invoice("CAD", { issueDate: "2026-11-20",
     mode: "manual", priceMode: "inclusive",
     collectionObligationAttested: true,
     destinationJurisdiction: { province: "ON" },
@@ -77,7 +77,7 @@ test("Canada manual inclusive GST/PST preserves the entered gross total", () => 
       { id: "pst", name: "PST", rateBps: 800 },
     ],
   }), profile("CA", "CAD"));
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, result.message || result.code);
   assert.equal(result.taxMinor, 1150);
   assert.equal(result.totalMinor, 10000);
 });
@@ -132,8 +132,8 @@ test("country invoice format requires the seller address and registration fields
 
 test("automatic calculation rejects reduced, zero-rated and exempt treatments", () => {
   for (const taxCategory of ["reduced", "zero-rated", "exempt"]) {
-    const result = calculateInvoiceGlobalTax(invoice("GBP", { taxCategory }), profile("GB", "GBP"));
-    assert.equal(result.code, taxCategory ? "UNSUPPORTED_TAX_TREATMENT" : "TAX_CATEGORY_REQUIRED", taxCategory);
+    const result = calculateInvoiceGlobalTax(invoice("GBP", { taxTreatment: taxCategory, taxCategory: "UNSUPPORTED_CATEGORY" }), profile("GB", "GBP"));
+    assert.equal(result.code, "NO_EFFECTIVE_VERIFIED_RULE", taxCategory);
   }
 });
 
@@ -208,4 +208,33 @@ test("US/Canada manual rates require user attestation", () => {
     destinationJurisdiction: { state: "CA", county: "Los Angeles", city: "Los Angeles" },
     components: [{ id: "state", name: "State tax", rateBps: 500 }] }), profile("US", "USD"));
   assert.equal(result.code, "COLLECTION_OBLIGATION_ATTESTATION_REQUIRED");
+});
+
+
+test("Canada automatic GST/HST uses selected destination province and a confirmed collection obligation", () => {
+  const document = invoice("CAD", {
+    mode: "automatic",
+    destinationJurisdiction: { province: "ON" },
+    collectionObligationAttested: true,
+  });
+  document.issueDate = "2026-11-20";
+  const result = calculateInvoiceGlobalTax(document, profile("CA", "CAD"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.taxMinor, 1300);
+  assert.equal(result.totalMinor, 11300);
+  assert.equal(result.jurisdictionEvidence, "user-attested");
+});
+
+test("Australia GST-free category uses the exact verified GST-free rule", () => {
+  const document = invoice("AUD", {
+    mode: "automatic",
+    taxTreatment: "gst-free",
+    taxCategory: "AU_GST_FREE_BASIC_FOOD",
+  });
+  document.issueDate = "2026-11-20";
+  const result = calculateInvoiceGlobalTax(document, profile("AU", "AUD"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.treatment, "gst-free");
+  assert.equal(result.taxMinor, 0);
+  assert.match(result.taxDisclosure, /GST-free supply/);
 });

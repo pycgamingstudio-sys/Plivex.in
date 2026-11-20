@@ -15,7 +15,7 @@
  * - Do not promote a rule to active until its scope and effective dates are
  *   reviewed. This code catalogue is not a live database or legal advice.
  */
-export const TAX_RULE_CATALOG_VERSION = "2026.11.1";
+export const TAX_RULE_CATALOG_VERSION = "2026.11.3";
 export const TAX_ENGINE_VERSION = "1.0.0";
 
 const freezeRule = (rule) => Object.freeze({
@@ -39,14 +39,14 @@ const COUNTRY_PROFILES = Object.freeze({
   GB: Object.freeze({
     countryCode: "GB", taxSystem: "VAT", currencyCode: "GBP",
     ruleMode: "standard_rate_baseline", issuance: "code_ready_database_migration_pending",
-    coverage: "standard-rate-only",
-    note: "Only the source-backed standard-rate baseline is catalogued. Reduced, zero-rated, exempt, reverse-charge and special treatments are not covered.",
+    coverage: "standard-and-narrow-reduced-rate-baseline",
+    note: "Standard VAT plus one narrowly scoped reduced-rate category for domestic fuel or power; other special treatments are not covered.",
   }),
   AE: Object.freeze({
     countryCode: "AE", taxSystem: "VAT", currencyCode: "AED",
     ruleMode: "standard_rate_baseline", issuance: "disabled",
-    coverage: "standard-rate-only",
-    note: "Only the source-backed standard-rate baseline is catalogued. Special zones, designated zones, zero-rating, exemptions and reverse-charge are not covered.",
+    coverage: "standard-and-narrow-special-treatment-baselines",
+    note: "Standard VAT plus narrowly scoped export zero-rating and exempt-category rules; designated-zone, reverse-charge and other special cases remain unsupported.",
   }),
   CA: Object.freeze({
     countryCode: "CA", taxSystem: "GST/HST/PST/QST", currencyCode: "CAD",
@@ -57,16 +57,33 @@ const COUNTRY_PROFILES = Object.freeze({
   AU: Object.freeze({
     countryCode: "AU", taxSystem: "GST", currencyCode: "AUD",
     ruleMode: "standard_rate_baseline", issuance: "disabled",
-    coverage: "standard-rate-only",
-    note: "Only the source-backed standard-rate baseline is catalogued. GST-free, input-taxed, import and special treatments are not covered.",
+    coverage: "standard-and-narrow-special-treatment-baselines",
+    note: "Standard GST plus narrowly scoped GST-free and input-taxed categories; other special cases remain unsupported.",
   }),
   SG: Object.freeze({
     countryCode: "SG", taxSystem: "GST", currencyCode: "SGD",
     ruleMode: "standard_rate_baseline", issuance: "disabled",
-    coverage: "standard-rate-only",
-    note: "Only the source-backed standard-rate baseline is catalogued. Zero-rated, exempt, reverse-charge and special schemes are not covered.",
+    coverage: "standard-and-narrow-special-treatment-baselines",
+    note: "Standard GST plus narrowly scoped zero-rated, exempt and out-of-scope categories; reverse-charge and special schemes remain unsupported.",
   }),
 });
+
+const CA_PROVINCE_RULES = Object.freeze({
+  AB: { name: "Alberta", components: [{ id: "CA-AB-GST", name: "GST", rateBps: 500 }] },
+  BC: { name: "British Columbia", components: [{ id: "CA-BC-GST", name: "GST", rateBps: 500 }] },
+  MB: { name: "Manitoba", components: [{ id: "CA-MB-GST", name: "GST", rateBps: 500 }] },
+  NB: { name: "New Brunswick", components: [{ id: "CA-NB-HST", name: "HST", rateBps: 1500 }] },
+  NL: { name: "Newfoundland and Labrador", components: [{ id: "CA-NL-HST", name: "HST", rateBps: 1500 }] },
+  NS: { name: "Nova Scotia", components: [{ id: "CA-NS-HST", name: "HST", rateBps: 1400 }] },
+  NT: { name: "Northwest Territories", components: [{ id: "CA-NT-GST", name: "GST", rateBps: 500 }] },
+  NU: { name: "Nunavut", components: [{ id: "CA-NU-GST", name: "GST", rateBps: 500 }] },
+  ON: { name: "Ontario", components: [{ id: "CA-ON-HST", name: "HST", rateBps: 1300 }] },
+  PE: { name: "Prince Edward Island", components: [{ id: "CA-PE-HST", name: "HST", rateBps: 1500 }] },
+  SK: { name: "Saskatchewan", components: [{ id: "CA-SK-GST", name: "GST", rateBps: 500 }] },
+  QC: { name: "Quebec", components: [{ id: "CA-QC-GST", name: "GST", rateBps: 500 }] },
+  YT: { name: "Yukon", components: [{ id: "CA-YT-GST", name: "GST", rateBps: 500 }] },
+});
+const CA_RATE_SOURCE = "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html";
 
 const RULES = Object.freeze({
   GB: freezeRule({
@@ -115,6 +132,109 @@ const RULES = Object.freeze({
   }),
 });
 
+
+const TREATMENT_RULES = Object.freeze([
+  freezeRule({
+    id: "CA-GST-ZERO-RATED-BASIC-GROCERIES-2026-11", version: "2026.11",
+    countryCode: "CA", currencyCode: "CAD", taxName: "GST/HST",
+    treatment: "zero-rated", taxCategoryId: "CA_ZERO_RATED_BASIC_GROCERIES",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "1991-01-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html",
+    sourceAuthority: "Canada Revenue Agency", scope: "country", coverage: "basic-groceries-zero-rated-across-canada-only",
+    components: [{ id: "CA-GST-HST-ZERO", name: "GST/HST", rateBps: 0, source: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html" }],
+  }),
+  freezeRule({
+    id: "AE-VAT-ZERO-RATED-EXPORTS-2026-11", version: "2026.11",
+    countryCode: "AE", currencyCode: "AED", taxName: "VAT",
+    treatment: "zero-rated", taxCategoryId: "AE_ZERO_RATED_EXPORTS",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2018-01-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://tax.gov.ae/en/faq.aspx?keyword=What+sectors+will+be+zero+rated%3F",
+    sourceAuthority: "UAE Federal Tax Authority",
+    scope: "country", coverage: "export-of-goods-and-services-outside-gcc-only",
+    components: [{ id: "AE-VAT-ZERO", name: "VAT", rateBps: 0, source: "https://tax.gov.ae/en/faq.aspx?keyword=What+sectors+will+be+zero+rated%3F" }],
+  }),
+  freezeRule({
+    id: "AE-VAT-EXEMPT-FINANCIAL-SERVICES-2026-11", version: "2026.11",
+    countryCode: "AE", currencyCode: "AED", taxName: "VAT",
+    treatment: "exempt", taxCategoryId: "AE_EXEMPT_FINANCIAL_SERVICES",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2018-01-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://tax.gov.ae/en/faq.aspx?keyword=exempt",
+    sourceAuthority: "UAE Federal Tax Authority",
+    scope: "country", coverage: "financial-services-exemption-category-only",
+    components: [{ id: "AE-VAT-EXEMPT", name: "VAT", rateBps: 0, source: "https://tax.gov.ae/en/faq.aspx?keyword=exempt" }],
+  }),
+  freezeRule({
+    id: "AU-GST-FREE-BASIC-FOOD-2026-11", version: "2026.11",
+    countryCode: "AU", currencyCode: "AUD", taxName: "GST",
+    treatment: "gst-free", taxCategoryId: "AU_GST_FREE_BASIC_FOOD",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2000-07-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/when-to-charge-gst-and-when-not-to/gst-free-sales",
+    sourceAuthority: "Australian Taxation Office",
+    scope: "country", coverage: "basic-food-gst-free-category-only",
+    components: [{ id: "AU-GST-FREE", name: "GST", rateBps: 0, source: "https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/when-to-charge-gst-and-when-not-to/gst-free-sales" }],
+  }),
+  freezeRule({
+    id: "AU-GST-INPUT-TAXED-FINANCIAL-SERVICES-2026-11", version: "2026.11",
+    countryCode: "AU", currencyCode: "AUD", taxName: "GST",
+    treatment: "exempt", taxCategoryId: "AU_INPUT_TAXED_FINANCIAL_SERVICES",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2000-07-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/when-to-charge-gst-and-when-not-to/input-taxed-sales",
+    sourceAuthority: "Australian Taxation Office",
+    scope: "country", coverage: "input-taxed-financial-services-category-only",
+    components: [{ id: "AU-GST-INPUT-TAXED", name: "GST", rateBps: 0, source: "https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/when-to-charge-gst-and-when-not-to/input-taxed-sales" }],
+  }),
+  freezeRule({
+    id: "SG-GST-ZERO-RATED-EXPORTS-2026-11", version: "2026.11",
+    countryCode: "SG", currencyCode: "SGD", taxName: "GST",
+    treatment: "zero-rated", taxCategoryId: "SG_ZERO_RATED_EXPORTS_INTERNATIONAL_SERVICES",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "1994-04-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/charging-gst-%28output-tax%29/when-to-charge-goods-and-services-tax-%28gst%29",
+    sourceAuthority: "Singapore Inland Revenue Authority",
+    scope: "country", coverage: "exports-of-goods-and-qualifying-international-services-only",
+    components: [{ id: "SG-GST-ZERO", name: "GST", rateBps: 0, source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/charging-gst-%28output-tax%29/when-to-charge-goods-and-services-tax-%28gst%29" }],
+  }),
+  freezeRule({
+    id: "SG-GST-EXEMPT-FINANCIAL-SERVICES-2026-11", version: "2026.11",
+    countryCode: "SG", currencyCode: "SGD", taxName: "GST",
+    treatment: "exempt", taxCategoryId: "SG_EXEMPT_FINANCIAL_SERVICES",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "1994-04-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/charging-gst-%28output-tax%29/when-is-gst-not-charged/supplies-exempt-from-gst",
+    sourceAuthority: "Singapore Inland Revenue Authority",
+    scope: "country", coverage: "exempt-financial-services-category-only",
+    components: [{ id: "SG-GST-EXEMPT", name: "GST", rateBps: 0, source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/charging-gst-%28output-tax%29/when-is-gst-not-charged/supplies-exempt-from-gst" }],
+  }),
+  freezeRule({
+    id: "SG-GST-OUT-OF-SCOPE-OVERSEAS-GOODS-2026-11", version: "2026.11",
+    countryCode: "SG", currencyCode: "SGD", taxName: "GST",
+    treatment: "out-of-scope", taxCategoryId: "SG_OUT_OF_SCOPE_OVERSEAS_TO_OVERSEAS_GOODS",
+    rateBps: 0, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "1994-04-01", effectiveTo: null, reviewedOn: "2026-11-20",
+    source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/basics-of-gst/goods-and-services-tax-%28gst%29-what-it-is-and-how-it-works",
+    sourceAuthority: "Singapore Inland Revenue Authority",
+    scope: "country", coverage: "goods-delivered-from-overseas-to-overseas-only",
+    components: [{ id: "SG-GST-OUT-OF-SCOPE", name: "GST", rateBps: 0, source: "https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/basics-of-gst/goods-and-services-tax-%28gst%29-what-it-is-and-how-it-works" }],
+  }),
+  freezeRule({
+    id: "GB-VAT-REDUCED-DOMESTIC-FUEL-POWER-2026-11", version: "2026.11",
+    countryCode: "GB", currencyCode: "GBP", taxName: "VAT",
+    treatment: "reduced", taxCategoryId: "GB_REDUCED_DOMESTIC_FUEL_POWER",
+    rateBps: 500, verified: true, reviewedBy: "Plivex tax rule review",
+    effectiveFrom: "2011-01-04", effectiveTo: null,
+    reviewedOn: "2026-11-20",
+    source: "https://www.gov.uk/charge-reclaim-record-vat",
+    sourceAuthority: "UK HM Revenue & Customs",
+    scope: "country", coverage: "reduced-rate-domestic-fuel-power-only",
+    components: [{ id: "GB-VAT-REDUCED-DOMESTIC-FUEL-POWER", name: "VAT", rateBps: 500, source: "https://www.gov.uk/charge-reclaim-record-vat" }],
+  }),
+]);
+
 const validDate = (value) => {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(value + "T00:00:00.000Z");
@@ -154,8 +274,30 @@ export function getTaxRuleSet(countryCode, options = {}) {
   if (profile.ruleMode === "india_legacy") {
     return { ok: false, status: "india_legacy", code: "INDIA_LEGACY_ADAPTER_REQUIRED", countryCode: code, profile: { ...profile }, catalogVersion: TAX_RULE_CATALOG_VERSION };
   }
-  if (profile.ruleMode === "jurisdiction_required") {
+  if (profile.ruleMode === "jurisdiction_required" && code !== "CA") {
     return { ok: false, status: "jurisdiction_required", code: "JURISDICTION_RULE_REQUIRED", countryCode: code, profile: { ...profile }, catalogVersion: TAX_RULE_CATALOG_VERSION };
+  }
+  if (code === "CA") {
+    const province = typeof options.jurisdictionId === "string" ? options.jurisdictionId.trim().toUpperCase() : "";
+    const entry = CA_PROVINCE_RULES[province];
+    if (!entry) return { ok: false, status: "jurisdiction_required", code: "CANADIAN_PROVINCE_REQUIRED", countryCode: code, profile: { ...profile }, catalogVersion: TAX_RULE_CATALOG_VERSION };
+    const asOfDate = options.asOfDate;
+    if (asOfDate !== undefined && !validDate(asOfDate)) return { ok: false, status: "invalid_date", code: "INVALID_RULE_AS_OF_DATE", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION };
+    if (asOfDate && asOfDate < "2025-04-01" && province === "NS") {
+      return { ok: false, status: "no_effective_rule", code: "HISTORIC_NOVA_SCOTIA_RATE_REQUIRES_TRANSITION_REVIEW", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION };
+    }
+    const components = entry.components.map((component) => ({ ...component, source: CA_RATE_SOURCE }));
+    const rateBps = components.reduce((sum, component) => sum + component.rateBps, 0);
+    const rule = {
+      id: `CA-${province}-GST-HST-PST-2025-04`, version: "2025.04",
+      countryCode: "CA", currencyCode: "CAD", taxName: components.map((component) => component.name).join(" + "),
+      treatment: "standard", jurisdictionId: province, rateBps,
+      effectiveFrom: province === "NS" ? "2025-04-01" : "2025-04-01", effectiveTo: null,
+      reviewedOn: "2026-11-20", source: CA_RATE_SOURCE, sourceAuthority: "Canada Revenue Agency",
+      scope: "province", coverage: "federal-gst-or-harmonized-hst-only-provincial-sales-taxes-excluded",
+      components,
+    };
+    return { ok: true, status: "rule_available", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION, profile: { ...profile }, rule };
   }
 
   const asOfDate = options.asOfDate;
@@ -173,6 +315,37 @@ export function getTaxRuleSet(countryCode, options = {}) {
     profile: { ...profile },
     rule: copyRule(rule),
   };
+}
+
+
+/**
+ * Resolve only an explicitly requested, category-matched non-standard rule.
+ * No category inference or fallback to the standard rate is performed.
+ */
+export function getTaxTreatmentRuleSet(countryCode, { treatment, taxCategoryId, asOfDate, jurisdictionId } = {}) {
+  const code = normalizeTaxCountryCode(countryCode);
+  if (!code || !["reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"].includes(treatment)
+    || typeof taxCategoryId !== "string" || !taxCategoryId.trim()) {
+    return { ok: false, status: "invalid_treatment_rule_request", code: "TREATMENT_AND_CATEGORY_REQUIRED", catalogVersion: TAX_RULE_CATALOG_VERSION };
+  }
+  if (asOfDate !== undefined && !validDate(asOfDate)) {
+    return { ok: false, status: "invalid_date", code: "INVALID_RULE_AS_OF_DATE", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION };
+  }
+  const matches = TREATMENT_RULES.filter((rule) => rule.countryCode === code
+    && rule.treatment === treatment && rule.taxCategoryId === taxCategoryId
+    && (!asOfDate || (asOfDate >= rule.effectiveFrom && (!rule.effectiveTo || asOfDate <= rule.effectiveTo))));
+  if (matches.length !== 1) {
+    return { ok: false, status: "rule_unavailable", code: matches.length ? "AMBIGUOUS_TREATMENT_RULE" : "NO_EFFECTIVE_VERIFIED_RULE", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION };
+  }
+  const rule = copyRule(matches[0]);
+  if (code === "CA") {
+    const province = typeof jurisdictionId === "string" ? jurisdictionId.trim().toUpperCase() : "";
+    if (!Object.hasOwn(CA_PROVINCE_RULES, province)) {
+      return { ok: false, status: "jurisdiction_required", code: "CANADIAN_PROVINCE_REQUIRED", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION };
+    }
+    rule.jurisdictionId = province;
+  }
+  return { ok: true, status: "rule_available", countryCode: code, catalogVersion: TAX_RULE_CATALOG_VERSION, rule };
 }
 
 export function listTaxRuleSets() {

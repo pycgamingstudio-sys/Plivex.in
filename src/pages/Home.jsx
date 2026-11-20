@@ -420,6 +420,15 @@ export function InvoicePreview({ invoice, design }) {
           dateLabel={invoiceDateLabel}
           amountInWords={amountInWords}
         />
+        {globalCalculation?.taxDisclosure && (
+          <div data-testid="global-tax-treatment-disclosure" className="mx-10 mb-8 mt-2 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3 text-[11px] leading-5 text-[#374151]">
+            <p className="font-semibold text-[#1F2937]">
+              Tax treatment: {String(globalCalculation.treatment || "standard").replace(/-/g, " ")}
+            </p>
+            <p>{globalCalculation.taxDisclosure}</p>
+            {globalCalculation.taxCategory && <p className="mt-1 text-[#6B7280]">Supply category: {globalCalculation.taxCategory}</p>}
+          </div>
+        )}
       </div>
       </ScaledPreview>
     </div>

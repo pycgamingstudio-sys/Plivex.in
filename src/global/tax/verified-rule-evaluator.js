@@ -88,10 +88,13 @@ export function calculateVerifiedTaxRule(input) {
   }
 
   const jurisdictional = countryCode === "US" || countryCode === "CA";
+  const jurisdictionEvidence = input.jurisdictionVerified === true ? "independently-verified"
+    : input.jurisdictionAttestedByUser === true ? "user-attested" : null;
+  const collectionEvidence = input.collectionObligationVerified === true ? "independently-verified"
+    : input.collectionObligationAttestedByUser === true ? "user-attested" : null;
   if (jurisdictional && (typeof rule.jurisdictionId !== "string" || !rule.jurisdictionId.trim()
-    || input.jurisdictionVerified !== true || input.jurisdictionId !== rule.jurisdictionId
-    || input.collectionObligationVerified !== true)) {
-    return fail("JURISDICTION_OR_NEXUS_REQUIRED", "US/Canada require independently verified destination jurisdiction and collection-obligation evidence; seller registration alone is not proof of nexus.");
+    || input.jurisdictionId !== rule.jurisdictionId || !jurisdictionEvidence || !collectionEvidence)) {
+    return fail("JURISDICTION_OR_NEXUS_REQUIRED", "US/Canada require an exact destination jurisdiction and an explicit collection-obligation confirmation. User attestations are recorded as such and are not independent verification.");
   }
 
   const rateBps = rule.components.reduce((sum, component) => sum + component.rateBps, 0);
@@ -121,6 +124,8 @@ export function calculateVerifiedTaxRule(input) {
     currencyMinorUnits: precision, jurisdictionId: rule.jurisdictionId || null,
     treatment: rule.treatment, priceMode: input.priceMode, taxableMinor, taxMinor, totalMinor, components,
     registrationEvidence: registration.verified === true ? "externally-verified" : "user-attested",
+    jurisdictionEvidence: jurisdictional ? jurisdictionEvidence : null,
+    collectionObligationEvidence: jurisdictional ? collectionEvidence : null,
     ruleSnapshot: {
       id: rule.id, version: rule.version, catalogVersion: rule.catalogVersion || TAX_RULE_CATALOG_VERSION,
       source: rule.source, sourceAuthority: rule.sourceAuthority || null, coverage: rule.coverage || null,

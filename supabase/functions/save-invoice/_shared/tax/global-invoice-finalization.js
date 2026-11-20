@@ -14,6 +14,16 @@ const E_INVOICE = Object.freeze({
   SG: Object.freeze({ countryCode:"SG", status:"phased_requirement_provider_required", network:"InvoiceNow (Peppol)", submission:"disabled", note:"GST InvoiceNow obligations are phased by registration/cohort and implementation date. No InvoiceNow-ready access point is configured.", source:"https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/gst-invoicenow-requirement" }),
 });
 const COUNTRY_CURRENCY = Object.freeze({ IN:"INR", US:"USD", GB:"GBP", AE:"AED", CA:"CAD", AU:"AUD", SG:"SGD" });
+const TAX_TREATMENTS = new Set(["standard", "reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"]);
+const NO_CHARGE_TREATMENTS = new Set(["zero-rated", "gst-free", "exempt", "out-of-scope"]);
+const TAX_DISCLOSURES = Object.freeze({
+  standard: "Tax charged at the verified standard rate.",
+  reduced: "Tax charged at the verified reduced rate for the confirmed supply category.",
+  "zero-rated": "Zero-rated supply — 0% tax under the selected verified rule. This is not the same as exempt.",
+  "gst-free": "GST-free supply — no GST charged under the selected verified Australian GST-free category. This is distinct from input-taxed supplies.",
+  exempt: "Exempt supply — no tax charged under the selected verified rule.",
+  "out-of-scope": "Outside the scope of this tax system under the selected verified rule.",
+});
 const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const validDate = (value) => {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -46,8 +56,22 @@ export function createGlobalInvoiceTaxSnapshot(input) {
     return fail("TAX_RESULT_NOT_ISSUABLE", "Only a successful, country-matched calculated tax result can be snapshotted. Manual estimates and review results remain drafts.");
   }
   if (result.currencyCode !== COUNTRY_CURRENCY[countryCode] || result.currencyMinorUnits !== 2) return fail("SNAPSHOT_CURRENCY_INVALID", "Tax snapshot currency and precision must match the workspace country.");
+  if (!TAX_TREATMENTS.has(result.treatment) || result.taxDisclosure !== TAX_DISCLOSURES[result.treatment]
+    || typeof result.taxCharged !== "boolean"
+    || (NO_CHARGE_TREATMENTS.has(result.treatment) !== (result.taxCharged === false))
+    || (!result.taxCharged && result.taxMinor !== 0)) {
+    return fail("TAX_TREATMENT_SNAPSHOT_INVALID", "A supported tax treatment, its distinct disclosure and consistent tax-charged state are required.");
+  }
   const rule = result.ruleSnapshot;
-  if (!isRecord(rule) || !String(rule.id || "").trim() || !String(rule.version || "").trim()
+  if (!isRecord(rule)) {
+    return fail("RULE_PROVENANCE_REQUIRED", "A source-backed, versioned rule effective on the invoice date is required.");
+  }
+  if (rule.treatment !== result.treatment
+    || (result.treatment !== "standard" && (!String(rule.taxCategoryId || "").trim()
+      || result.taxCategory !== rule.taxCategoryId))) {
+    return fail("TAX_TREATMENT_RULE_MISMATCH", "The tax treatment and confirmed supply category must match the selected versioned rule.");
+  }
+  if (!String(rule.id || "").trim() || !String(rule.version || "").trim()
     || !/^https:\/\//.test(String(rule.source || "")) || !validDate(rule.effectiveFrom)
     || input.invoiceDate < rule.effectiveFrom
     || (rule.effectiveTo && (!validDate(rule.effectiveTo) || input.invoiceDate > rule.effectiveTo))) {
@@ -64,10 +88,12 @@ export function createGlobalInvoiceTaxSnapshot(input) {
   const componentTotal = result.components.reduce((sum, item) => sum + item.amountMinor, 0);
   if (componentTotal !== result.taxMinor) return fail("TAX_COMPONENT_TOTAL_MISMATCH", "Tax component amounts do not match the calculated tax total.");
   const snapshot = {
-    schemaVersion:"1", countryCode, invoiceDate:input.invoiceDate,
+    schemaVersion:"2", countryCode, invoiceDate:input.invoiceDate,
     currencyCode:result.currencyCode, currencyMinorUnits:result.currencyMinorUnits,
     engineVersion:result.engineVersion || null, rule:{ ...rule },
-    treatment:result.treatment, priceMode:result.priceMode,
+    treatment:result.treatment, taxDisclosure:result.taxDisclosure,
+    taxCharged:result.taxCharged, taxCategory:result.taxCategory || rule.taxCategoryId || null,
+    priceMode:result.priceMode,
     taxableMinor:result.taxableMinor, taxMinor:result.taxMinor, totalMinor:result.totalMinor,
     components:result.components.map((item) => ({ ...item })),
     sellerRegistrationEvidence:result.registrationEvidence || "not_recorded",
