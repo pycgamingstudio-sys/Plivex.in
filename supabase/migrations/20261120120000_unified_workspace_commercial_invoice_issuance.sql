@@ -149,6 +149,7 @@ declare
   v_profile public.business_profile%rowtype;
   v_invoice public.invoices%rowtype;
   v_saved public.invoices%rowtype;
+  v_client_id uuid;
   v_snapshot jsonb;
   v_items jsonb;
   v_year integer;
@@ -197,6 +198,24 @@ begin
     raise exception using errcode='22023', message='Commercial invoice items contain invalid values';
   end if;
 
+  -- Resolve or create the canonical CRM customer in the same transaction.
+  if nullif(btrim(coalesce(_data->>'client_email','')),'') is not null then
+    select id into v_client_id from public.clients
+    where workspace_id=v_workspace and lower(email)=lower(btrim(_data->>'client_email'))
+    order by created_at asc limit 1;
+  end if;
+  if v_client_id is null then
+    insert into public.clients(workspace_id,name,company,email,phone,address)
+    values(
+      v_workspace,
+      left(btrim(_data->>'client_name'),160),
+      nullif(left(btrim(coalesce(_data->'invoice_snapshot'->'client'->>'company','')),160),''),
+      nullif(lower(left(btrim(coalesce(_data->>'client_email','')),254)),''),
+      nullif(left(btrim(coalesce(_data->'invoice_snapshot'->'client'->>'phone','')),40),''),
+      nullif(left(btrim(coalesce(_data->'invoice_snapshot'->'client'->>'address','')),1000),'')
+    ) returning id into v_client_id;
+  end if;
+
   -- Create/update only a draft in the existing canonical public invoice ledger.
   v_saved := public.save_invoice(
     coalesce(_data,'{}'::jsonb) || jsonb_build_object(
@@ -211,6 +230,9 @@ begin
   if v_invoice.is_draft is distinct from true then
     raise exception using errcode='55000', message='Only a draft can be issued';
   end if;
+  update public.invoices set client_id=v_client_id
+  where id=v_invoice.id and workspace_id=v_workspace
+  returning * into v_invoice;
 
   v_year := extract(year from v_issue_date)::integer;
   insert into public.workspace_invoice_number_sequences(workspace_id,invoice_year,last_number)
