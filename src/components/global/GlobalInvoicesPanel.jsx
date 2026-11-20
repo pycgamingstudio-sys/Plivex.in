@@ -121,6 +121,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   }), [countryCode, currency, profile]);
   const previewInvoice = useMemo(() => ({
     currency, issueDate:selected?.issue_date || form.issueDate,
+    buyerRegistrationNumber:clients.find((client) => client.id === selected?.client_id)?.tax_registration_number || "",
     business:{ name:profile?.legal_name || profile?.display_name || "", address:profile?.address || "" },
     items:selectedItems.map((item) => ({ quantity:Number(item.quantity), rate:Number(item.unit_price_minor || 0) / (10 ** digits(currency)) })),
     discountType:"fixed", discount:Number(selected?.discount_minor || 0) / (10 ** digits(currency)), globalTax:taxContext,
@@ -128,6 +129,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   const taxPreview = useMemo(() => calculateInvoiceGlobalTax(previewInvoice, workspaceProfile), [previewInvoice, workspaceProfile]);
   const createPreviewInvoice = useMemo(() => ({
     currency, issueDate:form.issueDate,
+    buyerRegistrationNumber:clients.find((client) => client.id === form.clientId)?.tax_registration_number || "",
     business:{ name:profile?.legal_name || profile?.display_name || "", address:profile?.address || "" },
     items:form.description.trim() ? [{ quantity:Number(form.quantity), rate:Number(form.unitPrice) }] : [],
     discountType:"fixed", discount:0, globalTax:taxContext,
