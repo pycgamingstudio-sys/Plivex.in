@@ -71,11 +71,13 @@ export function calculateVerifiedTaxTreatment(input) {
   return {
     ...calculated,
     treatment,
+    taxCategory: input.taxCategory || rule.taxCategoryId || null,
     taxDisclosure: DISCLOSURES[treatment],
     taxCharged: !NO_CHARGE_TREATMENTS.has(treatment),
     ruleSnapshot: {
       ...calculated.ruleSnapshot,
       treatment,
+      taxCategoryId: rule.taxCategoryId || null,
     },
   };
 }
