@@ -23,7 +23,7 @@ test("all countries in the unified build stay on the canonical Main Workspace ro
   const auth = read("../../lib/AuthContext.jsx");
   assert.match(app, /const isGlobalWorkspace = !isUnifiedBuild && APP_EDITION === "global"/);
   assert.match(homeGate, /const isGlobalWorkspace = !isUnifiedBuild && APP_EDITION === "global"/);
-  assert.match(auth, /if \(isUnifiedBuild\) \{[\\s\\S]*setRuntimeEdition\("india"\)/);
+  assert.match(auth, /if \(isUnifiedBuild\) \{[\s\S]*setRuntimeEdition\("india"\)/);
   assert.match(backend, /if \(isUnifiedBuild && edition === "global"\) return false/);
   assert.ok(app.includes('<Route path="/invoice-history" element={isGlobalWorkspace ? <GlobalApp section="invoices" /> : <InvoiceHistory />} />'));
   assert.doesNotMatch(app, /isUnifiedBuild && Boolean\(user\?\.country_code && user\.country_code !== "IN"\)/);
