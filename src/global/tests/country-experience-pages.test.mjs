@@ -51,9 +51,9 @@ test("regional account activity and reports use workspace locale metadata", asyn
 });
 
 
-test("India-only tools are not rendered for non-India workspaces in Global and unified builds", async () => {
+test("legacy Global feature restrictions do not block unified Main Workspace routes", async () => {
   const source = await read("../../App.jsx");
-  assert.match(source, /APP_EDITION === "global" \|\| isUnifiedBuild/);
+  assert.match(source, /!isUnifiedBuild && APP_EDITION === "global"/);
   assert.doesNotMatch(source, /isUnifiedBuild && Boolean\(user\?\.country_code && user\.country_code !== "IN"\)/);
   assert.match(source, /user\?\.country_code && user\.country_code !== "IN"/);
   for (const feature of ["Shared invoice links", "Usage reports", "Quick templates", "Payment logs", "Service catalog", "Team management"]) {
@@ -63,14 +63,14 @@ test("India-only tools are not rendered for non-India workspaces in Global and u
 });
 
 
-test("public marketing presents one Plivex workspace with country-aware capabilities", async () => {
+test("public marketing copy distinguishes Global availability from India-only features", async () => {
   const pages = await read("../../pages/PublicInfoPages.jsx");
   const about = await read("../../components/landing/AboutSection.jsx");
   assert.doesNotMatch(pages, /platform for Indian small businesses/);
   assert.match(pages, /tax fields and invoice issuance depend on the selected country/i);
-  assert.match(about, /Country-aware tax calculation for supported regions/);
-  assert.match(about, /same connected business workspace/i);
-  assert.doesNotMatch(about, /India edition|Global UI|Global capabilities are being introduced in stages/);
+  assert.match(about, /India edition: CGST\/SGST\/IGST auto-breakup/);
+  assert.match(about, /Global UI: English/);
+  assert.match(about, /Global capabilities are being introduced in stages/);
 });
 
 
