@@ -57,9 +57,16 @@ select 'CA',province,'CAD','CA_ZERO_RATED_BASIC_GROCERIES','2026.11','zero-rated
 from unnest(array['AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT']) as province
 on conflict (country_code,jurisdiction_id,tax_code,version) do nothing;
 
+alter table global.invoices
+  add column if not exists reverse_charge_tax_minor bigint not null default 0
+    check (reverse_charge_tax_minor >= 0 and reverse_charge_tax_minor <= 9000000000000000);
+
 alter table global.invoice_items
   alter column tax_rate_bps type numeric(7,1)
   using tax_rate_bps::numeric;
+alter table global.invoice_items
+  add column if not exists reverse_charge_tax_minor bigint not null default 0
+    check (reverse_charge_tax_minor >= 0 and reverse_charge_tax_minor <= 9000000000000000);
 
 create or replace function public.global_issue_invoice(
   p_user_id uuid,
@@ -90,6 +97,9 @@ declare
   v_items_discount bigint;
   v_subtotal_after_discount bigint;
   v_tax bigint := 0;
+  v_reverse_charge_tax bigint := 0;
+  v_line_reverse_charge bigint := 0;
+  v_component_target_tax bigint := 0;
   v_total bigint;
   v_taxable bigint;
   v_number bigint;
@@ -257,9 +267,6 @@ begin
   -- Current standard-rate rule catalog. Every component is recalculated here,
   -- never trusted from a browser-supplied tax total.
   if v_treatment <> 'standard' and v_country <> 'US' then
-    if v_treatment='reverse-charge' then
-      return jsonb_build_object('ok',false,'reason','reverse_charge_accounting_adapter_required');
-    end if;
     select count(*)::integer into v_rule_count
     from global.tax_rule_versions r
     where r.country_code=v_country and r.currency_code=v_currency
@@ -284,6 +291,18 @@ begin
     v_rule_id := v_tax_rule.id::text;
     v_rule_version := v_tax_rule.version;
     v_rule_source := v_tax_rule.source_url;
+    if v_treatment='reverse-charge' then
+      if v_country='US'
+        or v_price_mode<>'exclusive'
+        or v_client.id is null
+        or coalesce((p_tax_context->>'buyer_registration_confirmed')::boolean,false) is not true
+        or coalesce((p_tax_context->>'reverse_charge_conditions_confirmed')::boolean,false) is not true
+        or upper(coalesce(p_tax_context->>'buyer_country_code',''))<>v_country
+        or nullif(btrim(v_client.tax_registration_number),'') is null
+        or v_client.tax_registration_number is distinct from p_tax_context->>'buyer_registration_number' then
+        return jsonb_build_object('ok',false,'reason','reverse_charge_buyer_evidence_required');
+      end if;
+    end if;
     v_tax_system := case v_country
       when 'GB' then 'VAT'
       when 'AE' then 'VAT'
@@ -385,7 +404,12 @@ begin
       or v_item.discount_minor > v_item.unit_price_minor*v_item.quantity then
       return jsonb_build_object('ok',false,'reason','invalid_invoice_line_discount');
     end if;
-    if v_price_mode = 'inclusive' then
+    v_line_reverse_charge := 0;
+    if v_treatment='reverse-charge' then
+      v_line_reverse_charge := round(v_line_base::numeric * v_rate / 10000)::bigint;
+      v_line_tax := 0;
+      v_reverse_charge_tax := v_reverse_charge_tax+v_line_reverse_charge;
+    elsif v_price_mode = 'inclusive' then
       v_line_tax := round(v_line_base::numeric * v_rate / (10000+v_rate))::bigint;
     else
       v_line_tax := round(v_line_base::numeric * v_rate / 10000)::bigint;
@@ -395,6 +419,7 @@ begin
       'id',v_item.id,
       'tax_rate_bps',v_rate,
       'tax_minor',v_line_tax,
+      'reverse_charge_tax_minor',v_line_reverse_charge,
       'line_total_minor',case when v_price_mode='exclusive' then v_line_base+v_line_tax else v_line_base end
     ));
   end loop;
@@ -406,6 +431,11 @@ begin
     v_taxable := v_subtotal_after_discount;
     v_total := v_subtotal_after_discount+v_tax;
   end if;
+  if v_treatment='reverse-charge' then
+    v_taxable := v_subtotal_after_discount;
+    v_total := v_subtotal_after_discount;
+  end if;
+  v_component_target_tax := case when v_treatment='reverse-charge' then v_reverse_charge_tax else v_tax end;
   if v_tax < 0 or v_total < 0 or v_total > 9000000000000000 then
     return jsonb_build_object('ok',false,'reason','invoice_total_limit');
   end if;
@@ -421,7 +451,7 @@ begin
   end loop;
   v_component_count := jsonb_array_length(v_components_snapshot);
   v_last_index := v_component_count-1;
-  v_last_amount := (v_components_snapshot->v_last_index->>'amount_minor')::bigint + v_tax-v_component_total;
+  v_last_amount := (v_components_snapshot->v_last_index->>'amount_minor')::bigint + v_component_target_tax-v_component_total;
   v_components_snapshot := jsonb_set(v_components_snapshot,ARRAY[v_last_index::text,'amount_minor'],to_jsonb(v_last_amount),true);
 
   -- Do not mutate invoice lines until every tax/discount/total check succeeds.
@@ -429,6 +459,7 @@ begin
     update global.invoice_items set
       tax_rate_bps=(v_line_update->>'tax_rate_bps')::numeric,
       tax_minor=(v_line_update->>'tax_minor')::bigint,
+      reverse_charge_tax_minor=(v_line_update->>'reverse_charge_tax_minor')::bigint,
       line_total_minor=(v_line_update->>'line_total_minor')::bigint
     where id=(v_line_update->>'id')::uuid and workspace_id=p_workspace_id and invoice_id=p_invoice_id;
     if not found then
@@ -454,6 +485,7 @@ begin
     'price_mode',v_price_mode,
     'tax_category',p_tax_context->>'tax_category',
     'tax_treatment',v_treatment,
+    'reverse_charge_buyer_accounting',case when v_treatment='reverse-charge' then true else false end,
     'place_of_supply',v_place,
     'jurisdiction_id',case when v_country='CA' then v_province when v_country='US' then v_us_jurisdiction else null end,
     'collection_obligation_attested',case when v_country in ('CA','US') then true else null end,
@@ -475,6 +507,7 @@ begin
     'calculation',jsonb_build_object(
       'taxable_minor',v_taxable,
       'tax_minor',v_tax,
+      'reverse_charge_tax_minor',v_reverse_charge_tax,
       'total_minor',v_total,
       'components',v_components_snapshot,
       'rule',jsonb_build_object(
@@ -490,6 +523,7 @@ begin
     invoice_number=v_invoice_number,
     status='issued',
     tax_minor=v_tax,
+    reverse_charge_tax_minor=v_reverse_charge_tax,
     total_minor=v_total,
     invoice_snapshot=v_tax_snapshot,
     issuance_idempotency_key=p_idempotency_key,
@@ -1724,7 +1758,7 @@ commit;
     ) order by ordinality) into v_components
     from jsonb_array_elements(v_tax_rule.components) with ordinality as x(c,ordinality);
   elsif v_country = 'US' and v_treatment='reverse-charge' then
-    return jsonb_build_object('ok',false,'reason','reverse_charge_accounting_adapter_required');
+    return jsonb_build_object('ok',false,'reason','reverse_charge_not_applicable_to_us_sales_tax');
   elsif v_country = 'US' and v_treatment in ('zero-rated','gst-free','exempt','out-of-scope') and v_rate<>0 then
     return jsonb_build_object('ok',false,'reason','verified_special_treatment_rate_mismatch');
   elsif v_country = 'US' and v_treatment='reduced' and v_rate<=0 then
