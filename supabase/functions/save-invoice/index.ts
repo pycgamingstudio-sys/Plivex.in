@@ -108,7 +108,7 @@ Deno.serve(async (req: Request) => {
         ? { gst_rate: Number.isFinite(Number(it.gst_rate)) ? Math.max(0, Number(it.gst_rate)) : 0 }
         : {}),
     }));
-    let saved: Record<string, unknown> | null = null;
+    let saved: any = null;
     let issueError: { code?: string; message?: string } | null = null;
     if (isNonIndiaInvoice && body?.issue_invoice === true) {
       const calculation = body?.invoice_snapshot?.globalTaxCalculation;
