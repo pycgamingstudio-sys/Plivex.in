@@ -329,3 +329,16 @@ test("fixed invoice discount allocation across unequal lines reconciles exactly"
   assert.equal(result.totalMinor, 599);
   assert.equal(result.lineTaxBreakdown.reduce((sum, line) => sum + line.amountMinor, 0), 499);
 });
+
+
+test("Canada automatic GST/HST resolves a reviewed province rule and exact source components", () => {
+  const result = calculateInvoiceGlobalTax(invoice("CAD", {
+    destinationJurisdiction: { province: "ON" },
+    collectionObligationAttested: true,
+  }), profile("CA", "CAD"));
+  assert.equal(result.ok, true, result.message || result.code);
+  assert.equal(result.taxMinor, 1300);
+  assert.equal(result.totalMinor, 11300);
+  assert.equal(result.components[0].source.startsWith("https://"), true);
+  assert.equal(result.lineTaxBreakdown[0].ruleSnapshot.jurisdictionId, "ON");
+});
