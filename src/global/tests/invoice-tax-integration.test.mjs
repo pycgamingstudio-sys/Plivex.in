@@ -212,12 +212,14 @@ test("US/Canada manual rates require user attestation", () => {
 
 
 test("Canada automatic GST/HST uses selected destination province and a confirmed collection obligation", () => {
-  const result = calculateInvoiceGlobalTax(invoice("CAD", {
+  const document = invoice("CAD", {
     mode: "automatic",
     destinationJurisdiction: { province: "ON" },
     collectionObligationAttested: true,
-  }), profile("CA", "CAD"));
-  assert.equal(result.ok, true);
+  });
+  document.issueDate = "2026-11-20";
+  const result = calculateInvoiceGlobalTax(document, profile("CA", "CAD"));
+  assert.equal(result.ok, true, result.message || result.code);
   assert.equal(result.taxMinor, 1300);
   assert.equal(result.totalMinor, 11300);
   assert.equal(result.jurisdictionEvidence, "user-attested");
