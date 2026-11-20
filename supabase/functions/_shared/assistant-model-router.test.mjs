@@ -77,6 +77,30 @@ test("Groq is never called unless explicitly enabled", async () => {
   assert.equal(urls.length, 0);
 });
 
+test("Retry-After and reset headers are parsed safely", async () => {
+  const { parseRetryAfterSeconds } = await import("./assistant-model-router.mjs");
+  assert.equal(parseRetryAfterSeconds({ get: (name) => name === "retry-after" ? "3" : null }), 3);
+  assert.equal(parseRetryAfterSeconds({ get: (name) => name === "x-ratelimit-reset-requests" ? "2m30s" : null }), 150);
+  assert.equal(parseRetryAfterSeconds({ get: () => null }), null);
+});
+
+test("OpenRouter free-tier 429 stops before trying another shared-cap model", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push(url.includes("openrouter") ? JSON.parse(options.body).model : "gemini");
+    if (url.includes("generativelanguage.googleapis.com")) return response(429, { error: { message: "quota" } });
+    return {
+      ...response(429, { error: { message: "free account daily limit" } }),
+      headers: { get: (name) => name === "retry-after" ? "86400" : null },
+    };
+  };
+  const result = await generateWithFallback({ requestOptions, geminiKey: "test", openRouterKey: "test", fetchImpl, totalTimeoutMs: 10000 });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 429);
+  assert.equal(result.retryAfterSeconds, 86400);
+  assert.deepEqual(calls, ["gemini", DEFAULT_OPENROUTER_MODELS[0]]);
+});
+
 test("provider status classification includes throttling and upstream outages", () => {
   for (const status of [408, 409, 425, 429, 500, 502, 503, 504, 401, 402, 403, 404]) assert.equal(isRetryableProviderStatus(status), true);
   assert.equal(isRetryableProviderStatus(400), false);
