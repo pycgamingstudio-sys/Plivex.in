@@ -95,12 +95,15 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   }, [account.email, account.workspace_id, countryCode, invoke, onRefresh]);
 
   useEffect(() => {
+    const inherited = invoices.find((invoice) => invoice.id === selectedId)?.invoice_snapshot?.quotation_tax_context;
     setTaxContext({
       countryCode, mode:"automatic", priceMode:"exclusive", placeOfSupply:"",
       placeOfSupplyConfirmed:false, taxCategory:"standard-rated", taxCategoryConfirmed:false,
       registrationConfirmed:false, taxDetailsConfirmed:false, collectionObligationAttested:false, components:[],
+      ...(inherited && typeof inherited === "object" ? inherited : {}),
+      countryCode,
     });
-  }, [countryCode, selectedId]);
+  }, [countryCode, selectedId, invoices]);
 
   useEffect(() => { refresh().catch((e) => setError(e.message || "Could not load Global invoices.")); }, [refresh]);
 
