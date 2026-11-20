@@ -46,7 +46,7 @@ test("Global quotations remain permanently visible outside More Features", async
   assert.match(panel, /Save quotation draft/);
   assert.match(panel, /Convert to invoice draft/);
   assert.match(panel, /Download PDF/);
-  assert.match(panel, /not an invoice or tax invoice/i);
+  assert.match(panel, /Quotation only.*not a tax invoice/i);
 });
 
 test("quotation totals and statuses cannot create payment or tax side effects", async () => {
@@ -54,9 +54,29 @@ test("quotation totals and statuses cannot create payment or tax side effects", 
   const panel = await read("../../components/global/GlobalQuotationsPanel.jsx");
   assert.match(migration, /if v_quote\.status<>'accepted' then/);
   assert.match(migration, /'Converted from quotation '/);
-  assert.match(panel, /Taxes are not calculated or assessed by Plivex/);
+  assert.match(panel, /tax_status/);
+  assert.match(panel, /taxPreview/);
+  assert.match(panel, /tax review required/i);
+  assert.doesNotMatch(panel, /Taxes are not calculated or assessed by Plivex/);
   assert.match(panel, /cannot accept payments/);
   assert.match(panel, /action: "convert"/);
+});
+
+
+test("quotation tax snapshots use the invoice tax engine and are verified before sending", async () => {
+  const migration = await read("../../../supabase/migrations/20261120060000_global_quotation_tax_snapshot.sql");
+  const edge = await read("../../../supabase/functions/global-quotations/index.ts");
+  const panel = await read("../../components/global/GlobalQuotationsPanel.jsx");
+  assert.match(migration, /add column if not exists tax_snapshot jsonb/);
+  assert.match(migration, /global_manage_quotation_with_tax/);
+  assert.match(migration, /quotation_tax_review_required/);
+  assert.match(migration, /unverified_tax_rule/);
+  assert.match(edge, /global_manage_quotation_with_tax/);
+  assert.match(edge, /p_tax_snapshot: body\.tax_snapshot/);
+  assert.match(panel, /calculateInvoiceGlobalTax/);
+  assert.match(panel, /tax_snapshot:/);
+  assert.match(panel, /Total including tax/);
+  assert.match(panel, /cannot be marked as sent/);
 });
 
 test("mobile onboarding keeps progress, step content and actions within the phone viewport", async () => {
