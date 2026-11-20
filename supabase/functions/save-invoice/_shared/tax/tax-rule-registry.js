@@ -391,7 +391,8 @@ export function getTaxRuleSet(countryCode, options = {}) {
       countryCode: "CA", currencyCode: "CAD", taxName: components.map((component) => component.name).join(" + "),
       treatment: "standard", jurisdictionId: province, rateBps,
       effectiveFrom: province === "NS" ? "2025-04-01" : "2025-04-01", effectiveTo: null,
-      reviewedOn: "2026-11-20", source: CA_RATE_SOURCE, sourceAuthority: "Canada Revenue Agency",
+      reviewedOn: "2026-11-20", verified: true, reviewedBy: "Plivex tax rule review",
+      source: CA_RATE_SOURCE, sourceAuthority: "Canada Revenue Agency",
       scope: "province", coverage: "federal-gst-hst-and-general-provincial-sales-tax-baselines; product-specific-exceptions-not-included",
       components,
     };
