@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { createRoot } from "react-dom/client";
 import { InvoicePreview } from "./Home";
 import { History, Trash2, Eye, Download, Share2 } from "lucide-react";
+import { useDialogA11y } from "@/lib/useDialogA11y";
 import { Switch } from "@/components/ui/switch";
 import PageShell from "@/components/PageShell";
 import { KEYS, loadList, removeItem, saveList, saveState } from "@/lib/stores";
@@ -30,6 +31,7 @@ export default function InvoiceHistory() {
   const noGlobalRefresh = useCallback(() => {}, []);
   const [items, setItems] = useState(() => loadList(KEYS.history, { includeCancelled: true }));
   const [view, setView] = useState(null);
+  const viewDialogRef = useDialogA11y(Boolean(view), () => setView(null));
   const [filter, setFilter] = useState("all");
   const [reminderEvents, setReminderEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
@@ -303,8 +305,8 @@ export default function InvoiceHistory() {
       )}
       {view && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setView(null)}>
-          <div className="w-full max-w-[420px] rounded-2xl border bg-card p-5 text-card-foreground shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between"><div><p className="font-mono-ui text-[10px] uppercase tracking-wider text-primary">{view.number || "INV-000"}</p><h3 className="mt-1 text-lg font-bold">{view.clientName || "Client"}</h3></div><button onClick={() => setView(null)} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary">✕</button></div>
+          <div ref={viewDialogRef} role="dialog" aria-modal="true" aria-labelledby="invoice-view-dialog-title" tabIndex={-1} className="max-h-[min(88dvh,700px)] w-full max-w-[420px] overflow-y-auto overscroll-contain rounded-2xl border bg-card p-5 text-card-foreground shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between"><div><p className="font-mono-ui text-[10px] uppercase tracking-wider text-primary">{view.number || "INV-000"}</p><h3 id="invoice-view-dialog-title" className="mt-1 text-lg font-bold">{view.clientName || "Client"}</h3></div><button onClick={() => setView(null)} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary">✕</button></div>
             {view.isDraft && view.invoiceSnapshot && <button onClick={() => editDraft(view)} className="mt-4 w-full rounded-lg bg-primary px-3 py-2.5 text-xs font-semibold text-primary-foreground">Edit draft</button>}
             <div className="mt-4 grid grid-cols-2 gap-3 text-[12px]">
               <div><p className="text-muted-foreground">Business</p><p className="font-semibold">{view.businessName || "—"}</p></div>
