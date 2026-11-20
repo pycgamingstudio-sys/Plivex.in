@@ -8,7 +8,7 @@ import {
 
 const rule = {
   id: "GB-VAT-STANDARD-2026-11", version: "2026.11", catalogVersion: "2026.11.1",
-  source: "https://www.gov.uk/vat-rates", sourceAuthority: "UK HM Revenue & Customs",
+  source: "https://www.gov.uk/vat-rates", sourceAuthority: "UK HM Revenue & Customs", treatment: "standard",
   effectiveFrom: "2011-01-04", effectiveTo: null, coverage: "standard-rate-only",
 };
 const result = {
@@ -37,6 +37,7 @@ test("only calculated, source-backed, effective tax results can be frozen", () =
   const created = makeSnapshot();
   assert.equal(created.ok, true);
   assert.equal(created.snapshot.totalMinor, 12000);
+  assert.equal(created.snapshot.schemaVersion, "2");
   assert.equal(created.snapshot.rule.id, rule.id);
   assert.equal(created.snapshot.treatment, "standard");
   assert.equal(created.snapshot.taxDisclosure, result.taxDisclosure);
@@ -97,5 +98,7 @@ test("zero-rated and exempt treatment disclosures remain distinct in immutable s
 test("snapshot rejects inconsistent zero-charge treatment or missing disclosure", () => {
   assert.equal(makeSnapshot({ taxResult: { ...result, treatment: "exempt", taxCharged: false } }).code, "TAX_TREATMENT_SNAPSHOT_INVALID");
   assert.equal(makeSnapshot({ taxResult: { ...result, taxDisclosure: "", } }).code, "TAX_TREATMENT_SNAPSHOT_INVALID");
+  assert.equal(makeSnapshot({ taxResult: { ...result, taxDisclosure: "Exempt supply — no tax charged under the selected verified rule." } }).code, "TAX_TREATMENT_SNAPSHOT_INVALID");
+  assert.equal(makeSnapshot({ taxResult: { ...result, ruleSnapshot: { ...rule, treatment: "exempt" } } }).code, "TAX_TREATMENT_RULE_MISMATCH");
   assert.equal(makeSnapshot({ taxResult: { ...result, treatment: "zero-rated", taxCharged: false, taxMinor: 100 } }).code, "TAX_TREATMENT_SNAPSHOT_INVALID");
 });
