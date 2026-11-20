@@ -91,7 +91,7 @@ test("treatment must match the verified rule and unsupported reverse charge fail
 
 test("US and Canada still require exact jurisdiction rules; no national rate is added", () => {
   assert.equal(calculateGlobalTax({ ...base, countryCode: "US", currencyCode: "USD", treatment: "standard" }).code, "JURISDICTION_RULE_REQUIRED");
-  assert.equal(calculateGlobalTax({ ...base, countryCode: "CA", currencyCode: "CAD", treatment: "standard" }).code, "JURISDICTION_RULE_REQUIRED");
+  assert.equal(calculateGlobalTax({ ...base, countryCode: "CA", currencyCode: "CAD", treatment: "standard" }).code, "CANADIAN_PROVINCE_REQUIRED");
 });
 
 test("UK domestic fuel and power reduced-rate rule is available only for its exact confirmed category", () => {
