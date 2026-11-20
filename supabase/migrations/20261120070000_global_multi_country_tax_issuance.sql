@@ -2,6 +2,14 @@
 -- US remains fail-closed until an address-level, maintained state/local rule source is integrated.
 begin;
 
+alter table global.tax_rule_versions
+  drop constraint if exists tax_rule_versions_treatment_check;
+alter table global.tax_rule_versions
+  add constraint tax_rule_versions_treatment_check
+  check (treatment in ('standard','reduced','zero-rated','gst-free','exempt','reverse-charge','out-of-scope'));
+
+
+
 alter table global.invoice_items
   alter column tax_rate_bps type numeric(7,1)
   using tax_rate_bps::numeric;
@@ -267,11 +275,11 @@ begin
     v_tax_system := 'GST/HST/PST/QST'; v_rule_version := '2025.04';
     v_rule_source := 'https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html';
     v_rule_authority := 'Canada Revenue Agency'; v_effective_from := '2025-04-01'; v_reviewed_on := '2026-11-20';
-    if v_province in ('BC','MB','SK') then
+    if v_treatment='standard' and v_province in ('BC','MB','SK') then
       if v_tax_category <> 'CA_' || v_province || '_PST_TAXABLE_GOODS' then
         return jsonb_build_object('ok',false,'reason','canadian_pst_taxability_required');
       end if;
-    elsif v_tax_category <> 'STANDARD-RATED' then
+    elsif v_treatment='standard' and v_tax_category <> 'STANDARD-RATED' then
       return jsonb_build_object('ok',false,'reason','verified_treatment_rule_required');
     end if;
     if v_province = 'AB' then
