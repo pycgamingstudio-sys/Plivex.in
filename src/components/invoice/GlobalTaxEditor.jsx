@@ -108,7 +108,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
           )}
         </label>
         <label className={labelClass}>Tax treatment
-          <select className={fieldClass} value={config.taxTreatment || "standard"} onChange={(e) => update({ taxTreatment: e.target.value, taxCategory: "", taxCategoryConfirmed: false, taxDetailsConfirmed: false })}>
+          <select className={fieldClass} value={config.taxTreatment || "standard"} onChange={(e) => update({ taxTreatment: e.target.value, taxCategory: "", taxCategoryConfirmed: false, taxDetailsConfirmed: false, ...(e.target.value === "reverse-charge" ? { priceMode: "exclusive" } : {}) })}>
             <option value="standard">Standard-rated</option>
             {["AE","SG","CA"].includes(countryCode) && <option value="zero-rated">Zero-rated · 0%</option>}{countryCode === "GB" && <option value="reduced">Reduced-rated · 5%</option>}{countryCode === "AU" && <option value="gst-free">GST-free · 0%</option>}{countryCode === "CA" && <option value="zero-rated">Zero-rated · 0%</option>}
             {["AE","AU","SG"].includes(countryCode) && <option value="exempt">Exempt · no tax charged</option>}
@@ -127,9 +127,28 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
             {countryCode === "SG" && config.taxTreatment === "zero-rated" && <option value="SG_ZERO_RATED_EXPORTS_INTERNATIONAL_SERVICES">Qualifying exports / international services</option>}
             {countryCode === "SG" && config.taxTreatment === "exempt" && <option value="SG_EXEMPT_FINANCIAL_SERVICES">Qualifying exempt financial services</option>}
             {countryCode === "SG" && config.taxTreatment === "out-of-scope" && <option value="SG_OUT_OF_SCOPE_OVERSEAS_TO_OVERSEAS_GOODS">Goods delivered overseas to overseas</option>}
+            {countryCode === "GB" && config.taxTreatment === "reverse-charge" && <option value="GB_DOMESTIC_CONSTRUCTION_REVERSE_CHARGE">Eligible domestic construction services (buyer must be VAT registered)</option>}
           </select>
         </label>
       </div>
+
+      {countryCode === "GB" && config.taxTreatment === "reverse-charge" && (
+        <div className="mt-3 rounded-lg border p-3 text-xs">
+          <p className="font-bold">Buyer registration and reverse-charge eligibility</p>
+          <p className="mt-1 text-muted-foreground">This category is limited to qualifying UK domestic construction services. Do not select it for an ordinary sale or where an exception applies.</p>
+          <label className={labelClass + " mt-3"}>Buyer VAT registration number
+            <input className={fieldClass} maxLength={80} value={config.buyerRegistrationNumber || ""} onChange={(e) => update({ buyerRegistrationNumber: e.target.value, buyerRegistrationConfirmed: false })} placeholder="Enter buyer's VAT registration number" />
+          </label>
+          <label className="mt-3 flex items-start gap-2">
+            <input type="checkbox" checked={config.buyerRegistrationConfirmed === true} onChange={(e) => update({ buyerRegistrationConfirmed: e.target.checked, buyerRegistrationStatus: e.target.checked ? "registered" : "unregistered" })} />
+            <span>I confirm the buyer's VAT registration is active and matches the customer record.</span>
+          </label>
+          <label className="mt-2 flex items-start gap-2">
+            <input type="checkbox" checked={config.reverseChargeConditionsConfirmed === true} onChange={(e) => update({ reverseChargeConditionsConfirmed: e.target.checked })} />
+            <span>I confirm this supply meets the UK domestic construction reverse-charge conditions and no exception applies.</span>
+          </label>
+        </div>
+      )}
 
       <div className="mt-3 rounded-lg bg-muted/40 p-3 text-xs">
         <label className="flex min-h-11 cursor-pointer items-start gap-3">
