@@ -63,8 +63,8 @@ export default function StockTab() {
         <SummaryCard label="Low Stock Alerts" value={String(lowCount)} gradient={lowCount > 0 ? "bg-gradient-to-br from-[#E11D48] to-[#F43F5E]" : "bg-gradient-to-br from-[#6D28D9] to-[#7C3AED]"} icon={AlertTriangle} badge={lowCount > 0 ? "restock soon" : "all good"} />
       </div>
 
-      <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-[#E5E7EB] p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="plivex-hover-lift overflow-hidden rounded-2xl border border-[#E8E7EF] bg-white shadow-[0_1px_2px_rgba(24,24,40,.03),0_8px_24px_rgba(24,24,40,.035)]">
+        <div className="flex flex-col gap-3 border-b border-[#E8E7EF] bg-[#FCFBFE] p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative max-w-xs flex-1">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search products…" className={`${inputCls} pl-9`} />
@@ -122,7 +122,7 @@ export default function StockTab() {
           <div className="space-y-2.5 p-3 md:hidden">
             {filtered.map((product) => {
               const low = isLow(product);
-              return <article key={product.id} className="rounded-xl border border-slate-200 bg-white p-3.5">
+              return <article key={product.id} className="rounded-xl border border-[#E8E7EF] bg-gradient-to-br from-white to-[#FAF9FF] p-3.5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0"><p className="break-words text-[13px] font-bold text-slate-900">{product.name}</p><p className="mt-0.5 break-all text-[10px] text-slate-500">{product.sku || "No SKU"}{product.barcode ? " · " + product.barcode : ""}</p></div>
                   <span className={low ? "shrink-0 rounded-full bg-rose-100 px-2 py-1 text-[9px] font-bold text-rose-700" : "shrink-0 rounded-full bg-emerald-100 px-2 py-1 text-[9px] font-bold text-emerald-700"}>{low ? "Low stock" : "In stock"}</span>
@@ -163,8 +163,8 @@ function ProductModal({ value, isEdit, items = [], currencyCode = "INR", onClose
   const isCustomUnit = customUnit;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-labelledby="stock-product-modal-title" className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[440px] flex-col overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-slate-100 bg-white px-5 py-4"><h3 id="stock-product-modal-title" className="text-lg font-bold text-slate-900">{isEdit ? "Edit product" : "Add product"}</h3><button type="button" onClick={onClose} aria-label="Close product form" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
+      <div role="dialog" aria-modal="true" aria-labelledby="stock-product-modal-title" className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[440px] flex-col overflow-hidden rounded-2xl border border-[#E8E7EF] bg-white shadow-[0_24px_72px_rgba(15,23,42,.18)]" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-slate-100 bg-gradient-to-r from-white to-[#FAF9FF] px-5 py-4"><h3 id="stock-product-modal-title" className="text-lg font-bold text-slate-900">{isEdit ? "Edit product" : "Add product"}</h3><button type="button" onClick={onClose} aria-label="Close product form" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4"><div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-[12px] font-semibold text-slate-500 sm:col-span-2">Product name<input className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Product name" /></label>
           <label className="block text-[12px] font-semibold text-slate-500">SKU<input className={inputCls} value={form.sku} onChange={(e) => set("sku", e.target.value)} placeholder="SKU-001" /></label>

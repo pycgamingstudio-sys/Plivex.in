@@ -18,7 +18,8 @@ test("single workspace dashboard displays the selected country without an India-
 test("legacy Global layout is isolated from the single Workspace label", () => {
   const layout = read("../../components/AppLayout.jsx");
   const global = read("../GlobalApp.jsx");
-  assert.match(layout, /Global Workspace/);
+  assert.match(layout, /Workspace/);
+  assert.doesNotMatch(layout, /Global Workspace/);
   assert.match(layout, /user\?\.workspace_name/);
   assert.match(layout, /user\?\.country_code/);
   assert.match(layout, /user\?\.currency_code/);

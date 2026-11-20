@@ -79,7 +79,7 @@ export default function ReportsTab() {
 
   return (
     <div className="space-y-5">
-      <section className="flex flex-wrap items-end gap-3 rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm" aria-label="Report date range">
+      <section className="flex flex-wrap items-end gap-3 rounded-2xl border border-[#E8E7EF] bg-white p-4 shadow-[0_1px_2px_rgba(24,24,40,.03),0_8px_24px_rgba(24,24,40,.035)]" aria-label="Report date range">
         <div className="mr-auto"><h3 className="text-[14px] font-bold text-slate-900">Report period</h3><p className="text-[11px] text-slate-500">Choose a date range for sales and expense records.</p></div>
         <label className="grid gap-1 text-[11px] font-semibold text-slate-600">From<input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} className="min-h-9 rounded-lg border border-slate-200 px-2.5 text-[12px]" /></label>
         <label className="grid gap-1 text-[11px] font-semibold text-slate-600">To<input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} className="min-h-9 rounded-lg border border-slate-200 px-2.5 text-[12px]" /></label>
@@ -96,11 +96,11 @@ export default function ReportsTab() {
       </div>
       <section className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
         <h3 className="text-[14px] font-bold text-slate-900">Payment position</h3>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="rounded-xl bg-emerald-50/70 p-3"><p className="text-[10px] font-semibold uppercase text-emerald-700">Paid / Collected</p><p className="mt-1 break-words text-[15px] font-bold text-emerald-950">{paid}</p></div><div className="rounded-xl bg-amber-50/70 p-3"><p className="text-[10px] font-semibold uppercase text-amber-700">Pending</p><p className="mt-1 break-words text-[15px] font-bold text-amber-950">{pending}</p></div></div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-3"><p className="text-[10px] font-semibold uppercase text-emerald-700">Paid / Collected</p><p className="mt-1 break-words text-[15px] font-bold text-emerald-950">{paid}</p></div><div className="rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50/80 to-white p-3"><p className="text-[10px] font-semibold uppercase text-amber-700">Pending</p><p className="mt-1 break-words text-[15px] font-bold text-amber-950">{pending}</p></div></div>
         {hasMixedOrUnknownCurrency && <p className="mt-3 text-[11px] leading-relaxed text-slate-500">Totals are grouped by recorded currency. Operating difference uses only {currencyCode} records; other currencies are not converted. Some records have no valid recorded currency.</p>}
         <p className="mt-2 text-[11px] leading-relaxed text-slate-500">Operating difference is sales revenue minus recorded expenses. It is not a complete accounting profit figure and excludes taxes, cost of goods, and other adjustments not recorded here.</p>
       </section>
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E8E7EF] bg-white p-4 shadow-[0_1px_2px_rgba(24,24,40,.03),0_8px_24px_rgba(24,24,40,.035)] sm:p-5">
         <div><h3 className="text-[15px] font-bold text-slate-900">Export your books</h3><p className="text-[12px] text-slate-500">Download filtered sales and expense records, including currency.</p></div>
         <button type="button" onClick={canAccess("gstr1") ? doExport : openPaywall} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#6D28D9] px-4 py-2.5 text-[12px] font-bold text-white hover:bg-[#5B21B6]">{canAccess("gstr1") ? <><Download className="h-4 w-4" />Export CSV</> : <><LockKeyhole className="h-4 w-4" />Unlock GSTR-1 Export</>}</button>
       </div>

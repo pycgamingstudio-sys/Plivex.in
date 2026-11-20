@@ -12,8 +12,8 @@ const money = (v) => `₹${(Number(v) || 0).toLocaleString("en-IN", { maximumFra
 // Today's Sales Activity — always shown to the owner, even with zero teammates.
 export default function SalesActivityCard({ todays = [], totals = { invoices: 0, quotations: 0, revenue: 0 }, feed = [], now, loading, error }) {
   return (
-    <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between">
+    <div className="plivex-hover-lift min-w-0 rounded-2xl border border-[#E8E7EF] bg-white p-4 shadow-[0_1px_2px_rgba(24,24,40,.035),0_8px_24px_rgba(24,24,40,.035)] sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#6D28D9]/10 text-[#6D28D9]"><Activity className="h-4 w-4" /></span><h3 className="text-[14px] font-bold text-slate-900">Today's Sales Activity</h3></div>
         <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Live stream</span>
       </div>
@@ -23,10 +23,10 @@ export default function SalesActivityCard({ todays = [], totals = { invoices: 0,
         <p role="status" className="mt-3 py-6 text-center text-[12px] text-slate-400">Loading today's activity…</p>
       ) : (
         <>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            <div className="rounded-xl bg-[#6D28D9]/5 px-3 py-2 text-center"><p className="text-[16px] font-bold text-[#6D28D9]">{totals.invoices}</p><p className="text-[10px] font-semibold text-slate-500">Invoices</p></div>
-            <div className="rounded-xl bg-blue-50 px-3 py-2 text-center"><p className="text-[16px] font-bold text-blue-600">{totals.quotations}</p><p className="text-[10px] font-semibold text-slate-500">Quotations</p></div>
-            <div className="rounded-xl bg-emerald-50 px-3 py-2 text-center"><p className="text-[16px] font-bold text-emerald-600">{money(totals.revenue)}</p><p className="text-[10px] font-semibold text-slate-500">Revenue</p></div>
+          <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
+            <div className="min-w-0 rounded-xl border border-violet-100 bg-violet-50/70 px-2 py-2.5 text-center sm:px-3"><p className="text-[16px] font-bold text-[#6D28D9]">{totals.invoices}</p><p className="text-[10px] font-semibold text-slate-500">Invoices</p></div>
+            <div className="min-w-0 rounded-xl border border-blue-100 bg-blue-50/80 px-2 py-2.5 text-center sm:px-3"><p className="text-[16px] font-bold text-blue-600">{totals.quotations}</p><p className="text-[10px] font-semibold text-slate-500">Quotations</p></div>
+            <div className="min-w-0 rounded-xl border border-emerald-100 bg-emerald-50/80 px-2 py-2.5 text-center sm:px-3"><p className="break-words text-[13px] font-bold text-emerald-700 sm:text-[16px]">{money(totals.revenue)}</p><p className="text-[10px] font-semibold text-slate-500">Revenue</p></div>
           </div>
           {todays.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">

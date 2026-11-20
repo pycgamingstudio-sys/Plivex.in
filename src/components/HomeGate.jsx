@@ -3,6 +3,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { APP_EDITION, isUnifiedBuild } from "@/api/backendClient";
 import AppLayout from "@/components/AppLayout";
+import Logo from "@/components/Logo";
 import { lazy } from "react";
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const GlobalApp = lazy(() => import("@/global/GlobalApp"));
@@ -28,8 +29,10 @@ export default function HomeGate() {
 
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+      <div className="plivex-auth-shell fixed inset-0 flex flex-col items-center justify-center gap-3" role="status" aria-label="Loading Plivex">
+        <Logo className="h-12 w-12" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-100 border-t-[#6D28D9]" aria-hidden="true" />
+        <span className="text-xs font-semibold text-slate-500">Preparing your Plivex workspace…</span>
       </div>
     );
   }

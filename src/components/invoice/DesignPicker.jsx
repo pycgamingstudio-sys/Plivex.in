@@ -14,7 +14,7 @@ function Swatch({ id }) {
 // premium ones are Pro-only and open the upgrade screen when tapped.
 export default function DesignPicker({ value, onChange, canPremium, onLocked }) {
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       {INVOICE_DESIGNS.map((design) => {
         const locked = design.premium && !canPremium;
         const active = value === design.id;
@@ -24,15 +24,17 @@ export default function DesignPicker({ value, onChange, canPremium, onLocked }) 
             type="button"
             data-testid={`button-design-${design.id}`}
             onClick={() => (locked ? onLocked() : onChange(design.id))}
-            className={`rounded-xl border p-2.5 text-left transition-colors ${active ? "border-primary bg-primary/[.04]" : "hover:border-primary/40"}`}
+            aria-pressed={active}
+            aria-label={`${design.label}${locked ? ", Pro plan required" : active ? ", selected" : ""}`}
+            className={`group rounded-xl border p-3 text-left transition-all duration-150 ${active ? "border-primary bg-primary/[.055] shadow-[0_0_0_2px_rgba(109,40,217,.08)]" : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-md"}`}
           >
-            <Swatch id={design.id} />
-            <div className="mt-2 flex items-center gap-1.5">
+            <div className="rounded-lg bg-slate-50 p-1"><div className="rounded-lg bg-slate-50 p-1"><Swatch id={design.id} /></div></div>
+            <div className="mt-2.5 flex items-center gap-1.5">
               <span className="text-[12px] font-bold">{design.label}</span>
               {locked && <span className="ml-auto flex items-center gap-1 rounded bg-primary/15 px-1.5 py-0.5 font-mono-ui text-[9px] font-bold uppercase text-primary"><Lock className="h-2.5 w-2.5" />Pro</span>}
               {active && !locked && <span className="ml-auto flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground"><Check className="h-2.5 w-2.5" /></span>}
             </div>
-            <p className="mt-0.5 text-[10px] text-muted-foreground">{design.blurb}</p>
+            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{design.blurb}</p>
           </button>
         );
       })}
