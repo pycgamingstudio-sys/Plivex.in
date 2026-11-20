@@ -297,7 +297,9 @@ test("mixed UK invoice lines calculate separate verified rates after exact perce
   assert.equal(result.lineTaxBreakdown[1].taxMinor, 450);
   assert.equal(result.lineTaxBreakdown[0].treatment, "standard");
   assert.equal(result.lineTaxBreakdown[1].treatment, "reduced");
-  assert.equal(result.taxSnapshot, null);
+  assert.equal(result.taxSnapshot.immutable, true);
+  assert.equal(result.taxSnapshot.treatment, "mixed");
+  assert.equal(result.taxSnapshot.lineRules.length, 2);
 });
 
 test("line-level tax overrides require explicit treatment and category confirmation", () => {
