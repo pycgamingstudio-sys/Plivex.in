@@ -28,6 +28,9 @@ export function getGlobalInvoiceDocumentTitle(snapshot = {}, status = "draft") {
 
 export function getGlobalInvoiceTaxDisclosure(snapshot = {}) {
   if (typeof snapshot.tax_disclosure === "string" && snapshot.tax_disclosure.trim()) return snapshot.tax_disclosure;
+  if (snapshot.tax_treatment === "reverse-charge" || snapshot.reverse_charge_buyer_accounting === true) {
+    return "Reverse charge applies under the selected verified rule. The buyer accounts for the tax; it is not added to the seller's payable invoice total. Confirm buyer registration and transaction eligibility.";
+  }
   if (snapshot.tax_status === "calculated") return "Tax details are recorded in the issued invoice snapshot.";
   return "Tax has not been calculated or validated by Plivex. Confirm the applicable treatment with a qualified adviser.";
 }
