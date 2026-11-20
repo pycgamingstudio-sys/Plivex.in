@@ -76,6 +76,12 @@ Deno.serve(async (req: Request) => {
       if (taxResult.ok === true) verifiedGlobalTaxResult = taxResult as unknown as Record<string, unknown>;
       body.invoice_snapshot = {
         ...taxInput,
+        documentType: "draft_invoice",
+        documentStatus: "draft",
+        document_type: "draft_invoice",
+        document_status: "draft",
+        country_code: countryCode,
+        currency_code: requestedCurrency,
         globalTaxCalculation: { ...taxResult, countryCode },
         globalTaxProfileSnapshot: {
           countryCode,
@@ -166,6 +172,13 @@ Deno.serve(async (req: Request) => {
           .eq("id", saved.id).eq("workspace_id", userProfile.workspace_id).eq("is_draft", true);
         if (linkClientError) return json({ error: "Invoice draft saved, but its customer link could not be synchronized." }, 500, origin);
       }
+    }
+
+    if (isNonIndiaInvoice && body?.issue_invoice !== true && body?.invoice_snapshot) {
+      const { error: snapshotError } = await db.from("invoices").update({
+        invoice_snapshot: body.invoice_snapshot,
+      }).eq("id", saved.id).eq("workspace_id", userProfile.workspace_id).eq("is_draft", true);
+      if (snapshotError) return json({ error: "Draft saved, but its invoice snapshot could not be synchronized." }, 500, origin);
     }
 
     if (verifiedGlobalTaxResult && !(isNonIndiaInvoice && body?.issue_invoice === true)) {
