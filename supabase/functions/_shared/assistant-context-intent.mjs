@@ -4,7 +4,7 @@ const LEAD_ACTIVITIES_PATTERN = /\b(lead|follow.?up|lead history|lead activity)\
 const RECEIPT_ITEMS_PATTERN = /\b(purchase receipt|goods receipt|receipt item|received item)\b|माल प्राप्त|रसीद की वस्तु/i;
 const REMINDERS_PATTERN = /\b(reminders?|remind|notification|due alert)\b|रिमाइंडर|याद दिला/i;
 const STOCK_ALLOCATIONS_PATTERN = /\b(stock allocation|allocated stock|invoice stock|stock allocated)\b|स्टॉक आवंटन/i;
-const ACCOUNTING_PATTERN = /\b(accounting|chart of accounts|account code|account head|ledger account)\b|लेखा|खाता शीर्ष/i;
+const ACCOUNTING_PATTERN = /\b(accounting|chart of accounts|account code|account head|ledger accounts?)\b|लेखा|खाता शीर्ष/i;
 const WORKSPACE_SETTINGS_PATTERN = /\b(workspace settings|country code|locale|currency|workspace type)\b|कार्यस्थल सेटिंग/i;
 const MEMBERS_PATTERN = /\b(team|member|members|staff|employee)\b|टीम|कर्मचारी|सदस्य/i;
 
