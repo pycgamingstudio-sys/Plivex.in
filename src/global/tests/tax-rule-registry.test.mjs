@@ -51,6 +51,37 @@ test("India, US and Canada never receive an invented national Global rate", () =
   assert.equal(getCountryStandardRateRule("CA"), null);
 });
 
+
+test("Canadian province rules include CRA-published provincial sales tax components", () => {
+  const expected = {
+    AB: { rateBps: 500, components: { GST: 500 } },
+    BC: { rateBps: 1200, components: { GST: 500, PST: 700 } },
+    MB: { rateBps: 1200, components: { GST: 500, RST: 700 } },
+    NB: { rateBps: 1500, components: { HST: 1500 } },
+    NL: { rateBps: 1500, components: { HST: 1500 } },
+    NS: { rateBps: 1400, components: { HST: 1400 } },
+    NT: { rateBps: 500, components: { GST: 500 } },
+    NU: { rateBps: 500, components: { GST: 500 } },
+    ON: { rateBps: 1300, components: { HST: 1300 } },
+    PE: { rateBps: 1500, components: { HST: 1500 } },
+    SK: { rateBps: 1100, components: { GST: 500, PST: 600 } },
+    QC: { rateBps: 1497.5, components: { GST: 500, QST: 997.5 } },
+    YT: { rateBps: 500, components: { GST: 500 } },
+  };
+  for (const [province, expectedRule] of Object.entries(expected)) {
+    const result = getTaxRuleSet("CA", { jurisdictionId: province, asOfDate: "2026-11-20" });
+    assert.equal(result.ok, true, province);
+    assert.equal(result.rule.rateBps, expectedRule.rateBps, province);
+    assert.deepEqual(
+      Object.fromEntries(result.rule.components.map(({ name, rateBps }) => [name, rateBps])),
+      expectedRule.components,
+      province,
+    );
+    assert.equal(result.rule.sourceAuthority, "Canada Revenue Agency");
+    assert.equal(result.rule.coverage, "federal-gst-or-harmonized-hst-only-provincial-sales-taxes-excluded");
+  }
+});
+
 test("unsupported and malformed country codes fail closed", () => {
   assert.equal(getTaxRuleSet("DE").code, "COUNTRY_TAX_NOT_CONFIGURED");
   assert.equal(getTaxRuleSet("ZZ").code, "COUNTRY_TAX_NOT_CONFIGURED");

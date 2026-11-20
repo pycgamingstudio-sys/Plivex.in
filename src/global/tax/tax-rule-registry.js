@@ -14,7 +14,7 @@
  * - Do not promote a rule to active until its scope and effective dates are
  *   reviewed. This code catalogue is not a live database or legal advice.
  */
-export const TAX_RULE_CATALOG_VERSION = "2026.11.3";
+export const TAX_RULE_CATALOG_VERSION = "2026.11.4";
 export const TAX_ENGINE_VERSION = "1.0.0";
 
 const freezeRule = (rule) => Object.freeze({
@@ -69,8 +69,8 @@ const COUNTRY_PROFILES = Object.freeze({
 
 const CA_PROVINCE_RULES = Object.freeze({
   AB: { name: "Alberta", components: [{ id: "CA-AB-GST", name: "GST", rateBps: 500 }] },
-  BC: { name: "British Columbia", components: [{ id: "CA-BC-GST", name: "GST", rateBps: 500 }] },
-  MB: { name: "Manitoba", components: [{ id: "CA-MB-GST", name: "GST", rateBps: 500 }] },
+  BC: { name: "British Columbia", components: [{ id: "CA-BC-GST", name: "GST", rateBps: 500 }, { id: "CA-BC-PST", name: "PST", rateBps: 700 }] },
+  MB: { name: "Manitoba", components: [{ id: "CA-MB-GST", name: "GST", rateBps: 500 }, { id: "CA-MB-RST", name: "RST", rateBps: 700 }] },
   NB: { name: "New Brunswick", components: [{ id: "CA-NB-HST", name: "HST", rateBps: 1500 }] },
   NL: { name: "Newfoundland and Labrador", components: [{ id: "CA-NL-HST", name: "HST", rateBps: 1500 }] },
   NS: { name: "Nova Scotia", components: [{ id: "CA-NS-HST", name: "HST", rateBps: 1400 }] },
@@ -78,8 +78,8 @@ const CA_PROVINCE_RULES = Object.freeze({
   NU: { name: "Nunavut", components: [{ id: "CA-NU-GST", name: "GST", rateBps: 500 }] },
   ON: { name: "Ontario", components: [{ id: "CA-ON-HST", name: "HST", rateBps: 1300 }] },
   PE: { name: "Prince Edward Island", components: [{ id: "CA-PE-HST", name: "HST", rateBps: 1500 }] },
-  SK: { name: "Saskatchewan", components: [{ id: "CA-SK-GST", name: "GST", rateBps: 500 }] },
-  QC: { name: "Quebec", components: [{ id: "CA-QC-GST", name: "GST", rateBps: 500 }] },
+  SK: { name: "Saskatchewan", components: [{ id: "CA-SK-GST", name: "GST", rateBps: 500 }, { id: "CA-SK-PST", name: "PST", rateBps: 600 }] },
+  QC: { name: "Quebec", components: [{ id: "CA-QC-GST", name: "GST", rateBps: 500 }, { id: "CA-QC-QST", name: "QST", rateBps: 997.5 }] },
   YT: { name: "Yukon", components: [{ id: "CA-YT-GST", name: "GST", rateBps: 500 }] },
 });
 const CA_RATE_SOURCE = "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html";
