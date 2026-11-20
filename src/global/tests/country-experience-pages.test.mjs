@@ -68,8 +68,8 @@ test("public marketing copy presents one unified Plivex product with country-awa
   const about = await read("../../components/landing/AboutSection.jsx");
   assert.doesNotMatch(pages, /platform for Indian small businesses/);
   assert.match(pages, /tax fields and invoice issuance depend on the selected country/i);
-  assert.match(about, /India edition: CGST\/SGST\/IGST auto-breakup/);
-  assert.doesNotMatch(about, /India edition:|Global UI:/);
+  assert.match(about, /same connected business workspace/i);
+  assert.doesNotMatch(about, /India edition:|Global UI:|Global capabilities are being introduced in stages/);
 
 });
 
