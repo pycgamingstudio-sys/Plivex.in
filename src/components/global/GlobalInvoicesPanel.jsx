@@ -329,6 +329,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       } else {
         const taxName = experience?.business.taxName || "Tax";
         const components = Array.isArray(snap.calculation?.components) ? snap.calculation.components : [];
+        const isReverseCharge = snap.tax_treatment === "reverse-charge" || snap.reverse_charge_buyer_accounting === true;
         if (components.length) {
           for (const component of components) {
             const componentRate = Number(component.rate_bps) / 100;
@@ -339,7 +340,12 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
           doc.text(taxName + ": " + money(totalValue(invoice.tax_minor), invoiceCurrency), 16, y);
           y += 7;
         }
-        doc.text("Total tax: " + money(totalValue(invoice.tax_minor), invoiceCurrency), 16, y); y += 7;
+        if (isReverseCharge) {
+          doc.text("Reverse-charge tax (buyer accounts): " + money(totalValue(snap.calculation?.reverse_charge_tax_minor), invoiceCurrency), 16, y); y += 7;
+          doc.text("Tax charged by seller: " + money(0, invoiceCurrency), 16, y); y += 7;
+        } else {
+          doc.text("Total tax: " + money(totalValue(invoice.tax_minor), invoiceCurrency), 16, y); y += 7;
+        }
       }
       doc.setFontSize(13); doc.text("Total: " + money(totalValue(invoice.total_minor), invoiceCurrency), 16, y);
       doc.setFontSize(7);
