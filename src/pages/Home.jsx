@@ -70,11 +70,11 @@ const initialInvoice = {
   notes: "", terms: "", upiId: "", design: "classic",
 };
 
-const inputClass = "mt-1.5 w-full rounded-lg border bg-card px-3 py-2.5 text-[13px] text-foreground transition-colors placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/10";
-const smallInputClass = "w-full rounded-md border bg-card px-2.5 py-2 text-[13px] text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10";
-const descInputClass = "w-full min-w-0 rounded-lg border bg-card px-3.5 py-3 text-[14px] text-foreground transition-colors placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/10";
+const inputClass = "plivex-form-field mt-1.5 min-h-10 w-full rounded-xl border border-border bg-card px-3 py-2.5 text-[13px] leading-5 text-foreground shadow-[0_1px_2px_rgba(15,23,42,.025)] transition-[border-color,box-shadow] placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/10";
+const smallInputClass = "plivex-form-field min-h-9 w-full rounded-lg border border-border bg-card px-2.5 py-2 text-[13px] text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10";
+const descInputClass = "plivex-form-field min-h-11 w-full min-w-0 rounded-xl border border-border bg-card px-3.5 py-3 text-[14px] text-foreground transition-colors placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/10";
 const itemDescInputClass = "block w-full min-w-0 max-w-full rounded-lg border bg-card px-3 text-[14px] text-black transition-colors placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/10 sm:px-3.5";
-const dateInputClass = "mt-1.5 block h-11 w-full min-w-0 cursor-pointer rounded-lg border bg-card px-3 text-[15px] font-medium text-foreground transition-colors focus:border-primary focus:ring-2 focus:ring-primary/10 sm:min-w-[150px]";
+const dateInputClass = "plivex-form-field mt-1.5 block h-11 w-full min-w-0 cursor-pointer rounded-xl border border-border bg-card px-3 text-[14px] font-medium text-foreground transition-colors focus:border-primary focus:ring-2 focus:ring-primary/10 sm:min-w-[150px]";
 const invalidInputClass = "border-destructive focus:border-destructive focus:ring-destructive/10";
 const withErrorClass = (baseClass, error) => `${baseClass} ${error ? invalidInputClass : ""}`;
 
@@ -97,7 +97,7 @@ function useStored(key, fallback, resetMarker) {
 
 function Field({ label, children, hint, error }) {
   return (
-    <label className="block text-[12px] font-semibold text-muted-foreground">
+    <label className="block min-w-0 text-[12px] font-semibold leading-5 text-slate-600">
       <span className="flex items-center justify-between">{label}{hint && <span className="font-normal opacity-70">{hint}</span>}</span>
       {children}
       {error && <span className="mt-1 flex items-center gap-1 text-[11px] font-medium text-destructive"><AlertCircle className="h-3 w-3" />{error}</span>}
@@ -112,11 +112,11 @@ function openPicker(event) {
 
 function SectionCard({ icon: Icon, title, eyebrow, children, action }) {
   return (
-    <section className="rounded-xl border bg-card p-4 transition-colors sm:p-5">
+    <section className="rounded-2xl border border-[#E8E7EF] bg-white p-4 shadow-[0_1px_2px_rgba(24,24,40,.03)] transition-colors sm:p-5">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary"><Icon className="h-4 w-4" /></div>
-          <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary/70">{eyebrow || "Invoice details"}</p><h2 className="mt-0.5 text-[15px] font-bold tracking-[-0.02em]">{title}</h2></div>
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-100 to-indigo-100 text-primary ring-1 ring-violet-200/60"><Icon className="h-4 w-4" /></div>
+          <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary/70">{eyebrow || "Invoice details"}</p><h2 className="mt-0.5 text-[15px] font-bold tracking-[-0.025em] text-slate-900">{title}</h2></div>
         </div>
         {action}
       </div>
