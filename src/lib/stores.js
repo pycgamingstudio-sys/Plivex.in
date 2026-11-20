@@ -388,7 +388,7 @@ export function useLocalState(key, fallback) {
 
 const invoiceSignature = invoiceSaveSignature;
 
-export async function saveInvoiceToServer(inv) {
+export async function saveInvoiceToServer(inv, { issueInvoice = false } = {}) {
   const workspaceCountry = String(inv.workspaceCountryCode || "").trim().toUpperCase();
   const isGlobalWorkspaceInvoice = Boolean(workspaceCountry && workspaceCountry !== "IN");
   const workspaceCurrency = String(inv.workspaceCurrencyCode || "").trim().toUpperCase();
@@ -410,7 +410,8 @@ export async function saveInvoiceToServer(inv) {
   if (currency !== workspaceCurrency) {
     throw new Error(`Invoice currency (${currency}) must match the workspace base currency (${workspaceCurrency}). Reload the invoice editor and try again.`);
   }
-  const already = _savedSignatures.get(sig);
+  const signatureKey = issueInvoice ? `${sig}:issued` : sig;
+  const already = _savedSignatures.get(signatureKey);
   if (already) return already; // same invoice downloaded or shared again: do not create a duplicate
   const payload = {
     ...(typeof inv.id === "string" && /^[0-9a-f-]{36}$/i.test(inv.id) ? { invoiceId: inv.id } : {}),
@@ -422,7 +423,9 @@ export async function saveInvoiceToServer(inv) {
     tax_rate: num(inv.taxRate),
     discount_type: inv.discountType === "flat" ? "flat" : "percent",
     discount: num(inv.discount),
-    is_draft: isGlobalWorkspaceInvoice,
+    is_draft: isGlobalWorkspaceInvoice && !issueInvoice,
+    issue_invoice: isGlobalWorkspaceInvoice && issueInvoice,
+    issue_idempotency_key: isGlobalWorkspaceInvoice && issueInvoice ? (inv.globalDraftRequestId || crypto.randomUUID()) : null,
     status: "Pending",
     client_name: str(inv.client?.name), client_email: str(inv.client?.email), business_name: str(inv.business?.name),
     issue_date: dateOrNull(inv.issueDate) || new Date().toISOString().slice(0, 10),
@@ -435,8 +438,8 @@ export async function saveInvoiceToServer(inv) {
   if (!saved?.id) throw new Error("The invoice could not be saved.");
   const ui = invoiceToUi(saved);
   cache.history = [ui, ...cache.history.filter((i) => i.id !== ui.id)];
-  const result = { id: ui.id, number: ui.number };
-  _savedSignatures.set(sig, result);
+  const result = { id: ui.id, number: ui.number, issued: !ui.isDraft && isGlobalWorkspaceInvoice };
+  _savedSignatures.set(signatureKey, result);
   refreshKey("stock"); // the server may have reduced stock
   return result;
 }
