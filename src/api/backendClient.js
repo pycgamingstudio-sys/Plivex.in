@@ -18,8 +18,11 @@ export const isUnifiedBuild = BUILD_EDITION === UNIFIED_EDITION_ID;
 export let APP_EDITION = isUnifiedBuild ? "india" : BUILD_EDITION;
 export function setRuntimeEdition(edition, { verifiedGlobal = false } = {}) {
   if (!isSupportedEditionId(edition)) return false;
-  // A non-unified build may switch to Global only after AuthContext has
-  // verified the membership and workspace ID with the server auth RPC.
+  // The unified Plivex application is always the Main Workspace runtime.
+  // Country-specific settings are read from public.workspace_settings; a
+  // Global membership must never switch the unified app into another schema.
+  if (isUnifiedBuild && edition === "global") return false;
+  // Separate legacy Global builds may switch only after server verification.
   if (!isUnifiedBuild && edition === "global" && !verifiedGlobal) return false;
   APP_EDITION = edition;
   return true;
