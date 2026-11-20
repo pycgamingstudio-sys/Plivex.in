@@ -303,6 +303,8 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
       recipientTaxMinor: calculated.recipientTaxMinor || 0,
       recipientTaxComponents: calculated.recipientTaxComponents || [],
       recipientAccountingRequired: calculated.recipientAccountingRequired === true,
+      jurisdictionEvidence: calculated.jurisdictionEvidence || null,
+      collectionObligationEvidence: calculated.collectionObligationEvidence || null,
       taxDisclosure: calculated.taxDisclosure || null,
       treatment: calculated.treatment || lineTreatment,
       taxCategory: lineCategory,
@@ -357,6 +359,10 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
     taxableMinor, taxMinor, totalMinor, components,
     recipientTaxMinor, recipientTaxComponents,
     recipientAccountingRequired: recipientTaxMinor > 0,
+    jurisdictionEvidence: lineResults.every((line) => line.jurisdictionEvidence === lineResults[0].jurisdictionEvidence)
+      ? lineResults[0].jurisdictionEvidence : null,
+    collectionObligationEvidence: lineResults.every((line) => line.collectionObligationEvidence === lineResults[0].collectionObligationEvidence)
+      ? lineResults[0].collectionObligationEvidence : null,
     lineTaxBreakdown: lineResults,
     ruleSnapshot: commonRule ? { ...commonRule, treatment: commonTreatment } : null,
     taxCharged: lineResults.some((line) => line.taxMinor > 0),
