@@ -49,7 +49,8 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   const [form, setForm] = useState({ clientId:"", issueDate:today(), dueDate:"", description:"", quantity:"1", unitPrice:"", documentType:"commercial" });
   const [taxContext, setTaxContext] = useState({
     countryCode, mode:"automatic", priceMode:"exclusive", placeOfSupply:"",
-    placeOfSupplyConfirmed:false, taxCategory:"standard-rated", taxCategoryConfirmed:true,
+    placeOfSupplyConfirmed:false, taxCategory:"standard-rated", taxTreatment:"standard",
+    destinationJurisdiction:{}, taxCategoryConfirmed:true,
     registrationConfirmed:false, taxDetailsConfirmed:false, collectionObligationAttested:false, components:[],
   });
   const [profileForm, setProfileForm] = useState({});
@@ -98,7 +99,8 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     const inherited = invoices.find((invoice) => invoice.id === selectedId)?.invoice_snapshot?.quotation_tax_context;
     setTaxContext({
       countryCode, mode:"automatic", priceMode:"exclusive", placeOfSupply:"",
-      placeOfSupplyConfirmed:false, taxCategory:"standard-rated", taxCategoryConfirmed:false,
+      placeOfSupplyConfirmed:false, taxCategory:"standard-rated", taxTreatment:"standard",
+      destinationJurisdiction:{}, taxCategoryConfirmed:false,
       registrationConfirmed:false, taxDetailsConfirmed:false, collectionObligationAttested:false, components:[],
       ...(inherited && typeof inherited === "object" ? inherited : {}),
       countryCode,
@@ -322,7 +324,18 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
         doc.text("Tax: Not assessed by Plivex", 16, y); y += 7;
       } else {
         const taxName = experience?.business.taxName || "Tax";
-        doc.text(taxName + ": " + money(totalValue(invoice.tax_minor), invoiceCurrency), 16, y); y += 7;
+        const components = Array.isArray(snap.calculation?.components) ? snap.calculation.components : [];
+        if (components.length) {
+          for (const component of components) {
+            const componentRate = Number(component.rate_bps) / 100;
+            doc.text(String(component.name || taxName) + " (" + componentRate + "%): " + money(totalValue(component.amount_minor), invoiceCurrency), 16, y);
+            y += 6;
+          }
+        } else {
+          doc.text(taxName + ": " + money(totalValue(invoice.tax_minor), invoiceCurrency), 16, y);
+          y += 7;
+        }
+        doc.text("Total tax: " + money(totalValue(invoice.tax_minor), invoiceCurrency), 16, y); y += 7;
       }
       doc.setFontSize(13); doc.text("Total: " + money(totalValue(invoice.total_minor), invoiceCurrency), 16, y);
       doc.setFontSize(7);
