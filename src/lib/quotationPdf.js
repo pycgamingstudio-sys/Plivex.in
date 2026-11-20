@@ -5,10 +5,6 @@ import { amountInWords } from "@/lib/currency";
 
 const A4_WIDTH = 794;
 
-const currencyDigits = (currency) => {
-  try { return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits; }
-  catch { return 2; }
-};
 const formatMoney = (value, currency) => new Intl.NumberFormat("en", {
   style: "currency", currency: currency || "INR",
 }).format(Number(value || 0));
@@ -66,7 +62,6 @@ export async function createQuotationPdfBlob(quotation) {
   const subtotal = itemSubtotal + Math.max(0, Number(quotation.shipping) || 0);
   const total = Number(quotation.total) || Math.max(0, itemSubtotal - discountValue) + taxValue + Math.max(0, Number(quotation.shipping) || 0);
   const money = (value, currency) => {
-    const digits = currencyDigits(currency || "INR");
     return formatMoney(Number(value || 0), currency || "INR");
   };
   const stage = document.createElement("div");

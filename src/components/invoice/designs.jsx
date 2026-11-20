@@ -150,8 +150,8 @@ function ClassicDesign({ invoice, subtotal, discount, discountValue, taxValue, t
           <p className="font-mono-ui text-[13px] uppercase tracking-[0.17em] text-[#77758a]">{invoice.documentTitle || "Invoice"}</p>
           <p className="mt-1 text-[19px] font-bold tracking-[-0.04em] text-[#2e2857]">{invoice.number || "INV-000"}</p>
           <div className="mt-3 grid grid-cols-2 gap-x-5 gap-y-1 text-[13px]">
-            <span className="text-[#77758a]">Issued</span><span className="font-medium">{dateLabel(invoice.issueDate)}</span>
-            <span className="text-[#77758a]">Due</span><span className="font-medium">{dateLabel(invoice.dueDate)}</span>
+            <span className="text-[#77758a]">{invoice.issueDateLabel || "Issued"}</span><span className="font-medium">{dateLabel(invoice.issueDate)}</span>
+            <span className="text-[#77758a]">{invoice.expiryDateLabel || "Due"}</span><span className="font-medium">{dateLabel(invoice.dueDate)}</span>
           </div>
         </div>
       </div>
