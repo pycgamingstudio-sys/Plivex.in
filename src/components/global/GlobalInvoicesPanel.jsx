@@ -306,8 +306,9 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       if (buyer.email || client?.email) doc.text("Customer email: " + String(buyer.email || client.email), 16, 96);
       const drawTableHeader = (y) => {
         doc.setFontSize(8); doc.setFont(undefined, "bold");
-        doc.text("Description", 16, y); doc.text("Qty", 112, y, { align: "right" });
-        doc.text("Rate", 148, y, { align: "right" }); doc.text("Amount", 190, y, { align: "right" });
+        doc.text("Description", 16, y); doc.text("Qty", 100, y, { align: "right" });
+        doc.text("Rate", 132, y, { align: "right" }); doc.text("Tax", 164, y, { align: "right" });
+        doc.text("Amount", 194, y, { align: "right" });
         doc.setFont(undefined, "normal");
       };
       drawTableHeader(108);
@@ -315,16 +316,18 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       const snapshotItems = Array.isArray(snap.items) ? snap.items : [];
       const printableItems = snapshotItems.length ? snapshotItems : lineItems;
       for (const line of printableItems) {
-        const description = doc.splitTextToSize(String(line?.description || "Item"), 82);
+        const description = doc.splitTextToSize(String(line?.description || "Item"), 70);
         const rowHeight = Math.max(7, description.length * 4.5);
         if (y + rowHeight > 265) { doc.addPage(); y = 20; drawTableHeader(y); y += 8; }
         const quantity = line?.quantity === null || line?.quantity === undefined ? "—" : String(line.quantity);
         const unitPriceMinor = Number.isFinite(Number(line?.unit_price_minor)) ? Number(line.unit_price_minor) : 0;
+        const lineTaxMinor = Number.isFinite(Number(line?.tax_minor)) ? Number(line.tax_minor) : 0;
         const lineTotalMinor = Number.isFinite(Number(line?.line_total_minor)) ? Number(line.line_total_minor) : 0;
         doc.text(description, 16, y);
-        doc.text(quantity, 112, y, { align: "right" });
-        doc.text(money(unitPriceMinor, invoiceCurrency), 148, y, { align: "right" });
-        doc.text(money(lineTotalMinor, invoiceCurrency), 190, y, { align: "right" });
+        doc.text(quantity, 100, y, { align: "right" });
+        doc.text(money(unitPriceMinor, invoiceCurrency), 132, y, { align: "right" });
+        doc.text(money(lineTaxMinor, invoiceCurrency), 164, y, { align: "right" });
+        doc.text(money(lineTotalMinor, invoiceCurrency), 194, y, { align: "right" });
         y += rowHeight;
       }
       y += 10;
