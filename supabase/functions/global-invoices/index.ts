@@ -138,7 +138,7 @@ Deno.serve(async (req: Request) => {
         });
       }
       if (body.action === "create_final_tax") {
-        const tax = body.tax_context;
+        const tax: Record<string, any> = body.tax_context as Record<string, any>;
         if (!isObject(tax)
           || typeof tax.registration_confirmed !== "boolean"
           || typeof tax.place_of_supply_confirmed !== "boolean"
