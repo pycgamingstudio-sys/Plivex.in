@@ -30,6 +30,7 @@ const newId = () => crypto.randomUUID();
 
 export default function GlobalQuotationsPanel({ account }) {
   const currency = account?.currency_code || "USD";
+  const countryCode = String(account?.country_code || "").toUpperCase();
   const locale = account?.locale_code || "en";
   const [records, setRecords] = useState([]);
   const [clients, setClients] = useState([]);
@@ -108,9 +109,9 @@ export default function GlobalQuotationsPanel({ account }) {
         action: "create", client_id: form.client_id || null, currency_code: currency,
         issue_date: form.issue_date, valid_until: form.valid_until || null,
         notes: form.notes.trim() || null, items, idempotency_key: newId(),
-        tax_code: account?.country_code === "IN" ? form.tax_code : null,
-        india_supply_type: account?.country_code === "IN" ? form.india_supply_type : null,
-        tax_jurisdiction_id: ["US","CA"].includes(account?.country_code) ? form.tax_jurisdiction_id : null,
+        tax_code: countryCode === "IN" ? form.tax_code : null,
+        india_supply_type: countryCode === "IN" ? form.india_supply_type : null,
+        tax_jurisdiction_id: ["US","CA"].includes(countryCode) ? form.tax_jurisdiction_id : null,
       });
       setShowCreate(false);
       setSelectedId(data.quotation?.id || "");
@@ -235,7 +236,9 @@ export default function GlobalQuotationsPanel({ account }) {
               <div className="flex justify-between gap-3"><span className="text-slate-500">Date</span><span>{selected.quotation.issue_date}</span></div>
               <div className="flex justify-between gap-3"><span className="text-slate-500">Valid until</span><span>{selected.quotation.valid_until || "Not specified"}</span></div>
               <div className="flex justify-between gap-3"><span className="text-slate-500">Line items</span><span>{selected.items?.length || 0}</span></div>
-              <div className="flex justify-between gap-3 font-bold"><span>Total</span><span>{formatMoney(selected.quotation.total_including_tax_minor ?? selected.quotation.total_minor, selected.quotation.currency_code, locale)}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-slate-500">Tax</span><span>{formatMoney(selected.quotation.tax_minor || 0, selected.quotation.currency_code, locale)}</span></div>
+              {selected.quotation.tax_snapshot?.status === "draft_test" && <p className="text-[11px] text-amber-700">Draft-test tax rule · not legally verified</p>}
+              <div className="flex justify-between gap-3 font-bold"><span>Total including tax</span><span>{formatMoney(selected.quotation.total_including_tax_minor ?? selected.quotation.total_minor, selected.quotation.currency_code, locale)}</span></div>
             </div>
             {selected.quotation.notes && <p className="mt-3 text-xs leading-5 text-slate-600">{selected.quotation.notes}</p>}
             <button type="button" className={secondary + " mt-4 w-full"} onClick={() => downloadPdf(selected)}><Download className="h-4 w-4" /> Download PDF</button>
@@ -267,12 +270,12 @@ export default function GlobalQuotationsPanel({ account }) {
             <button type="button" disabled={form.items.length >= 100} className={secondary + " mt-3"} onClick={addItem}><Plus className="h-4 w-4" /> Add line item</button>
           </div>
           <label className="mt-4 block text-xs font-semibold text-slate-600">Notes<textarea rows={3} maxLength={4000} className={field + " mt-1"} placeholder="Optional scope, delivery or payment terms" value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
-          {account?.country_code === "IN" && <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {countryCode === "IN" && <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="text-xs font-semibold text-slate-600">GST rate<select className={field + " mt-1"} value={form.tax_code} onChange={(event)=>setForm({...form,tax_code:event.target.value})}>{[["GST_0","0%"],["GST_5","5%"],["GST_12","12%"],["GST_18","18%"],["GST_28","28%"]].map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
             <label className="text-xs font-semibold text-slate-600">Place of supply<select className={field + " mt-1"} value={form.india_supply_type} onChange={(event)=>setForm({...form,india_supply_type:event.target.value})}><option value="INTRA">Same state · CGST + SGST</option><option value="INTER">Different state · IGST</option></select></label>
           </div>}
-          {account?.country_code === "CA" && <label className="mt-4 block text-xs font-semibold text-slate-600">Destination province / territory<select required className={field + " mt-1"} value={form.tax_jurisdiction_id} onChange={(event)=>setForm({...form,tax_jurisdiction_id:event.target.value})}><option value="">Select province</option>{["AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","QC","SK","YT"].map((x)=><option key={x}>{x}</option>)}</select></label>}
-          {account?.country_code === "US" && <label className="mt-4 block text-xs font-semibold text-slate-600">Destination state<select required className={field + " mt-1"} value={form.tax_jurisdiction_id} onChange={(event)=>setForm({...form,tax_jurisdiction_id:event.target.value})}><option value="">Select state</option>{["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC"].map((x)=><option key={x}>{x}</option>)}</select></label>}
+          {countryCode === "CA" && <label className="mt-4 block text-xs font-semibold text-slate-600">Destination province / territory<select required className={field + " mt-1"} value={form.tax_jurisdiction_id} onChange={(event)=>setForm({...form,tax_jurisdiction_id:event.target.value})}><option value="">Select province</option>{["AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","QC","SK","YT"].map((x)=><option key={x}>{x}</option>)}</select></label>}
+          {countryCode === "US" && <label className="mt-4 block text-xs font-semibold text-slate-600">Destination state<select required className={field + " mt-1"} value={form.tax_jurisdiction_id} onChange={(event)=>setForm({...form,tax_jurisdiction_id:event.target.value})}><option value="">Select state</option>{["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC"].map((x)=><option key={x}>{x}</option>)}</select></label>}
           <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-700">Tax is calculated from your Workspace country ({account?.country_code || "not set"}) and the effective Supabase tax rule. Draft baseline rules are marked as testing-only.</div>
           {error && <p role="alert" className="mt-3 text-sm text-rose-700">{error}</p>}
           <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" className={secondary} onClick={() => setShowCreate(false)}>Cancel</button><button type="submit" className={primary} disabled={busy}>{busy ? "Saving…" : "Save quotation draft"}</button></div>
