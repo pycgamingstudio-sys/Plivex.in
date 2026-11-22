@@ -8,3 +8,9 @@ test("GSTR-2B reconciliation matches supplier GSTIN, invoice number and tax valu
 test("GSTR-2B flags amount mismatches and missing books entries",()=>{const parsed=parseGstr2bCsv(sample);assert.equal(reconcileGstr2bRows([{...parsed[0],taxableValueMinor:99000}],[bill])[0].reconciliationStatus,"AMOUNT_MISMATCH");assert.equal(reconcileGstr2bRows(parsed,[])[0].reconciliationStatus,"NOT_IN_BOOKS");});
 test("GSTR-2B duplicates and unavailable ITC are never claimable",()=>{const parsed=parseGstr2bCsv(sample);const rows=reconcileGstr2bRows([{...parsed[0],duplicate:true},{...parsed[0],itcAvailable:false,reason:"Blocked credit"}],[bill]);assert.equal(rows[0].reconciliationStatus,"DUPLICATE");assert.equal(rows[1].reconciliationStatus,"ITC_NOT_AVAILABLE");});
 test("GSTR-2B parser rejects missing columns and invalid GSTIN rows",()=>{assert.throws(()=>parseGstr2bCsv("Date,Amount\n2026-10-01,100"),/must include supplier GSTIN/);assert.equal(parseGstr2bCsv(sample.replace("09AAACB1234C1Z5","99AAACB1234C1Z5")).length,0);});
+
+
+test("GSTR-2B date parser accepts common Indian portal date formats", () => {
+  const rows = parseGstr2bCsv(sample.replace("2026-10-05", "05-Oct-2026"));
+  assert.equal(rows[0].invoiceDate, "2026-10-05");
+});
