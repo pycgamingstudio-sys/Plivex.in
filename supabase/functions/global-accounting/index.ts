@@ -186,8 +186,8 @@ Deno.serve(async (req: Request) => {
       const period=String(body.period||"");
       const returnType=String(body.return_type||"");
       const dueDate=String(body.due_date||"");
-      if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(period)||!["GSTR1","GSTR3B"].includes(returnType)
-        ||!/^\\d{4}-\\d{2}-\\d{2}$/.test(dueDate)||!["planned","filed"].includes(String(body.status||"planned"))
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)||!["GSTR1","GSTR3B"].includes(returnType)
+        ||!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)||!["planned","filed"].includes(String(body.status||"planned"))
         ||String(body.filing_reference||"").length>120||String(body.notes||"").length>500) {
         return globalJson({error:"Return type, period, confirmed due date and status are required."},400,origin);
       }
