@@ -85,6 +85,8 @@ export default function PricingSection() {
           {PLANS.map((plan) => {
             const amountMinor = plan.id === "free" ? 0 : country[billing === "yearly" ? "yearly" : "monthly"]?.[plan.id];
             const price = amountMinor === 0 ? formatPlanPrice(0, currency, locale) : Number.isSafeInteger(amountMinor) ? formatPlanPrice(amountMinor, currency, locale) : "Not available";
+            const checkoutPlanId = plan.id === "basic" ? (billing === "yearly" ? "basic_yearly" : "basic_monthly") : (billing === "yearly" ? "enterprise_yearly" : "pro_monthly");
+            const actionClass = "mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[12px] font-bold transition-all hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6D28D9] " + (plan.accent ? "bg-[#6D28D9] text-white shadow-sm hover:bg-[#5B21B6]" : "border border-[#D8CCF5] bg-white text-[#6D28D9] hover:border-[#6D28D9] hover:bg-[#F8F5FF]");
             return (
               <div key={plan.id} className={`plivex-hover-lift relative flex min-w-0 flex-col rounded-2xl border p-4 shadow-[0_1px_2px_rgba(24,24,40,.03)] transition-all sm:p-5 ${plan.accent ? "border-[#6D28D9] bg-gradient-to-br from-[#F7F3FF] via-white to-[#F0EBFF] shadow-[0_8px_28px_rgba(109,40,217,.10)]" : "border-[#E8E7EF] bg-gradient-to-br from-white to-[#FAFAFC]"}`}>
                 {plan.badge && <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-[#6D28D9] px-3 py-0.5 font-mono-ui text-[9px] font-bold uppercase tracking-wider text-white">{plan.badge}</span>}
@@ -103,9 +105,9 @@ export default function PricingSection() {
                   {plan.locked.map((feature) => <div key={feature} className="flex items-start gap-2 text-[11px] font-medium text-slate-400"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-500"><X className="h-2.5 w-2.5" /></span>{feature}</div>)}
                 </div>
                 {plan.id === "free" || !isAuthenticated ? (
-                  <Link to={plan.id === "free" ? "/register" : `/register?plan=${plan.id === "basic" ? (billing === "yearly" ? "basic_yearly" : "basic_monthly") : (billing === "yearly" ? "enterprise_yearly" : "pro_monthly")}`} className={`mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[12px] font-bold transition-all hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6D28D9] ${plan.accent ? "bg-[#6D28D9] text-white shadow-sm hover:bg-[#5B21B6]" : "border border-[#D8CCF5] bg-white text-[#6D28D9] hover:border-[#6D28D9] hover:bg-[#F8F5FF]"}"}>{plan.accent ? <Crown className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}{plan.id === "free" ? "Get Free" : `Get ${plan.name}`}</Link>
+                  <Link to={plan.id === "free" ? "/register" : "/register?plan=" + checkoutPlanId} className={actionClass}>{plan.accent ? <Crown className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}{plan.id === "free" ? "Get Free" : "Get " + plan.name}</Link>
                 ) : (
-                  <button type="button" onClick={() => startPaidPlan(plan)} disabled={Boolean(checkoutBusy)} className={`mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[12px] font-bold transition-all disabled:cursor-wait disabled:opacity-60 ${plan.accent ? "bg-[#6D28D9] text-white shadow-sm hover:bg-[#5B21B6]" : "border border-[#D8CCF5] bg-white text-[#6D28D9] hover:border-[#6D28D9] hover:bg-[#F8F5FF]"}`}>{checkoutBusy ? "Opening secure checkout…" : `Get ${plan.name}`}</button>
+                  <button type="button" onClick={() => startPaidPlan(plan)} disabled={Boolean(checkoutBusy)} className={actionClass}>{checkoutBusy ? "Opening secure checkout…" : "Get " + plan.name}</button>
                 )}
               </div>
             );
