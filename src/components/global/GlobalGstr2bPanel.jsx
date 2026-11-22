@@ -24,7 +24,8 @@ export default function GlobalGstr2bPanel({account}) {
       if(!billsResult.data?.ok||!rowsResult.data?.ok)throw new Error("Could not load purchase bills or saved GSTR-2B rows.");
       setPurchaseBills(billsResult.data.purchase_bills||[]);setSavedRows(rowsResult.data.records||[]);setNotice("Saved return and purchase bills refreshed.");
     }catch(e){setError(e.message||"Could not load GSTR-2B data.");}finally{setLoading(false);}
-  };
+  },[account.workspace_id,period]);
+  useEffect(()=>{loadData();},[loadData]);
   const readFile=async(event)=>{
     const file=event.target.files?.[0];if(!file)return;
     setError("");setNotice("");setPreview([]);setSavedRows([]);setFileName(file.name);
