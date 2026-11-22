@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/api/backendClient";
 import { findSavedGstinRecords, parseIndianGstin } from "@/global/tax/gstin.js";
-import { ArrowLeftRight, ClipboardList, History, Plus, RefreshCw, Warehouse as WarehouseIcon } from "lucide-react";
+import { ArrowLeftRight, ClipboardList, FileText, History, Plus, RefreshCw, Warehouse as WarehouseIcon } from "lucide-react";
 
 const input = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-500";
 const button = "rounded-lg bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50";
@@ -20,15 +20,21 @@ const scoreLead = (lead) => Math.min(100,
 export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   const [section, setSection] = useState(initialSection);
   useEffect(() => {
-    if (["crm", "warehouses", "transfers", "purchasing", "movements"].includes(initialSection)) setSection(initialSection);
+    if (["crm", "warehouses", "transfers", "purchasing", "sales_docs", "movements"].includes(initialSection)) setSection(initialSection);
   }, [initialSection]);
-  const [data, setData] = useState({ leads: [], activities: [], warehouses: [], stock: [], batches: [], movements: [], transfers: [], orders: [], orderItems: [], products: [], suppliers: [] });
+  const [data, setData] = useState({ leads: [], activities: [], warehouses: [], stock: [], batches: [], movements: [], transfers: [], orders: [], orderItems: [], products: [], suppliers: [], salesOrders: [], challans: [], notes: [], clients: [], invoices: [] });
   const [lead, setLead] = useState(blankLead);
   const [warehouse, setWarehouse] = useState(blankWarehouse);
   const [activity, setActivity] = useState({ lead_id: "", activity_type: "note", body: "" });
   const [transfer, setTransfer] = useState({ from: "", to: "", product_id: "", quantity: "" });
   const [order, setOrder] = useState({ supplier_name: "", supplier_reference: "", expected_date: "", product_id: "", quantity: "1", unit_cost: "" });
   const [supplierGstinLookup, setSupplierGstinLookup] = useState("");
+  const [salesOrderForm,setSalesOrderForm]=useState({client_id:"",order_date:dateOnly(),expected_date:"",description:"",quantity:"1",unit_price:"",notes:""});
+  const [challanForm,setChallanForm]=useState({client_id:"",sales_order_id:"",challan_date:dateOnly(),description:"",quantity:"1",product_id:"",notes:""});
+  const [noteForm,setNoteForm]=useState({invoice_id:"",note_type:"credit",note_date:dateOnly(),reason:"",taxable_amount:"",tax_amount:"",notes:""});
+  const [salesOrderKey,setSalesOrderKey]=useState(uid());
+  const [challanKey,setChallanKey]=useState(uid());
+  const [noteKey,setNoteKey]=useState(uid());
   const [receipt, setReceipt] = useState({ order_id: "", warehouse_id: "", item_id: "", quantity: "", batch_number: "", expires_on: "" });
   const [transferKey, setTransferKey] = useState(uid());
   const [receiptKey, setReceiptKey] = useState(uid());
@@ -56,21 +62,23 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   }, [account.workspace_id]);
 
   const refresh = useCallback(async () => {
-    const resources = ["crm_leads", "crm_activities", "warehouses", "warehouse_stock_levels", "inventory_batches", "warehouse_stock_movements", "stock_transfers", "purchase_orders", "purchase_order_items", "suppliers"];
+    const resources = ["crm_leads", "crm_activities", "warehouses", "warehouse_stock_levels", "inventory_batches", "warehouse_stock_movements", "stock_transfers", "purchase_orders", "purchase_order_items", "suppliers", "sales_orders", "delivery_challans", "credit_debit_notes"];
     const pairs = await Promise.all(resources.map(async (resource) => {
       const result = await call({ action: "list", resource, limit: 250 });
       return [resource, result.records || []];
     }));
-    const { data: products, error: productsError } = await supabase.functions.invoke("global-business-records", {
-      body: { workspace_id: account.workspace_id, table: "products", action: "list", limit: 250 },
-    });
-    if (productsError) throw new Error(productsError.message || "Could not load products.");
+    const [products,clients,invoices] = await Promise.all(["products","clients","invoices"].map(table=>supabase.functions.invoke("global-business-records",{
+      body:{workspace_id:account.workspace_id,table,action:"list",limit:250}
+    })));
+    if(products.error||clients.error||invoices.error) throw new Error("Could not load sales document references.");
     const mapped = Object.fromEntries(pairs);
     setData({
       leads: mapped.crm_leads, activities: mapped.crm_activities, warehouses: mapped.warehouses,
       stock: mapped.warehouse_stock_levels, batches: mapped.inventory_batches, movements: mapped.warehouse_stock_movements,
       transfers: mapped.stock_transfers, orders: mapped.purchase_orders, orderItems: mapped.purchase_order_items,
-      products: products?.records || [], suppliers: mapped.suppliers || [],
+      products: products.data?.records || [], suppliers: mapped.suppliers || [],
+      salesOrders:mapped.sales_orders||[],challans:mapped.delivery_challans||[],notes:mapped.credit_debit_notes||[],
+      clients:clients.data?.records||[],invoices:invoices.data?.records||[],
     });
   }, [account.workspace_id, call]);
 
@@ -180,10 +188,51 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
     }, "Goods received. Warehouse stock and movement history updated.");
   };
 
+  const saveSalesOrder=(event)=>{
+    event.preventDefault();
+    return run(async()=>{
+      await call({action:"mutate",operation:"create_sales_order",values:{
+        client_id:salesOrderForm.client_id,currency_code:account.currency_code,order_date:salesOrderForm.order_date,
+        expected_date:salesOrderForm.expected_date||null,notes:salesOrderForm.notes||null,idempotency_key:salesOrderKey,
+        items:[{description:salesOrderForm.description.trim(),quantity:Number(salesOrderForm.quantity),
+          unit_price_minor:Math.round(Number(salesOrderForm.unit_price||0)*(10**digits(account.currency_code))),discount_minor:0,product_id:null}]
+      }});
+      setSalesOrderForm({client_id:"",order_date:dateOnly(),expected_date:"",description:"",quantity:"1",unit_price:"",notes:""});
+      setSalesOrderKey(uid());
+    },"Sales order created as a draft.");
+  };
+  const saveChallan=(event)=>{
+    event.preventDefault();
+    return run(async()=>{
+      await call({action:"mutate",operation:"create_delivery_challan",values:{
+        client_id:challanForm.client_id||null,sales_order_id:challanForm.sales_order_id||null,challan_date:challanForm.challan_date,
+        notes:challanForm.notes||null,idempotency_key:challanKey,
+        items:[{description:challanForm.description.trim(),quantity:Number(challanForm.quantity),product_id:challanForm.product_id||null}]
+      }});
+      setChallanForm({client_id:"",sales_order_id:"",challan_date:dateOnly(),description:"",quantity:"1",product_id:"",notes:""});
+      setChallanKey(uid());
+    },"Delivery challan created as a draft.");
+  };
+  const saveCreditDebitNote=(event)=>{
+    event.preventDefault();
+    const taxable=Math.round(Number(noteForm.taxable_amount||0)*(10**digits(account.currency_code)));
+    const tax=Math.round(Number(noteForm.tax_amount||0)*(10**digits(account.currency_code)));
+    return run(async()=>{
+      await call({action:"mutate",operation:"create_credit_debit_note",values:{
+        invoice_id:noteForm.invoice_id,note_type:noteForm.note_type,note_date:noteForm.note_date,reason:noteForm.reason.trim(),
+        taxable_minor:taxable,tax_minor:tax,total_minor:taxable+tax,notes:noteForm.notes||null,idempotency_key:noteKey
+      }});
+      setNoteForm({invoice_id:"",note_type:"credit",note_date:dateOnly(),reason:"",taxable_amount:"",tax_amount:"",notes:""});
+      setNoteKey(uid());
+    },"Credit/debit note saved as a draft.");
+  };
+  const updateSalesDocument=(operation,values,success)=>run(async()=>{await call({action:"mutate",operation,values});},success);
+
   const tabs = section === "crm" ? [] : [
       { id: "warehouses", label: "Stock & warehouses", icon: WarehouseIcon },
       { id: "transfers", label: "Transfers", icon: ArrowLeftRight },
       { id: "purchasing", label: "Purchase orders", icon: ClipboardList },
+      { id: "sales_docs", label: "Sales documents", icon: FileText },
       { id: "movements", label: "Movement history", icon: History },
     ];
 
@@ -191,18 +240,20 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
     : section === "warehouses" ? "Inventory & warehouse"
       : section === "transfers" ? "Stock transfers"
         : section === "purchasing" ? "Purchase orders"
+          : section === "sales_docs" ? "Sales documents"
           : "Movement history";
   const sectionDescription = section === "crm" ? "Manage leads, follow-ups and customer activity."
     : section === "warehouses" ? "One workspace for stock visibility, warehouse locations and reorder signals."
       : section === "transfers" ? "Move stock between locations with a traceable transfer record."
         : section === "purchasing" ? "Create supplier orders and receive goods into the right warehouse."
+          : section === "sales_docs" ? "Prepare sales orders, delivery challans and credit/debit notes."
           : "A searchable audit trail of receipts, transfers and stock adjustments.";
 
   return <section className="mt-6 space-y-5">
     <div className="overflow-hidden rounded-2xl border border-[#E7E2F2] bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8B7AAE]">Plivex workspace / {section === "crm" ? "CRM" : "Inventory"}</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8B7AAE]">Plivex workspace / {section === "crm" ? "CRM" : section === "sales_docs" ? "Sales" : "Inventory"}</p>
           <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{sectionTitle}</h1>
           <p className="mt-1 text-xs leading-relaxed text-slate-500 sm:text-sm">{sectionDescription}</p>
         </div>
@@ -314,6 +365,45 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
         <button disabled={busy || !selectedOrderItems.length || !receipt.warehouse_id} className={button+" sm:col-span-2 lg:col-span-3"}>Confirm goods receipt</button>
       </form>}
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm"><table className="w-full min-w-[650px] text-sm"><thead className="bg-[#F8F7FC] text-[10px] font-bold uppercase tracking-wider text-slate-500"><tr><th className="px-4 py-3 text-left">Supplier</th><th className="px-4 py-3 text-left">Order date</th><th className="px-4 py-3 text-right">Order value</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-left">Expected</th></tr></thead><tbody className="divide-y divide-slate-100">{data.orders.map((o)=><tr key={o.id} className="hover:bg-violet-50/30"><td className="px-4 py-3 font-semibold">{o.supplier_name}</td><td className="px-4 py-3 text-slate-500">{o.order_date}</td><td className="px-4 py-3 text-right tabular-nums">{money(o.subtotal_minor, o.currency_code)}</td><td className="px-4 py-3 capitalize">{o.status.replaceAll("_"," ")}</td><td className="px-4 py-3 text-slate-500">{o.expected_date || "—"}</td></tr>)}</tbody></table>{!data.orders.length && <p className="p-8 text-center text-sm text-slate-500">No purchase orders yet. Create an order to start tracking incoming stock.</p>}</div>
+    </>}
+
+    {section === "sales_docs" && <>
+      <div className="grid gap-4 xl:grid-cols-3">
+        <form onSubmit={saveSalesOrder} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+          <div><h2 className="text-sm font-bold">New sales order</h2><p className="text-xs text-slate-500">Create a draft customer order.</p></div>
+          <select required className={input} value={salesOrderForm.client_id} onChange={(e)=>setSalesOrderForm({...salesOrderForm,client_id:e.target.value})}><option value="">Select customer</option>{data.clients.filter(x=>x.status==="active").map(x=><option key={x.id} value={x.id}>{x.name||x.company_name}</option>)}</select>
+          <div className="grid grid-cols-2 gap-2"><input required type="date" className={input} value={salesOrderForm.order_date} onChange={(e)=>setSalesOrderForm({...salesOrderForm,order_date:e.target.value})}/><input type="date" className={input} value={salesOrderForm.expected_date} onChange={(e)=>setSalesOrderForm({...salesOrderForm,expected_date:e.target.value})}/></div>
+          <input required className={input} placeholder="Item / service description" value={salesOrderForm.description} onChange={(e)=>setSalesOrderForm({...salesOrderForm,description:e.target.value})}/>
+          <div className="grid grid-cols-2 gap-2"><input required type="number" min="0.0001" step="0.0001" className={input} placeholder="Quantity" value={salesOrderForm.quantity} onChange={(e)=>setSalesOrderForm({...salesOrderForm,quantity:e.target.value})}/><input required type="number" min="0" step="0.01" className={input} placeholder={`Unit price (${account.currency_code})`} value={salesOrderForm.unit_price} onChange={(e)=>setSalesOrderForm({...salesOrderForm,unit_price:e.target.value})}/></div>
+          <textarea className={input} rows="2" placeholder="Notes (optional)" value={salesOrderForm.notes} onChange={(e)=>setSalesOrderForm({...salesOrderForm,notes:e.target.value})}/>
+          <button disabled={busy||!data.clients.length} className={button+" w-full"}>Save sales order draft</button>
+        </form>
+        <form onSubmit={saveChallan} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+          <div><h2 className="text-sm font-bold">New delivery challan</h2><p className="text-xs text-slate-500">Record goods dispatched to a customer.</p></div>
+          <select className={input} value={challanForm.sales_order_id} onChange={(e)=>{const order=data.salesOrders.find(x=>x.id===e.target.value);setChallanForm({...challanForm,sales_order_id:e.target.value,client_id:order?.client_id||challanForm.client_id});}}><option value="">Link sales order (optional)</option>{data.salesOrders.filter(x=>["draft","confirmed"].includes(x.status)).map(x=><option key={x.id} value={x.id}>{x.order_number}</option>)}</select>
+          <select required className={input} value={challanForm.client_id} onChange={(e)=>setChallanForm({...challanForm,client_id:e.target.value})}><option value="">Select customer</option>{data.clients.filter(x=>x.status==="active").map(x=><option key={x.id} value={x.id}>{x.name||x.company_name}</option>)}</select>
+          <input required type="date" className={input} value={challanForm.challan_date} onChange={(e)=>setChallanForm({...challanForm,challan_date:e.target.value})}/>
+          <input required className={input} placeholder="Goods / item description" value={challanForm.description} onChange={(e)=>setChallanForm({...challanForm,description:e.target.value})}/>
+          <div className="grid grid-cols-2 gap-2"><input required type="number" min="0.0001" step="0.0001" className={input} placeholder="Quantity" value={challanForm.quantity} onChange={(e)=>setChallanForm({...challanForm,quantity:e.target.value})}/><select className={input} value={challanForm.product_id} onChange={(e)=>setChallanForm({...challanForm,product_id:e.target.value})}><option value="">No product link</option>{data.products.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
+          <textarea className={input} rows="2" placeholder="Notes (optional)" value={challanForm.notes} onChange={(e)=>setChallanForm({...challanForm,notes:e.target.value})}/>
+          <button disabled={busy} className={button+" w-full"}>Save delivery challan draft</button>
+        </form>
+        <form onSubmit={saveCreditDebitNote} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+          <div><h2 className="text-sm font-bold">New credit / debit note</h2><p className="text-xs text-slate-500">Create a draft adjustment linked to an invoice.</p></div>
+          <select required className={input} value={noteForm.invoice_id} onChange={(e)=>setNoteForm({...noteForm,invoice_id:e.target.value})}><option value="">Select invoice</option>{data.invoices.map(x=><option key={x.id} value={x.id}>{x.invoice_number||x.number||x.id.slice(0,8)} · {x.status}</option>)}</select>
+          <div className="grid grid-cols-2 gap-2"><select className={input} value={noteForm.note_type} onChange={(e)=>setNoteForm({...noteForm,note_type:e.target.value})}><option value="credit">Credit note</option><option value="debit">Debit note</option></select><input required type="date" className={input} value={noteForm.note_date} onChange={(e)=>setNoteForm({...noteForm,note_date:e.target.value})}/></div>
+          <input required className={input} maxLength="500" placeholder="Reason for adjustment" value={noteForm.reason} onChange={(e)=>setNoteForm({...noteForm,reason:e.target.value})}/>
+          <div className="grid grid-cols-2 gap-2"><input required type="number" min="0.01" step="0.01" className={input} placeholder={`Taxable (${account.currency_code})`} value={noteForm.taxable_amount} onChange={(e)=>setNoteForm({...noteForm,taxable_amount:e.target.value})}/><input required type="number" min="0" step="0.01" className={input} placeholder={`Tax (${account.currency_code})`} value={noteForm.tax_amount} onChange={(e)=>setNoteForm({...noteForm,tax_amount:e.target.value})}/></div>
+          <textarea className={input} rows="2" placeholder="Notes (optional)" value={noteForm.notes} onChange={(e)=>setNoteForm({...noteForm,notes:e.target.value})}/>
+          <button disabled={busy||!data.invoices.length} className={button+" w-full"}>Save note draft</button>
+        </form>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-3">
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white"><div className="border-b px-4 py-3"><h3 className="text-sm font-bold">Sales orders</h3></div><table className="min-w-[480px] w-full text-xs"><thead className="bg-slate-50"><tr>{["Order","Date","Customer","Value","Status","Action"].map(x=><th key={x} className="px-3 py-2 text-left">{x}</th>)}</tr></thead><tbody className="divide-y">{data.salesOrders.map(x=><tr key={x.id}><td className="px-3 py-2 font-mono">{x.order_number}</td><td className="px-3 py-2">{x.order_date}</td><td className="px-3 py-2">{data.clients.find(c=>c.id===x.client_id)?.name||"Customer"}</td><td className="px-3 py-2">{money(x.subtotal_minor,x.currency_code)}</td><td className="px-3 py-2 capitalize">{x.status}</td><td className="px-3 py-2"><select className="rounded border p-1" value={x.status} disabled={busy||["cancelled","fulfilled"].includes(x.status)} onChange={(e)=>updateSalesDocument("update_sales_order_status",{sales_order_id:x.id,status:e.target.value},"Sales order status updated.")}><option value="draft">Draft</option><option value="confirmed">Confirmed</option><option value="fulfilled">Fulfilled</option><option value="cancelled">Cancelled</option></select></td></tr>)}</tbody></table>{!data.salesOrders.length&&<p className="p-4 text-center text-xs text-slate-500">No sales orders yet.</p>}</div>
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white"><div className="border-b px-4 py-3"><h3 className="text-sm font-bold">Delivery challans</h3></div><table className="min-w-[480px] w-full text-xs"><thead className="bg-slate-50"><tr>{["Challan","Date","Customer","Status","Action"].map(x=><th key={x} className="px-3 py-2 text-left">{x}</th>)}</tr></thead><tbody className="divide-y">{data.challans.map(x=><tr key={x.id}><td className="px-3 py-2 font-mono">{x.challan_number}</td><td className="px-3 py-2">{x.challan_date}</td><td className="px-3 py-2">{data.clients.find(c=>c.id===x.client_id)?.name||"Customer"}</td><td className="px-3 py-2 capitalize">{x.status}</td><td className="px-3 py-2"><select className="rounded border p-1" value={x.status} disabled={busy||["delivered","returned","cancelled"].includes(x.status)} onChange={(e)=>updateSalesDocument("update_delivery_challan_status",{challan_id:x.id,status:e.target.value},"Delivery challan status updated.")}><option value="draft">Draft</option><option value="issued">Issued</option><option value="delivered">Delivered</option><option value="returned">Returned</option><option value="cancelled">Cancelled</option></select></td></tr>)}</tbody></table>{!data.challans.length&&<p className="p-4 text-center text-xs text-slate-500">No delivery challans yet.</p>}</div>
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white"><div className="border-b px-4 py-3"><h3 className="text-sm font-bold">Credit / debit notes</h3></div><table className="min-w-[480px] w-full text-xs"><thead className="bg-slate-50"><tr>{["Note","Type","Date","Total","Status","Action"].map(x=><th key={x} className="px-3 py-2 text-left">{x}</th>)}</tr></thead><tbody className="divide-y">{data.notes.map(x=><tr key={x.id}><td className="px-3 py-2 font-mono">{x.note_number}</td><td className="px-3 py-2 capitalize">{x.note_type}</td><td className="px-3 py-2">{x.note_date}</td><td className="px-3 py-2">{money(x.total_minor,x.currency_code)}</td><td className="px-3 py-2 capitalize">{x.status}</td><td className="px-3 py-2"><select className="rounded border p-1" value={x.status} disabled={busy||x.status!=="draft"} onChange={(e)=>updateSalesDocument("update_credit_debit_note_status",{note_id:x.id,status:e.target.value},"Credit/debit note status updated.")}><option value="draft">Draft</option><option value="issued">Issued</option><option value="void">Void</option></select></td></tr>)}</tbody></table>{!data.notes.length&&<p className="p-4 text-center text-xs text-slate-500">No credit/debit notes yet.</p>}</div>
+      </div>
+      <p className="text-xs text-slate-500">Sales orders, delivery challans and credit/debit notes are saved as workspace documents. Issuing a note does not automatically post a journal adjustment; reconcile and review the source invoice before accounting treatment.</p>
     </>}
 
     {section === "movements" && <>
