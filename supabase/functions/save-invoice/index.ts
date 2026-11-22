@@ -104,6 +104,7 @@ Deno.serve(async (req: Request) => {
           ...taxConfig,
           countryCode,
           mode: "manual",
+          resolvedRuleSource: "supabase",
           taxMode: "taxable",
           taxTreatment: "standard",
           components,
