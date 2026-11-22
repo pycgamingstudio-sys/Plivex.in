@@ -192,3 +192,55 @@ test("verified UK and UAE reverse-charge rules resolve only for their explicit c
     asOfDate: "2026-11-20",
   }).ok, false);
 });
+
+
+test("Canada componentized province tax calculates each GST/HST and PST/QST component exactly once", () => {
+  const cases = [
+    ["AB", 500],
+    ["BC", 1200],
+    ["MB", 1200],
+    ["NB", 1500],
+    ["NL", 1500],
+    ["NS", 1400],
+    ["NT", 500],
+    ["NU", 500],
+    ["ON", 1300],
+    ["PE", 1500],
+    ["QC", 1497.5],
+    ["SK", 1100],
+    ["YT", 500],
+  ];
+  for (const [jurisdictionId, expectedRateBps] of cases) {
+    const resolved = getTaxRuleSet("CA", { jurisdictionId, asOfDate: "2026-11-20" });
+    assert.equal(resolved.ok, true, jurisdictionId);
+    const result = calculateGlobalTax({
+      ...base,
+      countryCode: "CA",
+      currencyCode: "CAD",
+      currencyMinorUnits: 2,
+      amountMinor: 100000,
+      invoiceDate: "2026-11-20",
+      sellerRegistration: {
+        verified: true,
+        status: "registered",
+        registrationNumber: "CA-TEST-REGISTRATION",
+        effectiveFrom: "2025-04-01",
+      },
+      placeOfSupplyVerified: true,
+      placeOfSupply: jurisdictionId,
+      jurisdictionId,
+      jurisdictionAttestedByUser: true,
+      collectionObligationAttestedByUser: true,
+      taxCategoryVerified: true,
+      taxCategory: "standard-rated",
+      treatment: "standard",
+      priceMode: "exclusive",
+      rule: resolved.rule,
+    });
+    assert.equal(result.ok, true, jurisdictionId);
+    assert.equal(result.taxMinor, Math.round(100000 * expectedRateBps / 10000), jurisdictionId);
+    assert.equal(result.components.reduce((sum, component) => sum + component.amountMinor, 0), result.taxMinor, jurisdictionId);
+    assert.equal(new Set(result.components.map((component) => component.id)).size, result.components.length, jurisdictionId);
+    assert.equal(result.ruleSnapshot.jurisdictionId, jurisdictionId);
+  }
+});
