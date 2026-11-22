@@ -6,12 +6,15 @@ test("recurring invoice schedules are workspace-scoped and service-role only",as
   const migration=await readFile(new URL("../../../supabase/migrations/20261122204000_global_recurring_invoice_schedules.sql",import.meta.url),"utf8");
   const edge=await readFile(new URL("../../../supabase/functions/global-invoices/index.ts",import.meta.url),"utf8");
   const ui=await readFile(new URL("../../components/global/GlobalInvoicesPanel.jsx",import.meta.url),"utf8");
+  const paymentMigration=await readFile(new URL("../../../supabase/migrations/202611150008_global_invoice_draft_and_payment_ledger.sql",import.meta.url),"utf8");
   assert.match(migration,/alter table global\.recurring_invoice_schedules enable row level security/);
   assert.match(migration,/global\.is_workspace_member\(workspace_id\)/);
   assert.match(migration,/grant execute on function public\.global_create_recurring_invoice_schedule[\s\S]*to service_role/);
   assert.match(migration,/generation_idempotency_key/);
   assert.match(migration,/draft_request_fingerprint/);
   assert.match(migration,/invoice_schedule_mismatch/);
+  assert.match(paymentMigration,/idempotency_key/);
+  assert.match(paymentMigration,/amount_paid_minor/);
   assert.match(edge,/global_create_recurring_invoice_schedule/);
   assert.match(edge,/global_list_recurring_invoice_schedules/);
   assert.match(edge,/global_advance_recurring_invoice_schedule/);
