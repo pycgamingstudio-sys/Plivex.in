@@ -89,7 +89,7 @@ test("Retry-After and reset headers are parsed safely", async () => {
 test("OpenRouter free-tier 429 stops before trying another shared-cap model", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {
-    calls.push(url.includes("openrouter") ? JSON.parse(options.body).model : "gemini");
+    calls.push(url.includes("openrouter") ? JSON.parse(options.body).model : (url.match(/models\/([^:]+):/)?.[1] || "gemini"));
     if (url.includes("generativelanguage.googleapis.com")) return response(429, { error: { message: "quota" } });
     return {
       ...response(429, { error: { message: "free account daily limit" } }),
@@ -120,8 +120,8 @@ test("Gemini timeout moves to the alternate model before using the backup", asyn
   assert.equal(result.ok, true);
   assert.equal(result.provider, "openrouter");
   assert.equal(calls.length, 3);
-  assert.match(calls[0], /gemini-3\\.8-flash/);
-  assert.match(calls[1], /gemini-3\\.5-flash-lite/);
+  assert.match(calls[0], /gemini-3\.8-flash/);
+  assert.match(calls[1], /gemini-3\.5-flash-lite/);
 });
 
 test("Gemini 503 advances to the alternate model before accepting a recovery", async () => {
