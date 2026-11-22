@@ -14,6 +14,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
     taxMode: String(workspaceProfile?.registrationStatus || "unregistered").trim().toLowerCase() === "unregistered" ? "no_tax" : "taxable",
       noTaxConfirmed: false,
       priceMode: "exclusive",
+      indiaSupplyType: "INTRA",
       placeOfSupply: "",
       placeOfSupplyConfirmed: false,
       taxCategory: "",
@@ -81,6 +82,12 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {countryCode === "IN" && <label className={labelClass}>GST supply type
+          <select className={fieldClass} value={config.indiaSupplyType || "INTRA"} onChange={(e) => update({ indiaSupplyType: e.target.value })}>
+            <option value="INTRA">Same state · CGST + SGST</option>
+            <option value="INTER">Different state · IGST</option>
+          </select>
+        </label>}
         {!serverResolved && <label className={labelClass}>Calculation method
           <select className={fieldClass} value={selectedMode} onChange={(e) => update({ mode: e.target.value })}>
             {!isUS && <option value="automatic">Automatic · source-backed country rate</option>}
