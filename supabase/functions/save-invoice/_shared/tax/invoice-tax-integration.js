@@ -188,8 +188,9 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
     return fail("UNSUPPORTED_TAX_TREATMENT", "This tax treatment is not supported. Keep the invoice as a draft.");
   }
   const normalizedTreatment = selectedTreatment === "standard" ? "standard-rated" : selectedTreatment;
-  if (mode === "manual" && (normalizedTreatment !== "standard-rated" || !isSupportedManualTaxTreatment(config.taxCategory))) {
-    return fail("UNSUPPORTED_TAX_TREATMENT", "Manual rates support standard-rated tax only. Special treatments require an exact verified country/category rule.");
+  if (mode === "manual" && (normalizedTreatment !== "standard-rated"
+    || (!isSupportedManualTaxTreatment(config.taxCategory) && config.resolvedRuleSource !== "supabase"))) {
+    return fail("UNSUPPORTED_TAX_TREATMENT", "Manual rates support standard-rated tax only. Special treatments require an exact country/category rule.");
   }
   if (![ "inclusive", "exclusive" ].includes(config.priceMode)) {
     return fail("PRICE_MODE_REQUIRED", "Choose whether each entered line price includes tax or excludes tax.");
