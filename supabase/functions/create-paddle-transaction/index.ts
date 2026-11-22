@@ -44,7 +44,7 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: authError } = await authClient.auth.getUser();
     if (authError || !user) return json({ error: "Session expired. Sign in again." }, 401, origin);
     const body = await req.json().catch(() => ({}));
-    const requestedPlanId = typeof body?.planId === "string" ? planId : "";
+    const requestedPlanId: string = typeof body?.planId === "string" ? body.planId : "";
     if (!isPlanId(requestedPlanId)) return json({ error: "Invalid plan." }, 400, origin);
     const planId = requestedPlanId;
 
