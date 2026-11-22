@@ -70,3 +70,19 @@ test("reconciliation writes are isolated to the explicit apply action", async ()
   assert.match(source, /saveList\(KEYS\.expenses, expenses\)/);
   assert.doesNotMatch(source, /export function reconcileTransactions\([^}]*saveList/);
 });
+
+
+test("exact UTR and amount outrank fuzzy same-amount candidates and prevent duplicate invoice matching", () => {
+  const invoices = [
+    { id: "inv-exact", number: "INV-EXACT", clientName: "Different narration", total: 800, status: "Pending", utrReference: "123456789012" },
+    { id: "inv-fuzzy", number: "INV-FUZZY", clientName: "Acme", total: 800, status: "Pending" },
+  ];
+  const txs = [
+    { id: "a", narration: "Acme", amount: 800, utr: "123456789012" },
+    { id: "b", narration: "Acme", amount: 800, utr: "123456789012" },
+  ];
+  const result = suggestReconciliationMatches(txs, invoices, []);
+  assert.equal(result.entries[0].matchedRecordId, "inv-exact");
+  assert.equal(result.entries[0].matchStatus, "SUGGESTED");
+  assert.equal(result.entries[1].matchStatus, "UNMATCHED");
+});
