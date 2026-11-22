@@ -27,7 +27,8 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   const [warehouse, setWarehouse] = useState(blankWarehouse);
   const [activity, setActivity] = useState({ lead_id: "", activity_type: "note", body: "" });
   const [transfer, setTransfer] = useState({ from: "", to: "", product_id: "", quantity: "" });
-  const [order, setOrder] = useState({ supplier_name: "", supplier_reference: "", expected_date: "", product_id: "", quantity: "1", unit_cost: "" });\n  const [supplierGstinLookup, setSupplierGstinLookup] = useState("");
+  const [order, setOrder] = useState({ supplier_name: "", supplier_reference: "", expected_date: "", product_id: "", quantity: "1", unit_cost: "" });
+  const [supplierGstinLookup, setSupplierGstinLookup] = useState("");
   const [receipt, setReceipt] = useState({ order_id: "", warehouse_id: "", item_id: "", quantity: "", batch_number: "", expires_on: "" });
   const [transferKey, setTransferKey] = useState(uid());
   const [receiptKey, setReceiptKey] = useState(uid());
@@ -87,7 +88,9 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   };
 
   const productMap = useMemo(() => new Map(data.products.map((p) => [p.id, p])), [data.products]);
-  const selectedOrder = data.orders.find((o) => o.id === receipt.order_id);\n  const supplierGstinParsed = useMemo(() => parseIndianGstin(supplierGstinLookup), [supplierGstinLookup]);\n  const supplierGstinMatches = useMemo(() => findSavedGstinRecords(data.suppliers, supplierGstinLookup), [data.suppliers, supplierGstinLookup]);
+  const selectedOrder = data.orders.find((o) => o.id === receipt.order_id);
+  const supplierGstinParsed = useMemo(() => parseIndianGstin(supplierGstinLookup), [supplierGstinLookup]);
+  const supplierGstinMatches = useMemo(() => findSavedGstinRecords(data.suppliers, supplierGstinLookup), [data.suppliers, supplierGstinLookup]);
   const selectedOrderItems = data.orderItems.filter((i) => i.purchase_order_id === selectedOrder?.id && Number(i.quantity_received) < Number(i.quantity_ordered));
   const activeWarehouses = data.warehouses.filter((w) => w.is_active);
   const lowStockLines = data.stock.filter((line) => Number(line.quantity || 0) <= Number(line.reorder_level || 0));
@@ -157,7 +160,8 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
         currency_code: account.currency_code, order_date: dateOnly(), expected_date: order.expected_date || null,
         items: [{ product_id: order.product_id, quantity_ordered: Number(order.quantity), unit_cost_minor: minor }],
       }});
-      setOrder({ supplier_name: "", supplier_reference: "", expected_date: "", product_id: "", quantity: "1", unit_cost: "" });\n      setSupplierGstinLookup("");
+      setOrder({ supplier_name: "", supplier_reference: "", expected_date: "", product_id: "", quantity: "1", unit_cost: "" });
+      setSupplierGstinLookup("");
     }, "Purchase order created.");
   };
 
