@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const migration = await readFile(new URL("../../../supabase/migrations/202611160001_global_part4_crm_warehouse_procurement.sql", import.meta.url), "utf8");
-const operations = await readFile(new URL("../../../supabase/migrations/202611160002_global_part4_transactional_operations.sql", import.meta.url), "utf8");
+const supplierLookupMigration = await readFile(new URL("../../../supabase/migrations/20261122195000_global_supplier_gstin_lookup.sql", import.meta.url), "utf8");\nconst operations = await readFile(new URL("../../../supabase/migrations/202611160002_global_part4_transactional_operations.sql", import.meta.url), "utf8");
 const endpoint = await readFile(new URL("../../../supabase/functions/global-part4/index.ts", import.meta.url), "utf8");
 const indiaMigration = await readFile(new URL("../../../supabase/migrations/202611160003_india_part4_warehouse_crm_purchase.sql", import.meta.url), "utf8");
 const indiaOperations = await readFile(new URL("../../../supabase/migrations/202611160004_india_part4_transactional_rpcs.sql", import.meta.url), "utf8");
@@ -151,3 +151,4 @@ test("Global products support barcode variants and invoice issuance consumes def
   assert.match(globalSales, /sales_invoice/);
   assert.match(globalRecords, /"barcode", "variant_of", "variant_label"/);
 });
+\n\ntest("Global purchasing can look up saved suppliers by GSTIN within the active workspace", () => {\n  assert.match(supplierLookupMigration, /global\\.suppliers/);\n  assert.match(supplierLookupMigration, /p_user_id=p_user_id/);\n  assert.match(supplierLookupMigration, /p_workspace_id/);\n  assert.match(supplierLookupMigration, /tax_registration_number/);\n  assert.match(endpoint, /"suppliers"/);\n  assert.match(globalUi, /Find saved supplier by GSTIN/);\n  assert.match(globalUi, /findSavedGstinRecords\\(data\\.suppliers/);\n  assert.match(globalUi, /local workspace lookup only/);\n});\n
