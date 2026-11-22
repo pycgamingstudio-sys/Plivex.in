@@ -552,7 +552,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
             {countryCode === "IN" && <div className="sm:col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
               <label className="block text-xs font-semibold text-slate-700">Find saved customer by GSTIN
                 <input className={field+" mt-1"} value={gstinLookup} maxLength={15} autoCapitalize="characters" placeholder="Enter 15-character GSTIN" onChange={(e)=>{
-                  const value=e.target.value.toUpperCase().replace(/\\s+/g,"");
+                  const value=e.target.value.toUpperCase().replace(/\s+/g,"");
                   setGstinLookup(value);
                   const matches=findSavedGstinRecords(clients,value);
                   if(matches.length===1) setForm((current)=>({...current,clientId:matches[0].id}));
