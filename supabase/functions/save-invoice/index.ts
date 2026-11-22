@@ -148,6 +148,40 @@ Deno.serve(async (req: Request) => {
       body.tax_rate = 0;
       body.tax_mode = "split";
     }
+    if (countryCode === "IN" && body?.invoice_snapshot && typeof body.invoice_snapshot === "object") {
+      // Preserve the established India GST ledger path, while binding each
+      // selected GST slab to its versioned Supabase baseline rule.
+      const rates = [...new Set((body.items || []).map((item: any) => Number(item?.gst_rate)).filter((rate: number) => Number.isFinite(rate) && rate >= 0 && rate <= 100))];
+      const snapshots: any[] = [];
+      for (const rate of rates) {
+        const taxCode = "GST_" + String(rate).replace(/\\.0+$/, "");
+        const treatment = rate === 0 ? "zero-rated" : rate === 5 ? "reduced" : "standard";
+        const resolved = await resolveSupabaseTaxRule(taxDb, {
+          countryCode:"IN", jurisdictionId:"IN", invoiceDate:String(body.issue_date || body.invoice_snapshot.issueDate || ""),
+          treatment, taxCode,
+        }, Deno.env.get("ALLOW_DRAFT_TAX_RULES") !== "false");
+        if (resolved.ok) snapshots.push({
+          taxCode, treatment, status:resolved.mode, ruleId:resolved.rule.id,
+          version:resolved.rule.version, effectiveFrom:resolved.rule.effectiveFrom,
+          source:resolved.rule.source, components:resolved.rule.components,
+        });
+      }
+      const taxConfig = body.invoice_snapshot.globalTax && typeof body.invoice_snapshot.globalTax === "object"
+        ? body.invoice_snapshot.globalTax : {};
+      const explicitSupplyType = String(taxConfig.indiaSupplyType || taxConfig.supplyType || "").toUpperCase();
+      const sellerState = String(businessProfile?.tax_jurisdiction_code || "").replace(/^IN[-_]/i,"").trim().toUpperCase();
+      const placeState = String(taxConfig.placeOfSupplyState || taxConfig.placeOfSupply || "").replace(/^IN[-_]/i,"").trim().toUpperCase();
+      const supplyType = ["INTRA","INTER"].includes(explicitSupplyType) ? explicitSupplyType
+        : sellerState && placeState ? (sellerState === placeState ? "INTRA" : "INTER") : null;
+      body.invoice_snapshot = {
+        ...body.invoice_snapshot,
+        country_code:"IN",
+        indiaTaxRuleSnapshots:snapshots,
+        indiaSupplyType:supplyType,
+        indiaTaxMode:supplyType === "INTRA" ? "CGST+SGST" : supplyType === "INTER" ? "IGST" : null,
+        indiaTaxRuleMode:snapshots.some((rule)=>rule.status === "draft_test") ? "draft_test" : "verified",
+      };
+    }
     const invoiceId = body.invoiceId ?? body.id ?? null;
     if (invoiceId !== null && (typeof invoiceId !== "string" || !/^[0-9a-f-]{36}$/i.test(invoiceId))) return json({ error: "Invalid invoice id." }, 400, origin);
     if (invoiceId !== null) {
