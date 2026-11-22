@@ -1,17 +1,19 @@
 import { resolvePlan } from "./cashfree.ts";
 
-Deno.test("country pricing is resolved server-side from the shared registry", () => {
-  const us = resolvePlan("basic_monthly", "US");
-  if (!us.available || us.currency !== "USD" || us.amountMinor !== 599) throw new Error("US Basic price mismatch");
-  const gb = resolvePlan("pro_monthly", "GB");
-  if (!gb.available || gb.currency !== "GBP" || gb.amountMinor !== 899) throw new Error("UK Pro price mismatch");
+Deno.test("Cashfree resolves only published India prices; international checkout is routed to Paddle", () => {
   const inr = resolvePlan("basic_monthly", "IN");
-  if (!inr.available || inr.currency !== "INR" || inr.amountMinor !== 19900) throw new Error("India Basic compatibility mismatch");
+  if (!inr.available || inr.currency !== "INR" || inr.amountMinor !== 19900) throw new Error("India Basic price mismatch");
+  const pro = resolvePlan("pro_monthly", "IN");
+  if (!pro.available || pro.amountMinor !== 24900) throw new Error("India Pro price mismatch");
+  const us = resolvePlan("basic_monthly", "US");
+  if (us.available || us.reason !== "use_paddle_for_international") throw new Error("US must use Paddle, not Cashfree");
+  const gb = resolvePlan("pro_monthly", "GB");
+  if (gb.available || gb.reason !== "use_paddle_for_international") throw new Error("GB must use Paddle, not Cashfree");
 });
 
 Deno.test("Cashfree currency and billing-period restrictions fail closed", () => {
   const uae = resolvePlan("basic_monthly", "AE");
-  if (uae.available || uae.reason !== "cashfree_currency_unavailable") throw new Error("AED must remain blocked until provider currency is confirmed");
+  if (uae.available || uae.reason !== "use_paddle_for_international") throw new Error("UAE must use the international provider, not Cashfree");
   const globalYearly = resolvePlan("basic_yearly", "US");
   if (globalYearly.available) throw new Error("Global yearly billing must remain disabled until priced");
   const unknown = resolvePlan("basic_monthly", "ZZ");
@@ -21,8 +23,8 @@ Deno.test("Cashfree currency and billing-period restrictions fail closed", () =>
 Deno.test("published plan price is consistent across accounts in the same country", () => {
   const india = resolvePlan("basic_monthly", "IN");
   const usa = resolvePlan("basic_monthly", "US");
-  if (!india.available || india.amountMinor !== 19900 || !usa.available || usa.amountMinor !== 599)
-    throw new Error("Published country prices must be stable and account-independent");
+  if (!india.available || india.amountMinor !== 19900 || usa.available)
+    throw new Error("Cashfree must use the published India price and reject international checkout");
 });
 
 
@@ -217,4 +219,12 @@ Deno.test("Cashfree non-success event filters prevent payment-state downgrade", 
   if (failed !== "payment_status.is.null,payment_status.in.(created,pending,failed)") {
     throw new Error("FAILED may advance pending but must not overwrite SUCCESS");
   }
+});
+
+
+Deno.test("Cashfree order creation contains no account-specific price override", async () => {
+  const source = await Deno.readTextFile(new URL("../create-cashfree-order/index.ts", import.meta.url));
+  if (source.includes("amountMinor = countryCode ===")) throw new Error("Account-specific payment pricing must not be used");
+  if (!source.includes("const amountMinor=plan.amountMinor;")) throw new Error("Checkout must use the published plan amount");
+  if (source.includes("../../../src/global/")) throw new Error("Cashfree deployment bundle must not import repository-root files");
 });

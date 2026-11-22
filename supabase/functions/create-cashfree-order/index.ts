@@ -1,6 +1,5 @@
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import {api,config,isPlanId,resolvePlan,safePath,allowedOrigin,createCashfreeOrderId} from "../_shared/cashfree.ts";
-import {getCountryByCode} from "../../../src/global/countries/country-registry.js";
 const cors=(o:string|null)=>({"Access-Control-Allow-Origin":o&&["https://plivex.in","https://www.plivex.in","https://plivex.netlify.app"].includes(o)?o:"https://plivex.in","Vary":"Origin","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"});
 const json=(b:unknown,s:number,o:string|null)=>new Response(JSON.stringify(b),{status:s,headers:{...cors(o),"Content-Type":"application/json","Cache-Control":"no-store"}});
 Deno.serve(async(req:Request)=>{
@@ -24,7 +23,7 @@ Deno.serve(async(req:Request)=>{
   const email=String(profile?.email||user.email||"").trim();
   if(!email)return json({error:"Account email is missing."},400,origin);
   if(!profile?.workspace_id)return json({error:"Your account is not linked to a workspace yet."},409,origin);
-  if(profile.role!=="admin")return json({error:"Only the workspace admin can purchase or change a subscription."},403,origin);
+  if(!["admin","owner"].includes(String(profile.role||"").toLowerCase()))return json({error:"Only the workspace owner or admin can purchase or change a subscription."},403,origin);
   const [{data:business,error:businessError},{data:workspaceSettings,error:workspaceSettingsError}]=await Promise.all([
    authClient.from("business_profile").select("country_code,locale_code").eq("workspace_id",profile.workspace_id).maybeSingle(),
    authClient.from("workspace_settings").select("country_code,locale_code,currency_code").eq("workspace_id",profile.workspace_id).maybeSingle(),
@@ -33,7 +32,7 @@ Deno.serve(async(req:Request)=>{
   // Canonical workspace_settings takes precedence over the legacy business profile.
   const countryCode=String(workspaceSettings?.country_code||business?.country_code||"IN").toUpperCase();
   if(countryCode!=="IN")return json({error:"International subscriptions use Paddle. Cashfree checkout is reserved for India workspaces.",code:"USE_PADDLE"},409,origin);
-  const localeCode=String(workspaceSettings?.locale_code||business?.locale_code||getCountryByCode(countryCode)?.locales?.[0]||"en-IN");
+  const localeCode=String(workspaceSettings?.locale_code||business?.locale_code||"en-IN");
   if(workspaceSettings?.currency_code && workspaceSettings.currency_code!=="INR")return json({error:"Workspace currency does not match India Cashfree billing.",code:"WORKSPACE_CURRENCY_MISMATCH"},409,origin);
   const plan=resolvePlan(body.planId,countryCode);
   if(!plan.available){
@@ -44,7 +43,7 @@ Deno.serve(async(req:Request)=>{
   const phone=rawPhone.replace(/[^0-9]/g,"");
   if(countryCode==="IN"?!/^[0-9]{10}$/.test(phone):! /^[0-9]{8,15}$/.test(phone))
     return json({error:"Add a valid mobile number to your Plivex account before checkout."},400,origin);
-  const amountMinor=countryCode==="IN" && email.toLowerCase()==="virendra.sharma99978@gmail.com" && plan.plan.id==="basic_monthly" ? 2500 : plan.amountMinor;
+  const amountMinor=plan.amountMinor;
   const currency=plan.currency;
   const orderId=createCashfreeOrderId();
   const returnOrigin=allowedOrigin(body?.origin),returnPath=safePath(body?.path);

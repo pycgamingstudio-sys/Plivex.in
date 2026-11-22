@@ -9,18 +9,15 @@ export const PLANS = {
 export type PlanId=keyof typeof PLANS;
 export const isPlanId=(v:unknown):v is PlanId=>typeof v==="string"&&Object.prototype.hasOwnProperty.call(PLANS,v);
 
-import { getBillingForCountry, CASHFREE_CURRENCIES } from "../../../src/global/billing/pricing.js";
-const CASHFREE_CURRENCY_SET=new Set(CASHFREE_CURRENCIES);
+export const CASHFREE_CURRENCIES=["INR"] as const;
+const INDIA_BILLING={currency:"INR",paymentEnabled:true,monthly:{basic:19900,pro:24900},yearly:{basic:99900,pro:159900}} as const;
 export function resolvePlan(planId:PlanId,countryCode:string){
-  const plan=PLANS[planId],country=getBillingForCountry(countryCode);
-  if(!country)return {available:false,reason:"unsupported_country"} as const;
-  if(!country.paymentEnabled||!CASHFREE_CURRENCY_SET.has(country.currency))return {available:false,reason:"cashfree_currency_unavailable",currency:country.currency} as const;
-  if(countryCode!=="IN"&&plan.period!=="month")return {available:false,reason:"billing_period_unavailable",currency:country.currency} as const;
-  const price=plan.period==="year"?country.yearly?.[plan.tier]:country.monthly[plan.tier];
-  if(!Number.isSafeInteger(price)||price<=0)return {available:false,reason:"plan_unavailable",currency:country.currency} as const;
-  // All customers in the same country and plan receive the same published price.
-  const amountMinor=price;
-  return {available:true,plan,currency:country.currency,countryCode,amountMinor,period:plan.period} as const;
+  const plan=PLANS[planId];
+  if(countryCode!=="IN")return {available:false,reason:"use_paddle_for_international"} as const;
+  if(!INDIA_BILLING.paymentEnabled||!CASHFREE_CURRENCIES.includes(INDIA_BILLING.currency))return {available:false,reason:"cashfree_currency_unavailable",currency:INDIA_BILLING.currency} as const;
+  const price=plan.period==="year"?INDIA_BILLING.yearly[plan.tier]:INDIA_BILLING.monthly[plan.tier];
+  if(!Number.isSafeInteger(price)||price<=0)return {available:false,reason:"plan_unavailable",currency:INDIA_BILLING.currency} as const;
+  return {available:true,plan,currency:INDIA_BILLING.currency,countryCode,amountMinor:price,period:plan.period} as const;
 }
 
 export const createCashfreeOrderId=(randomUUID:()=>string=()=>crypto.randomUUID())=>"PLXCF-"+randomUUID().replaceAll("-","").slice(0,26).toUpperCase();
