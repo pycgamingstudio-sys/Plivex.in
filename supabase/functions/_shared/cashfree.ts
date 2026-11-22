@@ -1,4 +1,4 @@
-// Cashfree is the only payment provider for Plivex Global.
+// Cashfree is the India subscription payment provider. International plans use Paddle.
 // Amounts are stored in minor units; currency is derived from the saved workspace country.
 export const PLANS = {
   basic_monthly:{id:"basic_monthly",name:"Basic Monthly",tier:"basic",period:"month"},
