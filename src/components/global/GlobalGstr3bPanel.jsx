@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/api/backendClient";
 import { buildGstr3bDraft } from "@/global/tax/gstr3b-draft.js";
+import { exportCsv } from "@/lib/dashboardData";
 const field="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm";
 const button="rounded-lg bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50";
 const secondary="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50";
@@ -74,7 +75,7 @@ export default function GlobalGstr3bPanel({account,invoke}) {
   if(country!=="IN"||currency!=="INR")return <div className="rounded-xl border border-slate-200 bg-white p-5"><h2 className="font-bold">GSTR-3B / GST filing calendar</h2><p className="mt-2 text-sm text-slate-600">This India GST workflow is available only in an India / INR workspace.</p></div>;
   return <div className="space-y-4">
     <div className="rounded-xl border border-slate-200 bg-white p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-bold">GSTR-3B preparation worksheet</h2><p className="mt-1 text-xs text-slate-500">Draft outward tax and matched eligible ITC from saved invoices and GSTR-2B records. No return is filed or tax posted automatically.</p></div><button type="button" className={secondary} disabled={loading} onClick={loadData}>{loading?"Refreshing…":"Refresh source records"}</button></div>
+      <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-bold">GSTR-3B preparation worksheet</h2><p className="mt-1 text-xs text-slate-500">Draft outward tax and matched eligible ITC from saved invoices and GSTR-2B records. No return is filed or tax posted automatically.</p></div><div className="flex flex-wrap gap-2"><button type="button" className={secondary} onClick={()=>exportCsv("plivex-gstr3b-draft-"+period+".csv",[{section:"Outward taxable value",amount_minor:draft.output.taxableMinor},{section:"Output IGST",amount_minor:draft.output.igstMinor},{section:"Output CGST",amount_minor:draft.output.cgstMinor},{section:"Output SGST",amount_minor:draft.output.sgstMinor},{section:"Eligible ITC",amount_minor:draft.eligibleItc.totalMinor},{section:"ITC reversals",amount_minor:draft.adjustments.reversalMinor},{section:"Ineligible ITC",amount_minor:draft.adjustments.ineligibleMinor},{section:"Reverse-charge tax",amount_minor:draft.adjustments.reverseChargeTaxMinor},{section:"Net tax payable",amount_minor:draft.netTaxPayableMinor}] )}>Export draft</button><button type="button" className={secondary} disabled={loading} onClick={loadData}>{loading?"Refreshing…":"Refresh source records"}</button></div></div>
       <label className="mt-4 block max-w-xs text-xs font-semibold text-slate-600">Return period<input className={field+" mt-1"} type="month" value={period} onChange={(e)=>setPeriod(e.target.value)}/></label>
       {error&&<p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {notice&&<p role="status" className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
