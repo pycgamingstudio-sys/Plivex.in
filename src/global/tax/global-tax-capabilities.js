@@ -45,7 +45,7 @@ const CAPABILITIES = Object.freeze({
     issuance: "disabled",
     taxSystem: "GST",
     currencyCode: "SGD",
-    note: "Standard-rate calculation only; invoice issuance adapter is not enabled.",
+    note: "Draft-test baseline only; not legally verified; invoice issuance adapter is disabled.",
   }),
   US: Object.freeze({
     countryCode: "US",
