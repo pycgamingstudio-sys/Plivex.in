@@ -137,7 +137,7 @@ Deno.serve(async (req: Request) => {
         if (workspaceError || !workspace) return globalJson({error:"Workspace country could not be verified."},403,origin);
         const countryCode = String(workspace.country_code || "").toUpperCase();
         const currencyCode = String(workspace.currency_code || "").toUpperCase();
-        if (body.currency_code !== currencyCode || !["US","GB","AE","CA","AU","SG"].includes(countryCode)) {
+        if (body.currency_code !== currencyCode || !["IN","US","GB","AE","CA","AU","SG"].includes(countryCode)) {
           return globalJson({error:"Invoice country and currency must match the saved Workspace settings."},422,origin);
         }
         const tax = body.tax_context;
@@ -149,13 +149,17 @@ Deno.serve(async (req: Request) => {
         if (tax.tax_mode !== "no_tax" && ["US","CA"].includes(countryCode) && tax.collection_obligation_attested !== true) {
           return globalJson({error:"Confirm that you have checked the tax collection obligation for this destination jurisdiction."},422,origin);
         }
+        const subtotalMinor = items.reduce((sum:any,item:any)=>sum + Math.round(item.quantity * item.unit_price_minor),0);
+        const discountMinor = items.reduce((sum:any,item:any)=>sum + item.discount_minor,0);
+        let taxableMinor = Math.max(0,subtotalMinor-discountMinor);
         let taxMinor = 0;
         let taxSnapshot: Record<string, unknown>;
+        if (![subtotalMinor,discountMinor,taxableMinor].every(Number.isSafeInteger)) return globalJson({error:"Invoice taxable amount is outside supported limits."},422,origin);
         if (tax.tax_mode === "no_tax") {
           if (tax.no_tax_confirmed !== true) return globalJson({error:"Confirm that no tax is chargeable before saving a commercial invoice draft."},422,origin);
           taxSnapshot = {
             countryCode,currencyCode,status:"not_assessed",taxMinor:0,
-            warning:"No tax was assessed based on the business's explicit confirmation; this is not a tax-exempt or zero-rated classification.",
+            taxableMinor,totalMinor:taxableMinor,warning:"No tax was assessed based on the business's explicit confirmation; this is not a tax-exempt or zero-rated classification.",
             calculatedAt:new Date().toISOString(),
           };
         } else {
@@ -170,11 +174,28 @@ Deno.serve(async (req: Request) => {
             taxCode:typeof tax.tax_code === "string" ? tax.tax_code : null,
           },Deno.env.get("ALLOW_DRAFT_TAX_RULES") !== "false");
           if (!resolved.ok) return globalJson({error:resolved.message || "No effective workspace tax rule is available.",code:resolved.code},422,origin);
-          const subtotalMinor = items.reduce((sum:any,item:any)=>sum + Math.round(item.quantity * item.unit_price_minor),0);
-          const discountMinor = items.reduce((sum:any,item:any)=>sum + item.discount_minor,0);
-          const taxableMinor = Math.max(0,subtotalMinor-discountMinor);
-          const components = resolved.rule.components;
-          taxMinor = components.reduce((sum:any,component:any)=>sum + Math.floor((taxableMinor*component.rateBps+5000)/10000),0);
+          let components = resolved.rule.components;
+          if (countryCode === "IN") {
+            const supplyType = String(tax.india_supply_type || "").toUpperCase();
+            const combinedRate = components.reduce((sum:any,component:any)=>sum + Number(component.rateBps),0);
+            if (supplyType === "INTRA") {
+              if (combinedRate % 2 !== 0) return globalJson({error:"This GST rate cannot be split evenly into CGST and SGST."},422,origin);
+              components = [
+                {id:"CGST",name:"CGST",rateBps:combinedRate/2,source:resolved.rule.source},
+                {id:"SGST",name:"SGST",rateBps:combinedRate/2,source:resolved.rule.source},
+              ];
+            } else if (supplyType === "INTER") {
+              components = [{id:"IGST",name:"IGST",rateBps:combinedRate,source:resolved.rule.source}];
+            } else return globalJson({error:"Choose same-state (CGST + SGST) or inter-state (IGST) supply."},422,origin);
+          }
+          const totalRateBps = components.reduce((sum:any,component:any)=>sum + Number(component.rateBps),0);
+          if (tax.price_mode === "inclusive") {
+            const grossMinor = taxableMinor;
+            taxableMinor = Math.floor((grossMinor * 10000 + Math.floor((10000 + totalRateBps) / 2)) / (10000 + totalRateBps));
+            taxMinor = grossMinor - taxableMinor;
+          } else if (tax.price_mode === "exclusive") {
+            taxMinor = components.reduce((sum:any,component:any)=>sum + Math.floor((taxableMinor*component.rateBps+5000)/10000),0);
+          } else return globalJson({error:"Choose whether the entered price includes tax or excludes tax."},422,origin);
           if (![subtotalMinor,discountMinor,taxableMinor,taxMinor].every(Number.isSafeInteger)) {
             return globalJson({error:"Invoice tax amount is outside supported limits."},422,origin);
           }
@@ -184,9 +205,11 @@ Deno.serve(async (req: Request) => {
             treatment:resolved.rule.treatment,components,status:resolved.mode,
             taxableMinor,taxMinor,totalMinor:taxableMinor+taxMinor,
             source:resolved.rule.source,calculatedAt:new Date().toISOString(),
+            indiaSupplyType:countryCode === "IN" ? tax.india_supply_type : null,
+            priceMode:tax.price_mode,
             warning:resolved.mode === "draft_test"
               ? "Draft baseline rule for testing only; not legally verified and not for production issuance."
-              : countryCode === "US" ? "State-level baseline only; local city, county and special-district taxes are not included." : null,
+              : countryCode === "US" ? "State-level baseline only; local city, county and special-district taxes are not included." : countryCode === "CA" ? "Province-level baseline only; confirm any transaction-specific place-of-supply rules." : null,
           };
         }
         const invoiceId = data?.invoice?.id;
