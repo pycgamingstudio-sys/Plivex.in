@@ -25,7 +25,7 @@ const CAPABILITIES = Object.freeze({
   }),
   AE: Object.freeze({
     countryCode: "AE",
-    calculation: "standard_rate_baseline",
+    calculation: "draft_test_country_rule",
     issuance: "disabled",
     taxSystem: "VAT",
     currencyCode: "AED",
@@ -33,7 +33,7 @@ const CAPABILITIES = Object.freeze({
   }),
   AU: Object.freeze({
     countryCode: "AU",
-    calculation: "standard_rate_baseline",
+    calculation: "draft_test_country_rule",
     issuance: "disabled",
     taxSystem: "GST",
     currencyCode: "AUD",
@@ -41,7 +41,7 @@ const CAPABILITIES = Object.freeze({
   }),
   SG: Object.freeze({
     countryCode: "SG",
-    calculation: "standard_rate_baseline",
+    calculation: "draft_test_country_rule",
     issuance: "disabled",
     taxSystem: "GST",
     currencyCode: "SGD",
@@ -57,7 +57,7 @@ const CAPABILITIES = Object.freeze({
   }),
   CA: Object.freeze({
     countryCode: "CA",
-    calculation: "verified_jurisdiction_rule_required",
+    calculation: "draft_test_jurisdiction_rule",
     issuance: "disabled",
     taxSystem: "GST/HST/PST/QST",
     currencyCode: "CAD",
