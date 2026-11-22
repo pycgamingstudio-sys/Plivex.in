@@ -2,7 +2,7 @@ import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowe
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_BODY = 32 * 1024;
-const RESOURCES = new Set(["warehouses","warehouse_stock_levels","inventory_batches","warehouse_stock_movements","stock_transfers","purchase_orders","purchase_order_items","crm_leads","crm_activities"]);
+const RESOURCES = new Set(["warehouses","warehouse_stock_levels","inventory_batches","warehouse_stock_movements","stock_transfers","purchase_orders","purchase_order_items","crm_leads","crm_activities","suppliers"]);
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 
 const validDate = (value: unknown) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
