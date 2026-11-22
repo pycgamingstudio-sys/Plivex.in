@@ -41,5 +41,7 @@ test("Paddle frontend opens only a server-created HTTPS checkout URL", async () 
 
 test("Australian Basic monthly display price is exactly AUD 799.00 in minor units", async () => {
   const pricing = await read("../billing/pricing.js");
-  assert.match(pricing, /AU: Object\.freeze\(\{ currency: "AUD".*monthly: Object\.freeze\(\{ basic: 79900/);
+  const helper = await read("../../../supabase/functions/_shared/paddle.ts");
+  assert.match(pricing, /AU: Object\.freeze\(\{ currency: "AUD".*monthly: Object\.freeze\(\{ basic: 79900, pro: 149900/);
+  assert.match(helper, /AU:\\{currency:"AUD",paymentEnabled:true,monthly:\\{basic:79900,pro:149900\\}\\}/);
 });
