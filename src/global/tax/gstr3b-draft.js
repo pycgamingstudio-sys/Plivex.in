@@ -13,7 +13,7 @@ export function buildGstr3bDraft(invoices,gstr2bRows,purchaseBills,{from="",to="
   };
   output.taxMinor=output.igstMinor+output.cgstMinor+output.sgstMinor;
   const reconciliation=reconcileGstr2bRows(gstr2bRows,purchaseBills);
-  const matched=reconciliation.filter((row)=>row.reconciliationStatus==="MATCHED"&&row.itcAvailable!==false);
+  const matched=reconciliation.filter((row)=>row.reconciliationStatus==="MATCHED"&&row.itcAvailable===true);
   const eligibleItc={
     igstMinor:matched.reduce((sum,row)=>sum+safeMinor(row.igstMinor),0),
     cgstMinor:matched.reduce((sum,row)=>sum+safeMinor(row.cgstMinor),0),
