@@ -9,7 +9,7 @@ test("all seven supported countries have explicit local currencies and prices", 
     const config = GLOBAL_BILLING[country.code];
     assert.ok(config, `Missing billing configuration for ${country.code}`);
     assert.equal(config.currency, country.currencyCode);
-    assert.ok(config.monthly.basic > 0 && config.monthly.pro > config.monthly.basic);
+    assert.ok(config.monthly.basic > 0 && config.monthly.pro > config.monthly.basic, `Invalid tier pricing for ${country.code}`);
   }
 });
 
