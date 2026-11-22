@@ -70,7 +70,7 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
       leads: mapped.crm_leads, activities: mapped.crm_activities, warehouses: mapped.warehouses,
       stock: mapped.warehouse_stock_levels, batches: mapped.inventory_batches, movements: mapped.warehouse_stock_movements,
       transfers: mapped.stock_transfers, orders: mapped.purchase_orders, orderItems: mapped.purchase_order_items,
-      products: products?.records || [],
+      products: products?.records || [], suppliers: mapped.suppliers || [],
     });
   }, [account.workspace_id, call]);
 
