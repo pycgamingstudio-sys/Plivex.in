@@ -68,7 +68,7 @@ Deno.serve(async (req: Request) => {
     if (workspace?.currency_code && workspace.currency_code !== currency) return json({ error: "Workspace currency does not match its selected country." }, 409, origin);
     const plan = PLANS[planId];
     const amountMinor = plan.period === "year" ? undefined : billing.monthly?.[plan.tier];
-    if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) return json({ error: "This plan is not available for the selected workspace country." }, 409, origin);
+    if (typeof amountMinor !== "number" || !Number.isSafeInteger(amountMinor) || amountMinor <= 0) return json({ error: "This plan is not available for the selected workspace country." }, 409, origin);
 
     const priceSecret = `PADDLE_PRICE_ID_${countryCode}_${planId.toUpperCase()}`;
     const priceId = Deno.env.get(priceSecret);
