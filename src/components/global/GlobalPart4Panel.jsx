@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase } from "@/api/backendClient";
+import { supabase } from "@/api/backendClient";\nimport { findSavedGstinRecords, parseIndianGstin } from "@/global/tax/gstin.js";
 import { ArrowLeftRight, ClipboardList, History, Plus, RefreshCw, Warehouse as WarehouseIcon } from "lucide-react";
 
 const input = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-500";
@@ -21,12 +21,12 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   useEffect(() => {
     if (["crm", "warehouses", "transfers", "purchasing", "movements"].includes(initialSection)) setSection(initialSection);
   }, [initialSection]);
-  const [data, setData] = useState({ leads: [], activities: [], warehouses: [], stock: [], batches: [], movements: [], transfers: [], orders: [], orderItems: [], products: [] });
+  const [data, setData] = useState({ leads: [], activities: [], warehouses: [], stock: [], batches: [], movements: [], transfers: [], orders: [], orderItems: [], products: [], suppliers: [] });
   const [lead, setLead] = useState(blankLead);
   const [warehouse, setWarehouse] = useState(blankWarehouse);
   const [activity, setActivity] = useState({ lead_id: "", activity_type: "note", body: "" });
   const [transfer, setTransfer] = useState({ from: "", to: "", product_id: "", quantity: "" });
-  const [order, setOrder] = useState({ supplier_name: "", supplier_reference: "", expected_date: "", product_id: "", quantity: "1", unit_cost: "" });
+  const [order, setOrder] = useState({ supplier_name: "", supplier_reference: "", expected_date: "", product_id: "", quantity: "1", unit_cost: "" });\n  const [supplierGstinLookup, setSupplierGstinLookup] = useState("");
   const [receipt, setReceipt] = useState({ order_id: "", warehouse_id: "", item_id: "", quantity: "", batch_number: "", expires_on: "" });
   const [transferKey, setTransferKey] = useState(uid());
   const [receiptKey, setReceiptKey] = useState(uid());
@@ -54,7 +54,7 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   }, [account.workspace_id]);
 
   const refresh = useCallback(async () => {
-    const resources = ["crm_leads", "crm_activities", "warehouses", "warehouse_stock_levels", "inventory_batches", "warehouse_stock_movements", "stock_transfers", "purchase_orders", "purchase_order_items"];
+    const resources = ["crm_leads", "crm_activities", "warehouses", "warehouse_stock_levels", "inventory_batches", "warehouse_stock_movements", "stock_transfers", "purchase_orders", "purchase_order_items", "suppliers"];
     const pairs = await Promise.all(resources.map(async (resource) => {
       const result = await call({ action: "list", resource, limit: 250 });
       return [resource, result.records || []];
@@ -86,7 +86,7 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   };
 
   const productMap = useMemo(() => new Map(data.products.map((p) => [p.id, p])), [data.products]);
-  const selectedOrder = data.orders.find((o) => o.id === receipt.order_id);
+  const selectedOrder = data.orders.find((o) => o.id === receipt.order_id);\n  const supplierGstinParsed = useMemo(() => parseIndianGstin(supplierGstinLookup), [supplierGstinLookup]);\n  const supplierGstinMatches = useMemo(() => findSavedGstinRecords(data.suppliers, supplierGstinLookup), [data.suppliers, supplierGstinLookup]);
   const selectedOrderItems = data.orderItems.filter((i) => i.purchase_order_id === selectedOrder?.id && Number(i.quantity_received) < Number(i.quantity_ordered));
   const activeWarehouses = data.warehouses.filter((w) => w.is_active);
   const lowStockLines = data.stock.filter((line) => Number(line.quantity || 0) <= Number(line.reorder_level || 0));
@@ -156,7 +156,7 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
         currency_code: account.currency_code, order_date: dateOnly(), expected_date: order.expected_date || null,
         items: [{ product_id: order.product_id, quantity_ordered: Number(order.quantity), unit_cost_minor: minor }],
       }});
-      setOrder({ supplier_name: "", supplier_reference: "", expected_date: "", product_id: "", quantity: "1", unit_cost: "" });
+      setOrder({ supplier_name: "", supplier_reference: "", expected_date: "", product_id: "", quantity: "1", unit_cost: "" });\n      setSupplierGstinLookup("");
     }, "Purchase order created.");
   };
 
@@ -291,7 +291,7 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
     {section === "purchasing" && <>
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-bold">Purchase order register</h2><p className="text-xs text-slate-500">Track supplier commitments, partial receipts and outstanding quantities.</p></div><div className="flex flex-wrap gap-2"><button type="button" className={secondary} onClick={() => setShowReceiptForm((value) => !value)}>Receive goods</button><button type="button" className={button + " inline-flex items-center gap-2"} onClick={() => setShowOrderForm((value) => !value)}><Plus className="h-4 w-4"/>{showOrderForm ? "Close form" : "New purchase order"}</button></div></div>
       {showOrderForm && <form onSubmit={async (event) => { if (await saveOrder(event)) setShowOrderForm(false); }} className="grid gap-3 rounded-xl border border-violet-100 bg-violet-50/40 p-4 sm:grid-cols-2 lg:grid-cols-3">
-        <input required className={input} placeholder="Supplier name" value={order.supplier_name} onChange={(e)=>setOrder({...order,supplier_name:e.target.value})}/>
+        <div className="sm:col-span-2"><label className="block text-xs font-semibold text-slate-700">Find saved supplier by GSTIN<input className={input + " mt-1"} value={supplierGstinLookup} maxLength={15} autoCapitalize="characters" placeholder="Enter 15-character GSTIN" onChange={(e)=>{ const value=e.target.value.toUpperCase().replace(/\\s/g,""); setSupplierGstinLookup(value); const matches=findSavedGstinRecords(data.suppliers,value); if(matches.length===1) setOrder((current)=>({...current,supplier_name:matches[0].name})); }}/></label>{supplierGstinLookup.trim() && (supplierGstinParsed.ok ? <p className="mt-1 text-xs text-slate-600">Format detected · {supplierGstinParsed.stateName} · {supplierGstinParsed.panEntityType}. {supplierGstinMatches.length===1 ? "Saved supplier matched and selected." : supplierGstinMatches.length>1 ? "Multiple suppliers match; verify the supplier name before saving." : "No saved supplier matched. This is a local workspace lookup only."}</p> : <p className="mt-1 text-xs text-amber-700">{supplierGstinParsed.message}</p>)}</div><input required className={input} placeholder="Supplier name" value={order.supplier_name} onChange={(e)=>setOrder({...order,supplier_name:e.target.value})}/>
         <input className={input} placeholder="Supplier reference (optional)" value={order.supplier_reference} onChange={(e)=>setOrder({...order,supplier_reference:e.target.value})}/>
         <input type="date" className={input} value={order.expected_date} onChange={(e)=>setOrder({...order,expected_date:e.target.value})}/>
         <select required className={input} value={order.product_id} onChange={(e)=>setOrder({...order,product_id:e.target.value})}><option value="">Choose product</option>{data.products.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}</select>
