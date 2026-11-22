@@ -619,8 +619,12 @@ export async function resolveSupabaseTaxRuleAsync(supabase, {
   const verified = rows.filter((row) => row.status === "verified");
   const selected = verified.length ? verified : allowDraft ? rows.filter((row) => row.status === "draft") : [];
   if (!selected.length) return { ok: false, code: "NO_EFFECTIVE_TAX_RULE" };
-  const date = selected[0].effective_from;
-  const sameDate = selected.filter((row) => row.effective_from === date);
+  const latestByCode = new Map();
+  for (const row of selected) {
+    const previous = latestByCode.get(row.tax_code);
+    if (!previous || row.effective_from > previous.effective_from) latestByCode.set(row.tax_code, row);
+  }
+  const sameDate = [...latestByCode.values()];
   if (country !== "CA" && sameDate.length !== 1) return { ok: false, code: "AMBIGUOUS_TAX_RULE" };
   const normalized = sameDate.map(normalizeSupabaseTaxRuleRow);
   if (normalized.some((rule) => !rule)) return { ok: false, code: "INVALID_TAX_COMPONENTS" };
