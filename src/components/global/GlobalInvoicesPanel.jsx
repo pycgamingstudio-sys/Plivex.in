@@ -757,7 +757,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
             return <div key={schedule.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3">
               <div><p className="text-sm font-semibold">{customer} · {schedule.cadence} × {schedule.interval_count}</p><p className="text-xs text-slate-500">Next: {schedule.next_run_date} · {schedule.status} · {schedule.currency_code}</p></div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" className={secondary} disabled={busy} onClick={()=>setRecurringScheduleStatus(schedule,schedule.status==="paused"?"active":"paused")}>{schedule.status==="paused"?"Resume":"Pause"}</button>
+                <button type="button" className={secondary} disabled={busy||schedule.status==="completed"} onClick={()=>setRecurringScheduleStatus(schedule,schedule.status==="paused"?"active":"paused")}>{schedule.status==="paused"?"Resume":"Pause"}</button>
                 <button type="button" className={button} disabled={busy||!due||!sellerProfileReady} onClick={()=>generateRecurringDraft(schedule)}>{due?"Generate draft":"Not due yet"}</button>
               </div>
             </div>;
