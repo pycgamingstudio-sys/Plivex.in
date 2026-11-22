@@ -123,8 +123,7 @@ create table if not exists global.gst_filing_calendar (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references global.workspaces(id) on delete cascade,
   return_type text not null check(return_type in ('GSTR1','GSTR3B')),
-  return_period text not null check(return_period ~ '^\\d{4}-(0[1-9]|1[0-2])
-),
+  return_period text not null check(return_period ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
   due_date date not null,
   status text not null default 'planned' check(status in ('planned','filed')),
   filing_reference text check(filing_reference is null or length(filing_reference)<=120),
@@ -149,7 +148,7 @@ create or replace function public.global_save_gst_filing_calendar(
 declare v_role text; v_country text; v_row global.gst_filing_calendar%rowtype;
 begin
   if p_user_id is null or p_user_id<>auth.uid() or p_workspace_id is null
-    or p_return_type is null or p_return_type not in ('GSTR1','GSTR3B') or p_return_period is null or p_return_period !~ '^\\d{4}-(0[1-9]|1[0-2])
+    or p_return_type is null or p_return_type not in ('GSTR1','GSTR3B') or p_return_period is null or p_return_period !~ '^[0-9]{4}-(0[1-9]|1[0-2])$'
 
     or p_due_date is null or p_status is null or p_status not in ('planned','filed')
     or length(coalesce(p_filing_reference,''))>120 or length(coalesce(p_notes,''))>500 then
