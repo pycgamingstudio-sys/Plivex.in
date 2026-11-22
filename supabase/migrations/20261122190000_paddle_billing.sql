@@ -61,6 +61,9 @@ BEGIN
   END IF;
 
   v_expected := v_order.amount_minor_units;
+  IF v_order.provider_subscription_id IS NOT NULL AND v_order.provider_subscription_id <> p_provider_subscription_id THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'provider_subscription_mismatch');
+  END IF;
   IF v_order.status::text NOT IN ('created','active')
      OR lower(COALESCE(v_order.gateway,'')) <> 'paddle'
      OR lower(COALESCE(v_order.provider,'')) <> 'paddle'
@@ -81,7 +84,7 @@ BEGIN
 
   v_lock_key := pg_catalog.hashtextextended(
     COALESCE(v_order.workspace_id, 'user:' || v_order.user_id::text),
-    726934822
+    726934821
   );
   PERFORM pg_catalog.pg_advisory_xact_lock(v_lock_key);
   v_now := clock_timestamp();
