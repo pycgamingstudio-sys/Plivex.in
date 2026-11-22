@@ -498,7 +498,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
                 <input required min="0" step="0.01" type="number" className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm outline-none" value={form.unitPrice} onChange={(e)=>setForm((v)=>({...v,unitPrice:e.target.value}))}/>
               </span>
             </label>
-            <div className="sm:col-span-2"><GlobalTaxEditor invoice={createPreviewInvoice} setInvoice={(updater)=>setTaxContext((old)=>typeof updater==="function"?updater({globalTax:old}).globalTax:updater.globalTax)} workspaceProfile={workspaceProfile} calculation={createTaxPreview} allowNoTax={true}/></div>
+            <div className="sm:col-span-2"><GlobalTaxEditor invoice={createPreviewInvoice} setInvoice={(updater)=>setTaxContext((old)=>typeof updater==="function"?updater({globalTax:old}).globalTax:updater.globalTax)} workspaceProfile={workspaceProfile} allowNoTax={true} serverResolved={true}/></div>
             <div className="sm:col-span-2 flex items-center justify-between gap-3"><span className="text-sm text-slate-500">Invoice amount: {money(minor(Number(form.quantity||0)*Number(form.unitPrice||0),currency),currency)}</span><button disabled={busy || !sellerProfileReady} className={button}>Save invoice draft with tax</button></div>
           </form>
         </div>
@@ -514,7 +514,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <h2 className="font-semibold">{selected.invoice_number}</h2>
               <p className="mt-1 text-sm text-slate-500">{selected.invoice_snapshot?.buyer?.name || selectedClient?.name || "Customer"} · {selected.status}</p>
-              <div className="mt-3 space-y-1 text-sm"><p>Subtotal: {money(selected.subtotal_minor,selected.currency_code)}</p><p>Discount: {money(selected.discount_minor,selected.currency_code)}</p><p>{selected.invoice_snapshot?.tax_status === "not_assessed" ? "Tax: Not assessed by Plivex" : "Tax: " + money(selected.tax_minor,selected.currency_code)}</p><p className="font-bold">Total: {money(selected.total_minor,selected.currency_code)}</p></div>
+              <div className="mt-3 space-y-1 text-sm"><p>Subtotal: {money(selected.subtotal_minor,selected.currency_code)}</p><p>Discount: {money(selected.discount_minor,selected.currency_code)}</p><p>{selected.invoice_snapshot?.global_tax_snapshot?.status === "not_assessed" || selected.invoice_snapshot?.tax_status === "not_assessed" ? "Tax: Not assessed by Plivex" : "Tax: " + money(selected.tax_minor,selected.currency_code)}</p><p className="font-bold">Total: {money(selected.total_minor,selected.currency_code)}</p></div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button className={secondary} onClick={()=>downloadPdf(selected)}>Download PDF</button>
                 <button className={secondary} onClick={()=>shareInvoice(selected,"whatsapp")}>WhatsApp</button>
@@ -526,7 +526,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
                 <button className={button+" mt-4 w-full"} disabled={busy||!canIssueCommercial} onClick={issueCommercialInvoice}>Issue commercial invoice</button>
                 {!canIssueCommercial && <p className="mt-2 text-xs text-amber-700">Complete the seller legal name and address, and wait for the commercial issuance service to be enabled. Commercial invoices do not certify tax treatment.</p>}
                 {countryCode==="GB" && <>
-                  <div className="mt-4"><GlobalTaxEditor invoice={previewInvoice} setInvoice={(updater)=>setTaxContext((old)=>typeof updater==="function"?updater({globalTax:old}).globalTax:updater.globalTax)} workspaceProfile={workspaceProfile}/></div>
+                  <div className="mt-4"><GlobalTaxEditor invoice={previewInvoice} setInvoice={(updater)=>setTaxContext((old)=>typeof updater==="function"?updater({globalTax:old}).globalTax:updater.globalTax)} workspaceProfile={workspaceProfile} serverResolved={true}/></div>
                   <button className={secondary+" mt-3 w-full"} disabled={busy||!canIssue} onClick={issueInvoice}>Issue UK VAT tax invoice</button>
                   {!canIssue && <p className="mt-2 text-xs text-amber-700">The separate UK VAT tax-invoice path requires a complete registered seller profile and confirmed standard-rated VAT evidence.</p>}
                 </>}
