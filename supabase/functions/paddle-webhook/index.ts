@@ -60,7 +60,7 @@ Deno.serve(async (req: Request) => {
   const currency = String(data?.currency_code || "").toUpperCase();
   const subtotalMinor = minorUnits(data?.details?.totals?.subtotal);
   const totalMinor = minorUnits(data?.details?.totals?.total);
-  if (!/^ [A-Z]{3}$/.test(" " + currency) || subtotalMinor === null || totalMinor === null || !providerSubscriptionId) {
+  if (!/^[A-Z]{3}$/.test(currency) || subtotalMinor === null || totalMinor === null || !providerSubscriptionId) {
     return json({ error: "Paddle transaction details are incomplete." }, 422);
   }
   const { data: applied, error: applyError } = await admin.rpc("apply_paddle_subscription_payment", {
