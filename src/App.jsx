@@ -141,6 +141,7 @@ const AuthenticatedApp = () => {
           <Route path="/business-profile" element={<GlobalFeatureGate feature="Business profile"><BusinessProfile /></GlobalFeatureGate>} />
           <Route path="/client-database" element={isGlobalWorkspace ? <GlobalApp section="clients" /> : <WorkspaceFeatureGate anyOf={["crm", "leads"]}><ClientDatabase /></WorkspaceFeatureGate>} />
           <Route path="/crm" element={isGlobalWorkspace ? <GlobalApp section="crm" /> : <WorkspaceFeatureGate anyOf={["crm", "leads"]}><CrmTab /></WorkspaceFeatureGate>} />
+          <Route path="/sales-documents" element={isGlobalWorkspace ? <GlobalApp section="sales_docs" /> : <Navigate to="/dashboard" replace state={{ initialTab: "sales" }} />} />
           <Route path="/inventory-procurement" element={isGlobalWorkspace ? <GlobalApp section="inventory" /> : <WorkspaceFeatureGate feature="inventoryWorkspace"><IndiaPart4Tab user={user} /></WorkspaceFeatureGate>} />
           <Route path="/usage-reports" element={<GlobalFeatureGate feature="Usage reports"><WorkspaceFeatureGate feature="reports"><UsageReports /></WorkspaceFeatureGate></GlobalFeatureGate>} />
           <Route path="/settings" element={<GlobalFeatureGate feature="Workspace settings"><Settings /></GlobalFeatureGate>} />
