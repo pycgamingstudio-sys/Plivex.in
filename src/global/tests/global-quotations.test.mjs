@@ -54,7 +54,10 @@ test("quotation totals and statuses cannot create payment or tax side effects", 
   const panel = await read("../../components/global/GlobalQuotationsPanel.jsx");
   assert.match(migration, /if v_quote\.status<>'accepted' then/);
   assert.match(migration, /'Converted from quotation '/);
-  assert.match(panel, /Taxes are not calculated or assessed by Plivex/);
+  assert.match(panel, /tax_minor/);
+  assert.match(panel, /total_including_tax_minor/);
+  assert.match(panel, /tax_snapshot/);
+  assert.match(panel, /workspace country/i);
   assert.match(panel, /cannot accept payments/);
   assert.match(panel, /action: "convert"/);
 });
