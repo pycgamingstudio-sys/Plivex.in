@@ -5,7 +5,7 @@ import { getTaxInvoiceFormat } from "@/global/tax/tax-invoice-formats.js";
 const fieldClass = "mt-1 w-full rounded-lg border bg-background px-3 py-2.5 text-sm";
 const labelClass = "block text-xs font-semibold text-foreground";
 
-export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile, calculation, allowNoTax = true }) {
+export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile, calculation, allowNoTax = true, serverResolved = false }) {
   const countryCode = workspaceProfile?.countryCode || "";
   const format = getTaxInvoiceFormat(countryCode);
   const config = {
@@ -43,7 +43,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
   const removeComponent = (id) => update({
     components: (config.components || []).filter((item) => item.id !== id),
   });
-  const result = calculation || calculateInvoiceGlobalTax(invoice, workspaceProfile);
+  const result = serverResolved ? { ok:false, message:"Supabase resolves the effective Workspace-country rule when you save this invoice draft." } : (calculation || calculateInvoiceGlobalTax(invoice, workspaceProfile));
   const isUS = countryCode === "US";
   const isCA = countryCode === "CA";
   const currency = invoice.currency || workspaceProfile?.currencyCode || "";
