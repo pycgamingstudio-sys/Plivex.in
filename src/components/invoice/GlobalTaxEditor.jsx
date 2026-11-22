@@ -88,7 +88,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {countryCode === "IN" && <label className={labelClass}>GST rate
-          <select className={fieldClass} value={config.taxCode || "GST_18"} onChange={(e) => update({ taxCode: e.target.value, taxDetailsConfirmed: false })}>
+          <select className={fieldClass} value={config.taxCode || "GST_18"} onChange={(e) => update({ taxCode: e.target.value, taxTreatment: e.target.value === "GST_0" ? "zero-rated" : e.target.value === "GST_5" ? "reduced" : "standard", taxDetailsConfirmed: false })}>
             {[["GST_0","0%"],["GST_5","5%"],["GST_12","12%"],["GST_18","18%"],["GST_28","28%"]].map(([value,label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>}
