@@ -49,6 +49,7 @@ export default function PricingSection() {
     setCheckoutBusy(planId);
     setCheckoutError("");
     try {
+      if (!GLOBAL_BILLING[activeCountryCode]?.paymentEnabled) throw new Error("Subscriptions are not enabled for this country yet.");
       if (activeCountryCode === "IN") await startCashfreeCheckout({ planId });
       else await startPaddleCheckout({ planId });
     } catch (error) {
@@ -107,7 +108,7 @@ export default function PricingSection() {
                 {plan.id === "free" || !isAuthenticated ? (
                   <Link to={plan.id === "free" ? "/register" : "/register?plan=" + checkoutPlanId} className={actionClass}>{plan.accent ? <Crown className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}{plan.id === "free" ? "Get Free" : "Get " + plan.name}</Link>
                 ) : (
-                  <button type="button" onClick={() => startPaidPlan(plan)} disabled={Boolean(checkoutBusy)} className={actionClass}>{checkoutBusy ? "Opening secure checkout…" : "Get " + plan.name}</button>
+                  <button type="button" onClick={() => startPaidPlan(plan)} disabled={Boolean(checkoutBusy) || !GLOBAL_BILLING[activeCountryCode]?.paymentEnabled} className={actionClass}>{!GLOBAL_BILLING[activeCountryCode]?.paymentEnabled ? "Coming soon" : checkoutBusy ? "Opening secure checkout…" : "Get " + plan.name}</button>
                 )}
               </div>
             );
