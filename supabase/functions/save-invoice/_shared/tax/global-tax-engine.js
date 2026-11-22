@@ -1,8 +1,9 @@
-// Bundled copy for the save-invoice Edge Function. Keep in sync with src/global/tax/global-tax-engine.js.
+// Bundled copy for the save-invoice Edge Function. Keep in sync with ../tax/global-tax-engine.js
 import { calculateVerifiedTaxTreatment } from "./tax-treatment-evaluator.js";
 import { getCountryStandardRateRule } from "./standard-rate-rules.js";
 import { getTaxTreatmentRuleSet } from "./tax-rule-registry.js";
-import { resolveTaxRuleSnapshot } from "./tax-rule-registry.js";
+import { resolveTaxRuleSnapshot, resolveSupabaseTaxRuleAsync } from "./tax-rule-registry.js";
+import { calculateManualTax } from "./manual-tax-calculator.js";
 
 /**
  * Country router for the seven selectable Main Workspace countries.
@@ -70,4 +71,49 @@ export function calculateGlobalTaxWithRegistry(input, rules) {
     return { ok: false, status: "needs_review", code: resolved.code, message: "No unique verified tax rule is effective for this invoice and jurisdiction." };
   }
   return calculateGlobalTax({ ...input, countryCode, rule: resolved.rule });
+}
+
+
+/**
+ * Async workspace-country tax entry point. Database access is supplied by the
+ * trusted caller; browser clients must never use a service-role credential.
+ * Draft rows can be used only with explicit allowDraft=true and are labelled
+ * draft_test so they cannot be mistaken for verified tax results.
+ */
+export async function calculateGlobalTaxAsync(input, supabase, { allowDraft = false } = {}) {
+  if (!input || typeof input !== "object" || !supabase) {
+    return { ok:false, status:"needs_review", code:"INVALID_INPUT", message:"Tax input and a database resolver are required." };
+  }
+  const countryCode = String(input.countryCode || "").trim().toUpperCase();
+  if (countryCode === "IN") {
+    return { ok:false, status:"india_legacy", code:"INDIA_GST_SPLIT_REQUIRED", message:"India must resolve GST slab and same-state CGST+SGST versus inter-state IGST in the India GST adapter." };
+  }
+  const resolved = await resolveSupabaseTaxRuleAsync(supabase, {
+    countryCode, jurisdictionId:input.jurisdictionId || null,
+    invoiceDate:input.invoiceDate, treatment:input.treatment || "standard",
+    taxCode:input.taxCode || null, allowDraft,
+  });
+  if (!resolved.ok) {
+    return { ok:false, status:"needs_review", code:resolved.code, message:"No effective tax rule was found for this Workspace country and jurisdiction." };
+  }
+  if (resolved.mode === "draft_test") {
+    const calculated = calculateManualTax({
+      countryCode, currencyCode:input.currencyCode, currencyMinorUnits:input.currencyMinorUnits,
+      amountMinor:input.amountMinor, priceMode:input.priceMode,
+      taxTreatment:"standard-rated",
+      components:resolved.rule.components.map((component)=>({
+        id:component.id,name:component.name,rateBps:component.rateBps,
+      })),
+      jurisdictionConfirmed:input.collectionObligationAttestedByUser === true,
+    });
+    return calculated.ok ? {
+      ...calculated, status:"draft_test", ruleSnapshot:{
+        id:resolved.rule.id,version:resolved.rule.version,countryCode,
+        jurisdictionId:resolved.rule.jurisdictionId,effectiveFrom:resolved.rule.effectiveFrom,
+        source:resolved.rule.source,status:"draft",ruleMode:"draft_test",
+      },
+      warning:"Draft baseline rule for testing only; not legally verified.",
+    } : calculated;
+  }
+  return calculateGlobalTax({ ...input, countryCode, rule:{ ...resolved.rule, verified:true } });
 }
