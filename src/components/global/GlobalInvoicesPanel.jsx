@@ -148,17 +148,17 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
     try {
       if (!workspaceContext.ok) throw new Error("Your workspace country and base currency could not be verified. No fallback currency has been applied.");
-      const isTaxInvoice = form.documentType === "tax" && countryCode === "GB";
+      const isTaxInvoice = taxContext.taxMode !== "no_tax";
       if (!sellerProfileReady) throw new Error("Complete the seller legal name and business address before issuing an invoice.");
-      if (isTaxInvoice && (!backendCapabilities.issuanceReady || createTaxPreview.ok !== true)) {
-        throw new Error(createTaxPreview.message || "Complete the verified UK VAT details before issuing this tax invoice.");
+      if (isTaxInvoice && taxContext.taxDetailsConfirmed !== true && taxContext.registrationConfirmed !== true) {
+        throw new Error("Confirm the saved registration, place of supply and tax category before saving this tax calculation.");
       }
-      if (!isTaxInvoice && !backendCapabilities.commercialIssuanceReady) {
-        throw new Error("The server commercial-issuance service is not ready yet.");
+      if (taxContext.taxMode === "no_tax" && taxContext.noTaxConfirmed !== true) {
+        throw new Error("Confirm the no-tax commercial invoice choice before saving.");
       }
       const { data, error: invokeError } = await supabase.functions.invoke("global-invoices", {
         body:{
-          action:isTaxInvoice ? "create_final_tax" : "create_final_commercial",
+          action:"create_draft",
           workspace_id:account.workspace_id,
           client_id:form.clientId || null, currency_code:currency,
           issue_date:form.issueDate, due_date:form.dueDate || null,
@@ -167,24 +167,30 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
             description:form.description.trim(), quantity:Number(form.quantity),
             unit_price_minor:minor(form.unitPrice,currency), discount_minor:0, product_id:null,
           }],
-          ...(isTaxInvoice ? { tax_context:{
+          tax_context:{
+            tax_mode:taxContext.taxMode || "taxable",
+            no_tax_confirmed:taxContext.noTaxConfirmed === true,
             registration_confirmed:taxContext.registrationConfirmed === true,
             place_of_supply_confirmed:taxContext.placeOfSupplyConfirmed === true,
             tax_category_confirmed:taxContext.taxCategoryConfirmed === true,
             tax_category:taxContext.taxCategory || "",
-            mode:taxContext.mode || "",
-            price_mode:taxContext.priceMode || "",
+            tax_treatment:taxContext.taxTreatment || "standard",
+            tax_code:taxContext.taxCode || null,
+            mode:taxContext.mode || "automatic",
+            price_mode:taxContext.priceMode || "exclusive",
             place_of_supply:taxContext.placeOfSupply || "",
-          } } : {}),
+            destination_jurisdiction:taxContext.destinationJurisdiction || {},
+            collection_obligation_attested:taxContext.collectionObligationAttested === true,
+          },
         },
       });
       if (invokeError) throw invokeError;
-      if (!data?.ok || data?.invoice?.status !== "issued" || !data?.invoice?.invoice_number) {
-        throw new Error(data?.error || "The server did not confirm final invoice issuance. No final PDF was created.");
+      if (!data?.ok || data?.invoice?.status !== "draft" || !data?.invoice?.id) {
+        throw new Error(data?.error || "The server did not confirm the invoice draft and tax snapshot.");
       }
       setSelectedId(data.invoice.id);
       setShowCreate(false);
-      setNotice((isTaxInvoice ? "Final tax invoice " : "Final commercial invoice ") + data.invoice.invoice_number + " issued by the server. Preparing its official PDF…");
+      setNotice("Invoice draft saved using the Workspace country tax rule. Review the tax snapshot and complete the appropriate issuance checks before issuing.");
       await refresh();
       await downloadPdf(data.invoice);
     } catch (e) { setError(e.message || "Could not create the final invoice."); }
@@ -473,7 +479,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
 
       {showCreate && (
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="font-semibold">New final invoice</h2>
+          <h2 className="font-semibold">New invoice draft</h2>
           <form onSubmit={createDraft} className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="text-xs font-semibold text-slate-600">Customer<select className={field+" mt-1"} value={form.clientId} onChange={(e)=>setForm((v)=>({...v,clientId:e.target.value}))}><option value="">No customer selected</option>{clients.map((c)=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
             {countryCode==="GB" && <label className="text-xs font-semibold text-slate-600">Document type
@@ -492,8 +498,8 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
                 <input required min="0" step="0.01" type="number" className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm outline-none" value={form.unitPrice} onChange={(e)=>setForm((v)=>({...v,unitPrice:e.target.value}))}/>
               </span>
             </label>
-            {countryCode==="GB" && form.documentType==="tax" && <div className="sm:col-span-2"><GlobalTaxEditor invoice={createPreviewInvoice} setInvoice={(updater)=>setTaxContext((old)=>typeof updater==="function"?updater({globalTax:old}).globalTax:updater.globalTax)} workspaceProfile={workspaceProfile} calculation={createTaxPreview} allowNoTax={false}/></div>}
-            <div className="sm:col-span-2 flex items-center justify-between gap-3"><span className="text-sm text-slate-500">Invoice amount: {money(minor(Number(form.quantity||0)*Number(form.unitPrice||0),currency),currency)}</span><button disabled={busy || !sellerProfileReady || (form.documentType==="tax" ? !backendCapabilities.issuanceReady : !backendCapabilities.commercialIssuanceReady)} className={button}>Create final invoice</button></div>
+            <div className="sm:col-span-2"><GlobalTaxEditor invoice={createPreviewInvoice} setInvoice={(updater)=>setTaxContext((old)=>typeof updater==="function"?updater({globalTax:old}).globalTax:updater.globalTax)} workspaceProfile={workspaceProfile} calculation={createTaxPreview} allowNoTax={true}/></div>
+            <div className="sm:col-span-2 flex items-center justify-between gap-3"><span className="text-sm text-slate-500">Invoice amount: {money(minor(Number(form.quantity||0)*Number(form.unitPrice||0),currency),currency)}</span><button disabled={busy || !sellerProfileReady} className={button}>Save invoice draft with tax</button></div>
           </form>
         </div>
       )}
@@ -524,7 +530,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
                   <button className={secondary+" mt-3 w-full"} disabled={busy||!canIssue} onClick={issueInvoice}>Issue UK VAT tax invoice</button>
                   {!canIssue && <p className="mt-2 text-xs text-amber-700">The separate UK VAT tax-invoice path requires a complete registered seller profile and confirmed standard-rated VAT evidence.</p>}
                 </>}
-                <p className="mt-3 text-xs text-slate-500">Commercial invoices are not tax invoices. US and Canada address-level tax is not calculated automatically in this release.</p>
+                <p className="mt-3 text-xs text-slate-500">This invoice draft stores the selected Workspace-country tax rule and a versioned calculation snapshot. Draft-test rates are not legally verified.</p>
               </>}
               {selected.status!=="draft" && <p className="mt-3 text-xs text-slate-500">Issued invoice content and tax snapshot are locked. Payments and refunds are recorded separately.</p>}
             </div>
