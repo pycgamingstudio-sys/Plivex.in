@@ -124,10 +124,12 @@ test("Global commercial invoice creation has one atomic server-side finalization
   assert.match(handler, /create_final_tax/);
   assert.match(handler, /global_create_and_issue_tax_invoice/);
   assert.match(handler, /atomicTaxProbe/);
-  assert.match(panel, /action:isTaxInvoice \? "create_final_tax" : "create_final_commercial"/);
+  assert.match(panel, /action:"create_draft"/);
+  assert.match(panel, /tax_context:/);
+  assert.match(panel, /Save invoice draft with tax/);
   assert.match(panel, /UK VAT tax invoice · calculate VAT/);
-  assert.match(panel, /allowNoTax=\{false\}/);
-  assert.match(panel, /data\?\.invoice\?\.status !== "issued"/);
+  assert.match(panel, /serverResolved=\{true\}/);
+  assert.match(panel, /data\?\.invoice\?\.status !== "draft"/);
   assert.match(panel, /await downloadPdf\(data\.invoice\)/);
   assert.match(migration, /global_create_invoice_draft/);
   assert.match(migration, /global_issue_commercial_invoice/);
