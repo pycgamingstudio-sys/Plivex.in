@@ -12,6 +12,7 @@ create table if not exists global.inventory_serials(
  status text not null default 'available' check(status in ('available','reserved','sold','damaged','returned')),
  notes text check(notes is null or length(notes)<=1000),
  idempotency_key uuid not null,
+ request_fingerprint text not null,
  last_movement_id uuid references global.warehouse_stock_movements(id) on delete set null,
  created_by uuid not null references auth.users(id) on delete restrict,
  created_at timestamptz not null default now(),
@@ -19,6 +20,7 @@ create table if not exists global.inventory_serials(
  unique(workspace_id,serial_number),
  unique(workspace_id,idempotency_key)
 );
+create unique index if not exists global_inventory_serials_serial_ci_unique_idx on global.inventory_serials(workspace_id,upper(serial_number));
 create index if not exists global_inventory_serials_lookup_idx on global.inventory_serials(workspace_id,product_id,warehouse_id,status);
 alter table global.inventory_serials enable row level security;
 revoke all on global.inventory_serials from public,anon,authenticated;
@@ -338,8 +340,12 @@ begin
      if v_batch.id is null then return jsonb_build_object('ok',false,'reason','batch_not_found'); end if;
    end if;
    perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text||':serial:'||v_serial_number,0));
-   select id into v_existing_id from global.inventory_serials where workspace_id=p_workspace_id and idempotency_key=v_key;
-   if v_existing_id is not null then return jsonb_build_object('ok',true,'duplicate',true,'record_id',v_existing_id); end if;
+   v_fingerprint:=md5(p_values::text);
+   select id,request_fingerprint into v_existing_id,v_existing_fingerprint from global.inventory_serials where workspace_id=p_workspace_id and idempotency_key=v_key;
+   if v_existing_id is not null then
+     if v_existing_fingerprint<>v_fingerprint then return jsonb_build_object('ok',false,'reason','idempotency_conflict'); end if;
+     return jsonb_build_object('ok',true,'duplicate',true,'record_id',v_existing_id);
+   end if;
    if exists(select 1 from global.inventory_serials where workspace_id=p_workspace_id and upper(serial_number)=upper(v_serial_number)) then
      return jsonb_build_object('ok',false,'reason','serial_in_use');
    end if;
@@ -352,8 +358,8 @@ begin
      if v_serial_count>=v_batch.quantity then return jsonb_build_object('ok',false,'reason','serial_count_exceeds_batch'); end if;
    end if;
    v_id:=gen_random_uuid();
-   insert into global.inventory_serials(id,workspace_id,product_id,warehouse_id,batch_id,serial_number,status,notes,idempotency_key,created_by)
-   values(v_id,p_workspace_id,v_product.id,v_warehouse.id,v_batch.id,v_serial_number,'available',nullif(btrim(p_values->>'notes'),''),v_key,p_user_id);
+   insert into global.inventory_serials(id,workspace_id,product_id,warehouse_id,batch_id,serial_number,status,notes,idempotency_key,request_fingerprint,created_by)
+   values(v_id,p_workspace_id,v_product.id,v_warehouse.id,v_batch.id,v_serial_number,'available',nullif(btrim(p_values->>'notes'),''),v_key,v_fingerprint,p_user_id);
    return jsonb_build_object('ok',true,'record_id',v_id);
  end if;
 
@@ -366,6 +372,11 @@ begin
    end if;
    select * into v_serial from global.inventory_serials where id=v_id and workspace_id=p_workspace_id for update;
    if v_serial.id is null then return jsonb_build_object('ok',false,'reason','serial_not_found'); end if;
+   select id,reference_id into v_existing_id,v_invoice_id from global.warehouse_stock_movements where workspace_id=p_workspace_id and idempotency_key=v_key;
+   if v_existing_id is not null then
+     if v_invoice_id<>v_serial.id then return jsonb_build_object('ok',false,'reason','idempotency_conflict'); end if;
+     return jsonb_build_object('ok',true,'duplicate',true,'record',to_jsonb(v_serial),'movement_id',v_existing_id);
+   end if;
    if v_serial.status=v_new_status then return jsonb_build_object('ok',true,'duplicate',true,'record',to_jsonb(v_serial)); end if;
    if not ((v_serial.status in ('available','returned') and v_new_status in ('reserved','sold','damaged'))
      or (v_serial.status='reserved' and v_new_status in ('available','sold','damaged'))
@@ -388,8 +399,8 @@ begin
      v_movement_id:=gen_random_uuid();
      insert into global.warehouse_stock_movements(id,workspace_id,warehouse_id,product_id,movement_type,quantity_delta,reference_type,reference_id,idempotency_key,notes,created_by)
      values(v_movement_id,p_workspace_id,v_serial.warehouse_id,v_serial.product_id,
-       case when v_delta<0 then 'serial_out' else 'serial_return' end,v_delta,'inventory_serial',v_serial.id,v_key,
-       nullif(btrim(p_values->>'notes'),''),p_user_id);
+       'adjustment',v_delta,'manual_adjustment',v_serial.id,v_key,
+       concat('Serial ',v_serial.serial_number,': ',v_serial.status,' → ',v_new_status,case when nullif(btrim(p_values->>'notes'),'') is null then '' else ' · '||left(btrim(p_values->>'notes'),500) end),p_user_id);
    end if;
    update global.inventory_serials set status=v_new_status,last_movement_id=v_movement_id,updated_at=now()
      where id=v_serial.id and workspace_id=p_workspace_id returning * into v_serial;
