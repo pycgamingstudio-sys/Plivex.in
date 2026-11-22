@@ -296,6 +296,13 @@ begin
    end if;
    select * into v_invoice from global.invoices where id=(p_values->>'invoice_id')::uuid and workspace_id=p_workspace_id for update;
    if v_invoice.id is null then return jsonb_build_object('ok',false,'reason','invoice_not_found'); end if;
+   v_fingerprint:=md5(p_values::text);
+   perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text||':credit_debit_note:'||v_key::text,0));
+   select id,request_fingerprint into v_existing_id,v_existing_fingerprint from global.credit_debit_notes where workspace_id=p_workspace_id and idempotency_key=v_key;
+   if v_existing_id is not null then
+     if v_existing_fingerprint<>v_fingerprint then return jsonb_build_object('ok',false,'reason','idempotency_conflict'); end if;
+     return jsonb_build_object('ok',true,'duplicate',true,'record_id',v_existing_id);
+   end if;
    v_taxable:=coalesce((p_values->>'taxable_minor')::bigint,0);
    v_tax:=coalesce((p_values->>'tax_minor')::bigint,0);
    v_total:=coalesce((p_values->>'total_minor')::bigint,0);
@@ -304,13 +311,6 @@ begin
      if v_total+coalesce((select sum(total_minor) from global.credit_debit_notes where workspace_id=p_workspace_id and invoice_id=v_invoice.id and note_type='credit' and status in ('draft','issued')),0)>v_invoice.total_minor then
        return jsonb_build_object('ok',false,'reason','credit_note_exceeds_invoice');
      end if;
-   end if;
-   v_fingerprint:=md5(p_values::text);
-   perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text||':credit_debit_note:'||v_key::text,0));
-   select id,request_fingerprint into v_existing_id,v_existing_fingerprint from global.credit_debit_notes where workspace_id=p_workspace_id and idempotency_key=v_key;
-   if v_existing_id is not null then
-     if v_existing_fingerprint<>v_fingerprint then return jsonb_build_object('ok',false,'reason','idempotency_conflict'); end if;
-     return jsonb_build_object('ok',true,'duplicate',true,'record_id',v_existing_id);
    end if;
    v_id:=gen_random_uuid(); v_number:=case when p_values->>'note_type'='credit' then 'CN-' else 'DN-' end||to_char(coalesce(nullif(p_values->>'note_date','')::date,current_date),'YYYYMMDD')||'-'||upper(substr(v_id::text,1,8));
    insert into global.credit_debit_notes(id,workspace_id,invoice_id,client_id,note_type,note_number,note_date,reason,currency_code,taxable_minor,tax_minor,total_minor,status,notes,idempotency_key,request_fingerprint,created_by)
@@ -331,6 +331,8 @@ begin
 exception when others then
  if sqlerrm='invalid_purchase_item' then return jsonb_build_object('ok',false,'reason','invalid_purchase_item'); end if;
  if sqlerrm='invalid_receipt_item' then return jsonb_build_object('ok',false,'reason','invalid_receipt_item'); end if;
+ if sqlerrm='invalid_sales_order_item' then return jsonb_build_object('ok',false,'reason','invalid_sales_order_item'); end if;
+ if sqlerrm='invalid_delivery_challan_item' then return jsonb_build_object('ok',false,'reason','invalid_delivery_challan_item'); end if;
  if sqlerrm='receipt_quantity_exceeded' then return jsonb_build_object('ok',false,'reason','receipt_quantity_exceeded'); end if;
  raise;
 end $$;
