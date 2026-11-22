@@ -1,10 +1,10 @@
 /**
  * Explicit Global tax capability matrix.
  *
- * Country selection is not tax readiness. This matrix is deliberately
- * conservative: only a country with a maintained adapter may calculate tax,
- * and only a separately implemented issuance adapter may issue an invoice.
- * Unlisted ISO country codes fail closed.
+ * Country selection is not legal tax verification. The seven enabled countries
+ * can calculate draft_test values from versioned database baselines; only a
+ * separately implemented issuance adapter may issue a tax invoice. Unlisted
+ * ISO country codes fail closed.
  */
 const CAPABILITIES = Object.freeze({
   IN: Object.freeze({
@@ -13,15 +13,15 @@ const CAPABILITIES = Object.freeze({
     issuance: "india_legacy",
     taxSystem: "GST",
     currencyCode: "INR",
-    note: "Use the existing India GST implementation; never route India through Global tax.",
+    note: "Use the existing India GST implementation with versioned draft_test rule snapshots; never imply live GSTN verification.",
   }),
   GB: Object.freeze({
     countryCode: "GB",
-    calculation: "standard_rate_baseline",
+    calculation: "draft_test_country_rule",
     issuance: "code_ready_database_migration_pending",
     taxSystem: "VAT",
     currencyCode: "GBP",
-    note: "UK standard-rated VAT only. Reduced, zero-rated, exempt and special treatments remain unsupported.",
+    note: "Draft-test standard VAT baseline only; not legally verified and not for production issuance without tax review.",
   }),
   AE: Object.freeze({
     countryCode: "AE",
@@ -29,7 +29,7 @@ const CAPABILITIES = Object.freeze({
     issuance: "disabled",
     taxSystem: "VAT",
     currencyCode: "AED",
-    note: "Standard-rate calculation only; invoice issuance adapter is not enabled.",
+    note: "Draft-test standard VAT baseline only; not legally verified; invoice issuance adapter is disabled.",
   }),
   AU: Object.freeze({
     countryCode: "AU",
@@ -37,7 +37,7 @@ const CAPABILITIES = Object.freeze({
     issuance: "disabled",
     taxSystem: "GST",
     currencyCode: "AUD",
-    note: "Standard-rate calculation only; invoice issuance adapter is not enabled.",
+    note: "Draft-test standard GST baseline only; not legally verified; invoice issuance adapter is disabled.",
   }),
   SG: Object.freeze({
     countryCode: "SG",
@@ -49,11 +49,11 @@ const CAPABILITIES = Object.freeze({
   }),
   US: Object.freeze({
     countryCode: "US",
-    calculation: "verified_jurisdiction_rule_required",
+    calculation: "draft_test_jurisdiction_rule",
     issuance: "disabled",
     taxSystem: "Sales tax",
     currencyCode: "USD",
-    note: "Requires a verified state/local rule and collection-obligation evidence.",
+    note: "Draft-test state baseline only; local city/county taxes and nexus are not included; not legally verified.",
   }),
   CA: Object.freeze({
     countryCode: "CA",
@@ -61,7 +61,7 @@ const CAPABILITIES = Object.freeze({
     issuance: "disabled",
     taxSystem: "GST/HST/PST/QST",
     currencyCode: "CAD",
-    note: "Requires a verified province/territory rule and collection-obligation evidence.",
+    note: "Draft-test province/territory baseline only; transaction-specific place-of-supply review is still required.",
   }),
 });
 
