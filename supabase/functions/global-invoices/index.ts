@@ -1,4 +1,5 @@
 import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowed } from "../_shared/global.ts";
+import { resolveSupabaseTaxRule } from "../_shared/tax/supabase-tax-rule-resolver.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -129,6 +130,52 @@ Deno.serve(async (req: Request) => {
           product_not_found: "The selected product is not active in this workspace.",
         };
         return globalJson({ error: messages[reason] || (body.action === "create_final_tax" ? "Could not issue the tax invoice." : body.action === "create_final_commercial" ? "Could not issue the commercial invoice." : "Could not create the draft invoice."), reason }, statusFor(reason), origin);
+      }
+      if (body.action === "create_draft" && isObject(body.tax_context)) {
+        const { data: workspace, error: workspaceError } = await auth.admin.schema("global").from("workspaces")
+          .select("country_code,currency_code").eq("id",workspaceId).maybeSingle();
+        if (workspaceError || !workspace) return globalJson({error:"Workspace country could not be verified."},403,origin);
+        const countryCode = String(workspace.country_code || "").toUpperCase();
+        const currencyCode = String(workspace.currency_code || "").toUpperCase();
+        if (body.currency_code !== currencyCode || !["US","GB","AE","CA","AU","SG"].includes(countryCode)) {
+          return globalJson({error:"Invoice country and currency must match the saved Workspace settings."},422,origin);
+        }
+        const tax = body.tax_context;
+        const jurisdictionId = countryCode === "CA" ? String(tax.destination_jurisdiction?.province || "").toUpperCase()
+          : countryCode === "US" ? String(tax.destination_jurisdiction?.state || "").toUpperCase() : countryCode;
+        const resolved = await resolveSupabaseTaxRule(auth.admin,{
+          countryCode,jurisdictionId,invoiceDate:String(body.issue_date),
+          treatment:String(tax.tax_treatment || "standard"),
+          taxCode:typeof tax.tax_code === "string" ? tax.tax_code : null,
+        },Deno.env.get("ALLOW_DRAFT_TAX_RULES") !== "false");
+        if (!resolved.ok) return globalJson({error:resolved.message || "No effective workspace tax rule is available.",code:resolved.code},422,origin);
+        const subtotalMinor = items.reduce((sum:any,item:any)=>sum + Math.round(item.quantity * item.unit_price_minor),0);
+        const discountMinor = items.reduce((sum:any,item:any)=>sum + item.discount_minor,0);
+        const taxableMinor = Math.max(0,subtotalMinor-discountMinor);
+        const components = resolved.rule.components;
+        const taxMinor = components.reduce((sum:any,component:any)=>sum + Math.floor((taxableMinor*component.rateBps+5000)/10000),0);
+        if (![subtotalMinor,discountMinor,taxableMinor,taxMinor].every(Number.isSafeInteger)) {
+          return globalJson({error:"Invoice tax amount is outside supported limits."},422,origin);
+        }
+        const taxSnapshot = {
+          countryCode,currencyCode,jurisdictionId,ruleId:resolved.rule.id,version:resolved.rule.version,
+          effectiveFrom:resolved.rule.effectiveFrom,effectiveTo:resolved.rule.effectiveTo,
+          treatment:resolved.rule.treatment,components,status:resolved.mode,
+          taxableMinor,taxMinor,totalMinor:taxableMinor+taxMinor,
+          source:resolved.rule.source,calculatedAt:new Date().toISOString(),
+          warning:resolved.mode === "draft_test" ? "Draft baseline rule for testing only; not legally verified and not for production issuance." : null,
+        };
+        const invoiceId = data?.invoice?.id;
+        if (!invoiceId) return globalJson({error:"Invoice draft was created but its ID could not be verified."},500,origin);
+        const {data:updatedInvoice,error:updateError} = await auth.admin.schema("global").from("invoices")
+          .update({tax_minor:taxMinor,total_minor:taxableMinor+taxMinor,invoice_snapshot:{
+            ...(isObject(data.invoice.invoice_snapshot) ? data.invoice.invoice_snapshot : {}),
+            workspace_country_code:countryCode,global_tax_snapshot:taxSnapshot,
+          }})
+          .eq("id",invoiceId).eq("workspace_id",workspaceId).select("*").single();
+        if (updateError || !updatedInvoice) return globalJson({error:"Invoice draft saved but its tax snapshot could not be synchronized."},500,origin);
+        data.invoice = updatedInvoice;
+        data.tax_snapshot = taxSnapshot;
       }
       return globalJson(data, 201, origin);
     }
