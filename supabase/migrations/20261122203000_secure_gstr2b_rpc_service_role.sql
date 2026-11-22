@@ -54,7 +54,7 @@ end;
 $function$;
 
 create or replace function public.global_list_gstr2b_rows(p_user_id uuid,p_workspace_id uuid,p_return_period text,p_limit integer default 2000)
-returns jsonb language plpgsql security definer stable set search_path=pg_catalog,global as $function$
+returns jsonb language plpgsql security invoker stable set search_path=pg_catalog,global as $function$
 declare v_role text; v_country text; v_rows jsonb;
 begin
   if p_user_id is null or p_workspace_id is null or p_return_period is null
@@ -72,7 +72,7 @@ end;
 $function$;
 
 create or replace function public.global_list_purchase_bills(p_user_id uuid,p_workspace_id uuid,p_limit integer default 100)
-returns jsonb language plpgsql security definer stable set search_path=pg_catalog,global as $function$
+returns jsonb language plpgsql security invoker stable set search_path=pg_catalog,global as $function$
 declare v_role text; v_rows jsonb;
 begin
   if p_user_id is null or p_workspace_id is null then raise exception using errcode='42501',message='Workspace access denied'; end if;
@@ -114,7 +114,7 @@ end;
 $function$;
 
 create or replace function public.global_list_gst_filing_calendar(p_user_id uuid,p_workspace_id uuid,p_limit integer default 100)
-returns jsonb language plpgsql security definer stable set search_path=pg_catalog,global as $function$
+returns jsonb language plpgsql security invoker stable set search_path=pg_catalog,global as $function$
 declare v_role text; v_country text; v_rows jsonb;
 begin
   if p_user_id is null or p_workspace_id is null or p_limit<1 or p_limit>200 then
