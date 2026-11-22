@@ -39,7 +39,7 @@ export default function GlobalQuotationsPanel({ account }) {
   const [notice, setNotice] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [form, setForm] = useState({
-    client_id: "", issue_date: today(), valid_until: "", notes: "",
+    client_id: "", issue_date: today(), valid_until: "", notes: "", tax_code: "GST_18", india_supply_type: "INTRA", tax_jurisdiction_id: "",
     items: [{ description: "", quantity: "1", unit_price: "", discount: "0" }],
   });
 
@@ -108,10 +108,13 @@ export default function GlobalQuotationsPanel({ account }) {
         action: "create", client_id: form.client_id || null, currency_code: currency,
         issue_date: form.issue_date, valid_until: form.valid_until || null,
         notes: form.notes.trim() || null, items, idempotency_key: newId(),
+        tax_code: account?.country_code === "IN" ? form.tax_code : null,
+        india_supply_type: account?.country_code === "IN" ? form.india_supply_type : null,
+        tax_jurisdiction_id: ["US","CA"].includes(account?.country_code) ? form.tax_jurisdiction_id : null,
       });
       setShowCreate(false);
       setSelectedId(data.quotation?.id || "");
-      setForm({ client_id: "", issue_date: today(), valid_until: "", notes: "", items: [{ description: "", quantity: "1", unit_price: "", discount: "0" }] });
+      setForm({ client_id: "", issue_date: today(), valid_until: "", notes: "", tax_code: "GST_18", india_supply_type: "INTRA", tax_jurisdiction_id: "", items: [{ description: "", quantity: "1", unit_price: "", discount: "0" }] });
       setNotice("Quotation saved as a draft. It is not an invoice and cannot collect payments.");
       await refresh();
     } catch (saveError) { setError(saveError.message || "Could not create quotation."); }
@@ -181,9 +184,12 @@ export default function GlobalQuotationsPanel({ account }) {
       doc.text("Subtotal: " + formatMoney(quotation.subtotal_minor, quotation.currency_code, locale), 16, y); y += 7;
       doc.text("Discount: " + formatMoney(quotation.discount_minor, quotation.currency_code, locale), 16, y); y += 8;
       doc.setFontSize(13); doc.setFont(undefined, "bold");
-      doc.text("Total: " + formatMoney(quotation.total_minor, quotation.currency_code, locale), 16, y);
+      if (Number(quotation.tax_minor || 0) > 0) {
+        doc.text("Tax: " + formatMoney(quotation.tax_minor, quotation.currency_code, locale), 16, y); y += 7;
+      }
+      doc.text("Total including tax: " + formatMoney(quotation.total_including_tax_minor ?? quotation.total_minor, quotation.currency_code, locale), 16, y);
       y += 13; doc.setFont(undefined, "normal"); doc.setFontSize(8); doc.setTextColor(100, 100, 100);
-      const note = "This is a quotation only, not an invoice or tax invoice. Taxes are not calculated or assessed by Plivex. Final pricing and applicable taxes must be confirmed before invoicing.";
+      const note = quotation.tax_snapshot?.status === "draft_test" ? "Tax estimate uses a draft baseline rule for testing only. It is not legally verified and must be checked before invoicing." : "This is a quotation only, not an invoice or tax invoice. Tax is an estimate based on the saved workspace country rule and must be confirmed before invoicing.";
       doc.text(doc.splitTextToSize(note, pageWidth - 32), 16, Math.min(y, 280));
       if (quotation.notes) { y += 14; doc.setTextColor(40, 40, 40); doc.text(doc.splitTextToSize("Notes: " + quotation.notes, pageWidth - 32), 16, Math.min(y, 285)); }
       doc.save(`${quotation.quotation_number}.pdf`);
@@ -215,7 +221,7 @@ export default function GlobalQuotationsPanel({ account }) {
                 const q = entry.quotation;
                 return <button key={q.id} type="button" onClick={() => setSelectedId(q.id)} className={`flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-violet-50/50 ${selectedId === q.id ? "bg-violet-50" : "bg-white"}`}>
                   <span className="min-w-0"><span className="block truncate text-sm font-bold text-slate-900">{q.quotation_number}</span><span className="mt-1 block truncate text-xs text-slate-500">{entry.client?.name || "No customer"} · {q.issue_date}</span></span>
-                  <span className="shrink-0 text-right"><span className="block text-sm font-bold text-slate-900">{formatMoney(q.total_minor, q.currency_code, locale)}</span><span className={`mt-1 inline-flex rounded-full px-2 py-1 text-[10px] font-bold capitalize ${statusTone[q.status] || statusTone.draft}`}>{q.status}</span></span>
+                  <span className="shrink-0 text-right"><span className="block text-sm font-bold text-slate-900">{formatMoney(q.total_including_tax_minor ?? q.total_minor, q.currency_code, locale)}</span><span className={`mt-1 inline-flex rounded-full px-2 py-1 text-[10px] font-bold capitalize ${statusTone[q.status] || statusTone.draft}`}>{q.status}</span></span>
                 </button>;
               })}
             </div>
@@ -229,7 +235,7 @@ export default function GlobalQuotationsPanel({ account }) {
               <div className="flex justify-between gap-3"><span className="text-slate-500">Date</span><span>{selected.quotation.issue_date}</span></div>
               <div className="flex justify-between gap-3"><span className="text-slate-500">Valid until</span><span>{selected.quotation.valid_until || "Not specified"}</span></div>
               <div className="flex justify-between gap-3"><span className="text-slate-500">Line items</span><span>{selected.items?.length || 0}</span></div>
-              <div className="flex justify-between gap-3 font-bold"><span>Total</span><span>{formatMoney(selected.quotation.total_minor, selected.quotation.currency_code, locale)}</span></div>
+              <div className="flex justify-between gap-3 font-bold"><span>Total</span><span>{formatMoney(selected.quotation.total_including_tax_minor ?? selected.quotation.total_minor, selected.quotation.currency_code, locale)}</span></div>
             </div>
             {selected.quotation.notes && <p className="mt-3 text-xs leading-5 text-slate-600">{selected.quotation.notes}</p>}
             <button type="button" className={secondary + " mt-4 w-full"} onClick={() => downloadPdf(selected)}><Download className="h-4 w-4" /> Download PDF</button>
@@ -237,7 +243,7 @@ export default function GlobalQuotationsPanel({ account }) {
             {["draft", "sent"].includes(selected.quotation.status) && <div className="mt-2 grid grid-cols-2 gap-2"><button type="button" className={secondary} disabled={busy} onClick={() => changeStatus("accepted")}><CheckCircle2 className="h-4 w-4" /> Accept</button><button type="button" className={secondary} disabled={busy} onClick={() => changeStatus("rejected")}><XCircle className="h-4 w-4" /> Reject</button></div>}
             {selected.quotation.status === "accepted" && <button type="button" className={primary + " mt-2 w-full"} disabled={busy} onClick={convertToInvoice}>Convert to invoice draft <ArrowRight className="h-4 w-4" /></button>}
             {selected.quotation.status === "converted" && <p className="mt-3 rounded-xl bg-violet-50 p-3 text-xs font-medium text-violet-800">Converted successfully. Open Sales → Invoices to review the invoice draft before issuing.</p>}
-            <p className="mt-3 text-[11px] leading-5 text-slate-500">A quotation is not an invoice, does not create a receivable and cannot accept payments. No tax is calculated on this document.</p>
+            <p className="mt-3 text-[11px] leading-5 text-slate-500">A quotation is not an invoice, does not create a receivable and cannot accept payments. Its tax breakdown is a quotation estimate only.</p>
           </>}
         </aside>
       </div>
@@ -261,7 +267,13 @@ export default function GlobalQuotationsPanel({ account }) {
             <button type="button" disabled={form.items.length >= 100} className={secondary + " mt-3"} onClick={addItem}><Plus className="h-4 w-4" /> Add line item</button>
           </div>
           <label className="mt-4 block text-xs font-semibold text-slate-600">Notes<textarea rows={3} maxLength={4000} className={field + " mt-1"} placeholder="Optional scope, delivery or payment terms" value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
-          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">This quotation does not calculate tax and is not a tax invoice. Confirm applicable taxes and final amounts before issuing an invoice.</div>
+          {account?.country_code === "IN" && <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="text-xs font-semibold text-slate-600">GST rate<select className={field + " mt-1"} value={form.tax_code} onChange={(event)=>setForm({...form,tax_code:event.target.value})}>{[["GST_0","0%"],["GST_5","5%"],["GST_12","12%"],["GST_18","18%"],["GST_28","28%"]].map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+            <label className="text-xs font-semibold text-slate-600">Place of supply<select className={field + " mt-1"} value={form.india_supply_type} onChange={(event)=>setForm({...form,india_supply_type:event.target.value})}><option value="INTRA">Same state · CGST + SGST</option><option value="INTER">Different state · IGST</option></select></label>
+          </div>}
+          {account?.country_code === "CA" && <label className="mt-4 block text-xs font-semibold text-slate-600">Destination province / territory<select required className={field + " mt-1"} value={form.tax_jurisdiction_id} onChange={(event)=>setForm({...form,tax_jurisdiction_id:event.target.value})}><option value="">Select province</option>{["AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","QC","SK","YT"].map((x)=><option key={x}>{x}</option>)}</select></label>}
+          {account?.country_code === "US" && <label className="mt-4 block text-xs font-semibold text-slate-600">Destination state<select required className={field + " mt-1"} value={form.tax_jurisdiction_id} onChange={(event)=>setForm({...form,tax_jurisdiction_id:event.target.value})}><option value="">Select state</option>{["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC"].map((x)=><option key={x}>{x}</option>)}</select></label>}
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-700">Tax is calculated from your Workspace country ({account?.country_code || "not set"}) and the effective Supabase tax rule. Draft baseline rules are marked as testing-only.</div>
           {error && <p role="alert" className="mt-3 text-sm text-rose-700">{error}</p>}
           <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" className={secondary} onClick={() => setShowCreate(false)}>Cancel</button><button type="submit" className={primary} disabled={busy}>{busy ? "Saving…" : "Save quotation draft"}</button></div>
         </form>
