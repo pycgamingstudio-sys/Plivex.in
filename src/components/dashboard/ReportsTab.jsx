@@ -70,8 +70,10 @@ export default function ReportsTab() {
   const gstr1Draft = buildGstr1Draft(filteredInvoices, { from, to });
   const availableCurrencies=[...new Set([currencyCode,...invoices.map(x=>String(x.currency||"").toUpperCase()),...expenses.map(x=>String(x.currencyCode||"").toUpperCase())].filter(x=>validCurrency(x)))].sort();
   const customRows=buildCustomBusinessReport({invoices:filteredInvoices,expenses:filteredExpenses,metric:reportMetric,groupBy:reportGroupBy,currency:reportCurrency,isPaid:(item)=>statusOf(item)==="Paid"});
-  const cashflowForecast=buildCashflowForecast({invoices,expenses,currency:reportCurrency,isPaid:(item)=>statusOf(item)==="Paid"});
-  const salesTrend=buildSalesTrend({invoices,expenses,currency:reportCurrency});
+  const now=new Date();
+  const localToday=[now.getFullYear(),String(now.getMonth()+1).padStart(2,"0"),String(now.getDate()).padStart(2,"0")].join("-");
+  const cashflowForecast=buildCashflowForecast({invoices,expenses,currency:reportCurrency,asOf:localToday,isPaid:(item)=>statusOf(item)==="Paid"});
+  const salesTrend=buildSalesTrend({invoices,expenses,currency:reportCurrency,asOf:localToday});
   const customMax=Math.max(1,...customRows.map(x=>Math.abs(x.amount)));
   const trendMax=Math.max(1,...salesTrend.map(x=>x.sales));
 
