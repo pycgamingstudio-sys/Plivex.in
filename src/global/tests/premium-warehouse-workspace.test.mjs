@@ -18,7 +18,7 @@ test("inventory and warehouse are represented by one top-level workspace", () =>
 });
 
 test("the unified inventory entry opens the existing warehouse workflow adapter", () => {
-  assert.match(globalApp, /\["crm", "inventory"\]\.includes\(tab\)/);
+  assert.match(globalApp, /\["crm", "inventory", "sales_docs"\]\.includes\(tab\)/);
   assert.match(globalApp, /initialSection=\{tab === "crm" \? "crm" : "warehouses"\}/);
   assert.match(warehousePanel, /initialSection = "crm"/);
   assert.match(warehousePanel, /setSection\(initialSection\)/);
