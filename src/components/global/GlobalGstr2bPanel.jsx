@@ -40,7 +40,7 @@ export default function GlobalGstr2bPanel({account}) {
   const importRows=async()=>{
     setLoading(true);setError("");setNotice("");
     try{
-      if(!/^\\d{4}-(0[1-9]|1[0-2])$/.test(period))throw new Error("Choose a valid GSTR-2B return period.");
+      if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(period))throw new Error("Choose a valid GSTR-2B return period.");
       const rows=preview.filter((row)=>!row.duplicate).map(({duplicate,sourceRow,...row})=>row);
       const {data,error:invokeError}=await supabase.functions.invoke("global-accounting",{body:{action:"import_gstr2b",workspace_id:account.workspace_id,period,rows}});
       if(invokeError)throw invokeError;if(!data?.ok)throw new Error(data?.error||"GSTR-2B import could not be saved.");
