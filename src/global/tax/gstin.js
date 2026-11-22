@@ -36,7 +36,6 @@ export function parseIndianGstin(value) {
     ok:true, gstin, stateCode, stateName, pan, entityCode, checksum,
     panEntityCode:pan[3],
     panEntityType:PAN_ENTITY_TYPES[pan[3]] || "Unknown PAN entity type",
-    panHolderInitial:pan[4],
     verification:"format_only",
     warning:"Format and state code only. GSTIN registration status and checksum are not verified against government records.",
   };
@@ -56,7 +55,7 @@ export function findSavedGstinRecords(records, value) {
   if (!parsed.ok || !Array.isArray(records)) return [];
   return records.filter((record) => {
     const saved = String(record?.tax_registration_number || record?.gstin || "")
-      .trim().toUpperCase().replace(/\\s+/g, "");
+      .trim().toUpperCase().replace(/\s+/g, "");
     return saved === parsed.gstin;
   });
 }
