@@ -198,7 +198,7 @@ Deno.serve(async (req: Request) => {
         if (body.currency_code !== currencyCode || !["IN","US","GB","AE","CA","AU","SG"].includes(countryCode)) {
           return globalJson({error:"Invoice country and currency must match the saved Workspace settings."},422,origin);
         }
-        const tax = body.tax_context;
+        const tax: Record<string, any> = body.tax_context as Record<string, any>;
         if (tax.tax_mode !== "no_tax" && (
           tax.registration_confirmed !== true || tax.place_of_supply_confirmed !== true
           || tax.tax_category_confirmed !== true || typeof tax.tax_category !== "string" || !tax.tax_category.trim()
