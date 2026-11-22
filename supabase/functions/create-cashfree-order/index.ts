@@ -25,13 +25,16 @@ Deno.serve(async(req:Request)=>{
   if(!email)return json({error:"Account email is missing."},400,origin);
   if(!profile?.workspace_id)return json({error:"Your account is not linked to a workspace yet."},409,origin);
   if(profile.role!=="admin")return json({error:"Only the workspace admin can purchase or change a subscription."},403,origin);
-  const {data:business,error:businessError}=await authClient.from("business_profile").select("country_code,locale_code").eq("workspace_id",profile.workspace_id).maybeSingle();
-  if(businessError)return json({error:"Could not verify workspace billing country."},500,origin);
-  // Legacy workspaces without an explicit country retain India billing. New
-  // international workspaces must explicitly save their country in settings.
-  const countryCode=String(business?.country_code||"IN").toUpperCase();
+  const [{data:business,error:businessError},{data:workspaceSettings,error:workspaceSettingsError}]=await Promise.all([
+   authClient.from("business_profile").select("country_code,locale_code").eq("workspace_id",profile.workspace_id).maybeSingle(),
+   authClient.from("workspace_settings").select("country_code,locale_code,currency_code").eq("workspace_id",profile.workspace_id).maybeSingle(),
+  ]);
+  if(businessError||workspaceSettingsError)return json({error:"Could not verify workspace billing country."},500,origin);
+  // Canonical workspace_settings takes precedence over the legacy business profile.
+  const countryCode=String(workspaceSettings?.country_code||business?.country_code||"IN").toUpperCase();
   if(countryCode!=="IN")return json({error:"International subscriptions use Paddle. Cashfree checkout is reserved for India workspaces.",code:"USE_PADDLE"},409,origin);
-  const localeCode=String(business?.locale_code||getCountryByCode(countryCode)?.locales?.[0]||"en-IN");
+  const localeCode=String(workspaceSettings?.locale_code||business?.locale_code||getCountryByCode(countryCode)?.locales?.[0]||"en-IN");
+  if(workspaceSettings?.currency_code && workspaceSettings.currency_code!=="INR")return json({error:"Workspace currency does not match India Cashfree billing.",code:"WORKSPACE_CURRENCY_MISMATCH"},409,origin);
   const plan=resolvePlan(body.planId,countryCode);
   if(!plan.available){
     if(plan.reason==="cashfree_currency_unavailable")return json({error:"Cashfree checkout is not yet enabled for "+plan.currency+". Your plan price is saved, but payment will open only after the merchant account confirms this currency.",code:"CURRENCY_NOT_ENABLED"},409,origin);
