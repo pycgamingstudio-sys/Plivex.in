@@ -31,15 +31,16 @@ create policy global_gstr2b_select_member on global.gstr2b_import_rows for selec
 
 create or replace function public.global_import_gstr2b_rows(p_user_id uuid,p_workspace_id uuid,p_return_period text,p_rows jsonb)
 returns jsonb language plpgsql security definer set search_path=pg_catalog,global as $function$
-declare v_role text; v_row jsonb; v_count integer:=0; v_gstin text; v_invoice text; v_date date;
+declare v_role text; v_country text; v_row jsonb; v_count integer:=0; v_gstin text; v_invoice text; v_date date;
 begin
   if p_user_id is null or p_user_id<>auth.uid() or p_workspace_id is null or p_return_period is null
     or p_return_period !~ '^\d{4}-(0[1-9]|1[0-2])$' or p_rows is null
     or jsonb_typeof(p_rows)<>'array' or jsonb_array_length(p_rows)<1 or jsonb_array_length(p_rows)>2000 then
     raise exception using errcode='22023',message='Invalid GSTR-2B import request';
   end if;
-  select role into v_role from global.workspace_members where workspace_id=p_workspace_id and user_id=p_user_id and status='active';
+  select m.role,w.country_code into v_role,v_country from global.workspace_members m join global.workspaces w on w.id=m.workspace_id where m.workspace_id=p_workspace_id and m.user_id=p_user_id and m.status='active';
   if v_role is null then raise exception using errcode='42501',message='Workspace access denied'; end if;
+  if v_country<>'IN' then raise exception using errcode='42501',message='GSTR-2B is available only for India workspaces'; end if;
   for v_row in select value from jsonb_array_elements(p_rows) loop
     v_gstin:=upper(regexp_replace(coalesce(v_row->>'supplierGstin',''),'\s','','g'));
     v_invoice:=btrim(coalesce(v_row->>'invoiceNumber',''));
@@ -81,14 +82,15 @@ grant execute on function public.global_import_gstr2b_rows(uuid,uuid,text,jsonb)
 
 create or replace function public.global_list_gstr2b_rows(p_user_id uuid,p_workspace_id uuid,p_return_period text,p_limit integer default 2000)
 returns jsonb language plpgsql security definer stable set search_path=pg_catalog,global as $function$
-declare v_role text; v_rows jsonb;
+declare v_role text; v_country text; v_rows jsonb;
 begin
   if p_user_id is null or p_user_id<>auth.uid() or p_workspace_id is null or p_return_period is null
     or p_return_period !~ '^\d{4}-(0[1-9]|1[0-2])$' or p_limit<1 or p_limit>2000 then
     raise exception using errcode='22023',message='Invalid GSTR-2B list request';
   end if;
-  select role into v_role from global.workspace_members where workspace_id=p_workspace_id and user_id=p_user_id and status='active';
+  select m.role,w.country_code into v_role,v_country from global.workspace_members m join global.workspaces w on w.id=m.workspace_id where m.workspace_id=p_workspace_id and m.user_id=p_user_id and m.status='active';
   if v_role is null then raise exception using errcode='42501',message='Workspace access denied'; end if;
+  if v_country<>'IN' then raise exception using errcode='42501',message='GSTR-2B is available only for India workspaces'; end if;
   select coalesce(jsonb_agg(to_jsonb(t) order by t.invoice_date desc,t.invoice_number),'[]'::jsonb) into v_rows
   from (select * from global.gstr2b_import_rows where workspace_id=p_workspace_id and return_period=p_return_period
     order by invoice_date desc,invoice_number limit p_limit) t;
@@ -100,11 +102,12 @@ grant execute on function public.global_list_gstr2b_rows(uuid,uuid,text,integer)
 
 create or replace function public.global_list_purchase_bills(p_user_id uuid,p_workspace_id uuid,p_limit integer default 100)
 returns jsonb language plpgsql security definer stable set search_path=pg_catalog,global as $function$
-declare v_role text; v_rows jsonb;
+declare v_role text; v_country text; v_rows jsonb;
 begin
   if p_user_id is null or p_user_id<>auth.uid() or p_workspace_id is null then raise exception using errcode='42501',message='Workspace access denied'; end if;
-  select role into v_role from global.workspace_members where workspace_id=p_workspace_id and user_id=p_user_id and status='active';
+  select m.role,w.country_code into v_role,v_country from global.workspace_members m join global.workspaces w on w.id=m.workspace_id where m.workspace_id=p_workspace_id and m.user_id=p_user_id and m.status='active';
   if v_role is null then raise exception using errcode='42501',message='Workspace access denied'; end if;
+  if v_country<>'IN' then raise exception using errcode='42501',message='GSTR-2B is available only for India workspaces'; end if;
   select coalesce(jsonb_agg(to_jsonb(t) order by t.purchase_date desc,t.created_at desc),'[]'::jsonb) into v_rows
   from (select b.*,s.name as supplier_name,s.tax_registration_number as supplier_tax_id
     from global.purchase_bills b join global.suppliers s on s.workspace_id=b.workspace_id and s.id=b.supplier_id
