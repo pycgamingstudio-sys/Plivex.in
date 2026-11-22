@@ -141,30 +141,46 @@ Deno.serve(async (req: Request) => {
           return globalJson({error:"Invoice country and currency must match the saved Workspace settings."},422,origin);
         }
         const tax = body.tax_context;
-        const jurisdictionId = countryCode === "CA" ? String(tax.destination_jurisdiction?.province || "").toUpperCase()
-          : countryCode === "US" ? String(tax.destination_jurisdiction?.state || "").toUpperCase() : countryCode;
-        const resolved = await resolveSupabaseTaxRule(auth.admin,{
-          countryCode,jurisdictionId,invoiceDate:String(body.issue_date),
-          treatment:String(tax.tax_treatment || "standard"),
-          taxCode:typeof tax.tax_code === "string" ? tax.tax_code : null,
-        },Deno.env.get("ALLOW_DRAFT_TAX_RULES") !== "false");
-        if (!resolved.ok) return globalJson({error:resolved.message || "No effective workspace tax rule is available.",code:resolved.code},422,origin);
-        const subtotalMinor = items.reduce((sum:any,item:any)=>sum + Math.round(item.quantity * item.unit_price_minor),0);
-        const discountMinor = items.reduce((sum:any,item:any)=>sum + item.discount_minor,0);
-        const taxableMinor = Math.max(0,subtotalMinor-discountMinor);
-        const components = resolved.rule.components;
-        const taxMinor = components.reduce((sum:any,component:any)=>sum + Math.floor((taxableMinor*component.rateBps+5000)/10000),0);
-        if (![subtotalMinor,discountMinor,taxableMinor,taxMinor].every(Number.isSafeInteger)) {
-          return globalJson({error:"Invoice tax amount is outside supported limits."},422,origin);
+        let taxMinor = 0;
+        let taxSnapshot: Record<string, unknown>;
+        if (tax.tax_mode === "no_tax") {
+          if (tax.no_tax_confirmed !== true) return globalJson({error:"Confirm that no tax is chargeable before saving a commercial invoice draft."},422,origin);
+          taxSnapshot = {
+            countryCode,currencyCode,status:"not_assessed",taxMinor:0,
+            warning:"No tax was assessed based on the business's explicit confirmation; this is not a tax-exempt or zero-rated classification.",
+            calculatedAt:new Date().toISOString(),
+          };
+        } else {
+          const jurisdictionId = countryCode === "CA" ? String(tax.destination_jurisdiction?.province || "").toUpperCase()
+            : countryCode === "US" ? String(tax.destination_jurisdiction?.state || "").toUpperCase() : countryCode;
+          if ((countryCode === "US" || countryCode === "CA") && !jurisdictionId) {
+            return globalJson({error:"Select the destination state or province before calculating tax."},422,origin);
+          }
+          const resolved = await resolveSupabaseTaxRule(auth.admin,{
+            countryCode,jurisdictionId,invoiceDate:String(body.issue_date),
+            treatment:String(tax.tax_treatment || "standard"),
+            taxCode:typeof tax.tax_code === "string" ? tax.tax_code : null,
+          },Deno.env.get("ALLOW_DRAFT_TAX_RULES") !== "false");
+          if (!resolved.ok) return globalJson({error:resolved.message || "No effective workspace tax rule is available.",code:resolved.code},422,origin);
+          const subtotalMinor = items.reduce((sum:any,item:any)=>sum + Math.round(item.quantity * item.unit_price_minor),0);
+          const discountMinor = items.reduce((sum:any,item:any)=>sum + item.discount_minor,0);
+          const taxableMinor = Math.max(0,subtotalMinor-discountMinor);
+          const components = resolved.rule.components;
+          taxMinor = components.reduce((sum:any,component:any)=>sum + Math.floor((taxableMinor*component.rateBps+5000)/10000),0);
+          if (![subtotalMinor,discountMinor,taxableMinor,taxMinor].every(Number.isSafeInteger)) {
+            return globalJson({error:"Invoice tax amount is outside supported limits."},422,origin);
+          }
+          taxSnapshot = {
+            countryCode,currencyCode,jurisdictionId,ruleId:resolved.rule.id,version:resolved.rule.version,
+            effectiveFrom:resolved.rule.effectiveFrom,effectiveTo:resolved.rule.effectiveTo,
+            treatment:resolved.rule.treatment,components,status:resolved.mode,
+            taxableMinor,taxMinor,totalMinor:taxableMinor+taxMinor,
+            source:resolved.rule.source,calculatedAt:new Date().toISOString(),
+            warning:resolved.mode === "draft_test"
+              ? "Draft baseline rule for testing only; not legally verified and not for production issuance."
+              : countryCode === "US" ? "State-level baseline only; local city, county and special-district taxes are not included." : null,
+          };
         }
-        const taxSnapshot = {
-          countryCode,currencyCode,jurisdictionId,ruleId:resolved.rule.id,version:resolved.rule.version,
-          effectiveFrom:resolved.rule.effectiveFrom,effectiveTo:resolved.rule.effectiveTo,
-          treatment:resolved.rule.treatment,components,status:resolved.mode,
-          taxableMinor,taxMinor,totalMinor:taxableMinor+taxMinor,
-          source:resolved.rule.source,calculatedAt:new Date().toISOString(),
-          warning:resolved.mode === "draft_test" ? "Draft baseline rule for testing only; not legally verified and not for production issuance." : null,
-        };
         const invoiceId = data?.invoice?.id;
         if (!invoiceId) return globalJson({error:"Invoice draft was created but its ID could not be verified."},500,origin);
         const {data:updatedInvoice,error:updateError} = await auth.admin.schema("global").from("invoices")
