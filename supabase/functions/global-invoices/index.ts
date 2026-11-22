@@ -43,6 +43,53 @@ Deno.serve(async (req: Request) => {
       return globalJson({ error: "A valid Global workspace_id is required." }, 400, origin);
     }
 
+    if (body.action === "create_recurring_schedule") {
+      const cadence=String(body.cadence||"");
+      const intervalCount=Number(body.interval_count||1);
+      const paymentTerms=Number(body.payment_terms_days??14);
+      const items=body.items;
+      if (!["weekly","monthly","quarterly","yearly"].includes(cadence)||!Number.isInteger(intervalCount)||intervalCount<1||intervalCount>12
+        ||!validDate(body.start_date)||(body.end_date!==null&&body.end_date!==undefined&&!validDate(body.end_date))
+        ||!Number.isInteger(paymentTerms)||paymentTerms<0||paymentTerms>365
+        ||typeof body.currency_code!=="string"||! /^[A-Z]{3}$/.test(body.currency_code)
+        ||(body.client_id!==null&&body.client_id!==undefined&&(typeof body.client_id!=="string"||!UUID.test(body.client_id)))
+        ||!Array.isArray(items)||items.length<1||items.length>100||!isObject(body.tax_context)
+        ||(body.notes!==null&&body.notes!==undefined&&(typeof body.notes!=="string"||body.notes.length>4000))) {
+        return globalJson({error:"Recurring invoice schedule details are invalid."},400,origin);
+      }
+      const {data,error}=await auth.admin.rpc("global_create_recurring_invoice_schedule",{
+        p_user_id:auth.user.id,p_workspace_id:workspaceId,p_client_id:body.client_id||null,p_currency_code:body.currency_code,
+        p_cadence:cadence,p_interval_count:intervalCount,p_start_date:body.start_date,p_end_date:body.end_date||null,
+        p_payment_terms_days:paymentTerms,p_items:items,p_tax_context:body.tax_context,p_notes:body.notes||null
+      });
+      if(error){console.error("Recurring invoice schedule create failed",{code:error.code});return globalJson({error:"Recurring invoice schedule service is not ready."},503,origin);}
+      if(!data?.ok){const messages:Record<string,string>={access_denied:"You do not have access to this workspace.",forbidden:"Your workspace role cannot create recurring invoices.",invalid_currency:"Schedule currency must match the workspace currency.",client_not_found:"The selected customer was not found.",invalid_items:"Recurring invoice line items are invalid."};return globalJson({error:messages[String(data.reason)]||"Could not create recurring invoice schedule.",reason:data.reason},statusFor(String(data.reason)),origin);}
+      return globalJson(data,200,origin);
+    }
+    if (body.action === "list_recurring_schedules") {
+      const limit=Number(body.limit||100);
+      if(!Number.isInteger(limit)||limit<1||limit>200)return globalJson({error:"Recurring schedule limit is invalid."},400,origin);
+      const {data,error}=await auth.admin.rpc("global_list_recurring_invoice_schedules",{p_user_id:auth.user.id,p_workspace_id:workspaceId,p_limit:limit});
+      if(error){console.error("Recurring invoice schedule list failed",{code:error.code});return globalJson({error:"Recurring invoice schedules are temporarily unavailable."},503,origin);}
+      return globalJson(data,200,origin);
+    }
+    if (body.action === "advance_recurring_schedule") {
+      if(typeof body.schedule_id!=="string"||!UUID.test(body.schedule_id)||!validDate(body.run_date)||typeof body.invoice_id!=="string"||!UUID.test(body.invoice_id))
+        return globalJson({error:"Recurring invoice generation details are invalid."},400,origin);
+      const {data,error}=await auth.admin.rpc("global_advance_recurring_invoice_schedule",{p_user_id:auth.user.id,p_workspace_id:workspaceId,p_schedule_id:body.schedule_id,p_run_date:body.run_date,p_invoice_id:body.invoice_id});
+      if(error){console.error("Recurring invoice schedule advance failed",{code:error.code});return globalJson({error:"Recurring schedule could not be advanced."},503,origin);}
+      if(!data?.ok)return globalJson({error:"This schedule is no longer due or the generated invoice could not be confirmed.",reason:data?.reason},409,origin);
+      return globalJson(data,200,origin);
+    }
+    if (body.action === "set_recurring_schedule_status") {
+      if(typeof body.schedule_id!=="string"||!UUID.test(body.schedule_id)||!["active","paused"].includes(String(body.status||"")))
+        return globalJson({error:"Recurring schedule status details are invalid."},400,origin);
+      const {data,error}=await auth.admin.rpc("global_set_recurring_invoice_schedule_status",{p_user_id:auth.user.id,p_workspace_id:workspaceId,p_schedule_id:body.schedule_id,p_status:body.status});
+      if(error){console.error("Recurring schedule status update failed",{code:error.code});return globalJson({error:"Recurring schedule could not be updated."},503,origin);}
+      if(!data?.ok)return globalJson({error:"Recurring schedule was not found.",reason:data?.reason},404,origin);
+      return globalJson(data,200,origin);
+    }
+
     if (body.action === "save_india_compliance") {
       if (typeof body.invoice_id !== "string" || !UUID.test(body.invoice_id) || !isObject(body.compliance)) {
         return globalJson({ error: "Invoice compliance details are invalid." }, 400, origin);

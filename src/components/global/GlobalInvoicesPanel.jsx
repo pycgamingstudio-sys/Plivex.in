@@ -42,6 +42,13 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   const [items, setItems] = useState([]);
   const [profile, setProfile] = useState(null);
   const [reconciliation, setReconciliation] = useState([]);
+  const [recurringSchedules, setRecurringSchedules] = useState([]);
+  const [recurringEnabled, setRecurringEnabled] = useState(false);
+  const [recurringCadence, setRecurringCadence] = useState("monthly");
+  const [recurringInterval, setRecurringInterval] = useState("1");
+  const [recurringStartDate, setRecurringStartDate] = useState(today());
+  const [recurringEndDate, setRecurringEndDate] = useState("");
+  const [paymentTermsDays, setPaymentTermsDays] = useState("14");
   const [backendCapabilities, setBackendCapabilities] = useState({ issuanceReady:false, commercialIssuanceReady:false, ledgerReady:false });
   const [selectedId, setSelectedId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -74,11 +81,12 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       ledgerReady: capabilityResult.data?.ok === true && capabilityResult.data?.ledger_ready === true,
     };
     setBackendCapabilities(capabilities);
-    const [clientData, invoiceData, itemData, profileData, reconciliationData] = await Promise.all([
+    const [clientData, invoiceData, itemData, profileData, reconciliationData, recurringData] = await Promise.all([
       invoke("clients"), invoke("invoices"), invoke("invoice_items"), invoke("business_profiles"),
       capabilities.ledgerReady
         ? supabase.functions.invoke("global-invoices", { body:{ action:"list_reconciliation", workspace_id:account.workspace_id, limit:100 } })
         : Promise.resolve({ data:{ records:[] }, error:null }),
+      supabase.functions.invoke("global-invoices", { body:{ action:"list_recurring_schedules", workspace_id:account.workspace_id, limit:100 } }),
     ]);
     setClients(clientData.records || []);
     setInvoices(invoiceData.records || []);
@@ -98,6 +106,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       tax_jurisdiction_code: nextProfile?.tax_jurisdiction_code || "",
     });
     setReconciliation(reconciliationData.data?.records || []);
+    setRecurringSchedules(recurringData.data?.records || []);
     onRefresh?.();
   }, [account.email, account.workspace_id, countryCode, invoke, onRefresh]);
 
@@ -149,6 +158,36 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   }), [currency, form.description, form.issueDate, form.quantity, form.unitPrice, profile, taxContext]);
   const createTaxPreview = useMemo(() => calculateInvoiceGlobalTax(createPreviewInvoice, workspaceProfile), [createPreviewInvoice, workspaceProfile]);
 
+  const validDateForSchedule=(value)=>typeof value==="string"&&/^\\d{4}-\\d{2}-\\d{2}$/.test(value)&&!Number.isNaN(Date.parse(value));
+  const setRecurringScheduleStatus=async(schedule,status)=>{
+    setBusy(true);setError("");setNotice("");
+    try{
+      const {data,error:invokeError}=await supabase.functions.invoke("global-invoices",{body:{action:"set_recurring_schedule_status",workspace_id:account.workspace_id,schedule_id:schedule.id,status}});
+      if(invokeError)throw invokeError;if(!data?.ok)throw new Error(data?.error||"Could not update recurring schedule.");
+      setNotice(status==="paused"?"Recurring schedule paused.":"Recurring schedule resumed.");await refresh();
+    }catch(e){setError(e.message||"Could not update recurring schedule.");}finally{setBusy(false);}
+  };
+  const generateRecurringDraft=async(schedule)=>{
+    setBusy(true);setError("");setNotice("");
+    try{
+      const due=new Date(schedule.next_run_date+"T00:00:00.000Z");
+      due.setUTCDate(due.getUTCDate()+Number(schedule.payment_terms_days||0));
+      const dueDate=due.toISOString().slice(0,10);
+      const {data,error:invokeError}=await supabase.functions.invoke("global-invoices",{body:{
+        action:"create_draft",workspace_id:account.workspace_id,client_id:schedule.client_id,currency_code:schedule.currency_code,
+        issue_date:schedule.next_run_date,due_date:dueDate,notes:schedule.notes||null,
+        idempotency_key:schedule.generation_idempotency_key,items:schedule.items,tax_context:schedule.tax_context
+      }});
+      if(invokeError)throw invokeError;
+      if(!data?.ok||!data?.invoice?.id||data.invoice.status!=="draft")throw new Error(data?.error||"The recurring invoice draft could not be confirmed.");
+      const {data:advance,error:advanceError}=await supabase.functions.invoke("global-invoices",{body:{
+        action:"advance_recurring_schedule",workspace_id:account.workspace_id,schedule_id:schedule.id,run_date:schedule.next_run_date,invoice_id:data.invoice.id
+      }});
+      if(advanceError)throw advanceError;if(!advance?.ok)throw new Error(advance?.error||"Draft created, but schedule advancement needs a retry.");
+      setSelectedId(data.invoice.id);setNotice("Recurring invoice draft generated. Review and issue it manually; no payment was collected.");await refresh();
+    }catch(e){setError(e.message||"Could not generate recurring invoice draft.");}finally{setBusy(false);}
+  };
+
   const saveProfile = async (event) => {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
     try {
@@ -175,6 +214,34 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       }
       if (taxContext.taxMode === "no_tax" && taxContext.noTaxConfirmed !== true) {
         throw new Error("Confirm the no-tax commercial invoice choice before saving.");
+      }
+      if (recurringEnabled) {
+        if (!validDateForSchedule(recurringStartDate) || (recurringEndDate && !validDateForSchedule(recurringEndDate)) || Number(paymentTermsDays)<0 || Number(paymentTermsDays)>365) {
+          throw new Error("Recurring dates and payment terms are invalid.");
+        }
+        const {data: scheduleData,error:scheduleError}=await supabase.functions.invoke("global-invoices",{
+          body:{
+            action:"create_recurring_schedule",workspace_id:account.workspace_id,client_id:form.clientId||null,currency_code:currency,
+            cadence:recurringCadence,interval_count:Number(recurringInterval),start_date:recurringStartDate,end_date:recurringEndDate||null,
+            payment_terms_days:Number(paymentTermsDays),notes:null,
+            items:[{description:form.description.trim(),quantity:Number(form.quantity),unit_price_minor:minor(form.unitPrice,currency),discount_minor:0,product_id:null}],
+            tax_context:{
+              tax_mode:taxContext.taxMode||"taxable",no_tax_confirmed:taxContext.noTaxConfirmed===true,
+              registration_confirmed:taxContext.registrationConfirmed===true,place_of_supply_confirmed:taxContext.placeOfSupplyConfirmed===true,
+              tax_category_confirmed:taxContext.taxCategoryConfirmed===true,tax_category:taxContext.taxCategory||"",
+              tax_treatment:taxContext.taxTreatment||"standard",tax_code:taxContext.taxCode||null,
+              india_supply_type:taxContext.indiaSupplyType||"INTRA",mode:taxContext.mode||"automatic",
+              price_mode:taxContext.priceMode||"exclusive",place_of_supply:taxContext.placeOfSupply||"",
+              destination_jurisdiction:taxContext.destinationJurisdiction||{},collection_obligation_attested:taxContext.collectionObligationAttested===true
+            }
+          }
+        });
+        if(scheduleError)throw scheduleError;
+        if(!scheduleData?.ok)throw new Error(scheduleData?.error||"Could not save recurring invoice schedule.");
+        setShowCreate(false);setRecurringEnabled(false);
+        setNotice("Recurring schedule saved. It will generate reviewable invoice drafts; Plivex will not auto-issue or collect payment.");
+        await refresh();
+        return;
       }
       const { data, error: invokeError } = await supabase.functions.invoke("global-invoices", {
         body:{
@@ -581,6 +648,17 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
               </span>
             </label>
             <div className="sm:col-span-2"><GlobalTaxEditor invoice={createPreviewInvoice} setInvoice={(updater)=>setTaxContext((old)=>typeof updater==="function"?updater({globalTax:old}).globalTax:updater.globalTax)} workspaceProfile={workspaceProfile} allowNoTax={true} serverResolved={true}/></div>
+            <div className="sm:col-span-2 rounded-lg border border-slate-200 p-3">
+              <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={recurringEnabled} onChange={(e)=>setRecurringEnabled(e.target.checked)}/>Make this a recurring invoice</label>
+              {recurringEnabled&&<div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <label className="text-xs font-semibold text-slate-600">Frequency<select className={field+" mt-1"} value={recurringCadence} onChange={(e)=>setRecurringCadence(e.target.value)}><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select></label>
+                <label className="text-xs font-semibold text-slate-600">Every N periods<input className={field+" mt-1"} type="number" min="1" max="12" value={recurringInterval} onChange={(e)=>setRecurringInterval(e.target.value)}/></label>
+                <label className="text-xs font-semibold text-slate-600">First invoice date<input className={field+" mt-1"} required type="date" value={recurringStartDate} onChange={(e)=>setRecurringStartDate(e.target.value)}/></label>
+                <label className="text-xs font-semibold text-slate-600">End date (optional)<input className={field+" mt-1"} type="date" value={recurringEndDate} onChange={(e)=>setRecurringEndDate(e.target.value)}/></label>
+                <label className="text-xs font-semibold text-slate-600">Payment terms (days)<input className={field+" mt-1"} type="number" min="0" max="365" value={paymentTermsDays} onChange={(e)=>setPaymentTermsDays(e.target.value)}/></label>
+              </div>}
+            </div>
+
             <div className="sm:col-span-2 flex items-center justify-between gap-3"><span className="text-sm text-slate-500">Invoice amount: {money(minor(Number(form.quantity||0)*Number(form.unitPrice||0),currency),currency)}</span><button disabled={busy || !sellerProfileReady} className={button}>Save invoice draft with tax</button></div>
           </form>
         </div>
@@ -670,6 +748,22 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
         </div>
       </div>
 
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">Recurring invoice schedules</h2><p className="mt-1 text-xs text-slate-500">Generate a draft on or after each scheduled date. Drafts require your review and manual issue; payments are recorded through the existing invoice ledger.</p></div><span className="text-xs text-slate-500">{recurringSchedules.length} schedule(s)</span></div>
+        {recurringSchedules.length===0?<p className="mt-3 text-sm text-slate-500">No recurring schedules created yet.</p>:<div className="mt-3 space-y-2">
+          {recurringSchedules.map((schedule)=>{
+            const due=schedule.status==="active"&&schedule.next_run_date<=today();
+            const customer=clients.find((client)=>client.id===schedule.client_id)?.name||"No customer";
+            return <div key={schedule.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3">
+              <div><p className="text-sm font-semibold">{customer} · {schedule.cadence} × {schedule.interval_count}</p><p className="text-xs text-slate-500">Next: {schedule.next_run_date} · {schedule.status} · {schedule.currency_code}</p></div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className={secondary} disabled={busy||schedule.status==="completed"} onClick={()=>setRecurringScheduleStatus(schedule,schedule.status==="paused"?"active":"paused")}>{schedule.status==="paused"?"Resume":"Pause"}</button>
+                <button type="button" className={button} disabled={busy||!due||!sellerProfileReady} onClick={()=>generateRecurringDraft(schedule)}>{due?"Generate draft":"Not due yet"}</button>
+              </div>
+            </div>;
+          })}
+        </div>}
+      </div>
       {backendCapabilities.ledgerReady ? <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="font-semibold">Payment reconciliation</div>
         <p className="mt-1 text-xs text-slate-500">Gross payments less recorded refunds. This is an internal ledger view, not a bank statement.</p>
