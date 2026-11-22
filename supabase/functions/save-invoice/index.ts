@@ -182,7 +182,8 @@ Deno.serve(async (req: Request) => {
       const sellerState = String(businessProfile?.tax_jurisdiction_code || "").replace(/^IN[-_]/i,"").trim().toUpperCase();
       const placeState = String(taxConfig.placeOfSupplyState || taxConfig.placeOfSupply || "").replace(/^IN[-_]/i,"").trim().toUpperCase();
       const supplyType = ["INTRA","INTER"].includes(explicitSupplyType) ? explicitSupplyType
-        : sellerState && placeState ? (sellerState === placeState ? "INTRA" : "INTER") : null;
+        : /^[A-Z]{2}$/.test(sellerState) && /^[A-Z]{2}$/.test(placeState) ? (sellerState === placeState ? "INTRA" : "INTER") : null;
+      if (supplyType) body.tax_mode = supplyType === "INTRA" ? "split" : "igst";
       body.invoice_snapshot = {
         ...body.invoice_snapshot,
         country_code:"IN",
