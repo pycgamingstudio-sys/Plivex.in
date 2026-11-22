@@ -17,6 +17,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
       noTaxConfirmed: false,
       priceMode: "exclusive",
       indiaSupplyType: "INTRA",
+      taxCode: "GST_18",
       placeOfSupply: "",
       placeOfSupplyConfirmed: false,
       taxCategory: "",
@@ -86,6 +87,11 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {countryCode === "IN" && <label className={labelClass}>GST rate
+          <select className={fieldClass} value={config.taxCode || "GST_18"} onChange={(e) => update({ taxCode: e.target.value, taxDetailsConfirmed: false })}>
+            {[["GST_0","0%"],["GST_5","5%"],["GST_12","12%"],["GST_18","18%"],["GST_28","28%"]].map(([value,label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </label>}
         {countryCode === "IN" && <label className={labelClass}>GST supply type
           <select className={fieldClass} value={config.indiaSupplyType || "INTRA"} onChange={(e) => update({ indiaSupplyType: e.target.value })}>
             <option value="INTRA">Same state · CGST + SGST</option>
