@@ -1,6 +1,7 @@
 import { supabase } from "@/api/backendClient";
 
 export async function startPaddleCheckout({ planId }) {
+  if (!import.meta.env.VITE_PADDLE_CLIENT_TOKEN) throw new Error("Paddle client token is missing. Add VITE_PADDLE_CLIENT_TOKEN to the frontend environment.");
   const { data, error } = await supabase.functions.invoke("create-paddle-transaction", {
     body: { planId },
   });
