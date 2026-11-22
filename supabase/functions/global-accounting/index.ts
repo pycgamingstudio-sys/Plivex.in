@@ -162,7 +162,7 @@ Deno.serve(async (req: Request) => {
       }};
     } else if (action==="import_gstr2b") {
       const period=String(body.period||"");
-      if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(period) || !Array.isArray(body.rows) || body.rows.length<1 || body.rows.length>2000) {
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period) || !Array.isArray(body.rows) || body.rows.length<1 || body.rows.length>2000) {
         return globalJson({error:"A valid return period and 1–2,000 GSTR-2B rows are required."},400,origin);
       }
       const {data,error}=await userClient.rpc("global_import_gstr2b_rows",{p_user_id:auth.user.id,p_workspace_id:workspaceId,p_return_period:period,p_rows:body.rows});
@@ -171,7 +171,7 @@ Deno.serve(async (req: Request) => {
     } else if (action==="list_gstr2b") {
       const period=String(body.period||"");
       const limit=Number(body.limit||2000);
-      if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(period) || !Number.isInteger(limit)||limit<1||limit>2000) return globalJson({error:"A valid GSTR-2B period and row limit are required."},400,origin);
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period) || !Number.isInteger(limit)||limit<1||limit>2000) return globalJson({error:"A valid GSTR-2B period and row limit are required."},400,origin);
       const {data,error}=await userClient.rpc("global_list_gstr2b_rows",{p_user_id:auth.user.id,p_workspace_id:workspaceId,p_return_period:period,p_limit:limit});
       if(error){console.error("Global GSTR-2B list failed",{code:error.code});return globalJson({error:"GSTR-2B records are temporarily unavailable."},503,origin);}
       return globalJson(data,200,origin);
