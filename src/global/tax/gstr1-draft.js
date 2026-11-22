@@ -69,6 +69,7 @@ export function buildGstr1Draft(invoices, { from = "", to = "" } = {}) {
       && row.date && (!from || row.date >= from) && (!to || row.date <= to);
   });
   let missingSellerGstin = false;
+  let includedInvoiceCount = 0;
   let invalidBuyerGstin = 0;
   let missingHsn = 0;
 
@@ -80,6 +81,7 @@ export function buildGstr1Draft(invoices, { from = "", to = "" } = {}) {
     if (row.buyerGstin && !buyer?.ok) invalidBuyerGstin += 1;
     const target = buyer?.ok ? b2b : row.buyerGstin ? null : b2c;
     if (!target) continue;
+    includedInvoiceCount += 1;
     const grouped = new Map();
     for (const item of row.items) {
       const key = String(item.gstRate);
@@ -133,5 +135,5 @@ export function buildGstr1Draft(invoices, { from = "", to = "" } = {}) {
     sgstAmount: round2(row.sgstAmount),
     cessAmount: 0,
   })).sort((a, b) => a.hsnSac.localeCompare(b.hsnSac) || a.gstRate - b.gstRate);
-  return { b2b, b2c, hsn, warnings, invoiceCount: eligible.length };
+  return { b2b, b2c, hsn, warnings, invoiceCount: includedInvoiceCount };
 }
