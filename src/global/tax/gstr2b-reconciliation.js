@@ -94,6 +94,7 @@ export function reconcileGstr2bRows(rows,purchaseBills) {
     };
     if(row.duplicate) return {...row,reconciliationStatus:"DUPLICATE",matchReason:"Duplicate invoice row in imported GSTR-2B file."};
     if(row.itcAvailable===false) return {...row,reconciliationStatus:"ITC_NOT_AVAILABLE",matchReason:row.reason||"ITC is marked unavailable in GSTR-2B."};
+    if(row.itcAvailable!==true) return {...row,reconciliationStatus:"ITC_STATUS_UNKNOWN",matchReason:"The imported file does not confirm ITC availability; verify the portal eligibility before counting credit."};
     const matches=bills.filter((bill)=>["posted","partially_paid","paid"].includes(String(bill.status||"").toLowerCase())&&String(bill.supplier_tax_id||bill.supplier_gstin||"").toUpperCase()===row.supplierGstin&&normInvoice(bill.supplier_invoice_number)===normInvoice(row.invoiceNumber));
     if(!matches.length) return {...row,reconciliationStatus:"NOT_IN_BOOKS",matchReason:"No saved purchase bill with the same supplier GSTIN and invoice number."};
     if(matches.length>1) return {...row,reconciliationStatus:"REVIEW_REQUIRED",candidateCount:matches.length,matchReason:"Multiple purchase bills match this supplier invoice."};
