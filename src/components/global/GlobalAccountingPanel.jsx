@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/api/backendClient";
 import GlobalGstr2bPanel from "@/components/global/GlobalGstr2bPanel";
+import GlobalGstr3bPanel from "@/components/global/GlobalGstr3bPanel";
 
 const field="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm";
 const button="rounded-lg bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50";
@@ -10,7 +11,7 @@ const digits=(currency)=>{try{return new Intl.NumberFormat("en",{style:"currency
 const money=(minor,currency)=>new Intl.NumberFormat(undefined,{style:"currency",currency}).format(Number(minor||0)/(10**digits(currency)));
 const toMinor=(value,currency)=>Math.round(Number(value||0)*(10**digits(currency)));
 
-export default function GlobalAccountingPanel({account}) {
+export default function GlobalAccountingPanel({account,invoke}) {
   const currency=account?.currency_code||"USD";
   const [accounts,setAccounts]=useState([]);
   const [view,setView]=useState("trial_balance");
@@ -59,7 +60,7 @@ export default function GlobalAccountingPanel({account}) {
   },[account.workspace_id,currency,from,to,view,selectedAccount]);
 
   useEffect(()=>{loadAccounts().catch((e)=>setError(e.message||"Could not load chart of accounts."));},[loadAccounts]);
-  useEffect(()=>{if(accounts.length && view!=="gstr2b")loadReport();},[accounts.length,loadReport,view]);
+  useEffect(()=>{if(accounts.length && view!=="gstr2b" && view!=="gstr3b")loadReport();},[accounts.length,loadReport,view]);
 
   const totals=useMemo(()=>lines.reduce((sum,line)=>({
     debit:sum.debit+toMinor(line.debit,currency),
@@ -106,7 +107,7 @@ export default function GlobalAccountingPanel({account}) {
     {error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {notice&&<p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
     <div className="flex flex-wrap gap-2">
-      {[["trial_balance","Trial Balance"],["general_ledger","General Ledger"],["financial_statements","Financial Statements"],["gstr2b","GSTR-2B / ITC"]].map(([id,label])=><button key={id} onClick={()=>setView(id)} className={view===id?"rounded-lg bg-violet-700 px-3 py-2 text-sm font-semibold text-white":secondary}>{label}</button>)}
+      {[["trial_balance","Trial Balance"],["general_ledger","General Ledger"],["financial_statements","Financial Statements"],["gstr2b","GSTR-2B / ITC"],["gstr3b","GSTR-3B / Calendar"]].map(([id,label])=><button key={id} onClick={()=>setView(id)} className={view===id?"rounded-lg bg-violet-700 px-3 py-2 text-sm font-semibold text-white":secondary}>{label}</button>)}
     </div>
     {view!=="gstr2b"&&<div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
       <label className="text-xs font-semibold text-slate-600">From<input type="date" className={field+" mt-1"} value={from} onChange={(e)=>setFrom(e.target.value)}/></label>
@@ -114,7 +115,7 @@ export default function GlobalAccountingPanel({account}) {
       {view==="general_ledger"&&<label className="min-w-48 text-xs font-semibold text-slate-600">Account<select className={field+" mt-1"} value={selectedAccount} onChange={(e)=>setSelectedAccount(e.target.value)}>{accounts.map((a)=><option key={a.code} value={a.code}>{a.code} · {a.name}</option>)}</select></label>}
       <button className={secondary} disabled={loading} onClick={loadReport}>{loading?"Loading…":"Refresh report"}</button>
     </div>}
-    {view==="gstr2b"?<GlobalGstr2bPanel account={account}/>:loading?<div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Loading accounting report…</div>:view==="trial_balance"?(
+    {view==="gstr2b"?<GlobalGstr2bPanel account={account}/>:view==="gstr3b"?<GlobalGstr3bPanel account={account} invoke={invoke}/>:loading?<div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Loading accounting report…</div>:view==="trial_balance"?(
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500"><tr>{["Code","Account","Type","Debit","Credit","Net debit"].map((x)=><th key={x} className="whitespace-nowrap px-4 py-3 font-semibold">{x}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">
           {rows.map((row)=><tr key={row.code}><td className="px-4 py-3 font-semibold">{row.code}</td><td className="px-4 py-3">{row.name}</td><td className="px-4 py-3 capitalize">{row.account_type}</td><td className="px-4 py-3">{money(row.debit_minor,currency)}</td><td className="px-4 py-3">{money(row.credit_minor,currency)}</td><td className="px-4 py-3">{money(row.net_debit_minor,currency)}</td></tr>)}
