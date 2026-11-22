@@ -372,9 +372,9 @@ begin
    end if;
    select * into v_serial from global.inventory_serials where id=v_id and workspace_id=p_workspace_id for update;
    if v_serial.id is null then return jsonb_build_object('ok',false,'reason','serial_not_found'); end if;
-   select id,reference_id into v_existing_id,v_invoice_id from global.warehouse_stock_movements where workspace_id=p_workspace_id and idempotency_key=v_key;
+   select id,reference_id into v_existing_id,v_movement_id from global.warehouse_stock_movements where workspace_id=p_workspace_id and idempotency_key=v_key;
    if v_existing_id is not null then
-     if v_invoice_id<>v_serial.id then return jsonb_build_object('ok',false,'reason','idempotency_conflict'); end if;
+     if v_movement_id<>v_serial.id then return jsonb_build_object('ok',false,'reason','idempotency_conflict'); end if;
      return jsonb_build_object('ok',true,'duplicate',true,'record',to_jsonb(v_serial),'movement_id',v_existing_id);
    end if;
    if v_serial.status=v_new_status then return jsonb_build_object('ok',true,'duplicate',true,'record',to_jsonb(v_serial)); end if;
