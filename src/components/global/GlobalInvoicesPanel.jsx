@@ -176,6 +176,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
             tax_category:taxContext.taxCategory || "",
             tax_treatment:taxContext.taxTreatment || "standard",
             tax_code:taxContext.taxCode || null,
+            india_supply_type:taxContext.indiaSupplyType || "INTRA",
             mode:taxContext.mode || "automatic",
             price_mode:taxContext.priceMode || "exclusive",
             place_of_supply:taxContext.placeOfSupply || "",
