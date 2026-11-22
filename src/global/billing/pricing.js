@@ -6,7 +6,7 @@ export const GLOBAL_BILLING = Object.freeze({
   GB: Object.freeze({ currency: "GBP", paymentEnabled: true, monthly: Object.freeze({ basic: 499, pro: 899 }) }),
   AE: Object.freeze({ currency: "AED", paymentEnabled: false, monthly: Object.freeze({ basic: 1900, pro: 3500 }) }),
   CA: Object.freeze({ currency: "CAD", paymentEnabled: true, monthly: Object.freeze({ basic: 799, pro: 1299 }) }),
-  AU: Object.freeze({ currency: "AUD", paymentEnabled: true, monthly: Object.freeze({ basic: 79900, pro: 149900 }) }),
+  AU: Object.freeze({ currency: "AUD", paymentEnabled: true, monthly: Object.freeze({ basic: 799, pro: 1499 }) }),
   SG: Object.freeze({ currency: "SGD", paymentEnabled: true, monthly: Object.freeze({ basic: 699, pro: 1299 }) }),
 });
 

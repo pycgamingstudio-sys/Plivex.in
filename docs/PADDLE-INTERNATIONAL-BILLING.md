@@ -16,7 +16,7 @@ India subscriptions continue to use Cashfree. Non-India workspaces use Paddle Bi
 - `PADDLE_PRICE_ID_AU_BASIC_MONTHLY`, `PADDLE_PRICE_ID_AU_PRO_MONTHLY`
 - `PADDLE_PRICE_ID_SG_BASIC_MONTHLY`, `PADDLE_PRICE_ID_SG_PRO_MONTHLY`
 
-AE is intentionally marked payment-disabled in the current country billing config; its Paddle checkout button remains disabled. Enable it only after the AED plan and provider setup have been reviewed. Each configured Price ID must be a recurring Paddle Price in that country's Workspace currency. The backend compares the Paddle transaction currency and subtotal with Plivex's configured country price before it returns a checkout link. The Australian Basic monthly price is configured as AUD 799.00.
+AE is intentionally marked payment-disabled in the current country billing config; its Paddle checkout button remains disabled. Enable it only after the AED plan and provider setup have been reviewed. Each configured Price ID must be a recurring Paddle Price in that country's Workspace currency. The backend compares the Paddle transaction currency and subtotal with Plivex's configured country price before it returns a checkout link. Australian plan amounts must match the pre-existing Plivex pricing configuration in `src/global/billing/pricing.js`; never derive prices from examples.
 
 ## Checkout return page
 

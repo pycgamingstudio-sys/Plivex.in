@@ -29,7 +29,8 @@ test("price formatter uses exact minor-unit amount and currency", () => {
 });
 
 
-test("Australian Basic monthly plan is configured as AUD 799.00, not AUD 7.99", () => {
-  assert.equal(GLOBAL_BILLING.AU.monthly.basic, 79900);
-  assert.equal(formatPlanPrice(GLOBAL_BILLING.AU.monthly.basic, "AUD", "en-AU"), new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", maximumFractionDigits:2 }).format(799));
+test("Australian Basic monthly plan preserves the pre-existing AUD 7.99 price", () => {
+  assert.equal(GLOBAL_BILLING.AU.monthly.basic, 799);
+  assert.equal(GLOBAL_BILLING.AU.monthly.pro, 1499);
+  assert.equal(formatPlanPrice(GLOBAL_BILLING.AU.monthly.basic, "AUD", "en-AU"), new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", maximumFractionDigits:2 }).format(7.99));
 });
