@@ -113,7 +113,12 @@ Deno.serve(async (req: Request) => {
         treatment:resolved.rule.treatment,components,status:resolved.mode,
         taxMinor,taxableMinor:taxable,totalRateBps,source:resolved.rule.source,
         calculatedAt:new Date().toISOString(),
-        warning:resolved.mode === "draft_test" ? "Draft baseline rule for testing only; not legally verified." : null,
+        warning:resolved.mode === "draft_test"
+          ? (countryCode === "US"
+            ? "Draft-test state baseline only; not legally verified and excludes local city, county and special-district taxes."
+            : "Draft baseline rule for testing only; not legally verified.")
+          : countryCode === "US" ? "State-level baseline only; local city, county and special-district taxes are not included."
+          : countryCode === "CA" ? "Provincial baseline components only; product-specific place-of-supply exceptions may apply." : null,
         indiaSupplyType:countryCode === "IN" ? body.india_supply_type : null,
       };
     }
