@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { calculateInvoiceGlobalTax } from "./_shared/tax/invoice-tax-integration.js";
+import { resolveSupabaseTaxRule } from "../_shared/tax/supabase-tax-rule-resolver.ts";
 const ORIGINS = new Set(["https://plivex.in", "https://www.plivex.in", "https://plivex.netlify.app"]);
 const allowed = (o: string | null) => !o || ORIGINS.has(o) || /^https:\/\/(?:[a-z0-9-]+\.)?[a-z0-9-]+\.(?:pages|workers)\.dev$/.test(o);
 const cors = (o: string | null) => ({ "Access-Control-Allow-Origin": o && allowed(o) ? o : "https://plivex.in", "Vary": "Origin", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" });
@@ -12,9 +13,13 @@ Deno.serve(async (req: Request) => {
   const authorization = req.headers.get("Authorization");
   if (!authorization?.startsWith("Bearer ")) return json({ error: "Please sign in." }, 401, origin);
   const url = Deno.env.get("SUPABASE_URL"), anon = Deno.env.get("SUPABASE_ANON_KEY");
-  if (!url || !anon) return json({ error: "Invoice service is not configured." }, 503, origin);
+  const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !anon || !serviceRole) return json({ error: "Invoice service is not configured." }, 503, origin);
   try {
     const db = createClient(url, anon, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false } });
+    // The service client is used only for read-only lookup of shared tax rules,
+    // after the caller and workspace have been authenticated above.
+    const taxDb = createClient(url, serviceRole, { auth: { persistSession: false, autoRefreshToken: false } });
     const { data: { user }, error: authError } = await db.auth.getUser();
     if (authError || !user) return json({ error: "Your session expired. Please sign in again." }, 401, origin);
     const body = await req.json().catch(() => ({}));
@@ -64,7 +69,7 @@ Deno.serve(async (req: Request) => {
         discount: body.discount ?? body.invoice_snapshot.discount,
         discountType: body.discount_type || body.invoice_snapshot.discountType,
       };
-      const taxResult = calculateInvoiceGlobalTax(taxInput, {
+      const taxProfile = {
         countryCode,
         currencyCode: baseCurrencyCode,
         registrationNumber: businessProfile?.tax_registration_number || "",
@@ -72,8 +77,53 @@ Deno.serve(async (req: Request) => {
         registrationStatus: businessProfile?.tax_registration_status || "unregistered",
         registrationEffectiveFrom: businessProfile?.tax_registration_effective_from || "",
         registeredJurisdiction: businessProfile?.tax_jurisdiction_code || "",
-      });
-      if (taxResult.ok === true) verifiedGlobalTaxResult = taxResult as unknown as Record<string, unknown>;
+      };
+      const taxConfig = taxInput.globalTax && typeof taxInput.globalTax === "object" ? taxInput.globalTax : {};
+      const taxDate = String(taxInput.issueDate || "");
+      const taxJurisdiction = countryCode === "CA"
+        ? String(taxConfig.destinationJurisdiction?.province || "").trim().toUpperCase()
+        : countryCode === "US"
+          ? String(taxConfig.destinationJurisdiction?.state || "").trim().toUpperCase()
+          : countryCode;
+      const draftMode = Deno.env.get("ALLOW_DRAFT_TAX_RULES") === "true";
+      const resolved = await resolveSupabaseTaxRule(taxDb, {
+        countryCode, jurisdictionId: taxJurisdiction, invoiceDate: taxDate,
+        treatment: String(taxConfig.taxTreatment || "standard").replace("standard-rated", "standard"),
+        taxCode: typeof taxConfig.taxCode === "string" ? taxConfig.taxCode : null,
+      }, draftMode);
+      let taxResult: any;
+      if (!resolved.ok) {
+        taxResult = { ok:false, status:"needs_review", code:resolved.code, message:resolved.message };
+      } else if (countryCode === "IN") {
+        // India invoice totals continue through the existing GST split path.
+        // The selected database rule is retained in the immutable invoice snapshot.
+        taxResult = { ok:true, status:"india_legacy", countryCode, ruleSnapshot:resolved.rule, ruleMode:resolved.mode };
+      } else {
+        const components = resolved.rule.components;
+        taxInput.globalTax = {
+          ...taxConfig,
+          countryCode,
+          mode: "manual",
+          taxMode: "taxable",
+          taxTreatment: "standard",
+          components,
+        };
+        taxResult = calculateInvoiceGlobalTax(taxInput, taxProfile);
+        if (taxResult.ok) {
+          taxResult.ruleSnapshot = {
+            id: resolved.rule.id, version: resolved.rule.version,
+            countryCode, jurisdictionId: resolved.rule.jurisdictionId,
+            effectiveFrom: resolved.rule.effectiveFrom, effectiveTo: resolved.rule.effectiveTo,
+            source: resolved.rule.source, status: resolved.rule.status,
+            ruleMode: resolved.mode,
+          };
+          taxResult.status = resolved.mode === "draft_test" ? "draft_test" : taxResult.status;
+          taxResult.warning = resolved.mode === "draft_test"
+            ? "Calculated using a draft baseline rule for testing only; not legally verified and not for production issuance."
+            : taxResult.warning;
+        }
+      }
+      if (taxResult.ok === true && countryCode !== "IN") verifiedGlobalTaxResult = taxResult as unknown as Record<string, unknown>;
       body.invoice_snapshot = {
         ...taxInput,
         documentType: "draft_invoice",
