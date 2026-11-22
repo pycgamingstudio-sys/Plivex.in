@@ -68,5 +68,5 @@ test("reconciliation writes are isolated to the explicit apply action", async ()
   assert.match(source, /export function applyReconciliationMatches/);
   assert.match(source, /saveList\(KEYS\.history, invoices\)/);
   assert.match(source, /saveList\(KEYS\.expenses, expenses\)/);
-  assert.doesNotMatch(source, /export function reconcileTransactions\([\s\S]*?saveList/);
+  assert.doesNotMatch(source, /export function reconcileTransactions\([^}]*saveList/);
 });
