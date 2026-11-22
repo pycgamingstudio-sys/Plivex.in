@@ -23,6 +23,10 @@ Each Price ID must be a recurring Paddle Price in that country's Workspace curre
 
 Paddle returns customers to `/payment-result?_ptxn=...`. That page loads Paddle.js, opens the transaction using the public client token, and waits for the signed webhook before showing the subscription as active. The frontend token and environment must match the server-side `PADDLE_ENV`.
 
+## Paddle dashboard checkout settings
+
+Set the default payment link to `https://plivex.in/payment-result` and approve the `plivex.in` domain in Paddle Website approval. Sandbox and live environments have separate approval/configuration. The API uses this same approved URL as the transaction checkout link.
+
 ## Webhook destination
 
 `https://sqzpaiibmfsvarrkwkvb.supabase.co/functions/v1/paddle-webhook`
