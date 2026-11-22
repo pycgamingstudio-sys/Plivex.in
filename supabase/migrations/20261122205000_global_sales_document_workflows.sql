@@ -295,7 +295,7 @@ begin
      return jsonb_build_object('ok',false,'reason','invalid_credit_debit_note');
    end if;
    select * into v_invoice from global.invoices where id=(p_values->>'invoice_id')::uuid and workspace_id=p_workspace_id for update;
-   if v_invoice.id is null then return jsonb_build_object('ok',false,'reason','invoice_not_found'); end if;
+   if v_invoice.id is null or lower(v_invoice.status) in ('draft','cancelled','canceled','void') then return jsonb_build_object('ok',false,'reason','invoice_not_found'); end if;
    v_fingerprint:=md5(p_values::text);
    perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text||':credit_debit_note:'||v_key::text,0));
    select id,request_fingerprint into v_existing_id,v_existing_fingerprint from global.credit_debit_notes where workspace_id=p_workspace_id and idempotency_key=v_key;
