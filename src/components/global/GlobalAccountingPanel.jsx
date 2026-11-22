@@ -60,7 +60,7 @@ export default function GlobalAccountingPanel({account,invoke}) {
   },[account.workspace_id,currency,from,to,view,selectedAccount]);
 
   useEffect(()=>{loadAccounts().catch((e)=>setError(e.message||"Could not load chart of accounts."));},[loadAccounts]);
-  useEffect(()=>{if(accounts.length && view!=="gstr2b" && view!=="gstr3b" && view!=="gstr3b")loadReport();},[accounts.length,loadReport,view]);
+  useEffect(()=>{if(accounts.length && view!=="gstr2b" && view!=="gstr3b")loadReport();},[accounts.length,loadReport,view]);
 
   const totals=useMemo(()=>lines.reduce((sum,line)=>({
     debit:sum.debit+toMinor(line.debit,currency),
