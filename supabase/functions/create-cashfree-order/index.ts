@@ -30,6 +30,7 @@ Deno.serve(async(req:Request)=>{
   // Legacy workspaces without an explicit country retain India billing. New
   // international workspaces must explicitly save their country in settings.
   const countryCode=String(business?.country_code||"IN").toUpperCase();
+  if(countryCode!=="IN")return json({error:"International subscriptions use Paddle. Cashfree checkout is reserved for India workspaces.",code:"USE_PADDLE"},409,origin);
   const localeCode=String(business?.locale_code||getCountryByCode(countryCode)?.locales?.[0]||"en-IN");
   const plan=resolvePlan(body.planId,countryCode);
   if(!plan.available){
