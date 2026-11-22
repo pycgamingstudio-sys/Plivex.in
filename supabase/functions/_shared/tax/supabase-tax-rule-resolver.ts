@@ -9,7 +9,7 @@ const COUNTRY_CURRENCY: Record<string,string> = { IN:"INR", US:"USD", GB:"GBP", 
 export async function resolveSupabaseTaxRule(
   db: any,
   input: { countryCode: string; jurisdictionId?: string | null; invoiceDate: string; treatment?: string; taxCode?: string | null },
-  allowDraft = Deno.env.get("ALLOW_DRAFT_TAX_RULES") === "true",
+  allowDraft = Deno.env.get("ALLOW_DRAFT_TAX_RULES") !== "false",
 ) {
   const countryCode = String(input.countryCode || "").toUpperCase();
   const invoiceDate = input.invoiceDate;
