@@ -23,9 +23,12 @@ export function buildCustomBusinessReport({invoices=[],expenses=[],metric="reven
   }else{
     for(const invoice of validInvoices){
       const paid=Boolean(isPaid(invoice));
-      if(metric==="collected"&&!paid)continue;
-      if(metric==="outstanding"&&paid)continue;
-      const amount=metric==="outstanding"?Math.max(0,amountOf(invoice.total)-amountOf(invoice.amountPaid??invoice.amount_paid)):amountOf(invoice.total);
+      const total=amountOf(invoice.total);
+      const recordedPaid=amountOf(invoice.amountPaid??invoice.amount_paid);
+      const paidAmount=Math.min(total,Math.max(0,recordedPaid||(paid?total:0)));
+      if(metric==="collected"&&paidAmount<=0)continue;
+      if(metric==="outstanding"&&paidAmount>=total)continue;
+      const amount=metric==="outstanding"?Math.max(0,total-paidAmount):metric==="collected"?paidAmount:total;
       const key=groupBy==="month"?monthOf(invoice.issueDate):String(invoice.clientName||invoice.client_name||"Unspecified customer");
       if(key)add(key,amount);
     }
