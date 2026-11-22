@@ -85,7 +85,7 @@ Deno.serve(async (req: Request) => {
         : countryCode === "US"
           ? String(taxConfig.destinationJurisdiction?.state || "").trim().toUpperCase()
           : countryCode;
-      const draftMode = Deno.env.get("ALLOW_DRAFT_TAX_RULES") === "true";
+      const draftMode = Deno.env.get("ALLOW_DRAFT_TAX_RULES") !== "false";
       const resolved = await resolveSupabaseTaxRule(taxDb, {
         countryCode, jurisdictionId: taxJurisdiction, invoiceDate: taxDate,
         treatment: String(taxConfig.taxTreatment || "standard").replace("standard-rated", "standard"),
