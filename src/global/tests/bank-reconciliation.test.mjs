@@ -86,3 +86,15 @@ test("exact UTR and amount outrank fuzzy same-amount candidates and prevent dupl
   assert.equal(result.entries[0].matchStatus, "SUGGESTED");
   assert.equal(result.entries[1].matchStatus, "UNMATCHED");
 });
+
+
+test("payee phrase inside a longer bank narration remains a strong reconciliation match", () => {
+  const expense = { id: "exp-phrase", vendor: "City Rent", amount: 900, status: "Unpaid" };
+  const result = suggestReconciliationMatches(
+    [{ id: "rent", narration: "City Rent monthly", amount: -900, utr: "" }],
+    [],
+    [expense],
+  );
+  assert.equal(result.entries[0].matchStatus, "SUGGESTED");
+  assert.equal(result.entries[0].matchedRecordId, "exp-phrase");
+});
