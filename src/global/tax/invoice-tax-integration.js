@@ -271,7 +271,11 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
     const lineCategory = String(item.taxCategory || config.taxCategory || "").trim();
     let calculated;
     if (mode === "manual") {
-      if (lineTreatment !== "standard") return fail("MANUAL_SPECIAL_TREATMENT_UNSUPPORTED", "Manual rates cannot be used for zero-rated, exempt, reduced or reverse-charge lines. Select a verified country/category rule.");
+      const draftSpecialTreatment = config.resolvedRuleSource === "supabase" && config.ruleMode === "draft_test"
+        && ["reduced", "zero-rated", "gst-free", "exempt", "out-of-scope"].includes(lineTreatment);
+      if (lineTreatment !== "standard" && !draftSpecialTreatment) {
+        return fail("MANUAL_SPECIAL_TREATMENT_UNSUPPORTED", "This tax treatment requires an exact supported country/category rule. Keep the invoice in review.");
+      }
       calculated = calculateManualTax({
         countryCode, currencyCode, currencyMinorUnits: MINOR_UNITS[currencyCode],
         amountMinor: line.amountMinor, priceMode: config.priceMode, taxTreatment: "standard-rated",
@@ -282,6 +286,16 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
         jurisdictionConfirmed: (countryCode === "US" || countryCode === "CA")
           ? config.collectionObligationAttested === true : true,
       });
+      if (calculated.ok && draftSpecialTreatment) {
+        calculated = {
+          ...calculated, treatment:lineTreatment,
+          taxDisclosure:lineTreatment === "zero-rated" ? "Zero-rated supply under the selected draft baseline rule."
+            : lineTreatment === "gst-free" ? "GST-free supply under the selected draft baseline rule."
+            : lineTreatment === "exempt" ? "Exempt supply under the selected draft baseline rule."
+            : lineTreatment === "out-of-scope" ? "Out-of-scope supply under the selected draft baseline rule."
+            : "Reduced-rate supply under the selected draft baseline rule.",
+        };
+      }
     } else {
       calculated = calculateGlobalTax({
         countryCode, currencyCode, currencyMinorUnits: MINOR_UNITS[currencyCode],
