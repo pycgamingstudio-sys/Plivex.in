@@ -151,8 +151,10 @@ Deno.serve(async (req: Request) => {
     if (countryCode === "IN" && body?.invoice_snapshot && typeof body.invoice_snapshot === "object") {
       // Preserve the established India GST ledger path, while binding each
       // selected GST slab to its versioned Supabase baseline rule.
-      const rates = [...new Set((body.items || []).map((item: any) => Number(item?.gst_rate)).filter((rate: number) => Number.isFinite(rate) && rate >= 0 && rate <= 100))];
+      const rates = [...new Set((body.items || []).filter((item: any) => item?.gst_rate !== null && item?.gst_rate !== undefined && item?.gst_rate !== "")
+        .map((item: any) => Number(item.gst_rate)).filter((rate: number) => Number.isFinite(rate) && rate >= 0 && rate <= 100))];
       const snapshots: any[] = [];
+      const resolvedRateByPercent = new Map<number, any>();
       for (const rate of rates) {
         const taxCode = "GST_" + String(rate).replace(/\\.0+$/, "");
         const treatment = rate === 0 ? "zero-rated" : rate === 5 ? "reduced" : "standard";
@@ -160,12 +162,20 @@ Deno.serve(async (req: Request) => {
           countryCode:"IN", jurisdictionId:"IN", invoiceDate:String(body.issue_date || body.invoice_snapshot.issueDate || ""),
           treatment, taxCode,
         }, Deno.env.get("ALLOW_DRAFT_TAX_RULES") !== "false");
-        if (resolved.ok) snapshots.push({
+        if (!resolved.ok) return json({ error:"The selected India GST slab has no effective Supabase rule: " + taxCode },422,origin);
+        const resolvedRateBps = resolved.rule.components.reduce((sum:number,component:any)=>sum+Number(component.rateBps),0);
+        resolvedRateByPercent.set(rate, { rate:resolvedRateBps / 100, rule:resolved.rule, mode:resolved.mode });
+        snapshots.push({
           taxCode, treatment, status:resolved.mode, ruleId:resolved.rule.id,
           version:resolved.rule.version, effectiveFrom:resolved.rule.effectiveFrom,
           source:resolved.rule.source, components:resolved.rule.components,
         });
       }
+      body.items = (body.items || []).map((item:any) => {
+        if (item?.gst_rate === null || item?.gst_rate === undefined || item?.gst_rate === "") return item;
+        const selected = resolvedRateByPercent.get(Number(item.gst_rate));
+        return selected ? { ...item, gst_rate:selected.rate } : item;
+      });
       const taxConfig = body.invoice_snapshot.globalTax && typeof body.invoice_snapshot.globalTax === "object"
         ? body.invoice_snapshot.globalTax : {};
       const explicitSupplyType = String(taxConfig.indiaSupplyType || taxConfig.supplyType || "").toUpperCase();
@@ -179,7 +189,7 @@ Deno.serve(async (req: Request) => {
         indiaTaxRuleSnapshots:snapshots,
         indiaSupplyType:supplyType,
         indiaTaxMode:supplyType === "INTRA" ? "CGST+SGST" : supplyType === "INTER" ? "IGST" : null,
-        indiaTaxRuleMode:snapshots.some((rule)=>rule.status === "draft_test") ? "draft_test" : "verified",
+        indiaTaxRuleMode:!snapshots.length ? "unresolved" : snapshots.some((rule)=>rule.status === "draft_test") ? "draft_test" : "verified",
       };
     }
     const invoiceId = body.invoiceId ?? body.id ?? null;
