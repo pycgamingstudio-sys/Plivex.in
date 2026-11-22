@@ -152,7 +152,7 @@ Deno.serve(async (req: Request) => {
     if (countryCode === "IN" && body?.invoice_snapshot && typeof body.invoice_snapshot === "object") {
       // Preserve the established India GST ledger path, while binding each
       // selected GST slab to its versioned Supabase baseline rule.
-      const rates = [...new Set((body.items || []).filter((item: any) => item?.gst_rate !== null && item?.gst_rate !== undefined && item?.gst_rate !== "")
+      const rates: number[] = [...new Set<number>((body.items || []).filter((item: any) => item?.gst_rate !== null && item?.gst_rate !== undefined && item?.gst_rate !== "")
         .map((item: any) => Number(item.gst_rate)).filter((rate: number) => Number.isFinite(rate) && rate >= 0 && rate <= 100))];
       const snapshots: any[] = [];
       const resolvedRateByPercent = new Map<number, any>();
