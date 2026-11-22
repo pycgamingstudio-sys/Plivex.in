@@ -110,6 +110,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   useEffect(() => { refresh().catch((e) => setError(e.message || "Could not load Global invoices.")); }, [refresh]);
 
   const selected = invoices.find((invoice) => invoice.id === selectedId) || null;
+  const selectedClient = clients.find((client) => client.id === selected?.client_id);
   useEffect(() => {
     const saved = selected?.invoice_snapshot?.india_compliance || {};
     setIndiaComplianceForm({
@@ -284,8 +285,8 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       const snapshot = normalizeGlobalInvoiceSnapshot(selected.invoice_snapshot);
       const payload = buildIndiaComplianceDetailsExport({
         invoice:selected, items:selectedItems,
-        seller:profile || snapshot.business || {},
-        buyer:selectedClient || snapshot.client || snapshot.buyer || {},
+        seller:{ ...(snapshot.business || {}), ...(profile || {}) },
+        buyer:{ ...(snapshot.client || snapshot.buyer || {}), ...(selectedClient || {}) },
         compliance:normalized.value,
         exportType,
       });
@@ -501,7 +502,6 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     finally { setBusy(false); }
   };
 
-  const selectedClient = clients.find((client) => client.id === selected?.client_id);
   const selectedCurrency = selected?.currency_code || currency;
   const sellerProfileReady = Boolean(profile?.legal_name?.trim() && profile?.address?.trim());
   const canIssueCommercial = canIssueCommercialInvoice({
