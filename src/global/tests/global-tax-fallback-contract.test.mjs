@@ -6,8 +6,9 @@ const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
 test("server tax resolver accepts real ISO dates and fractional provincial components", async () => {
   const source = await read("../../../supabase/functions/_shared/tax/supabase-tax-rule-resolver.ts");
-  assert.ok(source.includes(String.raw`/^\d{4}-\d{2}-\d{2}$/`));
-  assert.ok(!source.includes(String.raw`/^\d{4}-\d{2}-\d{2}$/`));
+  const slash = String.fromCharCode(92);
+  assert.ok(source.includes("/^" + slash + "d{4}-" + slash + "d{2}-" + slash + "d{2}$/"));
+  assert.ok(!source.includes("/^" + slash + slash + "d{4}-" + slash + slash + "d{2}-" + slash + slash + "d{2}$/"));
   assert.match(source, /Number\.isFinite\(c\.rateBps\)/);
 });
 
