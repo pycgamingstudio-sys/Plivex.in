@@ -8,6 +8,7 @@ import { formatWorkspaceDate } from "@/global/localization/date-format.js";
 import { resolveGlobalInvoiceContext, canIssueCommercialInvoice, getGlobalInvoiceDocumentTitle, getGlobalInvoiceTaxDisclosure } from "@/global/invoices/invoice-readiness.js";
 import { normalizeGlobalInvoiceSnapshot, getGlobalInvoicePdfFilename } from "@/global/invoices/pdf-download.js";
 import { normalizeIndiaCompliance, buildIndiaComplianceDetailsExport } from "@/global/tax/india-compliance.js";
+import { parseIndianGstin, findSavedGstinRecords } from "@/global/tax/gstin.js";
 
 const today = () => {
   const d = new Date();
@@ -57,6 +58,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   const [paymentForm, setPaymentForm] = useState({ amount:"", date:today(), method:"bank_transfer", reference:"" });
   const [refundForm, setRefundForm] = useState({ amount:"", date:today(), method:"bank_transfer", reference:"", reason:"" });
   const [activeShare, setActiveShare] = useState(null);
+  const [gstinLookup, setGstinLookup] = useState("");
   const [indiaComplianceForm, setIndiaComplianceForm] = useState({
     irn:"", ack_number:"", ack_date:"", eway_bill_number:"", eway_bill_date:"", eway_bill_valid_until:"",
     transport_mode:"road", vehicle_number:"", transporter_id:"", transporter_name:"", distance_km:"",
@@ -111,6 +113,8 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
 
   const selected = invoices.find((invoice) => invoice.id === selectedId) || null;
   const selectedClient = clients.find((client) => client.id === selected?.client_id);
+  const gstinLookupParsed = useMemo(() => parseIndianGstin(gstinLookup), [gstinLookup]);
+  const gstinLookupMatches = useMemo(() => findSavedGstinRecords(clients, gstinLookup), [clients, gstinLookup]);
   useEffect(() => {
     const saved = selected?.invoice_snapshot?.india_compliance || {};
     setIndiaComplianceForm({
@@ -545,6 +549,21 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
           <h2 className="font-semibold">New invoice draft</h2>
           <form onSubmit={createDraft} className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="text-xs font-semibold text-slate-600">Customer<select className={field+" mt-1"} value={form.clientId} onChange={(e)=>setForm((v)=>({...v,clientId:e.target.value}))}><option value="">No customer selected</option>{clients.map((c)=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+            {countryCode === "IN" && <div className="sm:col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <label className="block text-xs font-semibold text-slate-700">Find saved customer by GSTIN
+                <input className={field+" mt-1"} value={gstinLookup} maxLength={15} autoCapitalize="characters" placeholder="Enter 15-character GSTIN" onChange={(e)=>{
+                  const value=e.target.value.toUpperCase().replace(/\s+/g,"");
+                  setGstinLookup(value);
+                  const matches=findSavedGstinRecords(clients,value);
+                  if(matches.length===1) setForm((current)=>({...current,clientId:matches[0].id}));
+                }}/>
+              </label>
+              {gstinLookup.trim() && (gstinLookupParsed.ok ? <p className="mt-2 text-xs text-slate-600">
+                Format detected · {gstinLookupParsed.stateName} · {gstinLookupParsed.panEntityType}.
+                {gstinLookupMatches.length===1 ? " Saved customer matched and selected." : gstinLookupMatches.length>1 ? " Multiple saved customers match; choose the correct customer above." : " No saved customer matched. This is a local workspace lookup only."}
+                {" "}Government registration status is not verified.
+              </p> : <p className="mt-2 text-xs text-amber-700">{gstinLookupParsed.message}</p>)}
+            </div>}
             {countryCode==="GB" && <label className="text-xs font-semibold text-slate-600">Document type
               <select className={field+" mt-1"} value={form.documentType} onChange={(e)=>setForm((v)=>({...v,documentType:e.target.value}))}>
                 <option value="commercial">Commercial invoice · tax not assessed</option>

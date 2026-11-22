@@ -1,3 +1,16 @@
+const PAN_ENTITY_TYPES = Object.freeze({
+  A: "Association of Persons (AOP)",
+  B: "Body of Individuals (BOI)",
+  C: "Company",
+  F: "Firm / LLP",
+  G: "Government",
+  H: "Hindu Undivided Family (HUF)",
+  J: "Artificial Juridical Person",
+  L: "Local Authority",
+  P: "Individual",
+  T: "Trust",
+});
+
 const STATE_CODES = Object.freeze({
   "01":"Jammu and Kashmir","02":"Himachal Pradesh","03":"Punjab","04":"Chandigarh","05":"Uttarakhand",
   "06":"Haryana","07":"Delhi","08":"Rajasthan","09":"Uttar Pradesh","10":"Bihar","11":"Sikkim",
@@ -21,6 +34,8 @@ export function parseIndianGstin(value) {
   if (!stateName) return { ok:false, code:"UNKNOWN_GSTIN_STATE_CODE", message:"GSTIN state code is not recognized." };
   return {
     ok:true, gstin, stateCode, stateName, pan, entityCode, checksum,
+    panEntityCode:pan[3],
+    panEntityType:PAN_ENTITY_TYPES[pan[3]] || "Unknown PAN entity type",
     verification:"format_only",
     warning:"Format and state code only. GSTIN registration status and checksum are not verified against government records.",
   };
@@ -29,4 +44,18 @@ export function parseIndianGstin(value) {
 export function getIndianGstinState(value) {
   const parsed = parseIndianGstin(value);
   return parsed.ok ? { stateCode:parsed.stateCode, stateName:parsed.stateName } : null;
+}
+
+/**
+ * Find exact GSTIN matches in records already loaded from the active workspace.
+ * This is a local lookup only; it never calls or impersonates a GSTN verification API.
+ */
+export function findSavedGstinRecords(records, value) {
+  const parsed = parseIndianGstin(value);
+  if (!parsed.ok || !Array.isArray(records)) return [];
+  return records.filter((record) => {
+    const saved = String(record?.tax_registration_number || record?.gstin || "")
+      .trim().toUpperCase().replace(/\s+/g, "");
+    return saved === parsed.gstin;
+  });
 }
