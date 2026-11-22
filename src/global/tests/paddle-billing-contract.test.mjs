@@ -43,5 +43,5 @@ test("Australian Basic monthly display price is exactly AUD 799.00 in minor unit
   const pricing = await read("../billing/pricing.js");
   const helper = await read("../../../supabase/functions/_shared/paddle.ts");
   assert.match(pricing, /AU: Object\.freeze\(\{ currency: "AUD".*monthly: Object\.freeze\(\{ basic: 79900, pro: 149900/);
-  assert.match(helper, /AU:\\{currency:"AUD",paymentEnabled:true,monthly:\\{basic:79900,pro:149900\\}\\}/);
+  assert.ok(helper.includes('AU:{currency:"AUD",paymentEnabled:true,monthly:{basic:79900,pro:149900}}'));
 });
