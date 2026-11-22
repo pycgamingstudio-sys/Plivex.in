@@ -48,7 +48,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ clientId:"", issueDate:today(), dueDate:"", description:"", quantity:"1", unitPrice:"", documentType:"commercial" });
   const [taxContext, setTaxContext] = useState({
-    countryCode, mode:"automatic", priceMode:"exclusive", placeOfSupply:"",
+    countryCode, mode:"automatic", priceMode:"exclusive", taxCode:"GST_18", indiaSupplyType:"INTRA", placeOfSupply:"",
     placeOfSupplyConfirmed:false, taxCategory:"standard-rated", taxCategoryConfirmed:true,
     registrationConfirmed:false, taxDetailsConfirmed:false, collectionObligationAttested:false, components:[],
   });
@@ -96,7 +96,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
 
   useEffect(() => {
     setTaxContext({
-      countryCode, mode:"automatic", priceMode:"exclusive", placeOfSupply:"",
+      countryCode, mode:"automatic", priceMode:"exclusive", taxCode:"GST_18", indiaSupplyType:"INTRA", placeOfSupply:"",
       placeOfSupplyConfirmed:false, taxCategory:"standard-rated", taxCategoryConfirmed:false,
       registrationConfirmed:false, taxDetailsConfirmed:false, collectionObligationAttested:false, components:[],
     });
