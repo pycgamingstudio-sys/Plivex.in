@@ -87,7 +87,7 @@ test("GSTR-1 draft does not duplicate invoice value across multiple GST rates", 
   const invoice = {
     ...base,
     subtotal: 1500,
-    total: 1770,
+    total: 1534.5,
     invoiceSnapshot: { ...base.invoiceSnapshot, items: [
       { description: "Consulting", quantity: 1, rate: 1000, gstRate: 18, hsnSac: "9983" },
       { description: "Goods", quantity: 1, rate: 500, gstRate: 5, hsnSac: "1234" },
@@ -99,8 +99,8 @@ test("GSTR-1 draft does not duplicate invoice value across multiple GST rates", 
   };
   const result = buildGstr1Draft([invoice]);
   assert.equal(result.b2b.length, 2);
-  assert.equal(result.b2b[0].invoiceValue, 1770);
+  assert.equal(result.b2b[0].invoiceValue, 1534.5);
   assert.equal(result.b2b[1].invoiceValue, "");
   assert.equal(result.hsn.length, 2);
-  assert.equal(result.hsn.reduce((sum, row) => sum + row.totalValue, 0), 1770);
+  assert.equal(result.hsn.reduce((sum, row) => sum + row.totalValue, 0), 1534.5);
 });
