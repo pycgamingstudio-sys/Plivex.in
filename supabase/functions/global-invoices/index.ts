@@ -141,6 +141,14 @@ Deno.serve(async (req: Request) => {
           return globalJson({error:"Invoice country and currency must match the saved Workspace settings."},422,origin);
         }
         const tax = body.tax_context;
+        if (tax.tax_mode !== "no_tax" && (
+          tax.registration_confirmed !== true || tax.place_of_supply_confirmed !== true
+          || tax.tax_category_confirmed !== true || typeof tax.tax_category !== "string" || !tax.tax_category.trim()
+          || typeof tax.place_of_supply !== "string" || !tax.place_of_supply.trim()
+        )) return globalJson({error:"Confirm seller registration, place of supply and tax category before saving this tax calculation."},422,origin);
+        if (tax.tax_mode !== "no_tax" && ["US","CA"].includes(countryCode) && tax.collection_obligation_attested !== true) {
+          return globalJson({error:"Confirm that you have checked the tax collection obligation for this destination jurisdiction."},422,origin);
+        }
         let taxMinor = 0;
         let taxSnapshot: Record<string, unknown>;
         if (tax.tax_mode === "no_tax") {
