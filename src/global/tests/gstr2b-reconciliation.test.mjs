@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseGstr2bCsv, reconcileGstr2bRows } from "../tax/gstr2b-reconciliation.js";
 const sample='GSTIN of supplier,Trade/Legal name,Invoice number,Invoice Date,Invoice Value,Taxable Value,Integrated Tax,Central Tax,State/UT Tax,Cess,ITC Available,Reason\n09AAACB1234C1Z5,"Acme, Supplies",AC-101,2026-10-05,1180,1000,0,90,90,0,Yes,\n';
-const bill={id:"bill-1",supplier_tax_id:"09AAACB1234C1Z5",supplier_invoice_number:"AC-101",supplier_name:"Acme Supplies",subtotal_minor:100000,tax_minor:18000,tax_recoverable_minor:18000,total_minor:118000};
+const bill={id:"bill-1",status:"posted",supplier_tax_id:"09AAACB1234C1Z5",supplier_invoice_number:"AC-101",supplier_name:"Acme Supplies",subtotal_minor:100000,tax_minor:18000,tax_recoverable_minor:18000,total_minor:118000};
 test("GSTR-2B parser handles quoted supplier names and GST tax columns",()=>{const rows=parseGstr2bCsv(sample);assert.equal(rows.length,1);assert.equal(rows[0].supplierName,"Acme, Supplies");assert.equal(rows[0].taxableValueMinor,100000);assert.equal(rows[0].cgstMinor+rows[0].sgstMinor,18000);assert.equal(rows[0].itcAvailable,true);});
 test("GSTR-2B reconciliation matches supplier GSTIN, invoice number and tax values",()=>{const rows=reconcileGstr2bRows(parseGstr2bCsv(sample),[bill]);assert.equal(rows[0].reconciliationStatus,"MATCHED");assert.equal(rows[0].matchedPurchaseBillId,"bill-1");});
 test("GSTR-2B flags amount mismatches and missing books entries",()=>{const parsed=parseGstr2bCsv(sample);assert.equal(reconcileGstr2bRows([{...parsed[0],taxableValueMinor:99000}],[bill])[0].reconciliationStatus,"AMOUNT_MISMATCH");assert.equal(reconcileGstr2bRows(parsed,[])[0].reconciliationStatus,"NOT_IN_BOOKS");});
