@@ -28,7 +28,6 @@ export async function resolveSupabaseTaxRule(
     .in("status", statuses)
     .lte("effective_from", invoiceDate)
     .or("effective_to.is.null,effective_to.gte." + invoiceDate)
-    .order("status", { ascending:true })
     .order("effective_from", { ascending:false });
   if (error) return { ok:false, code:"TAX_RULE_LOOKUP_FAILED", message:"Workspace tax rules could not be loaded." };
   let rows = (data || []).filter((row: any) => row.currency_code === COUNTRY_CURRENCY[countryCode]);
@@ -40,24 +39,33 @@ export async function resolveSupabaseTaxRule(
   if (!rows.length) return { ok:false, code:"NO_EFFECTIVE_TAX_RULE", message:allowDraft
     ? "No effective rule exists for this workspace country and jurisdiction."
     : "No verified rule exists for this workspace country and jurisdiction." };
-  // Never add multiple independent tax-code rows together. A tax code must be
-  // selected explicitly when a jurisdiction has multiple candidate rules.
-  const first = rows[0];
-  const samePriority = rows.filter((row: any) => row.status === first.status && row.effective_from === first.effective_from);
-  if (samePriority.length !== 1) return { ok:false, code:"AMBIGUOUS_TAX_RULE", message:"Choose the exact tax category/rule before calculating." };
-  const components = Array.isArray(first.components) ? first.components : [];
+  // Verified records always win. Draft fallback is explicit test-only mode.
+  const verifiedRows = rows.filter((row: any) => row.status === "verified");
+  const selectedRows = verifiedRows.length ? verifiedRows : rows.filter((row: any) => row.status === "draft");
+  if (!selectedRows.length) return { ok:false, code:"NO_VERIFIED_TAX_RULE", message:"No verified rule is available." };
+  const effectiveDate = selectedRows[0].effective_from;
+  const effectiveRows = selectedRows.filter((row: any) => row.effective_from === effectiveDate);
+  // Canada provincial GST/PST/QST rows are additive components for the same
+  // destination. GST_FED_BASE is deliberately excluded above to avoid doubling.
+  if (countryCode !== "CA" && effectiveRows.length !== 1) {
+    return { ok:false, code:"AMBIGUOUS_TAX_RULE", message:"Choose the exact tax category/rule before calculating." };
+  }
+  const first = effectiveRows[0];
+  const components = effectiveRows.flatMap((row: any) => Array.isArray(row.components) ? row.components : []);
   if (!components.length || components.some((c: any) => !Number.isInteger(c.rateBps) || c.rateBps < 0 || c.rateBps > 10000)) {
     return { ok:false, code:"INVALID_TAX_COMPONENTS", message:"The selected tax rule has invalid components." };
   }
+  const totalRateBps = components.reduce((sum: number, component: any) => sum + Number(component.rateBps), 0);
+  if (totalRateBps > 10000) return { ok:false, code:"COMBINED_RATE_OUT_OF_RANGE", message:"Combined jurisdiction tax rate is outside supported limits." };
   return {
     ok:true,
     mode:first.status === "verified" ? "verified" : "draft_test",
     rule:{
-      id:first.tax_code, version:first.version, countryCode:first.country_code,
-      currencyCode:first.currency_code, jurisdictionId:first.jurisdiction_id,
-      treatment:first.treatment, effectiveFrom:first.effective_from,
-      effectiveTo:first.effective_to, source:first.source_url,
-      reviewedOn:first.reviewed_on, reviewedBy:first.reviewed_by,
+      id:effectiveRows.map((row: any)=>row.tax_code).join("+"), version:first.version,
+      countryCode:first.country_code, currencyCode:first.currency_code,
+      jurisdictionId:first.jurisdiction_id, treatment:first.treatment,
+      effectiveFrom:first.effective_from, effectiveTo:first.effective_to,
+      source:first.source_url, reviewedOn:first.reviewed_on, reviewedBy:first.reviewed_by,
       status:first.status, components:components.map((c: any)=>({
         id:String(c.id), name:String(c.name || c.id), rateBps:Number(c.rateBps),
         source:String(c.source || first.source_url || ""),
