@@ -4,13 +4,23 @@
  * explicitly labelled draft_test and must never be treated as verified.
  */
 const validDate = (value: unknown): value is string => { if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false; const date = new Date(value + "T00:00:00.000Z"); return Number.isFinite(date.valueOf()) && date.toISOString().slice(0, 10) === value; };
+type TaxRuleComponent = { id:string; name:string; rateBps:number; source:string };
+type ResolvedTaxRule = {
+  id:string; version:number; countryCode:string; currencyCode:string; jurisdictionId:string;
+  treatment:string; effectiveFrom:string; effectiveTo:string | null; source:string | null;
+  reviewedOn:string | null; reviewedBy:string | null; status:string; components:TaxRuleComponent[];
+};
+type TaxRuleResolution =
+  | { ok:true; mode:"verified" | "draft_test"; rule:ResolvedTaxRule }
+  | { ok:false; code:string; message:string };
+
 const COUNTRY_CURRENCY: Record<string,string> = { IN:"INR", US:"USD", GB:"GBP", AE:"AED", CA:"CAD", AU:"AUD", SG:"SGD" };
 
 export async function resolveSupabaseTaxRule(
   db: any,
   input: { countryCode: string; jurisdictionId?: string | null; invoiceDate: string; treatment?: string; taxCode?: string | null },
   allowDraft = Deno.env.get("ALLOW_DRAFT_TAX_RULES") !== "false",
-) {
+): Promise<TaxRuleResolution> {
   const countryCode = String(input.countryCode || "").toUpperCase();
   const invoiceDate = input.invoiceDate;
   if (!COUNTRY_CURRENCY[countryCode] || !validDate(invoiceDate)) {
