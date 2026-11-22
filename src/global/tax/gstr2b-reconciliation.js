@@ -87,7 +87,9 @@ export function reconcileGstr2bRows(rows,purchaseBills) {
     const matches=bills.filter((bill)=>["posted","partially_paid","paid"].includes(String(bill.status||"").toLowerCase())&&String(bill.supplier_tax_id||bill.supplier_gstin||"").toUpperCase()===row.supplierGstin&&normInvoice(bill.supplier_invoice_number)===normInvoice(row.invoiceNumber));
     if(!matches.length) return {...row,reconciliationStatus:"NOT_IN_BOOKS",matchReason:"No saved purchase bill with the same supplier GSTIN and invoice number."};
     if(matches.length>1) return {...row,reconciliationStatus:"REVIEW_REQUIRED",candidateCount:matches.length,matchReason:"Multiple purchase bills match this supplier invoice."};
-    const bill=matches[0];\n    if(String(bill.currency_code||"").toUpperCase()!=="INR"||String(bill.base_currency_code||"").toUpperCase()!=="INR") return {...row,matchedPurchaseBillId:bill.id,reconciliationStatus:"CURRENCY_MISMATCH",matchReason:"The saved purchase bill is not recorded in INR; compare source currency before ITC review."};\n    const bookTax=Number(bill.tax_minor||0), portalTax=row.igstMinor+row.cgstMinor+row.sgstMinor+row.cessMinor;
+    const bill=matches[0];
+    if(String(bill.currency_code||"").toUpperCase()!=="INR"||String(bill.base_currency_code||"").toUpperCase()!=="INR") return {...row,matchedPurchaseBillId:bill.id,reconciliationStatus:"CURRENCY_MISMATCH",matchReason:"The saved purchase bill is not recorded in INR; compare source currency before ITC review."};
+    const bookTax=Number(bill.tax_minor||0), portalTax=row.igstMinor+row.cgstMinor+row.sgstMinor+row.cessMinor;
     const amountsMatch=[closeAmount(bill.subtotal_minor,row.taxableValueMinor),closeAmount(bill.total_minor,row.invoiceValueMinor||row.taxableValueMinor+portalTax),closeAmount(bookTax,portalTax),closeAmount(bill.tax_recoverable_minor,portalTax)].every(Boolean);
     return {...row,matchedPurchaseBillId:bill.id,matchedSupplierName:bill.supplier_name||row.supplierName,
       reconciliationStatus:amountsMatch?"MATCHED":"AMOUNT_MISMATCH",
