@@ -18,6 +18,7 @@ const NAV = [
   { id: "products", label: "Products" },
   { id: "expenses", label: "Expenses" },
   { id: "crm", label: "CRM" },
+  { id: "sales_docs", label: "Sales Documents" },
   { id: "inventory", label: "Inventory & Warehouse" },
   { id: "invoices", label: "Invoices" },
   { id: "quotations", label: "Quotations" },
@@ -31,6 +32,7 @@ const TAB_PATHS = {
   products: "/products",
   expenses: "/expenses",
   crm: "/crm",
+  sales_docs: "/sales-documents",
   inventory: "/inventory-procurement",
   invoices: "/invoice-history",
   quotations: "/quotations",
@@ -148,6 +150,7 @@ export default function GlobalApp({ section = "overview" }) {
   const actionCards = [
     { title: "Quotations", description: "Create professional quotes, track customer decisions and turn accepted quotations into invoice drafts.", tab: "quotations", icon: FileText, tone: "from-violet-50 to-indigo-50" },
     { title: "CRM & Leads", description: "Manage prospects, follow-ups and customer relationships.", tab: "crm", icon: Handshake, tone: "from-fuchsia-50 to-pink-50" },
+    { title: "Sales Documents", description: "Prepare sales orders, delivery challans and credit/debit notes.", tab: "sales_docs", icon: FileText, tone: "from-sky-50 to-indigo-50" },
     { title: "Inventory & Warehouse", description: "Manage stock, locations, transfers, purchase orders and movement history in one connected workspace.", tab: "inventory", icon: Warehouse, tone: "from-indigo-50 to-blue-50" },
     { title: "Accounting & Reports", description: "Open ledgers and financial statements for this workspace.", tab: "accounting", icon: Calculator, tone: "from-violet-50 to-purple-50" },
     { title: "Team Members", description: "Manage workspace access, roles and team activity.", tab: "enterprise", icon: Users, tone: "from-amber-50 to-yellow-50" },
@@ -189,8 +192,8 @@ export default function GlobalApp({ section = "overview" }) {
           <GlobalAccountingPanel account={account} invoke={invoke} />
         ) : tab === "enterprise" ? (
           <GlobalEnterprisePanel workspaceId={account.workspace_id} />
-        ) : ["crm", "inventory"].includes(tab) ? (
-          <GlobalPart4Panel account={account} initialSection={tab === "crm" ? "crm" : "warehouses"} />
+        ) : ["crm", "inventory", "sales_docs"].includes(tab) ? (
+          <GlobalPart4Panel account={account} initialSection={tab === "crm" ? "crm" : tab === "sales_docs" ? "sales_docs" : "warehouses"} />
         ) : (
           <section className="mt-6">
             <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold">{NAV.find((item) => item.id === tab)?.label}</h1><p className="mt-1 text-sm text-slate-500">{tab === "inventory" || tab === "invoices" ? "Read-only until audited transaction workflows are enabled." : "Records are scoped to your active Global workspace."}</p></div><button onClick={() => loadRecords(tab).catch((loadError) => setError(loadError.message))} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Refresh</button></div>
