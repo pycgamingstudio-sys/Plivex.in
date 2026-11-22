@@ -57,6 +57,7 @@ Deno.serve(async (req: Request) => {
       authClient.from("workspace_settings").select("country_code,locale_code,currency_code").eq("workspace_id", profile.workspace_id).maybeSingle(),
     ]);
     const countryCode = String(workspace?.country_code || business?.country_code || "").trim().toUpperCase();
+    if (countryCode === "IN") return json({ error: "India subscriptions use Cashfree. Paddle is reserved for international workspaces." }, 409, origin);
     if (!["US", "GB", "AE", "CA", "AU", "SG"].includes(countryCode)) {
       return json({ error: "International Paddle checkout is only available for non-India workspaces. India uses Cashfree." }, 409, origin);
     }
