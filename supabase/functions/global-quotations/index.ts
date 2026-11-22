@@ -82,7 +82,7 @@ Deno.serve(async (req: Request) => {
       }
       const resolved = await resolveSupabaseTaxRule(auth.admin, {
         countryCode, jurisdictionId, invoiceDate:String(body.issue_date),
-        treatment:String(body.tax_treatment || "standard"), taxCode:taxCode || null,
+        treatment:String(body.tax_treatment || (taxCode === "GST_0" ? "zero-rated" : taxCode === "GST_5" ? "reduced" : "standard")), taxCode:taxCode || null,
       }, Deno.env.get("ALLOW_DRAFT_TAX_RULES") === "true");
       if (!resolved.ok) return globalJson({ error:resolved.message || "No effective workspace tax rule is available.", code:resolved.code },422,origin);
 
