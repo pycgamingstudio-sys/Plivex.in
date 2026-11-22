@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { buildCashflowForecast, buildCustomBusinessReport, buildSalesTrend } from "../analytics/business-insights.js";
 
 const invoices=[
@@ -43,4 +44,13 @@ test("sales trend returns monthly revenue, expenses and period growth",()=>{
  assert.equal(rows.length,3);
  assert.equal(rows[1].sales,1770);
  assert.equal(rows[1].expenses,270);
+});
+
+
+test("Reports UI exposes custom BI filters and forecast assumptions",async()=>{
+ const ui=await readFile(new URL("../../components/dashboard/ReportsTab.jsx",import.meta.url),"utf8");
+ assert.match(ui,/Custom business intelligence/);
+ assert.match(ui,/Cash-flow forecast and sales trend/);
+ assert.match(ui,/previous three calendar months/);
+ assert.match(ui,/Export custom report/);
 });
