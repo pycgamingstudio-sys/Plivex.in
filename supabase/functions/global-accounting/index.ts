@@ -165,20 +165,20 @@ Deno.serve(async (req: Request) => {
       if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period) || !Array.isArray(body.rows) || body.rows.length<1 || body.rows.length>2000) {
         return globalJson({error:"A valid return period and 1–2,000 GSTR-2B rows are required."},400,origin);
       }
-      const {data,error}=await userClient.rpc("global_import_gstr2b_rows",{p_user_id:auth.user.id,p_workspace_id:workspaceId,p_return_period:period,p_rows:body.rows});
+      const {data,error}=await auth.admin.rpc("global_import_gstr2b_rows",{p_user_id:auth.user.id,p_workspace_id:workspaceId,p_return_period:period,p_rows:body.rows});
       if(error){console.error("Global GSTR-2B import failed",{code:error.code});return globalJson({error:"GSTR-2B import could not be saved."},400,origin);}
       return globalJson(data,200,origin);
     } else if (action==="list_gstr2b") {
       const period=String(body.period||"");
       const limit=Number(body.limit||2000);
       if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period) || !Number.isInteger(limit)||limit<1||limit>2000) return globalJson({error:"A valid GSTR-2B period and row limit are required."},400,origin);
-      const {data,error}=await userClient.rpc("global_list_gstr2b_rows",{p_user_id:auth.user.id,p_workspace_id:workspaceId,p_return_period:period,p_limit:limit});
+      const {data,error}=await auth.admin.rpc("global_list_gstr2b_rows",{p_user_id:auth.user.id,p_workspace_id:workspaceId,p_return_period:period,p_limit:limit});
       if(error){console.error("Global GSTR-2B list failed",{code:error.code});return globalJson({error:"GSTR-2B records are temporarily unavailable."},503,origin);}
       return globalJson(data,200,origin);
     } else if (action==="list_purchase_bills") {
       const limit=Number(body.limit||100);
       if (!Number.isInteger(limit)||limit<1||limit>200) return globalJson({error:"Purchase bill limit must be between 1 and 200."},400,origin);
-      const {data,error}=await userClient.rpc("global_list_purchase_bills",{p_user_id:auth.user.id,p_workspace_id:workspaceId,p_limit:limit});
+      const {data,error}=await auth.admin.rpc("global_list_purchase_bills",{p_user_id:auth.user.id,p_workspace_id:workspaceId,p_limit:limit});
       if(error){console.error("Global purchase list failed",{code:error.code});return globalJson({error:"Purchase bills are temporarily unavailable."},503,origin);}
       return globalJson(data,200,origin);
     }
@@ -191,7 +191,7 @@ Deno.serve(async (req: Request) => {
         ||String(body.filing_reference||"").length>120||String(body.notes||"").length>500) {
         return globalJson({error:"Return type, period, confirmed due date and status are required."},400,origin);
       }
-      const {data,error}=await userClient.rpc("global_save_gst_filing_calendar",{p_user_id:auth.user.id,p_workspace_id:workspaceId,
+      const {data,error}=await auth.admin.rpc("global_save_gst_filing_calendar",{p_user_id:auth.user.id,p_workspace_id:workspaceId,
         p_return_type:returnType,p_return_period:period,p_due_date:dueDate,p_status:body.status||"planned",
         p_filing_reference:body.filing_reference||null,p_notes:body.notes||null});
       if(error){console.error("GST calendar save failed",{code:error.code});return globalJson({error:"GST filing calendar could not be saved."},400,origin);}
@@ -200,7 +200,7 @@ Deno.serve(async (req: Request) => {
     if (action==="list_gst_filing_calendar") {
       const limit=Number(body.limit||100);
       if(!Number.isInteger(limit)||limit<1||limit>200)return globalJson({error:"GST calendar limit must be between 1 and 200."},400,origin);
-      const {data,error}=await userClient.rpc("global_list_gst_filing_calendar",{p_user_id:auth.user.id,p_workspace_id:workspaceId,p_limit:limit});
+      const {data,error}=await auth.admin.rpc("global_list_gst_filing_calendar",{p_user_id:auth.user.id,p_workspace_id:workspaceId,p_limit:limit});
       if(error){console.error("GST calendar list failed",{code:error.code});return globalJson({error:"GST filing calendar is temporarily unavailable."},503,origin);}
       return globalJson(data,200,origin);
     }
