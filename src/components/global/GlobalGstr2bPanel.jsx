@@ -13,7 +13,7 @@ export default function GlobalGstr2bPanel({account}) {
   const country=String(account?.country_code||"").toUpperCase(),currency=String(account?.currency_code||"").toUpperCase();
   const reconciled=useMemo(()=>reconcileGstr2bRows(savedRows.length?savedRows:preview,purchaseBills),[savedRows,preview,purchaseBills]);
   const counts=useMemo(()=>reconciled.reduce((result,row)=>{result[row.reconciliationStatus]=(result[row.reconciliationStatus]||0)+1;return result;},{}),[reconciled]);
-  const loadData=async()=>{
+  const loadData=useCallback(async()=>{
     setLoading(true);setError("");setNotice("");
     try{
       const [billsResult,rowsResult]=await Promise.all([
