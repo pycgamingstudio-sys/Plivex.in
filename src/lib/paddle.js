@@ -13,6 +13,8 @@ export async function startPaddleCheckout({ planId }) {
     } catch {}
     throw new Error(message);
   }
+  const frontendEnvironment = import.meta.env.VITE_PADDLE_ENV || "sandbox";
+  if (data?.environment && data.environment !== frontendEnvironment) throw new Error("Paddle sandbox/live environment does not match the frontend client token.");
   if (!data?.ok || typeof data.checkoutUrl !== "string" || !data.checkoutUrl.startsWith("https://")) {
     throw new Error(data?.error || "Paddle did not return a valid checkout link.");
   }
