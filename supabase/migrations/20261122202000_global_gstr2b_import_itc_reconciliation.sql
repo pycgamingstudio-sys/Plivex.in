@@ -43,7 +43,7 @@ begin
   if v_country<>'IN' then raise exception using errcode='42501',message='GSTR-2B is available only for India workspaces'; end if;
   for v_row in select value from jsonb_array_elements(p_rows) loop
     v_gstin:=upper(regexp_replace(coalesce(v_row->>'supplierGstin',''),'\s','','g'));
-    v_invoice:=btrim(coalesce(v_row->>'invoiceNumber',''));
+    v_invoice:=upper(btrim(coalesce(v_row->>'invoiceNumber','')));
     if v_gstin !~ '^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$'
       or v_invoice='' or length(v_invoice)>80 or coalesce(v_row->>'invoiceDate','') !~ '^\d{4}-\d{2}-\d{2}$'
       or coalesce(v_row->>'taxableValueMinor','') !~ '^[0-9]{1,16}$'
@@ -102,12 +102,11 @@ grant execute on function public.global_list_gstr2b_rows(uuid,uuid,text,integer)
 
 create or replace function public.global_list_purchase_bills(p_user_id uuid,p_workspace_id uuid,p_limit integer default 100)
 returns jsonb language plpgsql security definer stable set search_path=pg_catalog,global as $function$
-declare v_role text; v_country text; v_rows jsonb;
+declare v_role text; v_rows jsonb;
 begin
   if p_user_id is null or p_user_id<>auth.uid() or p_workspace_id is null then raise exception using errcode='42501',message='Workspace access denied'; end if;
-  select m.role,w.country_code into v_role,v_country from global.workspace_members m join global.workspaces w on w.id=m.workspace_id where m.workspace_id=p_workspace_id and m.user_id=p_user_id and m.status='active';
+  select role into v_role from global.workspace_members where workspace_id=p_workspace_id and user_id=p_user_id and status='active';
   if v_role is null then raise exception using errcode='42501',message='Workspace access denied'; end if;
-  if v_country<>'IN' then raise exception using errcode='42501',message='GSTR-2B is available only for India workspaces'; end if;
   select coalesce(jsonb_agg(to_jsonb(t) order by t.purchase_date desc,t.created_at desc),'[]'::jsonb) into v_rows
   from (select b.*,s.name as supplier_name,s.tax_registration_number as supplier_tax_id
     from global.purchase_bills b join global.suppliers s on s.workspace_id=b.workspace_id and s.id=b.supplier_id
