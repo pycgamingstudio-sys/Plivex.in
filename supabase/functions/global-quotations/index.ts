@@ -1,4 +1,5 @@
 import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowed } from "../_shared/global.ts";
+import { resolveSupabaseTaxRule } from "../_shared/tax/supabase-tax-rule-resolver.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -60,6 +61,63 @@ Deno.serve(async (req: Request) => {
       return globalJson({ error: "Choose a valid quotation status." }, 400, origin);
     }
 
+
+    let taxMinor = 0;
+    let taxSnapshot: Record<string, unknown> | null = null;
+    if (action === "create") {
+      const { data: workspace, error: workspaceError } = await auth.admin.schema("global").from("workspaces")
+        .select("country_code,currency_code").eq("id", body.workspace_id).maybeSingle();
+      if (workspaceError || !workspace) return globalJson({ error:"Workspace country could not be verified." },403,origin);
+      const countryCode = String(workspace.country_code || "").toUpperCase();
+      const currencyCode = String(workspace.currency_code || "").toUpperCase();
+      if (!["IN","US","GB","AE","CA","AU","SG"].includes(countryCode) || body.currency_code !== currencyCode) {
+        return globalJson({ error:"Quotation country and currency must match the saved Workspace settings." },422,origin);
+      }
+      const taxCode = String(body.tax_code || "").trim();
+      const jurisdictionId = countryCode === "US" || countryCode === "CA"
+        ? String(body.tax_jurisdiction_id || "").trim().toUpperCase()
+        : countryCode === "IN" ? "IN" : countryCode;
+      if ((countryCode === "US" || countryCode === "CA") && !jurisdictionId) {
+        return globalJson({ error:"Select the destination state or province for this quotation." },422,origin);
+      }
+      const resolved = await resolveSupabaseTaxRule(auth.admin, {
+        countryCode, jurisdictionId, invoiceDate:String(body.issue_date),
+        treatment:String(body.tax_treatment || "standard"), taxCode:taxCode || null,
+      }, Deno.env.get("ALLOW_DRAFT_TAX_RULES") === "true");
+      if (!resolved.ok) return globalJson({ error:resolved.message || "No effective workspace tax rule is available.", code:resolved.code },422,origin);
+
+      let components = resolved.rule.components;
+      if (countryCode === "IN") {
+        const split = String(body.india_supply_type || "").toUpperCase();
+        const rateBps = components.reduce((sum: number, component: any)=>sum+component.rateBps,0);
+        if (split === "INTRA") {
+          if (rateBps % 2 !== 0) return globalJson({error:"This GST rate cannot be split evenly into CGST and SGST."},422,origin);
+          components = [
+            {id:"CGST",name:"CGST",rateBps:rateBps/2,source:resolved.rule.source},
+            {id:"SGST",name:"SGST",rateBps:rateBps/2,source:resolved.rule.source},
+          ];
+        } else if (split === "INTER") {
+          components = [{id:"IGST",name:"IGST",rateBps,source:resolved.rule.source}];
+        } else return globalJson({error:"Choose same-state (CGST + SGST) or inter-state (IGST) supply."},422,origin);
+      }
+      const subtotal = body.items.reduce((sum:number,item:any)=>sum + Math.round(Number(item.quantity)*Number(item.unit_price_minor)),0);
+      const discount = body.items.reduce((sum:number,item:any)=>sum + Number(item.discount_minor || 0),0);
+      const taxable = Math.max(0,subtotal-discount);
+      if (!Number.isSafeInteger(taxable)) return globalJson({error:"Quotation taxable amount is outside supported limits."},422,origin);
+      const totalRateBps = components.reduce((sum:number,component:any)=>sum+component.rateBps,0);
+      taxMinor = components.reduce((sum:number,component:any)=>sum + Math.floor((taxable*component.rateBps+5000)/10000),0);
+      if (!Number.isSafeInteger(taxMinor) || taxMinor < 0 || taxMinor > 9000000000000000) return globalJson({error:"Quotation tax exceeds supported limits."},422,origin);
+      taxSnapshot = {
+        countryCode,currencyCode,jurisdictionId,ruleId:resolved.rule.id,version:resolved.rule.version,
+        effectiveFrom:resolved.rule.effectiveFrom,effectiveTo:resolved.rule.effectiveTo,
+        treatment:resolved.rule.treatment,components,status:resolved.mode,
+        taxMinor,taxableMinor:taxable,totalRateBps,source:resolved.rule.source,
+        calculatedAt:new Date().toISOString(),
+        warning:resolved.mode === "draft_test" ? "Draft baseline rule for testing only; not legally verified." : null,
+        indiaSupplyType:countryCode === "IN" ? body.india_supply_type : null,
+      };
+    }
+
     const { data, error } = await auth.admin.rpc("global_manage_quotation", {
       p_user_id: auth.user.id,
       p_workspace_id: body.workspace_id,
@@ -73,6 +131,8 @@ Deno.serve(async (req: Request) => {
       p_items: Array.isArray(body.items) ? body.items : [],
       p_status: body.status || null,
       p_idempotency_key: body.idempotency_key || null,
+      p_tax_minor: action === "create" ? taxMinor : null,
+      p_tax_snapshot: action === "create" ? taxSnapshot : null,
     });
     if (error) {
       console.error("Global quotation RPC failed", { code: error.code });
