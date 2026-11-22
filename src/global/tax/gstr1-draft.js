@@ -95,9 +95,10 @@ export function buildGstr1Draft(invoices, { from = "", to = "" } = {}) {
       const hsnKey = hsn + "|" + key;
       const summary = hsnMap.get(hsnKey) || {
         hsnSac: hsn, description: item.description, gstRate: item.gstRate,
-        totalQuantity: 0, taxableValue: 0, igstAmount: 0, cgstAmount: 0, sgstAmount: 0,
+        totalQuantity: 0, totalValue: 0, taxableValue: 0, igstAmount: 0, cgstAmount: 0, sgstAmount: 0,
       };
       summary.totalQuantity += item.quantity;
+      summary.totalValue += item.taxableValue + item.taxValue;
       summary.taxableValue += item.taxableValue;
       const columns = taxColumns(item.taxableValue, item.gstRate, row.taxMode);
       summary.igstAmount += columns.igstAmount;
@@ -106,6 +107,7 @@ export function buildGstr1Draft(invoices, { from = "", to = "" } = {}) {
       hsnMap.set(hsnKey, summary);
       grouped.set(key, current);
     }
+    let rateRowIndex = 0;
     for (const [rateKey, amounts] of grouped) {
       const rate = Number(rateKey);
       const columns = taxColumns(amounts.taxable, rate, row.taxMode);
@@ -114,7 +116,7 @@ export function buildGstr1Draft(invoices, { from = "", to = "" } = {}) {
         invoiceDate: row.date,
         recipientName: row.buyerName || "Unregistered customer",
         placeOfSupply: buyer?.stateCode || "NOT_RECORDED",
-        invoiceValue: row.invoiceValue,
+        invoiceValue: rateRowIndex === 0 ? row.invoiceValue : "",
         rate,
         taxableValue: round2(amounts.taxable),
         ...columns,
@@ -122,6 +124,7 @@ export function buildGstr1Draft(invoices, { from = "", to = "" } = {}) {
       };
       if (buyer?.ok) b2b.push({ recipientGstin: buyer.gstin, ...common });
       else b2c.push(common);
+      rateRowIndex += 1;
     }
   }
   if (missingSellerGstin) warnings.push("Seller GSTIN is missing or has an invalid format; confirm registration details before filing.");
@@ -132,6 +135,8 @@ export function buildGstr1Draft(invoices, { from = "", to = "" } = {}) {
   const hsn = [...hsnMap.values()].map((row) => ({
     ...row,
     totalQuantity: round2(row.totalQuantity),
+    totalValue: round2(row.totalValue),
+    unitOfMeasurement: "NOT_RECORDED",
     taxableValue: round2(row.taxableValue),
     igstAmount: round2(row.igstAmount),
     cgstAmount: round2(row.cgstAmount),
