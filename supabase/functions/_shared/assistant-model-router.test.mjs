@@ -109,7 +109,7 @@ test("provider status classification includes throttling and upstream outages", 
 });
 
 
-test("Gemini timeout fails over immediately without a second long wait", async () => {
+test("Gemini timeout moves to the alternate model before using the backup", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {
     calls.push(url);
@@ -119,10 +119,12 @@ test("Gemini timeout fails over immediately without a second long wait", async (
   const result = await generateWithFallback({ requestOptions, geminiKey: "test", openRouterKey: "test", fetchImpl, totalTimeoutMs: 10000 });
   assert.equal(result.ok, true);
   assert.equal(result.provider, "openrouter");
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
+  assert.match(calls[0], /gemini-3\\.8-flash/);
+  assert.match(calls[1], /gemini-3\\.5-flash-lite/);
 });
 
-test("Gemini retries one fast 503 response before accepting a recovery", async () => {
+test("Gemini 503 advances to the alternate model before accepting a recovery", async () => {
   let geminiCalls = 0;
   const fetchImpl = async (url) => {
     if (url.includes("generativelanguage.googleapis.com")) {
