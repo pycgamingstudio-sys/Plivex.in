@@ -1,5 +1,6 @@
 import { AlertTriangle, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import { calculateInvoiceGlobalTax } from "@/global/tax/invoice-tax-integration.js";
+import { parseIndianGstin } from "@/global/tax/gstin.js";
 import { getTaxInvoiceFormat } from "@/global/tax/tax-invoice-formats.js";
 
 const fieldClass = "mt-1 w-full rounded-lg border bg-background px-3 py-2.5 text-sm";
@@ -8,6 +9,7 @@ const labelClass = "block text-xs font-semibold text-foreground";
 export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile, calculation, allowNoTax = true, serverResolved = false }) {
   const countryCode = workspaceProfile?.countryCode || "";
   const format = getTaxInvoiceFormat(countryCode);
+  const gstinInfo = countryCode === "IN" ? parseIndianGstin(workspaceProfile?.registrationNumber || "") : null;
   const config = {
     countryCode,
     mode: countryCode === "US" ? "manual" : "automatic",
@@ -79,6 +81,8 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
       <div className="mt-3 rounded-lg bg-muted/40 p-3 text-[11px] text-muted-foreground">
         <p><strong>Saved registration:</strong> {workspaceProfile?.registrationNumber || "Not provided"} · {workspaceProfile?.registrationStatus || "unregistered"}</p>
         <p className="mt-1">Effective from: {workspaceProfile?.registrationEffectiveFrom || "Not provided"} · Registered jurisdiction: {workspaceProfile?.registeredJurisdiction || "Not provided"}</p>
+        {countryCode === "IN" && gstinInfo?.ok && <p className="mt-1 text-emerald-700">GSTIN format recognized · State code {gstinInfo.stateCode}: {gstinInfo.stateName}. Format check only; government registration status is not verified.</p>}
+        {countryCode === "IN" && workspaceProfile?.registrationNumber && !gstinInfo?.ok && <p className="mt-1 text-amber-700">Saved GSTIN does not match the expected 15-character format. Please review the saved value.</p>}
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
