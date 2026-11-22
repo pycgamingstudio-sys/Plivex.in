@@ -61,7 +61,7 @@ export default function GlobalGstr3bPanel({account,invoke}) {
   const saveCalendar=async(event)=>{
     event.preventDefault();setSaving(true);setError("");setNotice("");
     try{
-      if(!/^\\d{4}-(0[1-9]|1[0-2])$/.test(period)||!dueDate)throw new Error("Choose the return period and confirm the due date.");
+      if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)||!dueDate)throw new Error("Choose the return period and confirm the due date.");
       const {data,error:invokeError}=await supabase.functions.invoke("global-accounting",{body:{
         action:"save_gst_filing_calendar",workspace_id:account.workspace_id,return_type:returnType,period,due_date:dueDate,status,filing_reference:reference,notes
       }});
