@@ -1,12 +1,22 @@
 import { parseIndianGstin } from "./gstin.js";
 const normalizeDate = (value) => {
   const raw=String(value||"").trim();
-  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return raw;
-  const dmy=raw.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})$/);
-  if(dmy) return dmy[3]+"-"+dmy[2].padStart(2,"0")+"-"+dmy[1].padStart(2,"0");
-  const named=raw.match(/^(\\d{1,2})[- ]([A-Za-z]{3,})[- ](\\d{4})$/);
-  if(named){const month=new Date(named[2]+" 1, 2000").getMonth()+1;if(month>=1&&month<=12)return named[3]+"-"+String(month).padStart(2,"0")+"-"+named[1].padStart(2,"0");}
-  return "";
+  const parts=raw.replaceAll("/","-").replaceAll(" ","-").split("-");
+  if(parts.length!==3) return "";
+  let year,month,day;
+  if(parts[0].length===4) { year=Number(parts[0]); month=Number(parts[1]); day=Number(parts[2]); }
+  else {
+    day=Number(parts[0]); year=Number(parts[2]);
+    month=Number(parts[1]);
+    if(!Number.isFinite(month)) {
+      const parsed=new Date(parts[1]+" 1, 2000");
+      month=Number.isNaN(parsed.getTime())?0:parsed.getMonth()+1;
+    }
+  }
+  if(!Number.isInteger(year)||!Number.isInteger(month)||!Number.isInteger(day)) return "";
+  const date=new Date(Date.UTC(year,month-1,day));
+  if(date.getUTCFullYear()!==year||date.getUTCMonth()!==month-1||date.getUTCDate()!==day) return "";
+  return String(year).padStart(4,"0")+"-"+String(month).padStart(2,"0")+"-"+String(day).padStart(2,"0");
 };
 const normalizeHeader = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const parseMoneyMinor = (value) => {
