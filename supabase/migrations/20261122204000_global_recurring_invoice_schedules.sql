@@ -37,9 +37,9 @@ create or replace function public.global_create_recurring_invoice_schedule(
 ) returns jsonb language plpgsql security invoker set search_path=pg_catalog,global as $function$
 declare v_role text; v_currency text; v_id uuid; v_item jsonb; v_quantity numeric; v_price bigint; v_discount bigint;
 begin
-  if p_user_id is null or p_workspace_id is null or p_currency_code is null or p_cadence not in ('weekly','monthly','quarterly','yearly')
-    or p_interval_count<1 or p_interval_count>12 or p_start_date is null or (p_end_date is not null and p_end_date<p_start_date)
-    or p_payment_terms_days<0 or p_payment_terms_days>365 or p_items is null or jsonb_typeof(p_items)<>'array'
+  if p_user_id is null or p_workspace_id is null or p_currency_code is null or p_cadence is null or p_cadence not in ('weekly','monthly','quarterly','yearly')
+    or p_interval_count is null or p_interval_count<1 or p_interval_count>12 or p_start_date is null or (p_end_date is not null and p_end_date<p_start_date)
+    or p_payment_terms_days is null or p_payment_terms_days<0 or p_payment_terms_days>365 or p_items is null or jsonb_typeof(p_items)<>'array'
     or jsonb_array_length(p_items)<1 or jsonb_array_length(p_items)>100 or p_tax_context is null
     or jsonb_typeof(p_tax_context)<>'object' or length(coalesce(p_notes,''))>4000 then
     return jsonb_build_object('ok',false,'reason','invalid_schedule');
@@ -60,7 +60,7 @@ begin
     exception when others then return jsonb_build_object('ok',false,'reason','invalid_items'); end;
     if length(btrim(coalesce(v_item->>'description','')))<1 or length(v_item->>'description')>500
       or v_quantity<=0 or v_quantity>1000000 or v_quantity*10000<>trunc(v_quantity*10000)
-      or v_price<0 or v_price>9000000000000000 or v_discount<0 then
+      or v_price<0 or v_price>9000000000000000 or v_discount<0 or v_discount>round(v_quantity*v_price) then
       return jsonb_build_object('ok',false,'reason','invalid_items');
     end if;
   end loop;
@@ -103,6 +103,7 @@ begin
   select * into v_schedule from global.recurring_invoice_schedules where id=p_schedule_id and workspace_id=p_workspace_id for update;
   if v_schedule.id is null then return jsonb_build_object('ok',false,'reason','schedule_not_found'); end if;
   if v_schedule.last_generated_for=p_run_date then
+    if v_schedule.last_generated_invoice_id<>p_invoice_id then return jsonb_build_object('ok',false,'reason','idempotency_conflict'); end if;
     return jsonb_build_object('ok',true,'duplicate',true,'invoice_id',v_schedule.last_generated_invoice_id);
   end if;
   if v_schedule.status<>'active' or v_schedule.next_run_date<>p_run_date then return jsonb_build_object('ok',false,'reason','schedule_not_due'); end if;
