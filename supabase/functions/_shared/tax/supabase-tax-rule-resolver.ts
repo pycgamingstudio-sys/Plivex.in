@@ -3,7 +3,7 @@
  * Draft rows are usable only when ALLOW_DRAFT_TAX_RULES=true; results are
  * explicitly labelled draft_test and must never be treated as verified.
  */
-const validDate = (value: unknown): value is string => typeof value === "string" && /^\\d{4}-\\d{2}-\\d{2}$/.test(value);
+const validDate = (value: unknown): value is string => { if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false; const date = new Date(value + "T00:00:00.000Z"); return Number.isFinite(date.valueOf()) && date.toISOString().slice(0, 10) === value; };
 const COUNTRY_CURRENCY: Record<string,string> = { IN:"INR", US:"USD", GB:"GBP", AE:"AED", CA:"CAD", AU:"AUD", SG:"SGD" };
 
 export async function resolveSupabaseTaxRule(
@@ -58,7 +58,7 @@ export async function resolveSupabaseTaxRule(
   }
   const first = effectiveRows[0];
   const components = effectiveRows.flatMap((row: any) => Array.isArray(row.components) ? row.components : []);
-  if (!components.length || components.some((c: any) => !Number.isInteger(c.rateBps) || c.rateBps < 0 || c.rateBps > 10000)) {
+  if (!components.length || components.some((c: any) => !Number.isFinite(c.rateBps) || c.rateBps < 0 || c.rateBps > 10000)) {
     return { ok:false, code:"INVALID_TAX_COMPONENTS", message:"The selected tax rule has invalid components." };
   }
   const totalRateBps = components.reduce((sum: number, component: any) => sum + Number(component.rateBps), 0);
