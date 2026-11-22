@@ -3,7 +3,8 @@ import { useAuth } from "@/lib/AuthContext";
 import { Download, TrendingUp, Clock, Wallet, PiggyBank, LockKeyhole } from "lucide-react";
 import { KEYS, loadList } from "@/lib/stores";
 import { money2, exportCsv } from "@/lib/dashboardData";
-import { usePaywall } from "@/lib/paywall";\nimport { buildGstr1Draft } from "@/global/tax/gstr1-draft.js";
+import { usePaywall } from "@/lib/paywall";
+import { buildGstr1Draft } from "@/global/tax/gstr1-draft.js";
 
 const tone = { emerald: "bg-emerald-100 text-emerald-600", amber: "bg-amber-100 text-amber-600", rose: "bg-rose-100 text-rose-600", violet: "bg-violet-100 text-violet-600" };
 const validCurrency = (value) => /^[A-Z]{3}$/.test(String(value || "").trim().toUpperCase());
@@ -62,7 +63,15 @@ export default function ReportsTab() {
     ...expensesByCurrency.totals.keys(),
   ]).size > 1 || revenueByCurrency.unknownCurrencyCount > 0 || expensesByCurrency.unknownCurrencyCount > 0;
 
-  const gstr1Draft = buildGstr1Draft(filteredInvoices, { from, to });\n\n  const doGstr1Export = () => {\n    if (gstr1Draft.b2b.length) exportCsv("plivex-gstr1-b2b-draft.csv", gstr1Draft.b2b);\n    if (gstr1Draft.b2c.length) exportCsv("plivex-gstr1-b2c-draft.csv", gstr1Draft.b2c);\n    if (gstr1Draft.hsn.length) exportCsv("plivex-gstr1-hsn-summary-draft.csv", gstr1Draft.hsn);\n  };\n\n  const doExport = () => {
+  const gstr1Draft = buildGstr1Draft(filteredInvoices, { from, to });
+
+  const doGstr1Export = () => {
+    if (gstr1Draft.b2b.length) exportCsv("plivex-gstr1-b2b-draft.csv", gstr1Draft.b2b);
+    if (gstr1Draft.b2c.length) exportCsv("plivex-gstr1-b2c-draft.csv", gstr1Draft.b2c);
+    if (gstr1Draft.hsn.length) exportCsv("plivex-gstr1-hsn-summary-draft.csv", gstr1Draft.hsn);
+  };
+
+  const doExport = () => {
     const rows = [
       ...filteredInvoices.map((item) => ({ Type: "Sale", Date: item.issueDate || "", Party: item.clientName || "", Amount: item.total || 0, Currency: item.currency || "Not recorded", Status: statusOf(item) })),
       ...filteredExpenses.map((item) => ({ Type: "Expense", Date: item.date || "", Party: item.vendor || "", Amount: item.amount || 0, Currency: item.currencyCode || "Not recorded", Status: item.status || "" })),
