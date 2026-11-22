@@ -61,11 +61,11 @@ export function parseBankStatementCsv(csvText) {
   if (rows.length < 2) return [];
   const headers = rows[0].map(normalizeHeader);
   const find = (patterns) => headers.findIndex((header) => patterns.some((pattern) => pattern.test(header)));
-  const dateIndex = find([/^date$/, /transactiondate/, /valuedate/]);
+  const dateIndex = find([/^date$/, /date$/, /valuedate/]);
   const narrationIndex = find([/narration/, /description/, /particulars/, /details/, /remarks/]);
   const creditIndex = find([/credit/, /deposit/, /paidin/]);
   const debitIndex = find([/debit/, /withdrawal/, /paidout/]);
-  const amountIndex = find([/^amount$/, /^transactionamount$/]);
+  const amountIndex = find([/amount/]);
   const referenceIndex = find([/utr/, /reference/, /^ref$/, /transactionid/]);
   const typeIndex = find([/^type$/, /drcr/, /transactiontype/]);
   if (dateIndex < 0 || narrationIndex < 0 || (creditIndex < 0 && debitIndex < 0 && amountIndex < 0)) {
@@ -84,8 +84,8 @@ export function parseBankStatementCsv(csvText) {
       amount = parseMoney(cells[amountIndex]);
       if (amount > 0 && typeIndex >= 0 && /\b(dr|debit|withdrawal)\b/i.test(String(cells[typeIndex] || ""))) amount *= -1;
     }
-    if (!amount || (!narration && referenceIndex < 0)) return null;
     const reference = String(referenceIndex >= 0 ? cells[referenceIndex] || "" : "").trim();
+    if (!amount || (!narration && !reference)) return null;
     const utr = reference || (narration.match(UTR_REGEX)?.[0] || "");
     const transaction = {
       id: `${String(cells[dateIndex] || "").trim()}|${narration.toLowerCase()}|${amount.toFixed(2)}|${utr}`,
@@ -118,7 +118,7 @@ const amountMatches = (left, right) => Math.abs(Math.abs(Number(left || 0)) - Ma
 export function suggestReconciliationMatches(transactions, invoices, expenses) {
   const claimed = new Set();
   const entries = (Array.isArray(transactions) ? transactions : []).map((tx) => {
-    const candidates = [];
+    let candidates = [];
     if (tx.amount > 0) {
       (Array.isArray(invoices) ? invoices : []).forEach((invoice) => {
         if (invoice.isDraft || invoice.is_draft || !["pending", "overdue", ""].includes(String(invoice.status || "").toLowerCase())) return;
@@ -130,6 +130,8 @@ export function suggestReconciliationMatches(transactions, invoices, expenses) {
           score: exactUtr ? 100 : similarity, confidence: exactUtr ? "UTR + amount" : "Name + amount",
         });
       });
+      const exactUtrCandidates = candidates.filter((candidate) => candidate.confidence === "UTR + amount");
+      if (exactUtrCandidates.length) candidates = exactUtrCandidates;
     } else if (tx.amount < 0) {
       (Array.isArray(expenses) ? expenses : []).forEach((expense) => {
         if (!["unpaid", "pending", "overdue", ""].includes(String(expense.status || "").toLowerCase())) return;
