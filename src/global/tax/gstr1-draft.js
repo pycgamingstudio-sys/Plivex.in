@@ -71,6 +71,7 @@ export function buildGstr1Draft(invoices, { from = "", to = "" } = {}) {
   let missingSellerGstin = false;
   let includedInvoiceCount = 0;
   let invalidBuyerGstin = 0;
+  let taxModeMismatchCount = 0;
   let missingHsn = 0;
 
   for (const invoice of eligible) {
@@ -79,6 +80,7 @@ export function buildGstr1Draft(invoices, { from = "", to = "" } = {}) {
     const buyer = row.buyerGstin ? parseIndianGstin(row.buyerGstin) : null;
     if (!seller.ok) missingSellerGstin = true;
     if (row.buyerGstin && !buyer?.ok) invalidBuyerGstin += 1;
+    if (seller.ok && buyer?.ok && ((seller.stateCode === buyer.stateCode) !== (row.taxMode === "split"))) taxModeMismatchCount += 1;
     const target = buyer?.ok ? b2b : row.buyerGstin ? null : b2c;
     if (!target) continue;
     includedInvoiceCount += 1;
@@ -124,6 +126,7 @@ export function buildGstr1Draft(invoices, { from = "", to = "" } = {}) {
   }
   if (missingSellerGstin) warnings.push("Seller GSTIN is missing or has an invalid format; confirm registration details before filing.");
   if (invalidBuyerGstin) warnings.push(`${invalidBuyerGstin} invoice(s) have a GSTIN that failed format validation and were excluded from B2B/B2C export.`);
+  if (taxModeMismatchCount) warnings.push(`${taxModeMismatchCount} invoice(s) have a tax mode that does not match the seller and buyer GSTIN state codes; review place of supply and tax treatment.`);
   if (missingHsn) warnings.push(`${missingHsn} line(s) have no HSN/SAC and appear as NOT_RECORDED in the HSN summary.`);
   if (b2c.some((row) => row.placeOfSupply === "NOT_RECORDED")) warnings.push("Place of supply is not recorded for some unregistered-customer invoices; verify it before filing.");
   const hsn = [...hsnMap.values()].map((row) => ({
