@@ -5,6 +5,7 @@ import { KEYS, loadList } from "@/lib/stores";
 import { money2, exportCsv } from "@/lib/dashboardData";
 import { usePaywall } from "@/lib/paywall";
 import { buildGstr1Draft } from "@/global/tax/gstr1-draft.js";
+import { buildCashflowForecast, buildCustomBusinessReport, buildSalesTrend } from "@/global/analytics/business-insights.js";
 
 const tone = { emerald: "bg-emerald-100 text-emerald-600", amber: "bg-amber-100 text-amber-600", rose: "bg-rose-100 text-rose-600", violet: "bg-violet-100 text-violet-600" };
 const validCurrency = (value) => /^[A-Z]{3}$/.test(String(value || "").trim().toUpperCase());
@@ -35,6 +36,9 @@ export default function ReportsTab() {
   const { canAccess, openPaywall } = usePaywall();
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [reportMetric,setReportMetric]=useState("revenue");
+  const [reportGroupBy,setReportGroupBy]=useState("month");
+  const [reportCurrency,setReportCurrency]=useState(currencyCode);
   const invoices = loadList(KEYS.history);
   const expenses = loadList(KEYS.expenses);
   const paylog = loadList(KEYS.paymentLogs);
@@ -64,12 +68,21 @@ export default function ReportsTab() {
   ]).size > 1 || revenueByCurrency.unknownCurrencyCount > 0 || expensesByCurrency.unknownCurrencyCount > 0;
 
   const gstr1Draft = buildGstr1Draft(filteredInvoices, { from, to });
+  const availableCurrencies=[...new Set([...invoices.map(x=>String(x.currency||"").toUpperCase()),...expenses.map(x=>String(x.currencyCode||"").toUpperCase())].filter(x=>validCurrency(x)))].sort();
+  const customRows=buildCustomBusinessReport({invoices:filteredInvoices,expenses:filteredExpenses,metric:reportMetric,groupBy:reportGroupBy,currency:reportCurrency,isPaid:(item)=>statusOf(item)==="Paid"});
+  const cashflowForecast=buildCashflowForecast({invoices,expenses,currency:reportCurrency,isPaid:(item)=>statusOf(item)==="Paid"});
+  const salesTrend=buildSalesTrend({invoices,expenses,currency:reportCurrency});
+  const customMax=Math.max(1,...customRows.map(x=>Math.abs(x.amount)));
+  const trendMax=Math.max(1,...salesTrend.map(x=>x.sales));
 
   const doGstr1Export = () => {
     if (gstr1Draft.b2b.length) exportCsv("plivex-gstr1-b2b-draft.csv", gstr1Draft.b2b);
     if (gstr1Draft.b2c.length) exportCsv("plivex-gstr1-b2c-draft.csv", gstr1Draft.b2c);
     if (gstr1Draft.hsn.length) exportCsv("plivex-gstr1-hsn-summary-draft.csv", gstr1Draft.hsn);
   };
+
+  const doCustomExport=()=>exportCsv("plivex-custom-business-insights.csv",customRows);
+  const doCashflowExport=()=>exportCsv("plivex-cashflow-forecast.csv",cashflowForecast);
 
   const doExport = () => {
     const rows = [
@@ -103,7 +116,23 @@ export default function ReportsTab() {
           </div>
         ))}
       </div>
+            <section className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="mr-auto"><h3 className="text-[14px] font-bold text-slate-900">Custom business intelligence</h3><p className="text-[11px] text-slate-500">Choose a metric, grouping and currency to build a focused business report.</p></div>
+          <label className="grid gap-1 text-[11px] font-semibold text-slate-600">Metric<select className="min-h-9 rounded-lg border border-slate-200 px-2.5 text-[12px]" value={reportMetric} onChange={(e)=>{setReportMetric(e.target.value);if(e.target.value==="operating_difference")setReportGroupBy("month");}}><option value="revenue">Sales revenue</option><option value="collected">Collected</option><option value="outstanding">Outstanding</option><option value="expenses">Expenses</option><option value="operating_difference">Operating difference</option></select></label>
+          <label className="grid gap-1 text-[11px] font-semibold text-slate-600">Group by<select className="min-h-9 rounded-lg border border-slate-200 px-2.5 text-[12px]" value={reportGroupBy} onChange={(e)=>setReportGroupBy(e.target.value)}><option value="month">Month</option>{reportMetric==="expenses"?<><option value="party">Vendor</option><option value="category">Expense category</option></>:reportMetric!=="operating_difference"?<option value="party">Customer</option>:null}</select></label>
+          <label className="grid gap-1 text-[11px] font-semibold text-slate-600">Currency<select className="min-h-9 rounded-lg border border-slate-200 px-2.5 text-[12px]" value={reportCurrency} onChange={(e)=>setReportCurrency(e.target.value)}>{availableCurrencies.map(x=><option key={x} value={x}>{x}</option>)}</select></label>
+          <button type="button" onClick={doCustomExport} disabled={!customRows.length} className="min-h-9 rounded-lg bg-[#6D28D9] px-3 text-[11px] font-bold text-white disabled:opacity-50"><Download className="mr-1 inline h-3.5 w-3.5"/>Export custom report</button>
+        </div>
+        <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[420px] text-left text-[12px]"><thead><tr className="border-b text-[10px] uppercase text-slate-500"><th className="py-2">Group</th><th className="py-2">Amount</th><th className="py-2">Records</th><th className="py-2">Relative scale</th></tr></thead><tbody>{customRows.map((row)=> <tr key={row.label} className="border-b last:border-0"><td className="py-2 font-semibold text-slate-800">{row.label}</td><td className="py-2 font-bold">{money2(row.amount,reportCurrency)}</td><td className="py-2">{row.records}</td><td className="py-2"><div className="h-2 rounded-full bg-slate-100"><div className="h-2 rounded-full bg-violet-500" style={{width:`${Math.max(2,Math.min(100,Math.abs(row.amount)/customMax*100))}%`}}/></div></td></tr>)}</tbody></table>{!customRows.length&&<p className="py-5 text-center text-xs text-slate-500">No records match this metric, date range and currency.</p>}</div>
+      </section>
       <section className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-[14px] font-bold text-slate-900">Cash-flow forecast and sales trend</h3><p className="text-[11px] text-slate-500">A transparent, rule-based estimate for {reportCurrency}; not a guarantee of future collections.</p></div><button type="button" onClick={doCashflowExport} className="min-h-9 rounded-lg border border-slate-200 px-3 text-[11px] font-semibold"><Download className="mr-1 inline h-3.5 w-3.5"/>Export forecast</button></div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">{cashflowForecast.map((row)=> <div key={row.key} className="rounded-xl border border-slate-100 p-3"><p className="text-[11px] font-semibold text-slate-600">{row.label}</p><p className="mt-2 text-[10px] uppercase text-emerald-700">Expected receivables</p><p className="text-sm font-bold">{money2(row.expectedInflows,reportCurrency)}</p><p className="mt-2 text-[10px] uppercase text-rose-700">Projected expenses</p><p className="text-sm font-bold">{money2(row.projectedExpenses,reportCurrency)}</p><p className="mt-2 border-t pt-2 text-[10px] uppercase text-slate-500">Net forecast</p><p className="text-base font-bold">{money2(row.netCashflow,reportCurrency)}</p><p className="mt-1 text-[10px] text-slate-500">{row.receivableCount} open invoice(s)</p></div>)}</div>
+        <div className="mt-4"><h4 className="text-xs font-bold text-slate-800">Sales trend · last six months</h4><div className="mt-2 space-y-2">{salesTrend.map((row)=> <div key={row.key} className="grid grid-cols-[64px_1fr_auto] items-center gap-2 text-[11px]"><span className="text-slate-500">{row.key}</span><div className="h-2 rounded-full bg-slate-100"><div className="h-2 rounded-full bg-emerald-500" style={{width:`${Math.max(1,row.sales/trendMax*100)}%`}}/></div><span className="font-semibold">{money2(row.sales,reportCurrency)}</span></div>)}</div></div>
+        <p className="mt-3 text-[10px] leading-relaxed text-slate-500">Forecast assumptions: open invoices with recorded due dates are assigned to their due month; overdue invoices are shown in the current month. Projected expenses use the average of the previous three calendar months. New sales, unrecorded bills, bank balances, taxes and future one-off costs are not assumed.</p>
+      </section>
+<section className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
         <h3 className="text-[14px] font-bold text-slate-900">Payment position</h3>
         <div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-3"><p className="text-[10px] font-semibold uppercase text-emerald-700">Paid / Collected</p><p className="mt-1 break-words text-[15px] font-bold text-emerald-950">{paid}</p></div><div className="rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50/80 to-white p-3"><p className="text-[10px] font-semibold uppercase text-amber-700">Pending</p><p className="mt-1 break-words text-[15px] font-bold text-amber-950">{pending}</p></div></div>
         {hasMixedOrUnknownCurrency && <p className="mt-3 text-[11px] leading-relaxed text-slate-500">Totals are grouped by recorded currency. Operating difference uses only {currencyCode} records; other currencies are not converted. Some records have no valid recorded currency.</p>}
