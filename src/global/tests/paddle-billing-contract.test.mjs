@@ -29,9 +29,14 @@ test("Paddle webhook verifies raw-body signatures and activates only completed t
 
 test("Paddle frontend opens only a server-created HTTPS checkout URL", async () => {
   const client = await read("../../../src/lib/paddle.js");
+  const resultPage = await read("../../../src/pages/PaymentResult.jsx");
   assert.match(client, /create-paddle-transaction/);
   assert.match(client, /checkoutUrl\.startsWith\("https:\/\/"\)/);
   assert.match(client, /window\.location\.assign/);
+  assert.match(resultPage, /VITE_PADDLE_CLIENT_TOKEN/);
+  assert.match(resultPage, /Paddle\.Initialize/);
+  assert.match(resultPage, /checkout:\{ settings:\{ successUrl/);
+  assert.match(resultPage, /subscriptions.*status/);
 });
 
 test("Australian Basic monthly display price is exactly AUD 799.00 in minor units", async () => {
