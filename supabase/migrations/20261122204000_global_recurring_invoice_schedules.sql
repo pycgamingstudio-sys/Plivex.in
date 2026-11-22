@@ -93,7 +93,7 @@ $function$;
 create or replace function public.global_advance_recurring_invoice_schedule(
   p_user_id uuid,p_workspace_id uuid,p_schedule_id uuid,p_run_date date,p_invoice_id uuid
 ) returns jsonb language plpgsql security invoker set search_path=pg_catalog,global as $function$
-declare v_role text; v_schedule global.recurring_invoice_schedules%rowtype; v_next date; v_status text;
+declare v_role text; v_schedule global.recurring_invoice_schedules%rowtype; v_invoice global.invoices%rowtype; v_next date; v_status text; v_due date; v_fingerprint text;
 begin
   if p_user_id is null or p_workspace_id is null or p_schedule_id is null or p_run_date is null or p_invoice_id is null then
     return jsonb_build_object('ok',false,'reason','invalid_schedule');
@@ -107,8 +107,15 @@ begin
     return jsonb_build_object('ok',true,'duplicate',true,'invoice_id',v_schedule.last_generated_invoice_id);
   end if;
   if v_schedule.status<>'active' or v_schedule.next_run_date<>p_run_date then return jsonb_build_object('ok',false,'reason','schedule_not_due'); end if;
-  if not exists(select 1 from global.invoices where id=p_invoice_id and workspace_id=p_workspace_id and status='draft') then
-    return jsonb_build_object('ok',false,'reason','invoice_not_found');
+  select * into v_invoice from global.invoices where id=p_invoice_id and workspace_id=p_workspace_id and status='draft' for update;
+  if v_invoice.id is null then return jsonb_build_object('ok',false,'reason','invoice_not_found'); end if;
+  v_due:=p_run_date+v_schedule.payment_terms_days;
+  v_fingerprint:=md5(jsonb_build_object('client_id',v_schedule.client_id,'currency_code',v_schedule.currency_code,
+    'issue_date',p_run_date,'due_date',v_due,'notes',v_schedule.notes,'items',v_schedule.items)::text);
+  if v_invoice.client_id is distinct from v_schedule.client_id or v_invoice.currency_code<>v_schedule.currency_code
+    or v_invoice.issue_date<>p_run_date or v_invoice.due_date is distinct from v_due
+    or v_invoice.invoice_snapshot->>'draft_request_fingerprint' is distinct from v_fingerprint then
+    return jsonb_build_object('ok',false,'reason','invoice_schedule_mismatch');
   end if;
   v_next:=case v_schedule.cadence
     when 'weekly' then v_schedule.next_run_date+(7*v_schedule.interval_count)
