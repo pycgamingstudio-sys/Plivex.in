@@ -74,3 +74,10 @@ test("GSTR-1 draft warns when seller GSTIN or HSN/SAC is missing", () => {
   assert.ok(result.warnings.some((warning) => warning.includes("HSN/SAC")));
   assert.equal(result.hsn[0].hsnSac, "NOT_RECORDED");
 });
+
+
+test("GSTR-1 draft flags a tax-mode mismatch against seller and recipient GSTIN state codes", () => {
+  const invoice = { ...base, invoiceSnapshot: { ...base.invoiceSnapshot, client: { name: "Interstate buyer", gstin: "27AAACB1234C1Z5" }, taxMode: "split" } };
+  const result = buildGstr1Draft([invoice]);
+  assert.ok(result.warnings.some((warning) => warning.includes("tax mode")));
+});
