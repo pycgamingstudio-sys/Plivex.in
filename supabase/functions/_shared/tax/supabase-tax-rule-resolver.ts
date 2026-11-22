@@ -43,8 +43,14 @@ export async function resolveSupabaseTaxRule(
   const verifiedRows = rows.filter((row: any) => row.status === "verified");
   const selectedRows = verifiedRows.length ? verifiedRows : rows.filter((row: any) => row.status === "draft");
   if (!selectedRows.length) return { ok:false, code:"NO_VERIFIED_TAX_RULE", message:"No verified rule is available." };
-  const effectiveDate = selectedRows[0].effective_from;
-  const effectiveRows = selectedRows.filter((row: any) => row.effective_from === effectiveDate);
+  // Keep the newest effective version for each tax code. Canada may have
+  // separate effective dates for GST and PST/QST components in one province.
+  const latestByCode = new Map<string, any>();
+  for (const row of selectedRows) {
+    const previous = latestByCode.get(row.tax_code);
+    if (!previous || row.effective_from > previous.effective_from) latestByCode.set(row.tax_code, row);
+  }
+  const effectiveRows = [...latestByCode.values()];
   // Canada provincial GST/PST/QST rows are additive components for the same
   // destination. GST_FED_BASE is deliberately excluded above to avoid doubling.
   if (countryCode !== "CA" && effectiveRows.length !== 1) {
