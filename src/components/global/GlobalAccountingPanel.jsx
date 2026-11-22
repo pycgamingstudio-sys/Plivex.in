@@ -60,7 +60,7 @@ export default function GlobalAccountingPanel({account,invoke}) {
   },[account.workspace_id,currency,from,to,view,selectedAccount]);
 
   useEffect(()=>{loadAccounts().catch((e)=>setError(e.message||"Could not load chart of accounts."));},[loadAccounts]);
-  useEffect(()=>{if(accounts.length && view!=="gstr2b" && view!=="gstr3b")loadReport();},[accounts.length,loadReport,view]);
+  useEffect(()=>{if(accounts.length && view!=="gstr2b" && view!=="gstr3b" && view!=="gstr3b")loadReport();},[accounts.length,loadReport,view]);
 
   const totals=useMemo(()=>lines.reduce((sum,line)=>({
     debit:sum.debit+toMinor(line.debit,currency),
@@ -109,7 +109,7 @@ export default function GlobalAccountingPanel({account,invoke}) {
     <div className="flex flex-wrap gap-2">
       {[["trial_balance","Trial Balance"],["general_ledger","General Ledger"],["financial_statements","Financial Statements"],["gstr2b","GSTR-2B / ITC"],["gstr3b","GSTR-3B / Calendar"]].map(([id,label])=><button key={id} onClick={()=>setView(id)} className={view===id?"rounded-lg bg-violet-700 px-3 py-2 text-sm font-semibold text-white":secondary}>{label}</button>)}
     </div>
-    {view!=="gstr2b"&&<div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
+    {view!=="gstr2b" && view!=="gstr3b"&&<div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
       <label className="text-xs font-semibold text-slate-600">From<input type="date" className={field+" mt-1"} value={from} onChange={(e)=>setFrom(e.target.value)}/></label>
       <label className="text-xs font-semibold text-slate-600">To / as of<input type="date" className={field+" mt-1"} value={to} onChange={(e)=>setTo(e.target.value)}/></label>
       {view==="general_ledger"&&<label className="min-w-48 text-xs font-semibold text-slate-600">Account<select className={field+" mt-1"} value={selectedAccount} onChange={(e)=>setSelectedAccount(e.target.value)}>{accounts.map((a)=><option key={a.code} value={a.code}>{a.code} · {a.name}</option>)}</select></label>}
@@ -140,7 +140,7 @@ export default function GlobalAccountingPanel({account,invoke}) {
         </div>
       </div>
     )}
-    {view!=="gstr2b"&&<form onSubmit={postEntry} className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
+    {view!=="gstr2b" && view!=="gstr3b"&&<form onSubmit={postEntry} className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
       <div><h2 className="font-bold">Post a journal entry</h2><p className="mt-1 text-xs text-slate-500">Debits must equal credits. Posted entries are locked; corrections require a new reversing entry.</p></div>
       <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-slate-600">Entry date<input required type="date" className={field+" mt-1"} value={entryDate} onChange={(e)=>setEntryDate(e.target.value)}/></label><label className="text-xs font-semibold text-slate-600">Description<input required maxLength="500" className={field+" mt-1"} value={memo} onChange={(e)=>setMemo(e.target.value)} placeholder="e.g. Owner capital introduced"/></label></div>
       <div className="space-y-2">
@@ -155,6 +155,6 @@ export default function GlobalAccountingPanel({account,invoke}) {
       <div className="flex flex-wrap items-center justify-between gap-3"><button type="button" className={secondary} disabled={lines.length>=100} onClick={addLine}>Add line</button><div className="text-sm font-semibold">Debit {money(totals.debit,currency)} · Credit {money(totals.credit,currency)}</div></div>
       <button disabled={posting||!accounts.length} className={button}>{posting?"Posting…":"Post journal entry"}</button>
     </form>}
-    {view!=="gstr2b"&&<p className="text-xs text-slate-500">Accounting currently posts in the workspace base currency only. Foreign-currency conversion and historical opening balances are not guessed or created automatically.</p>}
+    {view!=="gstr2b" && view!=="gstr3b"&&<p className="text-xs text-slate-500">Accounting currently posts in the workspace base currency only. Foreign-currency conversion and historical opening balances are not guessed or created automatically.</p>}
   </section>;
 }
