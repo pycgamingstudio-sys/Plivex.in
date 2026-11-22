@@ -62,6 +62,7 @@ Deno.serve(async (req: Request) => {
     }
 
 
+    const quotationItems = Array.isArray(body.items) ? body.items as Array<Record<string, unknown>> : [];
     let taxMinor = 0;
     let taxSnapshot: Record<string, unknown> | null = null;
     if (action === "create") {
@@ -100,8 +101,8 @@ Deno.serve(async (req: Request) => {
           components = [{id:"IGST",name:"IGST",rateBps,source:resolved.rule.source}];
         } else return globalJson({error:"Choose same-state (CGST + SGST) or inter-state (IGST) supply."},422,origin);
       }
-      const subtotal = body.items.reduce((sum:number,item:any)=>sum + Math.round(Number(item.quantity)*Number(item.unit_price_minor)),0);
-      const discount = body.items.reduce((sum:number,item:any)=>sum + Number(item.discount_minor || 0),0);
+      const subtotal = quotationItems.reduce((sum:number,item:any)=>sum + Math.round(Number(item.quantity)*Number(item.unit_price_minor)),0);
+      const discount = quotationItems.reduce((sum:number,item:any)=>sum + Number(item.discount_minor || 0),0);
       const taxable = Math.max(0,subtotal-discount);
       if (!Number.isSafeInteger(taxable)) return globalJson({error:"Quotation taxable amount is outside supported limits."},422,origin);
       const totalRateBps = components.reduce((sum:number,component:any)=>sum+component.rateBps,0);
