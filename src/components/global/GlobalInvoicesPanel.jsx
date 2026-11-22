@@ -7,6 +7,7 @@ import { getCountryExperience } from "@/global/countries/country-experience.js";
 import { formatWorkspaceDate } from "@/global/localization/date-format.js";
 import { resolveGlobalInvoiceContext, canIssueCommercialInvoice, getGlobalInvoiceDocumentTitle, getGlobalInvoiceTaxDisclosure } from "@/global/invoices/invoice-readiness.js";
 import { normalizeGlobalInvoiceSnapshot, getGlobalInvoicePdfFilename } from "@/global/invoices/pdf-download.js";
+import { normalizeIndiaCompliance, buildIndiaComplianceDetailsExport } from "@/global/tax/india-compliance.js";
 
 const today = () => {
   const d = new Date();
@@ -48,7 +49,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ clientId:"", issueDate:today(), dueDate:"", description:"", quantity:"1", unitPrice:"", documentType:"commercial" });
   const [taxContext, setTaxContext] = useState({
-    countryCode, mode:"automatic", priceMode:"exclusive", placeOfSupply:"",
+    countryCode, mode:"automatic", priceMode:"exclusive", taxCode:"GST_18", taxTreatment:"standard", indiaSupplyType:"INTRA", placeOfSupply:"",
     placeOfSupplyConfirmed:false, taxCategory:"standard-rated", taxCategoryConfirmed:true,
     registrationConfirmed:false, taxDetailsConfirmed:false, collectionObligationAttested:false, components:[],
   });
@@ -56,6 +57,10 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   const [paymentForm, setPaymentForm] = useState({ amount:"", date:today(), method:"bank_transfer", reference:"" });
   const [refundForm, setRefundForm] = useState({ amount:"", date:today(), method:"bank_transfer", reference:"", reason:"" });
   const [activeShare, setActiveShare] = useState(null);
+  const [indiaComplianceForm, setIndiaComplianceForm] = useState({
+    irn:"", ack_number:"", ack_date:"", eway_bill_number:"", eway_bill_date:"", eway_bill_valid_until:"",
+    transport_mode:"road", vehicle_number:"", transporter_id:"", transporter_name:"", distance_km:"",
+  });
 
   const refresh = useCallback(async () => {
     const capabilityResult = await supabase.functions.invoke("global-invoices", {
@@ -96,7 +101,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
 
   useEffect(() => {
     setTaxContext({
-      countryCode, mode:"automatic", priceMode:"exclusive", placeOfSupply:"",
+      countryCode, mode:"automatic", priceMode:"exclusive", taxCode:"GST_18", taxTreatment:"standard", indiaSupplyType:"INTRA", placeOfSupply:"",
       placeOfSupplyConfirmed:false, taxCategory:"standard-rated", taxCategoryConfirmed:false,
       registrationConfirmed:false, taxDetailsConfirmed:false, collectionObligationAttested:false, components:[],
     });
@@ -105,6 +110,17 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
   useEffect(() => { refresh().catch((e) => setError(e.message || "Could not load Global invoices.")); }, [refresh]);
 
   const selected = invoices.find((invoice) => invoice.id === selectedId) || null;
+  const selectedClient = clients.find((client) => client.id === selected?.client_id);
+  useEffect(() => {
+    const saved = selected?.invoice_snapshot?.india_compliance || {};
+    setIndiaComplianceForm({
+      irn:saved.irn || "", ack_number:saved.ack_number || "", ack_date:saved.ack_date || "",
+      eway_bill_number:saved.eway_bill_number || "", eway_bill_date:saved.eway_bill_date || "",
+      eway_bill_valid_until:saved.eway_bill_valid_until || "", transport_mode:saved.transport_mode || "road",
+      vehicle_number:saved.vehicle_number || "", transporter_id:saved.transporter_id || "",
+      transporter_name:saved.transporter_name || "", distance_km:saved.distance_km ?? "",
+    });
+  }, [selectedId, selected?.invoice_snapshot?.india_compliance]);
   const selectedItems = useMemo(() => items.filter((item) => item.invoice_id === selectedId).sort((a,b) => a.sort_order-b.sort_order), [items, selectedId]);
   const workspaceProfile = useMemo(() => ({
     countryCode, currencyCode:currency,
@@ -176,6 +192,7 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
             tax_category:taxContext.taxCategory || "",
             tax_treatment:taxContext.taxTreatment || "standard",
             tax_code:taxContext.taxCode || null,
+            india_supply_type:taxContext.indiaSupplyType || "INTRA",
             mode:taxContext.mode || "automatic",
             price_mode:taxContext.priceMode || "exclusive",
             place_of_supply:taxContext.placeOfSupply || "",
@@ -238,6 +255,53 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
       await refresh();
     } catch (e) { setError(e.message || "Could not issue the commercial invoice."); }
     finally { setBusy(false); }
+  };
+
+  const saveIndiaCompliance = async () => {
+    if (!selected || countryCode !== "IN") return;
+    const normalized = normalizeIndiaCompliance(indiaComplianceForm);
+    if (!normalized.ok) { setError(normalized.error); return; }
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("global-invoices", {
+        body:{
+          action:"save_india_compliance", workspace_id:account.workspace_id,
+          invoice_id:selected.id, compliance:normalized.value,
+        },
+      });
+      if (invokeError) throw invokeError;
+      if (!data?.ok) throw new Error(data?.error || "Could not save manual IRN / E-Way Bill references.");
+      setNotice("Manual IRN and E-Way Bill references saved to the issued invoice audit trail.");
+      await refresh();
+    } catch (e) { setError(e.message || "Could not save invoice compliance references."); }
+    finally { setBusy(false); }
+  };
+
+  const downloadIndiaDetails = (exportType) => {
+    if (!selected || countryCode !== "IN") return;
+    const normalized = normalizeIndiaCompliance(indiaComplianceForm);
+    if (!normalized.ok) { setError(normalized.error); return; }
+    try {
+      const snapshot = normalizeGlobalInvoiceSnapshot(selected.invoice_snapshot);
+      const payload = buildIndiaComplianceDetailsExport({
+        invoice:selected, items:selectedItems,
+        seller:{ ...(snapshot.business || {}), ...(profile || {}) },
+        buyer:{ ...(snapshot.client || snapshot.buyer || {}), ...(selectedClient || {}) },
+        compliance:normalized.value,
+        exportType,
+      });
+      const blob = new Blob([JSON.stringify(payload,null,2)], { type:"application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const safeNumber = String(selected.invoice_number || "invoice").replace(/[^a-z0-9_-]/gi,"-").slice(0,80);
+      link.download = "Plivex-" + exportType + "-" + safeNumber + ".json";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setNotice((exportType === "e_invoice" ? "E-Invoice" : "E-Way Bill") + " details JSON exported for manual portal entry. This is not a government API payload.");
+    } catch (e) { setError(e.message || "Could not export India compliance details."); }
   };
 
   const downloadPdf = async (invoice) => {
@@ -438,7 +502,6 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
     finally { setBusy(false); }
   };
 
-  const selectedClient = clients.find((client) => client.id === selected?.client_id);
   const selectedCurrency = selected?.currency_code || currency;
   const sellerProfileReady = Boolean(profile?.legal_name?.trim() && profile?.address?.trim());
   const canIssueCommercial = canIssueCommercialInvoice({
@@ -534,6 +597,30 @@ export default function GlobalInvoicesPanel({ account, invoke, onRefresh }) {
               </>}
               {selected.status!=="draft" && <p className="mt-3 text-xs text-slate-500">Issued invoice content and tax snapshot are locked. Payments and refunds are recorded separately.</p>}
             </div>
+            {countryCode === "IN" && ["issued","partially_paid","paid","overdue"].includes(selected.status) && (
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <h3 className="font-semibold">Manual GST portal references</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Enter IRN / acknowledgement and E-Way Bill details after obtaining them from the relevant portal. Plivex does not call or verify with GSTN, IRP or E-Way Bill services.</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs font-semibold text-slate-600">IRN (64-character hash)<input className={field+" mt-1"} maxLength={64} value={indiaComplianceForm.irn} onChange={(e)=>setIndiaComplianceForm((v)=>({...v,irn:e.target.value}))}/></label>
+                  <label className="text-xs font-semibold text-slate-600">Acknowledgement number<input className={field+" mt-1"} maxLength={15} value={indiaComplianceForm.ack_number} onChange={(e)=>setIndiaComplianceForm((v)=>({...v,ack_number:e.target.value}))}/></label>
+                  <label className="text-xs font-semibold text-slate-600">Acknowledgement date<input className={field+" mt-1"} type="date" value={indiaComplianceForm.ack_date} onChange={(e)=>setIndiaComplianceForm((v)=>({...v,ack_date:e.target.value}))}/></label>
+                  <label className="text-xs font-semibold text-slate-600">E-Way Bill number<input className={field+" mt-1"} maxLength={12} value={indiaComplianceForm.eway_bill_number} onChange={(e)=>setIndiaComplianceForm((v)=>({...v,eway_bill_number:e.target.value}))}/></label>
+                  <label className="text-xs font-semibold text-slate-600">E-Way Bill date<input className={field+" mt-1"} type="date" value={indiaComplianceForm.eway_bill_date} onChange={(e)=>setIndiaComplianceForm((v)=>({...v,eway_bill_date:e.target.value}))}/></label>
+                  <label className="text-xs font-semibold text-slate-600">Valid until<input className={field+" mt-1"} type="date" value={indiaComplianceForm.eway_bill_valid_until} onChange={(e)=>setIndiaComplianceForm((v)=>({...v,eway_bill_valid_until:e.target.value}))}/></label>
+                  <label className="text-xs font-semibold text-slate-600">Transport mode<select className={field+" mt-1"} value={indiaComplianceForm.transport_mode} onChange={(e)=>setIndiaComplianceForm((v)=>({...v,transport_mode:e.target.value}))}><option value="road">Road</option><option value="rail">Rail</option><option value="air">Air</option><option value="ship">Ship</option></select></label>
+                  <label className="text-xs font-semibold text-slate-600">Vehicle number<input className={field+" mt-1"} maxLength={20} value={indiaComplianceForm.vehicle_number} onChange={(e)=>setIndiaComplianceForm((v)=>({...v,vehicle_number:e.target.value}))}/></label>
+                  <label className="text-xs font-semibold text-slate-600">Transporter GSTIN<input className={field+" mt-1"} maxLength={15} value={indiaComplianceForm.transporter_id} onChange={(e)=>setIndiaComplianceForm((v)=>({...v,transporter_id:e.target.value}))}/></label>
+                  <label className="text-xs font-semibold text-slate-600">Transporter name<input className={field+" mt-1"} maxLength={120} value={indiaComplianceForm.transporter_name} onChange={(e)=>setIndiaComplianceForm((v)=>({...v,transporter_name:e.target.value}))}/></label>
+                  <label className="text-xs font-semibold text-slate-600">Distance (km)<input className={field+" mt-1"} type="number" min="1" max="4000" step="1" value={indiaComplianceForm.distance_km} onChange={(e)=>setIndiaComplianceForm((v)=>({...v,distance_km:e.target.value}))}/></label>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" className={button} disabled={busy} onClick={saveIndiaCompliance}>Save references</button>
+                  <button type="button" className={secondary} disabled={busy} onClick={()=>downloadIndiaDetails("e_invoice")}>Export E-Invoice details JSON</button>
+                  <button type="button" className={secondary} disabled={busy} onClick={()=>downloadIndiaDetails("e_way_bill")}>Export E-Way Bill details JSON</button>
+                </div>
+              </div>
+            )}
             {backendCapabilities.ledgerReady && ["issued","partially_paid","overdue"].includes(selected.status) && (
               <div className="rounded-xl border border-slate-200 bg-white p-4">
                 <h3 className="font-semibold">Record payment</h3>

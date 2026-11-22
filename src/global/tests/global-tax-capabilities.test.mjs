@@ -5,14 +5,14 @@ import { calculateGlobalTax } from "../tax/global-tax-engine.js";
 
 test("capability matrix distinguishes India legacy, Global calculation and issuance readiness", () => {
   assert.equal(getGlobalTaxCapability("IN").calculation, "india_legacy");
-  assert.equal(getGlobalTaxCapability("GB").calculation, "standard_rate_baseline");
+  assert.equal(getGlobalTaxCapability("GB").calculation, "draft_test_country_rule");
   assert.equal(getGlobalTaxCapability("GB").issuance, "code_ready_database_migration_pending");
   for (const code of ["AE", "AU", "SG"]) {
-    assert.equal(getGlobalTaxCapability(code).calculation, "standard_rate_baseline");
+    assert.equal(getGlobalTaxCapability(code).calculation, "draft_test_country_rule");
     assert.equal(getGlobalTaxCapability(code).issuance, "disabled");
   }
   for (const code of ["US", "CA"]) {
-    assert.equal(getGlobalTaxCapability(code).calculation, "verified_jurisdiction_rule_required");
+    assert.equal(getGlobalTaxCapability(code).calculation, "draft_test_jurisdiction_rule");
     assert.equal(getGlobalTaxCapability(code).issuance, "disabled");
   }
 });

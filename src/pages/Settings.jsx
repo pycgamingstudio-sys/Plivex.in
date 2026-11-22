@@ -47,7 +47,7 @@ export default function Settings() {
         <LanguageSwitcher showHindi={APP_EDITION !== "global"} />
       </div>
       <div className="mt-4"><WorkspaceCountrySettings lockCountry={true} /></div>
-      {APP_EDITION === "global" || user?.country_code !== "IN" ? <div className="mt-4 rounded-2xl border border-[#E8E7EF] bg-white p-4 shadow-[0_1px_2px_rgba(24,24,40,.03)]"><p className="text-sm font-semibold">Email integrations</p><p className="mt-1 text-xs text-muted-foreground">Automated invoice payment reminders are not enabled for this Workspace country yet.</p></div> : <div className="mt-4"><EmailSettingsCard /></div>}
+      {APP_EDITION === "global" || user?.country_code !== "IN" ? <div className="mt-4 rounded-2xl border border-[#E8E7EF] bg-white p-4 shadow-[0_1px_2px_rgba(24,24,40,.03)]"><p className="text-sm font-semibold">Email integrations</p><p className="mt-1 text-xs text-muted-foreground">Invoice emails use Brevo when BREVO_API_KEY is configured, otherwise Resend. Add the provider key and MAIL_FROM in Supabase Edge Function secrets. Missing credentials never block invoice or quotation work.</p></div> : <div className="mt-4"><EmailSettingsCard /></div>}
     </PageShell>
   );
 }
@@ -85,11 +85,11 @@ function EmailSettingsCard() {
         <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#6D28D9]/10 text-[#6D28D9]"><Bell className="h-4 w-4" /></span>
         <div>
           <h2 className="text-[15px] font-bold text-foreground">Auto-Reminder & Email Settings</h2>
-          <p className="text-[11px] text-muted-foreground">Configure Gmail SMTP to send automated payment reminders with invoice PDFs to clients.</p>
+          <p className="text-[11px] text-muted-foreground">Send transactional payment reminders using the configured Brevo or Resend provider.</p>
         </div>
       </div>
 
-      <p className="rounded-lg border border-dashed p-3 text-[11px] leading-relaxed text-muted-foreground">Sending uses the workspace Gmail credentials (<span className="font-mono-ui">GMAIL_USER</span> / <span className="font-mono-ui">GMAIL_PASS</span>) stored securely as app secrets — no credentials are entered or kept in the browser.</p>
+      <p className="rounded-lg border border-dashed p-3 text-[11px] leading-relaxed text-muted-foreground">Sending uses server-side <span className="font-mono-ui">BREVO_API_KEY</span> or <span className="font-mono-ui">RESEND_API_KEY</span> plus <span className="font-mono-ui">MAIL_FROM</span> in Supabase Edge Function secrets. No provider credentials are entered or stored in the browser.</p>
 
       <label className="block text-[12px] font-semibold text-muted-foreground">Reminder schedule
         <select value={cfg.reminderSchedule} onChange={(e) => update("reminderSchedule", e.target.value)} className={inputCls}>
@@ -102,7 +102,7 @@ function EmailSettingsCard() {
 
       <div className="rounded-lg border border-dashed p-3">
         <p className="text-[12px] font-bold text-foreground">Send a test reminder</p>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">Verify your SMTP connection by sending a test reminder email.</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">Verify the configured Brevo or Resend provider by sending a test reminder email.</p>
         <div className="mt-2 flex flex-col gap-2 sm:flex-row">
           <input type="email" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} placeholder="recipient@example.com" className={inputCls} />
           <button onClick={sendTest} disabled={testing} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#6D28D9] px-4 py-2.5 text-[12px] font-bold text-white hover:bg-[#7C3AED] disabled:opacity-70 sm:self-start">

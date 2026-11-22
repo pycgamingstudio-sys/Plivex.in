@@ -29,14 +29,15 @@ Deno.serve(async (req: Request) => {
     if (!validEmail(to)) return jsonResponse({ error: "Invalid email" }, 400, origin);
     const clientName = text(body.clientName, 100);
     const invoiceNumber = text(body.invoiceNumber, 60);
+    const currency = typeof body.currency === "string" && /^[A-Z]{3}$/.test(body.currency) ? body.currency : "";
     const amount = typeof body.amount === "number" && Number.isFinite(body.amount) ? body.amount.toFixed(2) : text(body.amount, 30);
     const dueDate = text(body.dueDate, 40);
     const pdfLink = safeInvoiceUrl(body.pdfLink);
     const esc = escapeEmailHtml;
-    const html = `<!doctype html><html><body style="margin:0;background:#fff;font-family:Arial,sans-serif;color:#171717"><div style="max-width:560px;margin:auto;padding:24px"><h2>Payment reminder</h2><p>Hi ${esc(clientName || "there")},</p><p>This is a friendly reminder that payment${invoiceNumber ? ` for invoice <b>${esc(invoiceNumber)}</b>` : ""} is due${dueDate ? ` on <b>${esc(dueDate)}</b>` : ""}.</p>${amount ? `<p>Amount due: <b>₹${esc(amount)}</b></p>` : ""}${pdfLink ? `<p><a href="${esc(pdfLink)}">View invoice</a></p>` : ""}<p>If you have already paid, please ignore this message.</p><p>Thank you.</p></div></body></html>`;
+    const html = `<!doctype html><html><body style="margin:0;background:#fff;font-family:Arial,sans-serif;color:#171717"><div style="max-width:560px;margin:auto;padding:24px"><h2>Payment reminder</h2><p>Hi ${esc(clientName || "there")},</p><p>This is a friendly reminder that payment${invoiceNumber ? ` for invoice <b>${esc(invoiceNumber)}</b>` : ""} is due${dueDate ? ` on <b>${esc(dueDate)}</b>` : ""}.</p>${amount ? `<p>Amount due: <b>${esc(currency ? currency + " " + amount : amount)}</b></p>` : ""}${pdfLink ? `<p><a href="${esc(pdfLink)}">View invoice</a></p>` : ""}<p>If you have already paid, please ignore this message.</p><p>Thank you.</p></div></body></html>`;
     const subject = invoiceNumber ? `Payment reminder: invoice ${invoiceNumber}` : "Payment reminder";
     const result = await sendEmail({ to, subject, html });
-    if (!result.sent) return jsonResponse({ ok: false, emailSent: false, error: result.reason === "email_not_configured" ? "Email delivery is not configured. Set RESEND_API_KEY and MAIL_FROM in Supabase Edge Function secrets." : "Email provider could not send the reminder." }, result.reason === "email_not_configured" ? 503 : 502, origin);
+    if (!result.sent) return jsonResponse({ ok: false, emailSent: false, error: result.reason === "email_not_configured" ? "Email delivery is not configured. Set BREVO_API_KEY or RESEND_API_KEY, plus MAIL_FROM, in Supabase Edge Function secrets." : "Email provider could not send the reminder." }, result.reason === "email_not_configured" ? 503 : 502, origin);
     const { data: ownerRow } = await auth.admin.from("workspace_members").select("owner_id").eq("workspace_id", profile.workspace_id).eq("role", "admin").not("owner_id", "is", null).limit(1).maybeSingle();
     if (ownerRow?.owner_id) await auth.admin.from("activity_logs").insert({ event_key: crypto.randomUUID(), workspace_id: profile.workspace_id, owner_id: ownerRow.owner_id, actor_id: auth.user.id, action: "payment_reminder_sent", outcome: "applied", source: "send-payment-reminder", metadata: { to, invoiceNumber: invoiceNumber || null } });
     return jsonResponse({ ok: true, emailSent: true, sentTo: to }, 200, origin);

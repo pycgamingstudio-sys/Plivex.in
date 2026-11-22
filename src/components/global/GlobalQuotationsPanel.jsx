@@ -40,7 +40,7 @@ export default function GlobalQuotationsPanel({ account }) {
   const [notice, setNotice] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [form, setForm] = useState({
-    client_id: "", issue_date: today(), valid_until: "", notes: "", tax_code: "GST_18", india_supply_type: "INTRA", tax_jurisdiction_id: "",
+    client_id: "", issue_date: today(), valid_until: "", notes: "", tax_code: "GST_18", tax_treatment: "standard", india_supply_type: "INTRA", tax_jurisdiction_id: "",
     items: [{ description: "", quantity: "1", unit_price: "", discount: "0" }],
   });
 
@@ -110,12 +110,13 @@ export default function GlobalQuotationsPanel({ account }) {
         issue_date: form.issue_date, valid_until: form.valid_until || null,
         notes: form.notes.trim() || null, items, idempotency_key: newId(),
         tax_code: countryCode === "IN" ? form.tax_code : null,
+        tax_treatment: countryCode === "IN" ? form.tax_treatment : null,
         india_supply_type: countryCode === "IN" ? form.india_supply_type : null,
         tax_jurisdiction_id: ["US","CA"].includes(countryCode) ? form.tax_jurisdiction_id : null,
       });
       setShowCreate(false);
       setSelectedId(data.quotation?.id || "");
-      setForm({ client_id: "", issue_date: today(), valid_until: "", notes: "", tax_code: "GST_18", india_supply_type: "INTRA", tax_jurisdiction_id: "", items: [{ description: "", quantity: "1", unit_price: "", discount: "0" }] });
+      setForm({ client_id: "", issue_date: today(), valid_until: "", notes: "", tax_code: "GST_18", tax_treatment: "standard", india_supply_type: "INTRA", tax_jurisdiction_id: "", items: [{ description: "", quantity: "1", unit_price: "", discount: "0" }] });
       setNotice("Quotation saved as a draft. It is not an invoice and cannot collect payments.");
       await refresh();
     } catch (saveError) { setError(saveError.message || "Could not create quotation."); }
@@ -271,7 +272,7 @@ export default function GlobalQuotationsPanel({ account }) {
           </div>
           <label className="mt-4 block text-xs font-semibold text-slate-600">Notes<textarea rows={3} maxLength={4000} className={field + " mt-1"} placeholder="Optional scope, delivery or payment terms" value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
           {countryCode === "IN" && <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="text-xs font-semibold text-slate-600">GST rate<select className={field + " mt-1"} value={form.tax_code} onChange={(event)=>setForm({...form,tax_code:event.target.value})}>{[["GST_0","0%"],["GST_5","5%"],["GST_12","12%"],["GST_18","18%"],["GST_28","28%"]].map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+            <label className="text-xs font-semibold text-slate-600">GST rate<select className={field + " mt-1"} value={form.tax_code} onChange={(event)=>setForm({...form,tax_code:event.target.value,tax_treatment:event.target.value==="GST_0"?"zero-rated":event.target.value==="GST_5"?"reduced":"standard"})}>{[["GST_0","0%"],["GST_5","5%"],["GST_12","12%"],["GST_18","18%"],["GST_28","28%"]].map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
             <label className="text-xs font-semibold text-slate-600">Place of supply<select className={field + " mt-1"} value={form.india_supply_type} onChange={(event)=>setForm({...form,india_supply_type:event.target.value})}><option value="INTRA">Same state · CGST + SGST</option><option value="INTER">Different state · IGST</option></select></label>
           </div>}
           {countryCode === "CA" && <label className="mt-4 block text-xs font-semibold text-slate-600">Destination province / territory<select required className={field + " mt-1"} value={form.tax_jurisdiction_id} onChange={(event)=>setForm({...form,tax_jurisdiction_id:event.target.value})}><option value="">Select province</option>{["AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","QC","SK","YT"].map((x)=><option key={x}>{x}</option>)}</select></label>}

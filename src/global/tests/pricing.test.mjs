@@ -9,7 +9,7 @@ test("all seven supported countries have explicit local currencies and prices", 
     const config = GLOBAL_BILLING[country.code];
     assert.ok(config, `Missing billing configuration for ${country.code}`);
     assert.equal(config.currency, country.currencyCode);
-    assert.ok(config.monthly.basic > 0 && config.monthly.pro > config.monthly.basic);
+    assert.ok(config.monthly.basic > 0 && config.monthly.pro > config.monthly.basic, `Invalid tier pricing for ${country.code}`);
   }
 });
 
@@ -26,4 +26,10 @@ test("unknown country is not silently converted to India", () => {
 test("price formatter uses exact minor-unit amount and currency", () => {
   assert.equal(formatPlanPrice(599, "USD", "en-US"), "$5.99");
   assert.throws(() => formatPlanPrice(-1, "USD"), TypeError);
+});
+
+
+test("Australian Basic monthly plan is configured as AUD 799.00, not AUD 7.99", () => {
+  assert.equal(GLOBAL_BILLING.AU.monthly.basic, 79900);
+  assert.equal(formatPlanPrice(GLOBAL_BILLING.AU.monthly.basic, "AUD", "en-AU"), new Intl.NumberFormat("en-AU", { style:"currency", currency:"AUD", maximumFractionDigits:2 }).format(799));
 });

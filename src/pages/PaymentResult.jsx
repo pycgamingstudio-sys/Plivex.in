@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { supabase } from "@/api/backendClient";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, CheckCircle2, Clock3, Home, X, XCircle } from "lucide-react";
 
@@ -17,16 +18,23 @@ export default function PaymentResult() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const status = params.get("payment") || "pending";
+  const provider = params.get("provider") || "";
+  const paddleTransactionId = params.get("_ptxn");
+  const isPaddleFlow = provider === "paddle" || Boolean(paddleTransactionId);
+  const [paddleStatus, setPaddleStatus] = useState("pending");
+  const [paddleError, setPaddleError] = useState("");
+  const [paddleCheckMessage, setPaddleCheckMessage] = useState("");
+  const paddleOpened = useRef(false);
   const nextPath = useMemo(() => safeNextPath(params.get("next")), [params]);
   const [seconds, setSeconds] = useState(15);
   const currency = (params.get("currency") || "INR").toUpperCase();
   const locale = params.get("locale") || undefined;
   const amount = money(params.get("amount"), currency, locale);
-  const txnid = params.get("txnid");
+  const txnid = params.get("txnid") || paddleTransactionId;
   const plan = params.get("plan");
 
   useEffect(() => {
-    if (status !== "success" && status !== "failed" && status !== "pending") return;
+    if (isPaddleFlow || (status !== "success" && status !== "failed" && status !== "pending")) return;
     const startedAt = Date.now();
     const tick = () => {
       const remaining = Math.max(0, 15 - Math.floor((Date.now() - startedAt) / 1000));
@@ -35,16 +43,70 @@ export default function PaymentResult() {
     };
     const timer = window.setInterval(tick, 250);
     return () => window.clearInterval(timer);
-  }, [status, nextPath, navigate]);
+  }, [status, nextPath, navigate, isPaddleFlow]);
 
-  const isSuccess = status === "success";
-  const isFailed = status === "failed";
+  useEffect(() => {
+    if (!paddleTransactionId || paddleOpened.current) return;
+    const token = import.meta.env.VITE_PADDLE_CLIENT_TOKEN;
+    if (!token) { setPaddleError("Paddle client token is not configured in the frontend environment."); return; }
+    let active = true;
+    let script = document.querySelector('script[src="https://cdn.paddle.com/paddle/v2/paddle.js"]');
+    const openCheckout = () => {
+      if (!active || paddleOpened.current) return;
+      if (!window.Paddle) { setPaddleError("Paddle Checkout could not load. Please return to Plivex and retry."); return; }
+      try {
+        const paddleEnvironment = import.meta.env.VITE_PADDLE_ENV || "sandbox";
+        if (paddleEnvironment === "sandbox") window.Paddle.Environment.set("sandbox");
+        const successUrl = window.location.origin + "/payment-result?provider=paddle&payment=pending&txnid=" + encodeURIComponent(paddleTransactionId);
+        paddleOpened.current = true;
+        window.Paddle.Initialize({
+          token,
+          checkout:{ settings:{ successUrl, displayMode:"overlay", theme:"light" } },
+          eventCallback: (event) => {
+            if (event?.name === "checkout.completed") setPaddleCheckMessage("Payment submitted. Plivex is waiting for the signed payment confirmation.");
+          },
+        });
+      } catch (error) {
+        setPaddleError(error?.message || "Paddle Checkout could not be opened.");
+      }
+    };
+    if (script && window.Paddle) openCheckout();
+    else if (script) script.addEventListener("load", openCheckout, { once:true });
+    else {
+      script = document.createElement("script");
+      script.src = "https://cdn.paddle.com/paddle/v2/paddle.js";
+      script.async = true;
+      script.addEventListener("load", openCheckout, { once:true });
+      script.addEventListener("error", () => setPaddleError("Paddle Checkout could not load. Please retry later."), { once:true });
+      document.head.appendChild(script);
+    }
+    return () => { active = false; };
+  }, [paddleTransactionId]);
+
+  const refreshPaddleStatus = async () => {
+    if (!txnid) return;
+    setPaddleCheckMessage("Checking the Plivex payment record…");
+    const { data, error } = await supabase.from("subscriptions").select("status,plan_id,expires_at").eq("txnid", txnid).maybeSingle();
+    if (error) { setPaddleCheckMessage("The payment is still being verified. Check again shortly."); return; }
+    if (data?.status === "active") {
+      setPaddleStatus("success");
+      setPaddleCheckMessage("Payment confirmed and subscription activated.");
+    } else {
+      setPaddleCheckMessage("Payment confirmation has not reached Plivex yet. Do not pay again; check again shortly.");
+    }
+  };
+
+  const displayStatus = isPaddleFlow ? paddleStatus : status;
+  const isSuccess = displayStatus === "success";
+  const isFailed = displayStatus === "failed";
   const title = isSuccess ? "Payment successful!" : isFailed ? "Payment not completed" : "Payment is being verified";
-  const description = isSuccess
-    ? "Thank you! Your Plivex plan has been activated. You’re all set."
-    : isFailed
-      ? "We couldn’t confirm this payment. No plan has been activated from this attempt."
-      : "Your payment status is not final yet. Please check your Plivex account before trying again.";
+  const description = isPaddleFlow && !isSuccess
+    ? "Paddle Checkout has opened. After payment, Plivex activates the plan only when the signed Paddle webhook confirms the transaction. Do not make a second payment while confirmation is pending."
+    : isSuccess
+      ? "Thank you! Your Plivex plan has been activated. You’re all set."
+      : isFailed
+        ? "We couldn’t confirm this payment. No plan has been activated from this attempt."
+        : "Your payment status is not final yet. Please check your Plivex account before trying again.";
 
   const goNow = () => navigate(isFailed ? "/pricing" : nextPath, { replace: true });
 
@@ -72,19 +134,20 @@ export default function PaymentResult() {
         )}
 
         {isSuccess && <p className="mt-5 text-xs font-medium text-emerald-700">Your subscription status has been verified by Plivex.</p>}
+        {isPaddleFlow && paddleError && <p role="alert" className="mt-5 text-xs text-rose-700">{paddleError}</p>}
+        {isPaddleFlow && paddleCheckMessage && <p role="status" className="mt-5 text-xs text-slate-600">{paddleCheckMessage}</p>}
+        {isPaddleFlow && !paddleTransactionId && !isSuccess && <button type="button" onClick={refreshPaddleStatus} className="mt-4 rounded-lg border border-violet-200 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50">Refresh payment status</button>}
         {isFailed && <Link to="/pricing" className="mt-5 text-sm font-semibold text-violet-700 underline underline-offset-4">View plans and try again</Link>}
-        {status === "pending" && <p className="mt-5 text-xs text-amber-700">Please don’t make another payment until the status is clear.</p>}
+        {displayStatus === "pending" && <p className="mt-5 text-xs text-amber-700">Please don’t make another payment until the status is clear.</p>}
 
         <div className="mt-9 w-full">
           <button type="button" onClick={goNow} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#6D28D9] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-violet-200 transition hover:bg-[#5B21B6]">
             {isFailed ? "Return to Plivex" : "Continue to Plivex"} <ArrowRight className="h-4 w-4" />
           </button>
-          <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-400">
-            <Home className="h-3.5 w-3.5" /> Returning automatically in {seconds}s
-          </div>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-violet-100">
-            <div className="h-full rounded-full bg-violet-600 transition-[width] duration-300" style={{ width: `${((15 - seconds) / 15) * 100}%` }} />
-          </div>
+          {!isPaddleFlow && <>
+            <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-400"><Home className="h-3.5 w-3.5" /> Returning automatically in {seconds}s</div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-violet-100"><div className="h-full rounded-full bg-violet-600 transition-[width] duration-300" style={{ width: `${((15 - seconds) / 15) * 100}%` }} /></div>
+          </>}
         </div>
         <p className="mt-8 text-[11px] text-slate-400">Secure payment experience by Plivex</p>
       </section>

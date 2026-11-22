@@ -5,6 +5,8 @@ import { usePaywall } from "@/lib/paywall";
 import { Check, Sparkles, Crown, X } from "lucide-react";
 import { GLOBAL_BILLING, formatPlanPrice, resolveWorkspaceBillingContext } from "@/global/billing/pricing.js";
 import { getCountryByCode, getCountryFlag, COUNTRY_REGISTRY } from "@/global/countries/country-registry.js";
+import { startCashfreeCheckout } from "@/lib/cashfree";
+import { startPaddleCheckout } from "@/lib/paddle";
 
 const PLANS = [
   { id: "free", name: "Free", accent: false, badge: null, tagline: "For getting started with no card needed.", included: ["30 invoices / month", "20 clients and stock items", "PDF downloads with Made with Plivex footer", "Basic invoicing and expense tracking"], locked: ["WhatsApp sharing", "Team and lead pipeline", "GSTR-1 export and custom logo"] },
@@ -23,6 +25,8 @@ export default function PricingSection() {
     }
   }, [isAuthenticated, user?.country_code, user?.currency_code, countryTouched]);
   const [billing, setBilling] = useState("monthly");
+  const [checkoutBusy, setCheckoutBusy] = useState("");
+  const [checkoutError, setCheckoutError] = useState("");
   const activeCountryCode = isAuthenticated ? String(user?.country_code || "").trim().toUpperCase() : countryCode;
   const billingContext = resolveWorkspaceBillingContext(activeCountryCode, isAuthenticated ? user?.currency_code : "");
   const country = billingContext.ok ? billingContext.config : null;
@@ -34,7 +38,25 @@ export default function PricingSection() {
   const changeCountry = (value) => {
     setCountryTouched(true);
     setCountryCode(value);
+    setCheckoutError("");
     if (!GLOBAL_BILLING[value]?.yearly) setBilling("monthly");
+  };
+
+  const startPaidPlan = async (plan) => {
+    const planId = plan.id === "basic"
+      ? (billing === "yearly" ? "basic_yearly" : "basic_monthly")
+      : (billing === "yearly" ? "enterprise_yearly" : "pro_monthly");
+    setCheckoutBusy(planId);
+    setCheckoutError("");
+    try {
+      if (!GLOBAL_BILLING[activeCountryCode]?.paymentEnabled) throw new Error("Subscriptions are not enabled for this country yet.");
+      if (activeCountryCode === "IN") await startCashfreeCheckout({ planId });
+      else await startPaddleCheckout({ planId });
+    } catch (error) {
+      setCheckoutError(error?.message || "Checkout could not be started. Please retry.");
+    } finally {
+      setCheckoutBusy("");
+    }
   };
 
   return (
@@ -64,6 +86,8 @@ export default function PricingSection() {
           {PLANS.map((plan) => {
             const amountMinor = plan.id === "free" ? 0 : country[billing === "yearly" ? "yearly" : "monthly"]?.[plan.id];
             const price = amountMinor === 0 ? formatPlanPrice(0, currency, locale) : Number.isSafeInteger(amountMinor) ? formatPlanPrice(amountMinor, currency, locale) : "Not available";
+            const checkoutPlanId = plan.id === "basic" ? (billing === "yearly" ? "basic_yearly" : "basic_monthly") : (billing === "yearly" ? "enterprise_yearly" : "pro_monthly");
+            const actionClass = "mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[12px] font-bold transition-all hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6D28D9] " + (plan.accent ? "bg-[#6D28D9] text-white shadow-sm hover:bg-[#5B21B6]" : "border border-[#D8CCF5] bg-white text-[#6D28D9] hover:border-[#6D28D9] hover:bg-[#F8F5FF]");
             return (
               <div key={plan.id} className={`plivex-hover-lift relative flex min-w-0 flex-col rounded-2xl border p-4 shadow-[0_1px_2px_rgba(24,24,40,.03)] transition-all sm:p-5 ${plan.accent ? "border-[#6D28D9] bg-gradient-to-br from-[#F7F3FF] via-white to-[#F0EBFF] shadow-[0_8px_28px_rgba(109,40,217,.10)]" : "border-[#E8E7EF] bg-gradient-to-br from-white to-[#FAFAFC]"}`}>
                 {plan.badge && <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-[#6D28D9] px-3 py-0.5 font-mono-ui text-[9px] font-bold uppercase tracking-wider text-white">{plan.badge}</span>}
@@ -81,13 +105,18 @@ export default function PricingSection() {
                   {plan.included.map((feature) => <div key={feature} className="flex items-start gap-2 text-[11px] font-medium text-slate-700"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Check className="h-2.5 w-2.5" /></span>{feature}</div>)}
                   {plan.locked.map((feature) => <div key={feature} className="flex items-start gap-2 text-[11px] font-medium text-slate-400"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-500"><X className="h-2.5 w-2.5" /></span>{feature}</div>)}
                 </div>
-                <Link to="/register" className={`mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[12px] font-bold transition-all hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6D28D9] ${plan.accent ? "bg-[#6D28D9] text-white shadow-sm hover:bg-[#5B21B6]" : "border border-[#D8CCF5] bg-white text-[#6D28D9] hover:border-[#6D28D9] hover:bg-[#F8F5FF]"}`}>{plan.accent ? <Crown className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}Get {plan.name}</Link>
+                {plan.id === "free" || !isAuthenticated ? (
+                  <Link to={plan.id === "free" ? "/register" : "/register?plan=" + checkoutPlanId} className={actionClass}>{plan.accent ? <Crown className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}{plan.id === "free" ? "Get Free" : "Get " + plan.name}</Link>
+                ) : (
+                  <button type="button" onClick={() => startPaidPlan(plan)} disabled={Boolean(checkoutBusy) || !GLOBAL_BILLING[activeCountryCode]?.paymentEnabled} className={actionClass}>{!GLOBAL_BILLING[activeCountryCode]?.paymentEnabled ? "Coming soon" : checkoutBusy ? "Opening secure checkout…" : "Get " + plan.name}</button>
+                )}
               </div>
             );
           })}
         </div>
         <p className="mt-4 text-center text-[10px] text-slate-400">Prices shown in {currency}. Applicable taxes, if any, are shown before payment.</p>
-        <p role="status" className="mt-2 text-center text-xs text-slate-500">International checkout is being prepared. Plan selection and payment activation will be available after Plivex confirms its payment provider for your region.</p></>}
+        {checkoutError && <p role="alert" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">{checkoutError}</p>}
+        <p role="status" className="mt-2 text-center text-xs text-slate-500">India checkout uses Cashfree. International checkout uses Paddle with a country-specific price; plan access is activated only after the verified payment webhook.</p></>}
       </div>
     </section>
   );
