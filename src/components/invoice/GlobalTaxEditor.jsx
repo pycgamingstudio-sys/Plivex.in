@@ -25,7 +25,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
     ...(invoice.globalTax || {}),
     taxDetailsConfirmed: invoice.globalTax?.taxDetailsConfirmed === true,
   };
-  const selectedMode = countryCode === "US" ? "manual" : (config.mode || "automatic");
+  const selectedMode = serverResolved ? "automatic" : (countryCode === "US" ? "manual" : (config.mode || "automatic"));
   const update = (patch) => setInvoice((old) => ({
     ...old,
     globalTax: { ...config, mode: selectedMode, ...patch, countryCode },
@@ -47,7 +47,7 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
   const isUS = countryCode === "US";
   const isCA = countryCode === "CA";
   const currency = invoice.currency || workspaceProfile?.currencyCode || "";
-  const manual = selectedMode === "manual" && config.taxMode !== "no_tax";
+  const manual = !serverResolved && selectedMode === "manual" && config.taxMode !== "no_tax";
   const noTax = allowNoTax && config.taxMode === "no_tax";
 
   return (
@@ -81,12 +81,13 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <label className={labelClass}>Calculation method
+        {!serverResolved && <label className={labelClass}>Calculation method
           <select className={fieldClass} value={selectedMode} onChange={(e) => update({ mode: e.target.value })}>
             {!isUS && <option value="automatic">Automatic · source-backed country rate</option>}
             <option value="manual">Manual · user-entered rate</option>
           </select>
-        </label>
+        </label>}
+        {serverResolved && <p className="text-xs text-muted-foreground">Rule source: Supabase Workspace tax registry · resolved on save</p>}
         <label className={labelClass}>Price includes tax?
           <select className={fieldClass} value={config.priceMode || "exclusive"} onChange={(e) => update({ priceMode: e.target.value })}>
             <option value="exclusive">No · add tax to entered price</option>
@@ -146,8 +147,10 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
 
       {(isUS || isCA) && (
         <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">
-          <p className="font-bold">Jurisdiction-specific rates are not auto-filled.</p>
-          <p className="mt-1">US state/local rates still require exact address-level rules. Canadian provincial baseline rates are selected by province; product-specific PST exceptions and Quebec QST precision remain review-only. Manual rates are user-entered and unverified.</p>
+          <p className="font-bold">{serverResolved ? "Destination jurisdiction required." : "Jurisdiction-specific rates are not auto-filled."}</p>
+          <p className="mt-1">{serverResolved
+            ? (isUS ? "The Supabase baseline resolves the selected state only; local city, county and special-district taxes are not included." : "The Supabase baseline combines applicable provincial GST/HST/PST/QST rows. Product-specific exceptions may still apply.")
+            : "US state/local rates still require exact address-level rules. Canadian provincial baseline rates are selected by province; product-specific PST exceptions and Quebec QST precision remain review-only. Manual rates are user-entered and unverified."}</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {isUS ? <>
               <label className={labelClass}>Destination state code<input className={fieldClass} maxLength={8} value={config.destinationJurisdiction?.state || ""} onChange={(e) => updateJurisdiction("state", e.target.value.toUpperCase())} placeholder="e.g. CA" /></label>
