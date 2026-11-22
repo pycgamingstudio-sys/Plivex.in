@@ -13,7 +13,7 @@ Deno.test("Cashfree resolves only published India prices; international checkout
 
 Deno.test("Cashfree currency and billing-period restrictions fail closed", () => {
   const uae = resolvePlan("basic_monthly", "AE");
-  if (uae.available || uae.reason !== "cashfree_currency_unavailable") throw new Error("AED must remain blocked until provider currency is confirmed");
+  if (uae.available || uae.reason !== "use_paddle_for_international") throw new Error("UAE must use the international provider, not Cashfree");
   const globalYearly = resolvePlan("basic_yearly", "US");
   if (globalYearly.available) throw new Error("Global yearly billing must remain disabled until priced");
   const unknown = resolvePlan("basic_monthly", "ZZ");
@@ -23,8 +23,8 @@ Deno.test("Cashfree currency and billing-period restrictions fail closed", () =>
 Deno.test("published plan price is consistent across accounts in the same country", () => {
   const india = resolvePlan("basic_monthly", "IN");
   const usa = resolvePlan("basic_monthly", "US");
-  if (!india.available || india.amountMinor !== 19900 || !usa.available || usa.amountMinor !== 599)
-    throw new Error("Published country prices must be stable and account-independent");
+  if (!india.available || india.amountMinor !== 19900 || usa.available)
+    throw new Error("Cashfree must use the published India price and reject international checkout");
 });
 
 
