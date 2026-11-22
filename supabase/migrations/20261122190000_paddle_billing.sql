@@ -77,6 +77,15 @@ BEGIN
     SELECT 1 FROM public.payment_logs
     WHERE provider = 'paddle'
       AND provider_payment_id = p_provider_payment_id
+      AND subscription_id = p_subscription_id
+  ) THEN
+    RETURN jsonb_build_object('ok', true, 'already_applied', true);
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.payment_logs
+    WHERE provider = 'paddle'
+      AND provider_payment_id = p_provider_payment_id
       AND subscription_id IS DISTINCT FROM p_subscription_id
   ) THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'provider_payment_already_used');
