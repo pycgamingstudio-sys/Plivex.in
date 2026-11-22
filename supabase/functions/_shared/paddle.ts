@@ -3,7 +3,7 @@ export const PADDLE_BILLING: Record<string,{currency:string;paymentEnabled:boole
   GB:{currency:"GBP",paymentEnabled:true,monthly:{basic:499,pro:899}},
   AE:{currency:"AED",paymentEnabled:false,monthly:{basic:1900,pro:3500}},
   CA:{currency:"CAD",paymentEnabled:true,monthly:{basic:799,pro:1299}},
-  AU:{currency:"AUD",paymentEnabled:true,monthly:{basic:79900,pro:149900}},
+  AU:{currency:"AUD",paymentEnabled:true,monthly:{basic:799,pro:1499}},
   SG:{currency:"SGD",paymentEnabled:true,monthly:{basic:699,pro:1299}},
 };
 export const PADDLE_DEFAULT_LOCALE: Record<string,string> = { US:"en-US",GB:"en-GB",AE:"en-AE",CA:"en-CA",AU:"en-AU",SG:"en-SG" };
