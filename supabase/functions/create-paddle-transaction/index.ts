@@ -44,7 +44,7 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: authError } = await authClient.auth.getUser();
     if (authError || !user) return json({ error: "Session expired. Sign in again." }, 401, origin);
     const body = await req.json().catch(() => ({}));
-    const requestedPlanId = typeof body?.planId === "string" ? body.planId : "";
+    const requestedPlanId = typeof body?.planId === "string" ? planId : "";
     if (!isPlanId(requestedPlanId)) return json({ error: "Invalid plan." }, 400, origin);
     const planId = requestedPlanId;
 
@@ -74,7 +74,7 @@ Deno.serve(async (req: Request) => {
     const priceSecret = `PADDLE_PRICE_ID_${countryCode}_${planId.toUpperCase()}`;
     const priceId = Deno.env.get(priceSecret);
     if (!priceId || !/^pri_[a-z0-9]{20,30}$/i.test(priceId)) {
-      return json({ error: `Paddle price is not configured for ${countryCode} ${body.planId}. Add ${priceSecret} in Supabase Edge Function secrets.`, code: "PADDLE_PRICE_NOT_CONFIGURED" }, 503, origin);
+      return json({ error: `Paddle price is not configured for ${countryCode} ${planId}. Add ${priceSecret} in Supabase Edge Function secrets.`, code: "PADDLE_PRICE_NOT_CONFIGURED" }, 503, origin);
     }
     let paddle;
     try { paddle = paddleConfig(); } catch {
@@ -88,7 +88,7 @@ Deno.serve(async (req: Request) => {
     const localeCode = String(workspace?.locale_code || business?.locale_code || getCountryByCode(countryCode)?.locales?.[0] || "en");
     const { data: order, error: insertError } = await admin.from("subscriptions").insert({
       user_id: user.id, user_email: email, workspace_id: profile.workspace_id,
-      plan: body.planId, plan_id: planId, plan_name: plan.name, tier: plan.tier,
+      plan: planId, plan_id: planId, plan_name: plan.name, tier: plan.tier,
       status: "created", payment_status: "created",
       amount: Math.round(amountMinor / 100), amount_minor_units: amountMinor, amount_major: amountMinor / 100,
       currency, country_code: countryCode, locale_code: localeCode, billing_period: plan.period,
@@ -114,7 +114,7 @@ Deno.serve(async (req: Request) => {
             plivex_subscription_id: order.id,
             workspace_id: profile.workspace_id,
             user_id: user.id,
-            plan_id: body.planId,
+            plan_id: planId,
             country_code: countryCode,
             currency_code: currency,
           },
