@@ -189,6 +189,8 @@ Deno.serve(async (req: Request) => {
           invalid_lead: "Lead name is required and must be 200 characters or fewer.",
           invalid_warehouse: "Warehouse code and name are required.",
           invalid_sales_order: "Sales order details are invalid.",
+          invalid_sales_order_item: "A sales order line has invalid quantity, price or discount.",
+          invalid_delivery_challan_item: "A delivery challan line has an invalid quantity or description.",
           invalid_delivery_challan: "Delivery challan details are invalid.",
           invalid_credit_debit_note: "Credit/debit note details are invalid.",
           invalid_note_amount: "The note taxable value, tax and total do not match.",
