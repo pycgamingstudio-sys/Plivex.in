@@ -44,7 +44,9 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: authError } = await authClient.auth.getUser();
     if (authError || !user) return json({ error: "Session expired. Sign in again." }, 401, origin);
     const body = await req.json().catch(() => ({}));
-    if (!isPlanId(body?.planId)) return json({ error: "Invalid plan." }, 400, origin);
+    const requestedPlanId = typeof body?.planId === "string" ? body.planId : "";
+    if (!isPlanId(requestedPlanId)) return json({ error: "Invalid plan." }, 400, origin);
+    const planId = requestedPlanId;
 
     const { data: profile, error: profileError } = await authClient.from("profiles")
       .select("email,full_name,workspace_id,role").eq("id", user.id).maybeSingle();
@@ -65,11 +67,11 @@ Deno.serve(async (req: Request) => {
     if (!billing) return json({ error: "This workspace country has no billing configuration." }, 409, origin);
     const currency = billing.currency;
     if (workspace?.currency_code && workspace.currency_code !== currency) return json({ error: "Workspace currency does not match its selected country." }, 409, origin);
-    const plan = PLANS[body.planId];
+    const plan = PLANS[planId];
     const amountMinor = plan.period === "year" ? billing.yearly?.[plan.tier] : billing.monthly?.[plan.tier];
     if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) return json({ error: "This plan is not available for the selected workspace country." }, 409, origin);
 
-    const priceSecret = `PADDLE_PRICE_ID_${countryCode}_${body.planId.toUpperCase()}`;
+    const priceSecret = `PADDLE_PRICE_ID_${countryCode}_${planId.toUpperCase()}`;
     const priceId = Deno.env.get(priceSecret);
     if (!priceId || !/^pri_[a-z0-9]{20,30}$/i.test(priceId)) {
       return json({ error: `Paddle price is not configured for ${countryCode} ${body.planId}. Add ${priceSecret} in Supabase Edge Function secrets.`, code: "PADDLE_PRICE_NOT_CONFIGURED" }, 503, origin);
@@ -86,7 +88,7 @@ Deno.serve(async (req: Request) => {
     const localeCode = String(workspace?.locale_code || business?.locale_code || getCountryByCode(countryCode)?.locales?.[0] || "en");
     const { data: order, error: insertError } = await admin.from("subscriptions").insert({
       user_id: user.id, user_email: email, workspace_id: profile.workspace_id,
-      plan: body.planId, plan_id: body.planId, plan_name: plan.name, tier: plan.tier,
+      plan: body.planId, plan_id: planId, plan_name: plan.name, tier: plan.tier,
       status: "created", payment_status: "created",
       amount: Math.round(amountMinor / 100), amount_minor_units: amountMinor, amount_major: amountMinor / 100,
       currency, country_code: countryCode, locale_code: localeCode, billing_period: plan.period,
@@ -133,7 +135,7 @@ Deno.serve(async (req: Request) => {
       if (updateError) throw new Error("Could not save the Paddle transaction reference.");
       return json({
         ok: true, checkoutUrl, transactionId: transaction.id, environment: paddle.environment,
-        currency, amountMinor, countryCode, planId: body.planId,
+        currency, amountMinor, countryCode, planId,
       }, 200, origin);
     } catch (error) {
       await admin.from("subscriptions").update({ status: "failed", payment_status: "failed", provider_payment_status: "failed", updated_at: new Date().toISOString() }).eq("id", order.id).eq("status", "created");
