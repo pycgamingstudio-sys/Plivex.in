@@ -1,4 +1,5 @@
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent";
+const GEMINI_URL_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+export const DEFAULT_GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash-lite"];
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -192,7 +193,11 @@ export async function generateWithFallback({
   const body = JSON.parse(requestOptions.body);
   const deadline = Date.now() + totalTimeoutMs;
   const attempts = [];
-  if (geminiKey) attempts.push({ provider: "gemini", model: "gemini-3.8-flash" });
+  if (geminiKey) {
+    for (const [index, model] of DEFAULT_GEMINI_MODELS.entries()) {
+      attempts.push({ provider: "gemini", model, timeoutMs: index === 0 ? 6000 : 4500 });
+    }
+  }
   // Groq's current GPT-OSS endpoints are metered. Keep them off unless the
   // project owner explicitly enables Groq usage after reviewing account billing.
   if (groqKey && enableGroq) {
@@ -203,6 +208,7 @@ export async function generateWithFallback({
   }
   let lastStatus = 503;
   let retryAfterSeconds = null;
+  const providerFailures = [];
   for (const attempt of attempts) {
     if (Date.now() >= deadline) break;
     try {
@@ -215,13 +221,14 @@ export async function generateWithFallback({
         if (remaining <= 0) break;
         let response;
         try {
-          response = await fetchImpl(GEMINI_URL, {
+          response = await fetchImpl(`${GEMINI_URL_BASE}/${attempt.model}:generateContent`, {
             ...requestOptions,
             headers: { ...requestOptions.headers, "x-goog-api-key": geminiKey },
-            signal: AbortSignal.timeout(Math.min(8000, remaining)),
+            signal: AbortSignal.timeout(Math.min(attempt.timeoutMs, remaining)),
           });
         } catch (error) {
           lastStatus = error?.name === "TimeoutError" || error?.name === "AbortError" ? 504 : 503;
+          providerFailures.push({ provider: "gemini", model: attempt.model, status: lastStatus, reason: String(error?.message || "network_error").slice(0, 160) });
           console.warn("Nova Gemini request failed; switching provider", {
             provider: "gemini", model: attempt.model, status: lastStatus,
             reason: error?.message || "network_error",
@@ -229,29 +236,14 @@ export async function generateWithFallback({
           continue;
         }
         retryAfterSeconds = parseRetryAfterSeconds(response.headers) ?? retryAfterSeconds;
-        if (!response.ok && [500, 502, 503].includes(response.status) && deadline - Date.now() > 1500) {
-          lastStatus = response.status;
-          await new Promise((resolve) => setTimeout(resolve, 250 + Math.floor(Math.random() * 200)));
-          try {
-            response = await fetchImpl(GEMINI_URL, {
-              ...requestOptions,
-              headers: { ...requestOptions.headers, "x-goog-api-key": geminiKey },
-              signal: AbortSignal.timeout(Math.min(6000, Math.max(1000, deadline - Date.now()))),
-            });
-          } catch (error) {
-            lastStatus = error?.name === "TimeoutError" || error?.name === "AbortError" ? 504 : 503;
-            console.warn("Nova Gemini retry failed; switching provider", {
-              provider: "gemini", model: attempt.model, status: lastStatus,
-              reason: error?.message || "network_error",
-            });
-            continue;
-          }
-          retryAfterSeconds = parseRetryAfterSeconds(response.headers) ?? retryAfterSeconds;
-        }
         if (!response.ok) {
+          const errorPayload = await response.json().catch(() => ({}));
+          const providerError = errorPayload?.error || {};
+          const detail = String(providerError.message || providerError.status || "upstream_error").slice(0, 180);
           lastStatus = response.status;
+          providerFailures.push({ provider: "gemini", model: attempt.model, status: response.status, reason: detail });
           console.warn("Nova provider unavailable; switching provider", {
-            provider: "gemini", model: attempt.model, status: response.status, retryAfterSeconds,
+            provider: "gemini", model: attempt.model, status: response.status, retryAfterSeconds, reason: detail,
           });
           continue;
         }
@@ -264,6 +256,7 @@ export async function generateWithFallback({
     } catch (error) {
       lastStatus = Number(error?.status) || (error?.name === "TimeoutError" || error?.name === "AbortError" ? 504 : 503);
       retryAfterSeconds = Number.isFinite(error?.retryAfterSeconds) ? error.retryAfterSeconds : retryAfterSeconds;
+      providerFailures.push({ provider: attempt.provider, model: attempt.model, status: lastStatus, reason: String(error?.message || "network_error").slice(0, 160) });
       console.warn("Nova provider attempt failed", {
         provider: attempt.provider,
         model: attempt.model,
@@ -277,9 +270,13 @@ export async function generateWithFallback({
       if (attempt.provider === "openrouter" && lastStatus === 429) break;
     }
   }
+  const allProvidersRateLimited = providerFailures.length > 0 && providerFailures.every((failure) => failure.status === 429);
+  const hadTimeout = providerFailures.some((failure) => failure.status === 504);
   return {
     ok: false,
-    status: lastStatus === 429 ? 429 : lastStatus === 504 ? 504 : 503,
+    status: allProvidersRateLimited ? 429 : hadTimeout ? 503 : lastStatus === 504 ? 504 : 503,
+    failureCode: allProvidersRateLimited ? "ALL_PROVIDERS_RATE_LIMITED" : hadTimeout ? "MIXED_PROVIDER_FAILURES" : "PROVIDERS_UNAVAILABLE",
+    providerFailures,
     retryAfterSeconds,
   };
 }
