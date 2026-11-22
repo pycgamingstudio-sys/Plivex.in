@@ -108,6 +108,15 @@ function fuzzyMatch(a, b) {
   const shorter = left.length < right.length ? left : right;
   const longer = left.length < right.length ? right : left;
   if (!shorter.length || !longer.length) return 0;
+  // A full saved payee/client name appearing inside bank narration is a strong
+  // signal even when the narration adds words such as "monthly" or "payment".
+  if (shorter.length >= 4 && longer.includes(shorter)) return 90;
+  const leftTokens = new Set(String(a).toLowerCase().split(/[^a-z0-9]+/).filter((token) => token.length >= 2));
+  const rightTokens = new Set(String(b).toLowerCase().split(/[^a-z0-9]+/).filter((token) => token.length >= 2));
+  const overlap = [...leftTokens].filter((token) => rightTokens.has(token)).length;
+  const tokenScore = leftTokens.size && rightTokens.size
+    ? Math.round((overlap / Math.max(leftTokens.size, rightTokens.size)) * 100) : 0;
+  if (tokenScore >= 80) return tokenScore;
   let matches = 0;
   for (const char of new Set(shorter)) if (longer.includes(char)) matches += 1;
   return Math.round((matches / new Set(longer).size) * 100);
