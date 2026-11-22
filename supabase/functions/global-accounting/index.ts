@@ -182,6 +182,28 @@ Deno.serve(async (req: Request) => {
       if(error){console.error("Global purchase list failed",{code:error.code});return globalJson({error:"Purchase bills are temporarily unavailable."},503,origin);}
       return globalJson(data,200,origin);
     }
+    if (action==="save_gst_filing_calendar") {
+      const period=String(body.period||"");
+      const returnType=String(body.return_type||"");
+      const dueDate=String(body.due_date||"");
+      if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(period)||!["GSTR1","GSTR3B"].includes(returnType)
+        ||!/^\\d{4}-\\d{2}-\\d{2}$/.test(dueDate)||!["planned","filed"].includes(String(body.status||"planned"))
+        ||String(body.filing_reference||"").length>120||String(body.notes||"").length>500) {
+        return globalJson({error:"Return type, period, confirmed due date and status are required."},400,origin);
+      }
+      const {data,error}=await userClient.rpc("global_save_gst_filing_calendar",{p_user_id:auth.user.id,p_workspace_id:workspaceId,
+        p_return_type:returnType,p_return_period:period,p_due_date:dueDate,p_status:body.status||"planned",
+        p_filing_reference:body.filing_reference||null,p_notes:body.notes||null});
+      if(error){console.error("GST calendar save failed",{code:error.code});return globalJson({error:"GST filing calendar could not be saved."},400,origin);}
+      return globalJson(data,200,origin);
+    }
+    if (action==="list_gst_filing_calendar") {
+      const limit=Number(body.limit||100);
+      if(!Number.isInteger(limit)||limit<1||limit>200)return globalJson({error:"GST calendar limit must be between 1 and 200."},400,origin);
+      const {data,error}=await userClient.rpc("global_list_gst_filing_calendar",{p_user_id:auth.user.id,p_workspace_id:workspaceId,p_limit:limit});
+      if(error){console.error("GST calendar list failed",{code:error.code});return globalJson({error:"GST filing calendar is temporarily unavailable."},503,origin);}
+      return globalJson(data,200,origin);
+    }
     const purchaseMutation=purchaseMutations[String(action||"")];
     if(purchaseMutation){
       const {data,error}=await auth.admin.rpc(purchaseMutation.rpc,purchaseMutation.args);
