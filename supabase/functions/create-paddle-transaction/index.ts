@@ -1,7 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { getBillingForCountry } from "../../../src/global/billing/pricing.js";
-import { getCountryByCode } from "../../../src/global/countries/country-registry.js";
-import { paddleApi, paddleConfig } from "../_shared/paddle.ts";
+import { PADDLE_BILLING, PADDLE_DEFAULT_LOCALE, paddleApi, paddleConfig } from "../_shared/paddle.ts";
 
 const PLANS = {
   basic_monthly: { name: "Basic Monthly", tier: "basic", period: "month" },
@@ -63,12 +61,13 @@ Deno.serve(async (req: Request) => {
     if (!["US", "GB", "AE", "CA", "AU", "SG"].includes(countryCode)) {
       return json({ error: "International Paddle checkout is only available for non-India workspaces. India uses Cashfree." }, 409, origin);
     }
-    const billing = getBillingForCountry(countryCode);
+    const billing = PADDLE_BILLING[countryCode];
     if (!billing) return json({ error: "This workspace country has no billing configuration." }, 409, origin);
+    if (!billing.paymentEnabled) return json({ error: "Subscriptions are not enabled for this workspace country yet." }, 409, origin);
     const currency = billing.currency;
     if (workspace?.currency_code && workspace.currency_code !== currency) return json({ error: "Workspace currency does not match its selected country." }, 409, origin);
     const plan = PLANS[planId];
-    const amountMinor = plan.period === "year" ? billing.yearly?.[plan.tier] : billing.monthly?.[plan.tier];
+    const amountMinor = plan.period === "year" ? undefined : billing.monthly?.[plan.tier];
     if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) return json({ error: "This plan is not available for the selected workspace country." }, 409, origin);
 
     const priceSecret = `PADDLE_PRICE_ID_${countryCode}_${planId.toUpperCase()}`;
@@ -85,7 +84,7 @@ Deno.serve(async (req: Request) => {
     const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
     const email = String(profile.email || user.email || "").trim().toLowerCase();
     if (!email) return json({ error: "Account email is missing." }, 400, origin);
-    const localeCode = String(workspace?.locale_code || business?.locale_code || getCountryByCode(countryCode)?.locales?.[0] || "en");
+    const localeCode = String(workspace?.locale_code || business?.locale_code || PADDLE_DEFAULT_LOCALE[countryCode] || "en");
     const { data: order, error: insertError } = await admin.from("subscriptions").insert({
       user_id: user.id, user_email: email, workspace_id: profile.workspace_id,
       plan: planId, plan_id: planId, plan_name: plan.name, tier: plan.tier,
