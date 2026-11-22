@@ -155,12 +155,12 @@ test("Global products support barcode variants and invoice issuance consumes def
 
 
 test("Global purchasing can look up saved suppliers by GSTIN within the active workspace", () => {
-  assert.match(supplierLookupMigration, /global\\.suppliers/);
+  assert.match(supplierLookupMigration, /global\.suppliers/);
   assert.match(supplierLookupMigration, /user_id=p_user_id/);
   assert.match(supplierLookupMigration, /p_workspace_id/);
   assert.match(supplierLookupMigration, /tax_registration_number/);
   assert.match(endpoint, /"suppliers"/);
   assert.match(globalUi, /Find saved supplier by GSTIN/);
-  assert.match(globalUi, /findSavedGstinRecords\\(data\\.suppliers/);
+  assert.match(globalUi, /findSavedGstinRecords\(data\.suppliers/);
   assert.match(globalUi, /local workspace lookup only/);
 });
