@@ -47,7 +47,10 @@ export function buildCashflowForecast({invoices=[],expenses=[],currency="INR",as
   const validInvoices=(Array.isArray(invoices)?invoices:[]).filter(x=>String(x.currency||"").toUpperCase()===currency&&!["draft","cancelled","canceled","void"].includes(String(x.status||"").toLowerCase()));
   for(const invoice of validInvoices){
     if(isPaid(invoice))continue;
-    const balance=Math.max(0,amountOf(invoice.total)-amountOf(invoice.amountPaid??invoice.amount_paid));
+    const total=amountOf(invoice.total);
+    const recordedPaid=amountOf(invoice.amountPaid??invoice.amount_paid);
+    const paidAmount=Math.min(total,Math.max(0,recordedPaid||(isPaid(invoice)?total:0)));
+    const balance=Math.max(0,total-paidAmount);
     if(!balance)continue;
     const due=dateOf(invoice.dueDate||invoice.due_date);
     if(!validMonth(monthOf(due))||due.length!==10)continue;
