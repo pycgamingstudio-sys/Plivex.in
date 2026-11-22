@@ -50,7 +50,7 @@ Deno.serve(async (req: Request) => {
       .select("email,full_name,workspace_id,role").eq("id", user.id).maybeSingle();
     if (profileError) return json({ error: "Could not load profile." }, 500, origin);
     if (!profile?.workspace_id) return json({ error: "Your account is not linked to a workspace yet." }, 409, origin);
-    if (profile.role !== "admin") return json({ error: "Only the workspace admin can purchase or change a subscription." }, 403, origin);
+    if (!["admin","owner"].includes(String(profile.role || "").toLowerCase())) return json({ error: "Only the workspace owner or admin can purchase or change a subscription." }, 403, origin);
 
     const [{ data: business }, { data: workspace }] = await Promise.all([
       authClient.from("business_profile").select("country_code,locale_code").eq("workspace_id", profile.workspace_id).maybeSingle(),
