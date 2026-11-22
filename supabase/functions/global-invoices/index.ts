@@ -43,6 +43,64 @@ Deno.serve(async (req: Request) => {
       return globalJson({ error: "A valid Global workspace_id is required." }, 400, origin);
     }
 
+    if (body.action === "save_india_compliance") {
+      if (typeof body.invoice_id !== "string" || !UUID.test(body.invoice_id) || !isObject(body.compliance)) {
+        return globalJson({ error: "Invoice compliance details are invalid." }, 400, origin);
+      }
+      const source = body.compliance;
+      const stringFields: Record<string, number> = {
+        irn:64, ack_number:20, ack_date:10, eway_bill_number:20, eway_bill_date:10,
+        eway_bill_valid_until:10, transport_mode:20, vehicle_number:20, transporter_id:15, transporter_name:120,
+      };
+      const compliance: Record<string, unknown> = {};
+      for (const [key, limit] of Object.entries(stringFields)) {
+        const value = source[key];
+        if (value !== undefined && value !== null && typeof value !== "string") {
+          return globalJson({ error: `Invalid ${key} value.` }, 400, origin);
+        }
+        const normalized = typeof value === "string" ? value.trim().slice(0, limit) : "";
+        compliance[key] = normalized || null;
+      }
+      if (compliance.irn && !/^[A-F0-9]{64}$/i.test(String(compliance.irn))) return globalJson({ error: "IRN must be 64 hexadecimal characters." }, 400, origin);
+      if (compliance.ack_number && !/^\d{15}$/.test(String(compliance.ack_number))) return globalJson({ error: "Acknowledgement number must contain 15 digits." }, 400, origin);
+      if (compliance.ack_date && !validDate(compliance.ack_date)) return globalJson({ error: "Acknowledgement date is invalid." }, 400, origin);
+      if (compliance.eway_bill_number && !/^\d{12}$/.test(String(compliance.eway_bill_number))) return globalJson({ error: "E-Way Bill number must contain 12 digits." }, 400, origin);
+      if (compliance.eway_bill_date && !validDate(compliance.eway_bill_date)) return globalJson({ error: "E-Way Bill date is invalid." }, 400, origin);
+      if (compliance.eway_bill_valid_until && !validDate(compliance.eway_bill_valid_until)) return globalJson({ error: "E-Way Bill validity date is invalid." }, 400, origin);
+      if (compliance.transport_mode && !["road","rail","air","ship"].includes(String(compliance.transport_mode).toLowerCase())) return globalJson({ error: "Transport mode is invalid." }, 400, origin);
+      if (compliance.vehicle_number && !/^[A-Z0-9 -]{4,20}$/i.test(String(compliance.vehicle_number))) return globalJson({ error: "Vehicle number is invalid." }, 400, origin);
+      if (compliance.transporter_id && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/i.test(String(compliance.transporter_id))) return globalJson({ error: "Transporter ID must match the 15-character GSTIN format." }, 400, origin);
+      if (source.distance_km !== undefined && source.distance_km !== null && source.distance_km !== "") {
+        const distance = Number(source.distance_km);
+        if (!Number.isSafeInteger(distance) || distance < 1 || distance > 4000) return globalJson({ error: "Distance must be a whole number between 1 and 4,000 km." }, 400, origin);
+        compliance.distance_km = distance;
+      } else compliance.distance_km = null;
+
+      const { data, error } = await auth.admin.rpc("global_save_invoice_india_compliance", {
+        p_user_id: auth.user.id,
+        p_workspace_id: workspaceId,
+        p_invoice_id: body.invoice_id,
+        p_compliance: compliance,
+      });
+      if (error) {
+        console.error("India invoice compliance save failed", { code: error.code });
+        return globalJson({ error: "Manual IRN / E-Way Bill reference storage is not ready yet." }, 503, origin);
+      }
+      if (!data?.ok) {
+        const messages: Record<string,string> = {
+          access_denied:"Your workspace role cannot edit invoice compliance references.",
+          wrong_country:"Manual IRN and E-Way Bill references are available only for India workspaces.",
+          invoice_not_found:"Invoice not found.",
+          invoice_not_issued:"Issue the invoice before adding IRN or E-Way Bill references.",
+          invalid_irn:"IRN format is invalid.",
+          invalid_ack_number:"Acknowledgement number format is invalid.",
+          invalid_eway_bill_number:"E-Way Bill number format is invalid.",
+        };
+        return globalJson({ error:messages[String(data?.reason)] || "Could not save invoice compliance references.", reason:data?.reason }, 409, origin);
+      }
+      return globalJson(data, 200, origin);
+    }
+
     if (body.action === "create_draft" || body.action === "create_final_commercial" || body.action === "create_final_tax") {
       if (body.client_id !== null && body.client_id !== undefined && (typeof body.client_id !== "string" || !UUID.test(body.client_id))) {
         return globalJson({ error: "Choose a valid client." }, 400, origin);
