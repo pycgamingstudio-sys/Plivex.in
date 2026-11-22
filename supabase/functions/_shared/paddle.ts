@@ -1,3 +1,13 @@
+export const PADDLE_BILLING: Record<string,{currency:string;paymentEnabled:boolean;monthly:{basic:number;pro:number}}> = {
+  US:{currency:"USD",paymentEnabled:true,monthly:{basic:599,pro:999}},
+  GB:{currency:"GBP",paymentEnabled:true,monthly:{basic:499,pro:899}},
+  AE:{currency:"AED",paymentEnabled:false,monthly:{basic:1900,pro:3500}},
+  CA:{currency:"CAD",paymentEnabled:true,monthly:{basic:799,pro:1299}},
+  AU:{currency:"AUD",paymentEnabled:true,monthly:{basic:79900,pro:149900}},
+  SG:{currency:"SGD",paymentEnabled:true,monthly:{basic:699,pro:1299}},
+};
+export const PADDLE_DEFAULT_LOCALE: Record<string,string> = { US:"en-US",GB:"en-GB",AE:"en-AE",CA:"en-CA",AU:"en-AU",SG:"en-SG" };
+
 export const paddleConfig = () => {
   const apiKey = Deno.env.get("PADDLE_API_KEY");
   const environment = Deno.env.get("PADDLE_ENV") === "production" ? "production" : "sandbox";
