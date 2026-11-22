@@ -1,3 +1,4 @@
+// Bundled copy for the save-invoice Edge Function. Keep in sync with ../tax/tax-rule-registry.js
 /**
  * Versioned, source-controlled tax rule catalogue for Plivex Global.
  *
@@ -561,4 +562,77 @@ export function resolveTaxRuleSnapshot(rules, { countryCode, jurisdictionId = nu
   if (candidates.length === 0) return { ok: false, code: "NO_EFFECTIVE_VERIFIED_RULE" };
   if (candidates.length !== 1) return { ok: false, code: "AMBIGUOUS_EFFECTIVE_RULE" };
   return { ok: true, rule: candidates[0] };
+}
+
+
+/**
+ * Convert a row from global.tax_rule_versions into the immutable rule shape
+ * consumed by the tax engine. This function performs no rate inference.
+ */
+export function normalizeSupabaseTaxRuleRow(row) {
+  if (!row || typeof row !== "object" || Array.isArray(row)) return null;
+  const countryCode = normalizeTaxCountryCode(row.country_code);
+  const currencyCode = typeof row.currency_code === "string" ? row.currency_code.toUpperCase() : "";
+  if (!countryCode || SNAPSHOT_COUNTRY_CURRENCY[countryCode] !== currencyCode
+    || !validDate(row.effective_from) || (row.effective_to && !validDate(row.effective_to))
+    || !Array.isArray(row.components) || !row.components.length) return null;
+  const components = row.components.map((component) => ({
+    id: String(component?.id || ""),
+    name: String(component?.name || component?.id || ""),
+    rateBps: Number(component?.rateBps),
+    source: String(component?.source || row.source_url || ""),
+  }));
+  if (components.some((component) => !component.id || !Number.isInteger(component.rateBps)
+    || component.rateBps < 0 || component.rateBps > 10000)) return null;
+  return {
+    id: String(row.tax_code), version: String(row.version), countryCode, currencyCode,
+    jurisdictionId: String(row.jurisdiction_id || ""),
+    treatment: String(row.treatment || "standard"),
+    effectiveFrom: row.effective_from, effectiveTo: row.effective_to || null,
+    reviewedOn: row.reviewed_on || null, reviewedBy: row.reviewed_by || null,
+    source: String(row.source_url || ""), status: String(row.status || "draft"),
+    verified: row.status === "verified", components,
+  };
+}
+
+/**
+ * Async database resolver for trusted server callers. Draft fallback is
+ * opt-in and always returned as draft_test; production callers default closed.
+ */
+export async function resolveSupabaseTaxRuleAsync(supabase, {
+  countryCode, jurisdictionId, invoiceDate, treatment = "standard", taxCode = null,
+  allowDraft = false,
+} = {}) {
+  const country = normalizeTaxCountryCode(countryCode);
+  if (!country || !validDate(invoiceDate)) return { ok: false, code: "INVALID_RESOLUTION_INPUT" };
+  const jurisdiction = String(jurisdictionId || (country === "US" || country === "CA" ? "" : country)).toUpperCase();
+  if ((country === "US" || country === "CA") && !jurisdiction) return { ok: false, code: "JURISDICTION_REQUIRED" };
+  const statuses = allowDraft ? ["verified", "draft"] : ["verified"];
+  const { data, error } = await supabase.schema("global").from("tax_rule_versions")
+    .select("country_code,jurisdiction_id,currency_code,tax_code,version,treatment,effective_from,effective_to,reviewed_on,reviewed_by,source_url,components,status")
+    .eq("country_code", country).eq("jurisdiction_id", jurisdiction).eq("treatment", treatment)
+    .in("status", statuses).lte("effective_from", invoiceDate)
+    .or("effective_to.is.null,effective_to.gte." + invoiceDate).order("effective_from", { ascending: false });
+  if (error) return { ok: false, code: "TAX_RULE_LOOKUP_FAILED" };
+  let rows = (data || []).filter((row) => row.currency_code === SNAPSHOT_COUNTRY_CURRENCY[country]
+    && !(country === "CA" && row.tax_code === "GST_FED_BASE"));
+  if (taxCode) rows = rows.filter((row) => row.tax_code === taxCode);
+  const verified = rows.filter((row) => row.status === "verified");
+  const selected = verified.length ? verified : allowDraft ? rows.filter((row) => row.status === "draft") : [];
+  if (!selected.length) return { ok: false, code: "NO_EFFECTIVE_TAX_RULE" };
+  const latestByCode = new Map();
+  for (const row of selected) {
+    const previous = latestByCode.get(row.tax_code);
+    if (!previous || row.effective_from > previous.effective_from) latestByCode.set(row.tax_code, row);
+  }
+  const sameDate = [...latestByCode.values()];
+  if (country !== "CA" && sameDate.length !== 1) return { ok: false, code: "AMBIGUOUS_TAX_RULE" };
+  const normalized = sameDate.map(normalizeSupabaseTaxRuleRow);
+  if (normalized.some((rule) => !rule)) return { ok: false, code: "INVALID_TAX_COMPONENTS" };
+  const rule = {
+    ...normalized[0],
+    id: normalized.map((item) => item.id).join("+"),
+    components: normalized.flatMap((item) => item.components),
+  };
+  return { ok: true, mode: normalized[0].verified ? "verified" : "draft_test", rule };
 }
