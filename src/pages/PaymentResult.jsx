@@ -57,15 +57,15 @@ export default function PaymentResult() {
       try {
         const paddleEnvironment = import.meta.env.VITE_PADDLE_ENV || "sandbox";
         if (paddleEnvironment === "sandbox") window.Paddle.Environment.set("sandbox");
+        const successUrl = window.location.origin + "/payment-result?provider=paddle&payment=pending&txnid=" + encodeURIComponent(paddleTransactionId);
+        paddleOpened.current = true;
         window.Paddle.Initialize({
           token,
+          checkout:{ settings:{ successUrl, displayMode:"overlay", theme:"light" } },
           eventCallback: (event) => {
             if (event?.name === "checkout.completed") setPaddleCheckMessage("Payment submitted. Plivex is waiting for the signed payment confirmation.");
           },
         });
-        paddleOpened.current = true;
-        const successUrl = window.location.origin + "/payment-result?provider=paddle&payment=pending&txnid=" + encodeURIComponent(paddleTransactionId);
-        window.Paddle.Checkout.open({ transactionId:paddleTransactionId, settings:{ successUrl } });
       } catch (error) {
         setPaddleError(error?.message || "Paddle Checkout could not be opened.");
       }
