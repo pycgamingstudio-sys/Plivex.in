@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { parseGstr2bCsv, reconcileGstr2bRows } from "../tax/gstr2b-reconciliation.js";
 const sample='GSTIN of supplier,Trade/Legal name,Invoice number,Invoice Date,Invoice Value,Taxable Value,Integrated Tax,Central Tax,State/UT Tax,Cess,ITC Available,Reason\n09AAACB1234C1Z5,"Acme, Supplies",AC-101,2026-10-05,1180,1000,0,90,90,0,Yes,\n';
 const bill={id:"bill-1",status:"posted",supplier_tax_id:"09AAACB1234C1Z5",supplier_invoice_number:"AC-101",supplier_name:"Acme Supplies",subtotal_minor:100000,tax_minor:18000,tax_recoverable_minor:18000,total_minor:118000};
@@ -13,4 +14,18 @@ test("GSTR-2B parser rejects missing columns and invalid GSTIN rows",()=>{assert
 test("GSTR-2B date parser accepts common Indian portal date formats", () => {
   const rows = parseGstr2bCsv(sample.replace("2026-10-05", "05-Oct-2026"));
   assert.equal(rows[0].invoiceDate, "2026-10-05");
+});
+
+
+test("GSTR-2B persistence and filing calendar enforce workspace membership and India country", async () => {
+  const migration = await readFile(new URL("../../../supabase/migrations/20261122202000_global_gstr2b_import_itc_reconciliation.sql", import.meta.url), "utf8");
+  const edge = await readFile(new URL("../../../supabase/functions/global-accounting/index.ts", import.meta.url), "utf8");
+  assert.match(migration, /alter table global\.gstr2b_import_rows enable row level security/);
+  assert.match(migration, /global\.is_workspace_member\(workspace_id\)/);
+  assert.match(migration, /GSTR-2B is available only for India workspaces/);
+  assert.match(migration, /global_save_gst_filing_calendar/);
+  assert.match(migration, /GST filing calendar is available only for India workspaces/);
+  assert.match(edge, /global_import_gstr2b_rows/);
+  assert.match(edge, /global_list_gstr2b_rows/);
+  assert.match(edge, /global_save_gst_filing_calendar/);
 });
