@@ -186,7 +186,7 @@ export default function GlobalApp({ section = "overview" }) {
         ) : tab === "quotations" ? (
           <GlobalQuotationsPanel account={account} />
         ) : tab === "accounting" ? (
-          <GlobalAccountingPanel account={account} />
+          <GlobalAccountingPanel account={account} invoke={invoke} />
         ) : tab === "enterprise" ? (
           <GlobalEnterprisePanel workspaceId={account.workspace_id} />
         ) : ["crm", "inventory"].includes(tab) ? (
