@@ -33,6 +33,7 @@ test("Paddle frontend opens only a server-created HTTPS checkout URL", async () 
   assert.match(client, /create-paddle-transaction/);
   assert.match(client, /checkoutUrl\.startsWith\("https:\/\/"\)/);
   assert.match(client, /window\.location\.assign/);
+  assert.match(client, /VITE_PADDLE_ENV/);
   assert.match(resultPage, /VITE_PADDLE_CLIENT_TOKEN/);
   assert.match(resultPage, /Paddle\.Initialize/);
   assert.match(resultPage, /checkout:\{ settings:\{ successUrl/);
