@@ -33,6 +33,7 @@ export async function sendEmail(input: { to: string; subject: string; html: stri
       if (response.ok) return { sent: true as const, provider: "brevo" as const };
       const body = await response.text();
       console.error("Brevo rejected email", { status: response.status, body: body.slice(0, 300) });
+      if (!resendKey) return { sent: false, reason: "provider_error" as const, provider: "brevo" as const };
       // A definitive non-2xx response means Brevo rejected the request; try
       // Resend if configured. Do not retry on network exceptions because the
       // delivery outcome could be unknown and a second provider may duplicate it.
