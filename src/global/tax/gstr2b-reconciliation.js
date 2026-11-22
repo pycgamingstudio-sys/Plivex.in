@@ -84,7 +84,7 @@ export function reconcileGstr2bRows(rows,purchaseBills) {
     };
     if(row.duplicate) return {...row,reconciliationStatus:"DUPLICATE",matchReason:"Duplicate invoice row in imported GSTR-2B file."};
     if(row.itcAvailable===false) return {...row,reconciliationStatus:"ITC_NOT_AVAILABLE",matchReason:row.reason||"ITC is marked unavailable in GSTR-2B."};
-    const matches=bills.filter((bill)=>String(bill.supplier_tax_id||bill.supplier_gstin||"").toUpperCase()===row.supplierGstin&&normInvoice(bill.supplier_invoice_number)===normInvoice(row.invoiceNumber));
+    const matches=bills.filter((bill)=>["posted","partially_paid","paid"].includes(String(bill.status||"").toLowerCase())&&String(bill.supplier_tax_id||bill.supplier_gstin||"").toUpperCase()===row.supplierGstin&&normInvoice(bill.supplier_invoice_number)===normInvoice(row.invoiceNumber));
     if(!matches.length) return {...row,reconciliationStatus:"NOT_IN_BOOKS",matchReason:"No saved purchase bill with the same supplier GSTIN and invoice number."};
     if(matches.length>1) return {...row,reconciliationStatus:"REVIEW_REQUIRED",candidateCount:matches.length,matchReason:"Multiple purchase bills match this supplier invoice."};
     const bill=matches[0];\n    if(String(bill.currency_code||"").toUpperCase()!=="INR"||String(bill.base_currency_code||"").toUpperCase()!=="INR") return {...row,matchedPurchaseBillId:bill.id,reconciliationStatus:"CURRENCY_MISMATCH",matchReason:"The saved purchase bill is not recorded in INR; compare source currency before ITC review."};\n    const bookTax=Number(bill.tax_minor||0), portalTax=row.igstMinor+row.cgstMinor+row.sgstMinor+row.cessMinor;
