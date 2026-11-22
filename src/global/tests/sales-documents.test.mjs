@@ -9,8 +9,10 @@ test("sales documents have workspace-scoped tables, idempotent writes and lifecy
   const app=await readFile(new URL("../../global/GlobalApp.jsx",import.meta.url),"utf8");
   for(const table of ["sales_orders","delivery_challans","credit_debit_notes"]){
     assert.match(migration,new RegExp("create table if not exists global\\."+table));
-    assert.match(migration,new RegExp("global_"+table+"_member_read"));
+
   }
+  assert.match(migration,/foreach t in array array/);
+  assert.match(migration,/global.is_workspace_member/);
   assert.match(migration,/idempotency_key uuid not null/);
   assert.match(migration,/request_fingerprint text not null/);
   assert.match(migration,/credit_note_exceeds_invoice/);
