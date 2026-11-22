@@ -3,7 +3,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { Download, TrendingUp, Clock, Wallet, PiggyBank, LockKeyhole } from "lucide-react";
 import { KEYS, loadList } from "@/lib/stores";
 import { money2, exportCsv } from "@/lib/dashboardData";
-import { usePaywall } from "@/lib/paywall";
+import { usePaywall } from "@/lib/paywall";\nimport { buildGstr1Draft } from "@/global/tax/gstr1-draft.js";
 
 const tone = { emerald: "bg-emerald-100 text-emerald-600", amber: "bg-amber-100 text-amber-600", rose: "bg-rose-100 text-rose-600", violet: "bg-violet-100 text-violet-600" };
 const validCurrency = (value) => /^[A-Z]{3}$/.test(String(value || "").trim().toUpperCase());
@@ -62,7 +62,7 @@ export default function ReportsTab() {
     ...expensesByCurrency.totals.keys(),
   ]).size > 1 || revenueByCurrency.unknownCurrencyCount > 0 || expensesByCurrency.unknownCurrencyCount > 0;
 
-  const doExport = () => {
+  const gstr1Draft = buildGstr1Draft(filteredInvoices, { from, to });\n\n  const doGstr1Export = () => {\n    if (gstr1Draft.b2b.length) exportCsv("plivex-gstr1-b2b-draft.csv", gstr1Draft.b2b);\n    if (gstr1Draft.b2c.length) exportCsv("plivex-gstr1-b2c-draft.csv", gstr1Draft.b2c);\n    if (gstr1Draft.hsn.length) exportCsv("plivex-gstr1-hsn-summary-draft.csv", gstr1Draft.hsn);\n  };\n\n  const doExport = () => {
     const rows = [
       ...filteredInvoices.map((item) => ({ Type: "Sale", Date: item.issueDate || "", Party: item.clientName || "", Amount: item.total || 0, Currency: item.currency || "Not recorded", Status: statusOf(item) })),
       ...filteredExpenses.map((item) => ({ Type: "Expense", Date: item.date || "", Party: item.vendor || "", Amount: item.amount || 0, Currency: item.currencyCode || "Not recorded", Status: item.status || "" })),
@@ -99,6 +99,19 @@ export default function ReportsTab() {
         <div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-3"><p className="text-[10px] font-semibold uppercase text-emerald-700">Paid / Collected</p><p className="mt-1 break-words text-[15px] font-bold text-emerald-950">{paid}</p></div><div className="rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50/80 to-white p-3"><p className="text-[10px] font-semibold uppercase text-amber-700">Pending</p><p className="mt-1 break-words text-[15px] font-bold text-amber-950">{pending}</p></div></div>
         {hasMixedOrUnknownCurrency && <p className="mt-3 text-[11px] leading-relaxed text-slate-500">Totals are grouped by recorded currency. Operating difference uses only {currencyCode} records; other currencies are not converted. Some records have no valid recorded currency.</p>}
         <p className="mt-2 text-[11px] leading-relaxed text-slate-500">Operating difference is sales revenue minus recorded expenses. It is not a complete accounting profit figure and excludes taxes, cost of goods, and other adjustments not recorded here.</p>
+      </section>
+      <section className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><h3 className="text-[14px] font-bold text-slate-900">GSTR-1 preparation</h3><p className="mt-1 text-[11px] text-slate-500">Draft B2B, B2C and HSN/SAC sales registers from saved invoices in the selected period.</p></div>
+          <button type="button" disabled={!gstr1Draft.invoiceCount} onClick={canAccess("gstr1") ? doGstr1Export : openPaywall} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#6D28D9] px-4 py-2.5 text-[12px] font-bold text-white disabled:opacity-50">{canAccess("gstr1") ? <><Download className="h-4 w-4" />Download GSTR-1 drafts</> : <><LockKeyhole className="h-4 w-4" />Unlock GSTR-1 Export</>}</button>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <div className="rounded-lg bg-slate-50 p-3"><p className="text-[10px] font-semibold uppercase text-slate-500">B2B tax-rate rows</p><p className="mt-1 text-lg font-bold">{gstr1Draft.b2b.length}</p></div>
+          <div className="rounded-lg bg-slate-50 p-3"><p className="text-[10px] font-semibold uppercase text-slate-500">B2C tax-rate rows</p><p className="mt-1 text-lg font-bold">{gstr1Draft.b2c.length}</p></div>
+          <div className="rounded-lg bg-slate-50 p-3"><p className="text-[10px] font-semibold uppercase text-slate-500">HSN/SAC rows</p><p className="mt-1 text-lg font-bold">{gstr1Draft.hsn.length}</p></div>
+        </div>
+        {gstr1Draft.warnings.length > 0 && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-bold text-amber-900">Review before filing</p><ul className="mt-1 list-disc pl-4 text-[11px] text-amber-800">{gstr1Draft.warnings.map((warning,index)=><li key={index}>{warning}</li>)}</ul></div>}
+        <p className="mt-3 text-[10px] leading-relaxed text-slate-500">Preparation exports only. This does not submit a return to GSTN. Credit/debit notes, amendments, advances and other GSTR-1 sections are not included in this draft; review the records with an authorized tax professional before filing.</p>
       </section>
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E8E7EF] bg-white p-4 shadow-[0_1px_2px_rgba(24,24,40,.03),0_8px_24px_rgba(24,24,40,.035)] sm:p-5">
         <div><h3 className="text-[15px] font-bold text-slate-900">Export your books</h3><p className="text-[12px] text-slate-500">Download filtered sales and expense records, including currency.</p></div>
