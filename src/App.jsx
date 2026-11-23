@@ -7,7 +7,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes, Navigate, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import { APP_EDITION, isUnifiedBuild } from '@/api/backendClient';
+import { isUnifiedBuild } from '@/api/backendClient';
 import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
 import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -17,13 +17,9 @@ import AppLayout from './components/AppLayout';
 import WorkspaceTeamProvider from '@/components/team/WorkspaceTeamProvider';
 import TrialGate from './components/TrialGate';
 import { getPendingInviteCode } from "@/components/auth/workspaceInvite";
-// Keep the authenticated Global workspace entry in the initial application graph.
-// This avoids a route-time dynamic chunk fetch after sign-in on Global workspaces.
-import GlobalApp from "@/global/GlobalApp";
 // Route-level lazy loading keeps the initial mobile bundle small.
 const PageNotFound = lazy(() => import("./lib/PageNotFound"));
 const UserNotRegisteredError = lazy(() => import("@/components/UserNotRegisteredError"));
-const GlobalCountryOnboarding = lazy(() => import("@/components/global/GlobalCountryOnboarding"));
 const UnifiedWorkspaceOnboarding = lazy(() => import("@/components/global/UnifiedWorkspaceOnboarding"));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
@@ -33,7 +29,6 @@ const Home = lazy(() => import("./pages/Home"));
 const InvoiceHistory = lazy(() => import("./pages/InvoiceHistory"));
 const InvoiceShareManagement = lazy(() => import("./pages/InvoiceShareManagement"));
 const BusinessProfile = lazy(() => import("./pages/BusinessProfile"));
-const ClientDatabase = lazy(() => import("./pages/ClientDatabase"));
 const UsageReports = lazy(() => import("./pages/UsageReports"));
 const Settings = lazy(() => import("./pages/Settings"));
 const QuickTemplates = lazy(() => import("./pages/QuickTemplates"));
@@ -43,7 +38,7 @@ const HelpCenter = lazy(() => import("./pages/HelpCenter"));
 const AccountActivity = lazy(() => import("./pages/AccountActivity"));
 const ServiceCatalog = lazy(() => import("./pages/ServiceCatalog"));
 const TeamManagement = lazy(() => import("./pages/TeamManagement"));
-const CrmTab = lazy(() => import("@/components/dashboard/CrmTab"));
+const WorkspaceCRMPanel = lazy(() => import("@/components/workspace/WorkspaceCRMPanel"));
 const IndiaPart4Tab = lazy(() => import("@/components/dashboard/IndiaPart4Tab"));
 const ContactUs = lazy(() => import("./pages/ContactUs"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
@@ -56,6 +51,9 @@ const PricingPage = lazy(() => import("./pages/PublicInfoPages").then((module) =
 const PaymentResult = lazy(() => import("./pages/PaymentResult"));
 const PublicInvoicePage = lazy(() => import("./pages/PublicInvoicePage"));
 const SupplierPortalPage = lazy(() => import("./pages/SupplierPortalPage"));
+const WorkspacePlatformPage = lazy(() => import("./pages/WorkspacePlatformPage"));
+const PublicSignaturePage = lazy(() => import("./pages/PublicSignaturePage"));
+const PublicSupplierOnboardingPage = lazy(() => import("./pages/PublicSupplierOnboardingPage"));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, isAuthenticated, user, logout } = useAuth();
@@ -105,12 +103,8 @@ const AuthenticatedApp = () => {
       </main>
     );
   }
-  if (APP_EDITION === "global" && isAuthenticated && user && !user.workspace_id && !getPendingInviteCode()) return <GlobalCountryOnboarding />;
 
-  // Both editions resolve core business destinations through this shared React Router tree.
-  // Unified Plivex keeps every country on the same Main Workspace routes.
-  // Country selects regional settings, never a separate Global application.
-  const isGlobalWorkspace = !isUnifiedBuild && APP_EDITION === "global";
+  // All supported countries use the same Main Workspace routes. Country only selects regional settings.
 
   // Render the shared application routes
   return (
@@ -129,26 +123,28 @@ const AuthenticatedApp = () => {
       <Route path="/features" element={<FeaturesPage />} />
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/i/:token" element={<PublicInvoicePage />} />
-      <Route path="/" element={isGlobalWorkspace && isAuthenticated ? <Navigate to="/dashboard" replace /> : <HomeGate />} />
+      <Route path="/sign/:token" element={<PublicSignaturePage />} />
+      <Route path="/supplier-onboarding/:token" element={<PublicSupplierOnboardingPage />} />
+      <Route path="/" element={<HomeGate />} />
       <Route path="/dashboard" element={<HomeGate />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/" replace />} />}>
         <Route element={<TrialGate />}>
           <Route element={<RoleGuard />}>
-            <Route path="/invoice-builder" element={isGlobalWorkspace ? <AppLayout><GlobalApp section="invoices" /></AppLayout> : <Home />} />
+            <Route path="/invoice-builder" element={<Home />} />
         <Route element={<AppLayout />}>
-          <Route path="/products" element={isGlobalWorkspace ? <GlobalApp section="products" /> : <Navigate to="/dashboard" replace state={{ initialTab: "stock" }} />} />
-          <Route path="/expenses" element={isGlobalWorkspace ? <GlobalApp section="expenses" /> : <Navigate to="/dashboard" replace state={{ initialTab: "purchase" }} />} />
-          <Route path="/accounting" element={isGlobalWorkspace ? <GlobalApp section="accounting" /> : <Navigate to="/dashboard" replace state={{ initialTab: "reconciliation" }} />} />
-          <Route path="/enterprise" element={isGlobalWorkspace ? <GlobalApp section="enterprise" /> : <Navigate to="/dashboard" replace state={{ initialTab: "team" }} />} />
-          <Route path="/invoice-history" element={isGlobalWorkspace ? <GlobalApp section="invoices" /> : <InvoiceHistory />} />
-          <Route path="/quotations" element={isGlobalWorkspace ? <GlobalApp section="quotations" /> : <Navigate to="/dashboard" replace state={{ initialTab: "sales", initialSub: "quotations" }} />} />
+          <Route path="/products" element={<Navigate to="/dashboard" replace state={{ initialTab: "stock" }} />} />
+          <Route path="/expenses" element={<Navigate to="/dashboard" replace state={{ initialTab: "purchase" }} />} />
+          <Route path="/accounting" element={<Navigate to="/dashboard" replace state={{ initialTab: "reconciliation" }} />} />
+          <Route path="/enterprise" element={<Navigate to="/dashboard" replace state={{ initialTab: "team" }} />} />
+          <Route path="/invoice-history" element={<InvoiceHistory />} />
+          <Route path="/quotations" element={<Navigate to="/dashboard" replace state={{ initialTab: "sales", initialSub: "quotations" }} />} />
           <Route path="/invoice-shares" element={<GlobalFeatureGate feature="Shared invoice links"><InvoiceShareManagement /></GlobalFeatureGate>} />
           <Route path="/business-profile" element={<GlobalFeatureGate feature="Business profile"><BusinessProfile /></GlobalFeatureGate>} />
-          <Route path="/client-database" element={isGlobalWorkspace ? <GlobalApp section="clients" /> : <WorkspaceFeatureGate anyOf={["crm", "leads"]}><ClientDatabase /></WorkspaceFeatureGate>} />
-          <Route path="/crm" element={isGlobalWorkspace ? <GlobalApp section="crm" /> : <WorkspaceFeatureGate anyOf={["crm", "leads"]}><CrmTab /></WorkspaceFeatureGate>} />
-          <Route path="/sales-documents" element={isGlobalWorkspace ? <GlobalApp section="sales_docs" /> : <Navigate to="/dashboard" replace state={{ initialTab: "sales" }} />} />
-          <Route path="/suppliers" element={isGlobalWorkspace ? <GlobalApp section="suppliers" /> : <Navigate to="/dashboard" replace />} />
-          <Route path="/inventory-procurement" element={isGlobalWorkspace ? <GlobalApp section="inventory" /> : <WorkspaceFeatureGate feature="inventoryWorkspace"><IndiaPart4Tab user={user} /></WorkspaceFeatureGate>} />
+          <Route path="/client-database" element={<WorkspaceFeatureGate anyOf={["crm", "leads"]}><WorkspaceCRMPanel initialTab="clients" /></WorkspaceFeatureGate>} />
+          <Route path="/crm" element={<WorkspaceFeatureGate anyOf={["crm", "leads"]}><WorkspaceCRMPanel initialTab="leads" /></WorkspaceFeatureGate>} />
+          <Route path="/sales-documents" element={<Navigate to="/dashboard" replace state={{ initialTab: "sales" }} />} />
+          <Route path="/suppliers" element={<Navigate to="/platform" replace />} />
+          <Route path="/inventory-procurement" element={<WorkspaceFeatureGate feature="inventoryWorkspace"><IndiaPart4Tab user={user} /></WorkspaceFeatureGate>} />
           <Route path="/usage-reports" element={<GlobalFeatureGate feature="Usage reports"><WorkspaceFeatureGate feature="reports"><UsageReports /></WorkspaceFeatureGate></GlobalFeatureGate>} />
           <Route path="/settings" element={<GlobalFeatureGate feature="Workspace settings"><Settings /></GlobalFeatureGate>} />
           <Route path="/templates" element={<GlobalFeatureGate feature="Quick templates"><QuickTemplates /></GlobalFeatureGate>} />
@@ -158,6 +154,7 @@ const AuthenticatedApp = () => {
           <Route path="/account-activity" element={<GlobalFeatureGate feature="Account activity"><WorkspaceFeatureGate feature="reports"><AccountActivity /></WorkspaceFeatureGate></GlobalFeatureGate>} />
           <Route path="/service-catalog" element={<GlobalFeatureGate feature="Service catalog"><ServiceCatalog /></GlobalFeatureGate>} />
           <Route path="/team-management" element={<GlobalFeatureGate feature="Team management"><WorkspaceFeatureGate feature="team"><ProTeamRoute /></WorkspaceFeatureGate></GlobalFeatureGate>} />
+          <Route path="/platform" element={<WorkspacePlatformPage />} />
             </Route>
           </Route>
         </Route>
@@ -180,25 +177,9 @@ function WorkspaceFeatureGate({ children, feature, anyOf = [], businessOnly = fa
   return children;
 }
 
-function GlobalFeatureGate({ children, feature }) {
-  const { user } = useAuth();
-  if (!isUnifiedBuild && APP_EDITION === "global" && user?.country_code && user.country_code !== "IN") {
-    return (
-      <main className="mx-auto max-w-xl rounded-2xl border bg-card p-6 text-center">
-        <p className="text-xs font-bold uppercase tracking-wider text-primary">Workspace country</p>
-        <h1 className="mt-2 text-xl font-bold">{feature} is not available yet</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          This feature is not configured for your workspace country yet. The India-specific version is hidden so it cannot show incorrect tax, currency or business records.
-        </p>
-        <Link to="/invoice-history" className="mt-5 inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
-          Open invoices
-        </Link>
-      </main>
-    );
-  }
+function GlobalFeatureGate({ children }) {
   return children;
 }
-
 function ProTeamRoute() {
   const { canAccess, openPaywall } = usePaywall();
   useEffect(() => { if (!canAccess("team_management")) openPaywall("Team management requires the Pro plan."); }, [canAccess, openPaywall]);

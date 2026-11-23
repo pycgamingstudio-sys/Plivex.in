@@ -28,25 +28,14 @@ test("Global quotation API requires an authenticated workspace and validates lin
   assert.match(edge, /quotation_id/);
 });
 
-test("Global quotations remain permanently visible outside More Features", async () => {
-  const features = await read("../../lib/workspaceFeatures.js");
-  const layout = await read("../../components/AppLayout.jsx");
+test("quotations are reachable from the shared Main Workspace sales module", async () => {
   const app = await read("../../App.jsx");
-  const global = await read("../GlobalApp.jsx");
-  const panel = await read("../../components/global/GlobalQuotationsPanel.jsx");
-  assert.match(features, /PERMANENT_DASHBOARD_FEATURES = Object\.freeze\(\["invoices", "quotations"\]\)/);
-  assert.match(features, /id: "quotations", label: "Quotations".*core: true/);
-  assert.match(layout, /to: "\/quotations", label: "Quotations"/);
-  assert.match(layout, /to: "\/quotations", label: "Quotations"/);
-  assert.match(app, /path="\/quotations".*GlobalApp section="quotations"/);
-  assert.match(global, /GlobalQuotationsPanel account=\{account\}/);
-  assert.match(global, /title: "Quotations"[\s\S]*tab: "quotations"[\s\S]*icon: FileText/);
-  assert.match(global, /setTab\(item\.tab\)/);
-  assert.doesNotMatch(global, /tab: "quotations", icon: FileText, tone:.*More Features/);
-  assert.match(panel, /Save quotation draft/);
-  assert.match(panel, /Convert to invoice draft/);
-  assert.match(panel, /Download PDF/);
-  assert.match(panel, /not an invoice or tax invoice/i);
+  const sales = await read("../../components/dashboard/SalesTab.jsx");
+  const dashboard = await read("../../pages/Dashboard.jsx");
+  assert.ok(app.includes('path="/quotations" element={<Navigate to="/dashboard" replace state={{ initialTab: "sales", initialSub: "quotations" }} />}'));
+  assert.match(dashboard, /initialSub=\{initialSub\}/);
+  assert.match(sales, /initialSub === "quotations" \? "quotations" : "invoices"/);
+  assert.doesNotMatch(app, /GlobalApp|isGlobalWorkspace/);
 });
 
 test("quotation totals and statuses cannot create payment or tax side effects", async () => {

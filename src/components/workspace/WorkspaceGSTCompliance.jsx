@@ -18,7 +18,7 @@ function parseGstr2b(text){
 const downloadJson=(name,data)=>{const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);};
 export default function WorkspaceGSTCompliance(){
  const {user}=useAuth();const workspaceId=user?.workspace_id;
- const today=new Date();const first=new Date(today.getFullYear(),today.getMonth(),1).toISOString().slice(0,10);const last=today.toISOString().slice(0,10);
+ const today=new Date();const first=new Date(today.getFullYear(),today.getMonth(),1).toISOString().slice(0,10);const last=new Date(today.getFullYear(),today.getMonth()+1,0).toISOString().slice(0,10);
  const [start,setStart]=useState(first);const [end,setEnd]=useState(last);const [data,setData]=useState({gstr1_drafts:[],gstr2b_imports:[],gstr2b_lines:[],gstr3b_worksheets:[],calendar:[]});
  const [expenses,setExpenses]=useState([]);const [file,setFile]=useState(null);const [itcEligible,setItcEligible]=useState({});const [matches,setMatches]=useState({});const [worksheet,setWorksheet]=useState(null);
  const [busy,setBusy]=useState(false);const [error,setError]=useState("");const [notice,setNotice]=useState("");
@@ -30,14 +30,14 @@ export default function WorkspaceGSTCompliance(){
   ]);
   if(exp.error)throw exp.error;setData(gst);setExpenses(exp.data||[]);
  },[workspaceId]);
- useEffect(()=>{if(["admin","manager","accountant"].includes(user?.role))load().catch(e=>setError(e.message||"GST workspace module unavailable."));},[load,user?.role]);
+ useEffect(()=>{if(user?.country_code==="IN"&&["admin","manager","accountant"].includes(user?.role))load().catch(e=>setError(e.message||"GST workspace module unavailable."));},[load,user?.role,user?.country_code]);
  const run=async(fn,msg)=>{setBusy(true);setError("");setNotice("");try{await fn();setNotice(msg);await load();}catch(e){setError(e.message||"Operation failed.");}finally{setBusy(false);}};
  const prepare=()=>run(async()=>{const d=await rpc("main_workspace_prepare_gstr1_draft",{p_workspace_id:workspaceId,p_period_start:start,p_period_end:end});setWorksheet(d.snapshot);downloadJson("Plivex-GSTR1-"+start+"-"+end+".json",d.snapshot);await rpc("main_workspace_mark_gstr1_exported",{p_workspace_id:workspaceId,p_draft_id:d.draft_id});},"GSTR-1 draft generated and JSON export downloaded. It is not filed with GSTN.");
  const import2b=e=>{e.preventDefault();if(!file){setError("Choose the GSTR-2B CSV file.");return;}if(file.size>5*1024*1024){setError("CSV file must be 5 MB or smaller.");return;}return run(async()=>{const rows=parseGstr2b(await file.text());await rpc("main_workspace_import_gstr2b",{p_workspace_id:workspaceId,p_period_start:start,p_period_end:end,p_file_name:file.name,p_rows:rows,p_import_key:crypto.randomUUID()});setFile(null);},"GSTR-2B statement imported. Review and match each line before including ITC.");};
  const match=(line)=>run(()=>rpc("main_workspace_match_gstr2b_line",{p_workspace_id:workspaceId,p_line_id:line.id,p_expense_id:matches[line.id]||null,p_itc_eligible:itcEligible[line.id]??true}),"GSTR-2B line reviewed.");
  const compute=()=>run(async()=>{const d=await rpc("main_workspace_compute_gstr3b",{p_workspace_id:workspaceId,p_period_start:start,p_period_end:end});setWorksheet(d.snapshot);downloadJson("Plivex-GSTR3B-worksheet-"+start+"-"+end+".json",d.snapshot);},"GSTR-3B worksheet generated and exported. It is an estimate, not a filed return.");
  const calendar=()=>run(()=>rpc("main_workspace_generate_gst_calendar",{p_workspace_id:workspaceId,p_period_start:start.slice(0,7)+"-01"}),"GST calendar generated.");
- if(!["admin","manager","accountant"].includes(user?.role))return null;
+ if(user?.country_code!=="IN"||!["admin","manager","accountant"].includes(user?.role))return null;
  return <section className="rounded-2xl border bg-white p-4 sm:p-5">
   <div className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">India GST returns & reconciliation</h2></div>
   <p className="mt-1 text-xs text-slate-500">India Main Workspace only. Prepare GSTR-1 JSON, import GSTR-2B CSV, manually review ITC matches and calculate a GSTR-3B worksheet. This module does not connect to GSTN or file returns.</p>

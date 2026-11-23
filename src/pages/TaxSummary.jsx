@@ -1,8 +1,7 @@
 import { formatMoney } from "@/lib/currency";
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Receipt, Download } from "lucide-react";
 import PageShell from "@/components/PageShell";
-import { KEYS, loadList, loadState } from "@/lib/stores";
 import { backend } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
 import { getCountryExperience } from "@/global/countries/country-experience.js";
@@ -17,11 +16,38 @@ function Card({ label, value, accent }) {
 }
 export default function TaxSummary() {
   const { user } = useAuth();
-  const [items] = useState(() => loadList(KEYS.history));
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [period, setPeriod] = useState("month");
-  const [gstin, setGstin] = useState(() => loadState(KEYS.businessProfile, {}).gstin || "");
+  const [gstin, setGstin] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
+  useEffect(() => {
+    if (user?.country_code !== "IN" || !user?.workspace_id) return;
+    let active = true;
+    setLoading(true); setLoadError("");
+    Promise.all([
+      backend.functions.invoke("listInvoices", { limit: 1000 }),
+      backend.functions.invoke("workspaceRecords", { table: "business_profile", action: "get" }),
+    ]).then(([invoiceResult, profileResult]) => {
+      const invoices = invoiceResult?.data?.invoices;
+      if (!Array.isArray(invoices)) throw new Error("Workspace invoices could not be loaded.");
+      if (!active) return;
+      setItems(invoices.map((invoice) => ({
+        ...invoice,
+        issueDate: invoice.issueDate || invoice.issue_date,
+        createdDate: invoice.createdDate || invoice.created_at,
+        currency: invoice.currency || user.currency_code,
+      })));
+      const profile = profileResult?.data?.record;
+      if (profile?.gstin) setGstin(String(profile.gstin).toUpperCase());
+    }).catch((error) => {
+      if (active) setLoadError(error?.message || "Tax summary could not be loaded from the active Main Workspace.");
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [user?.workspace_id, user?.country_code, user?.currency_code]);
+
   const now = new Date();
   const [fp, setFp] = useState(`${String(now.getMonth() + 1).padStart(2, "0")}${now.getFullYear()}`);
   const filtered = useMemo(() => {
@@ -103,6 +129,8 @@ export default function TaxSummary() {
 
   return (
     <PageShell icon={Receipt} title="Tax summary" subtitle="Breakdown of CGST, SGST and IGST collected.">
+      {loadError && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{loadError}</p>}
+      {loading && <p className="text-xs text-muted-foreground">Loading invoices from your Main Workspace…</p>}
       <div className="flex gap-1.5 rounded-lg border bg-card p-1">
         {PERIODS.map((p) => <button key={p.id} onClick={() => setPeriod(p.id)} className={`flex-1 rounded-md py-2 text-[11px] font-bold transition-colors ${period === p.id ? "bg-secondary text-primary" : "text-muted-foreground"}`}>{p.label}</button>)}
       </div>
