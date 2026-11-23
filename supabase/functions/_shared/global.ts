@@ -12,7 +12,7 @@ export const globalCorsHeaders = (origin: string | null) => ({
   "Access-Control-Allow-Origin": origin && allowedOrigin(origin) ? origin : "https://plivex.in",
   "Vary": "Origin",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-plivex-key",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 });
 export const globalJson = (body: unknown, status: number, origin: string | null) =>
   new Response(JSON.stringify(body), {
