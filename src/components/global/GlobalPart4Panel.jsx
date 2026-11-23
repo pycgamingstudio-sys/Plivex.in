@@ -20,9 +20,9 @@ const scoreLead = (lead) => Math.min(100,
 export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   const [section, setSection] = useState(initialSection);
   useEffect(() => {
-    if (["crm", "warehouses", "transfers", "purchasing", "sales_docs", "movements"].includes(initialSection)) setSection(initialSection);
+    if (["crm", "warehouses", "transfers", "purchasing", "sales_docs", "traceability", "movements"].includes(initialSection)) setSection(initialSection);
   }, [initialSection]);
-  const [data, setData] = useState({ leads: [], activities: [], warehouses: [], stock: [], batches: [], movements: [], transfers: [], orders: [], orderItems: [], products: [], suppliers: [], salesOrders: [], challans: [], notes: [], clients: [], invoices: [] });
+  const [data, setData] = useState({ leads: [], activities: [], warehouses: [], stock: [], batches: [], movements: [], transfers: [], orders: [], orderItems: [], products: [], suppliers: [], salesOrders: [], challans: [], notes: [], clients: [], invoices: [], serials: [] });
   const [lead, setLead] = useState(blankLead);
   const [warehouse, setWarehouse] = useState(blankWarehouse);
   const [activity, setActivity] = useState({ lead_id: "", activity_type: "note", body: "" });
@@ -38,6 +38,8 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   const [receipt, setReceipt] = useState({ order_id: "", warehouse_id: "", item_id: "", quantity: "", batch_number: "", expires_on: "" });
   const [transferKey, setTransferKey] = useState(uid());
   const [receiptKey, setReceiptKey] = useState(uid());
+  const [barcodeForm, setBarcodeForm] = useState({ product_id: "", barcode: "" });
+  const [serialForm, setSerialForm] = useState({ product_id: "", warehouse_id: "", batch_id: "", serial_number: "", notes: "", idempotency_key: uid() });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -62,7 +64,7 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   }, [account.workspace_id]);
 
   const refresh = useCallback(async () => {
-    const resources = ["crm_leads", "crm_activities", "warehouses", "warehouse_stock_levels", "inventory_batches", "warehouse_stock_movements", "stock_transfers", "purchase_orders", "purchase_order_items", "suppliers", "sales_orders", "delivery_challans", "credit_debit_notes"];
+    const resources = ["crm_leads", "crm_activities", "warehouses", "warehouse_stock_levels", "inventory_batches", "warehouse_stock_movements", "stock_transfers", "purchase_orders", "purchase_order_items", "suppliers", "sales_orders", "delivery_challans", "credit_debit_notes", "inventory_serials"];
     const pairs = await Promise.all(resources.map(async (resource) => {
       const result = await call({ action: "list", resource, limit: 250 });
       return [resource, result.records || []];
@@ -78,7 +80,7 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
       transfers: mapped.stock_transfers, orders: mapped.purchase_orders, orderItems: mapped.purchase_order_items,
       products: products.data?.records || [], suppliers: mapped.suppliers || [],
       salesOrders:mapped.sales_orders||[],challans:mapped.delivery_challans||[],notes:mapped.credit_debit_notes||[],
-      clients:clients.data?.records||[],invoices:invoices.data?.records||[],
+      clients:clients.data?.records||[],invoices:invoices.data?.records||[], serials:mapped.inventory_serials||[],
     });
   }, [account.workspace_id, call]);
 
@@ -228,11 +230,30 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   };
   const updateSalesDocument=(operation,values,success)=>run(async()=>{await call({action:"mutate",operation,values});},success);
 
+  const saveProductBarcode = (event) => {
+    event.preventDefault();
+    run(async () => {
+      await call({ action: "mutate", operation: "set_product_barcode", values: { product_id: barcodeForm.product_id, barcode: barcodeForm.barcode.trim() || null } });
+      setBarcodeForm({ product_id: "", barcode: "" });
+    }, "Product barcode saved.");
+  };
+  const registerInventorySerial = (event) => {
+    event.preventDefault();
+    run(async () => {
+      await call({ action: "mutate", operation: "register_inventory_serial", values: { ...serialForm, batch_id: serialForm.batch_id || null, notes: serialForm.notes.trim() || null } });
+      setSerialForm((current) => ({ ...current, serial_number: "", notes: "", idempotency_key: uid() }));
+    }, "Serial number registered against available stock.");
+  };
+  const changeSerialStatus = (serial, status) => run(async () => {
+    await call({ action: "mutate", operation: "update_inventory_serial_status", values: { serial_id: serial.id, status, idempotency_key: uid() } });
+  }, "Serial status and stock ledger updated.");
+
   const tabs = section === "crm" ? [] : [
       { id: "warehouses", label: "Stock & warehouses", icon: WarehouseIcon },
       { id: "transfers", label: "Transfers", icon: ArrowLeftRight },
       { id: "purchasing", label: "Purchase orders", icon: ClipboardList },
       { id: "sales_docs", label: "Sales documents", icon: FileText },
+      { id: "traceability", label: "Serials & barcodes", icon: ClipboardList },
       { id: "movements", label: "Movement history", icon: History },
     ];
 
@@ -241,12 +262,14 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
       : section === "transfers" ? "Stock transfers"
         : section === "purchasing" ? "Purchase orders"
           : section === "sales_docs" ? "Sales documents"
+            : section === "traceability" ? "Serial & barcode traceability"
           : "Movement history";
   const sectionDescription = section === "crm" ? "Manage leads, follow-ups and customer activity."
     : section === "warehouses" ? "One workspace for stock visibility, warehouse locations and reorder signals."
       : section === "transfers" ? "Move stock between locations with a traceable transfer record."
         : section === "purchasing" ? "Create supplier orders and receive goods into the right warehouse."
           : section === "sales_docs" ? "Prepare sales orders, delivery challans and credit/debit notes."
+            : section === "traceability" ? "Assign unique product barcodes and track individual serialized units across stock status changes."
           : "A searchable audit trail of receipts, transfers and stock adjustments.";
 
   return <section className="mt-6 space-y-5">
@@ -404,6 +427,31 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white"><div className="border-b px-4 py-3"><h3 className="text-sm font-bold">Credit / debit notes</h3></div><table className="min-w-[480px] w-full text-xs"><thead className="bg-slate-50"><tr>{["Note","Type","Date","Total","Status","Action"].map(x=><th key={x} className="px-3 py-2 text-left">{x}</th>)}</tr></thead><tbody className="divide-y">{data.notes.map(x=><tr key={x.id}><td className="px-3 py-2 font-mono">{x.note_number}</td><td className="px-3 py-2 capitalize">{x.note_type}</td><td className="px-3 py-2">{x.note_date}</td><td className="px-3 py-2">{money(x.total_minor,x.currency_code)}</td><td className="px-3 py-2 capitalize">{x.status}</td><td className="px-3 py-2"><select className="rounded border p-1" value={x.status} disabled={busy||x.status!=="draft"} onChange={(e)=>updateSalesDocument("update_credit_debit_note_status",{note_id:x.id,status:e.target.value},"Credit/debit note status updated.")}><option value="draft">Draft</option><option value="issued">Issued</option><option value="void">Void</option></select></td></tr>)}</tbody></table>{!data.notes.length&&<p className="p-4 text-center text-xs text-slate-500">No credit/debit notes yet.</p>}</div>
       </div>
       <p className="text-xs text-slate-500">Sales orders, delivery challans and credit/debit notes are saved as workspace documents. Issuing a note does not automatically post a journal adjustment; reconcile and review the source invoice before accounting treatment.</p>
+    </>}
+
+    {section === "traceability" && <>
+      <div className="rounded-xl border border-violet-100 bg-violet-50/60 p-4 text-xs leading-relaxed text-violet-900">
+        Register serials only for units already present in the selected warehouse. Moving a serial to Sold or Damaged updates the stock and batch balance; Reserved is a tracking state and does not deduct stock.
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <form onSubmit={saveProductBarcode} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div><h2 className="text-sm font-bold">Product barcode</h2><p className="mt-1 text-xs text-slate-500">A barcode must be unique inside this workspace. Leave it blank to clear the current barcode.</p></div>
+          <label className="block text-xs font-semibold text-slate-600">Product<select required className={input + " mt-1"} value={barcodeForm.product_id} onChange={(e) => setBarcodeForm((v) => ({ ...v, product_id: e.target.value }))}><option value="">Choose product</option>{data.products.map((p) => <option key={p.id} value={p.id}>{p.name}{p.sku ? " · " + p.sku : ""}</option>)}</select></label>
+          <label className="block text-xs font-semibold text-slate-600">Barcode<input className={input + " mt-1"} minLength={3} maxLength={128} value={barcodeForm.barcode} onChange={(e) => setBarcodeForm((v) => ({ ...v, barcode: e.target.value }))} placeholder="Scan or type barcode"/></label>
+          <button type="submit" className={button} disabled={busy || !barcodeForm.product_id}>Save barcode</button>
+          <div className="overflow-x-auto rounded-lg border border-slate-100"><table className="w-full text-xs"><thead className="bg-slate-50"><tr><th className="px-3 py-2 text-left">Product</th><th className="px-3 py-2 text-left">SKU</th><th className="px-3 py-2 text-left">Barcode</th></tr></thead><tbody className="divide-y">{data.products.filter((p) => p.barcode).map((p) => <tr key={p.id}><td className="px-3 py-2 font-medium">{p.name}</td><td className="px-3 py-2">{p.sku || "—"}</td><td className="px-3 py-2 font-mono">{p.barcode}</td></tr>)}</tbody></table>{!data.products.some((p) => p.barcode) && <p className="p-3 text-center text-xs text-slate-500">No barcodes assigned yet.</p>}</div>
+        </form>
+        <form onSubmit={registerInventorySerial} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div><h2 className="text-sm font-bold">Register a serialized unit</h2><p className="mt-1 text-xs text-slate-500">Each serial number can be registered once per workspace.</p></div>
+          <label className="block text-xs font-semibold text-slate-600">Product<select required className={input + " mt-1"} value={serialForm.product_id} onChange={(e) => setSerialForm((v) => ({ ...v, product_id: e.target.value, batch_id: "" }))}><option value="">Choose product</option>{data.products.map((p) => <option key={p.id} value={p.id}>{p.name}{p.sku ? " · " + p.sku : ""}</option>)}</select></label>
+          <label className="block text-xs font-semibold text-slate-600">Warehouse<select required className={input + " mt-1"} value={serialForm.warehouse_id} onChange={(e) => setSerialForm((v) => ({ ...v, warehouse_id: e.target.value, batch_id: "" }))}><option value="">Choose warehouse</option>{activeWarehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label>
+          <label className="block text-xs font-semibold text-slate-600">Batch (optional)<select className={input + " mt-1"} value={serialForm.batch_id} onChange={(e) => setSerialForm((v) => ({ ...v, batch_id: e.target.value }))}><option value="">No specific batch</option>{data.batches.filter((b) => b.product_id === serialForm.product_id && b.warehouse_id === serialForm.warehouse_id).map((b) => <option key={b.id} value={b.id}>{b.batch_number} · qty {b.quantity}</option>)}</select></label>
+          <label className="block text-xs font-semibold text-slate-600">Serial number<input required minLength={1} maxLength={128} className={input + " mt-1"} value={serialForm.serial_number} onChange={(e) => setSerialForm((v) => ({ ...v, serial_number: e.target.value }))} placeholder="Manufacturer serial / IMEI"/></label>
+          <label className="block text-xs font-semibold text-slate-600">Notes (optional)<input maxLength={1000} className={input + " mt-1"} value={serialForm.notes} onChange={(e) => setSerialForm((v) => ({ ...v, notes: e.target.value }))} placeholder="Condition, warranty or reference"/></label>
+          <button type="submit" className={button} disabled={busy || !serialForm.product_id || !serialForm.warehouse_id || !serialForm.serial_number.trim()}>Register serial</button>
+        </form>
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 px-4 py-3"><h2 className="text-sm font-bold">Serial number register</h2><p className="mt-1 text-xs text-slate-500">Workspace-scoped unit history and controlled stock status transitions</p></div><table className="w-full min-w-[780px] text-sm"><thead className="bg-[#F8F7FC] text-[10px] font-bold uppercase tracking-wider text-slate-500"><tr>{["Serial number","Product","Warehouse","Batch","Status","Change status"].map((x) => <th key={x} className="px-3 py-3 text-left">{x}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{data.serials.map((x) => { const next = x.status === "available" || x.status === "returned" ? ["reserved","sold","damaged"] : x.status === "reserved" ? ["available","sold","damaged"] : ["available","returned"]; return <tr key={x.id}><td className="px-3 py-3 font-mono text-xs">{x.serial_number}</td><td className="px-3 py-3">{productMap.get(x.product_id)?.name || x.product_id}</td><td className="px-3 py-3">{data.warehouses.find((w) => w.id === x.warehouse_id)?.name || "—"}</td><td className="px-3 py-3">{data.batches.find((b) => b.id === x.batch_id)?.batch_number || "—"}</td><td className="px-3 py-3 capitalize">{x.status}</td><td className="px-3 py-3"><select aria-label={"Change status for " + x.serial_number} className="rounded border border-slate-300 bg-white px-2 py-1 text-xs" value={x.status} disabled={busy} onChange={(e) => changeSerialStatus(x, e.target.value)}><option value={x.status}>{x.status}</option>{next.map((status) => <option key={status} value={status}>{status}</option>)}</select></td></tr>; })}</tbody></table>{!data.serials.length && <p className="p-8 text-center text-sm text-slate-500">No serialized units registered yet.</p>}</div>
     </>}
 
     {section === "movements" && <>
