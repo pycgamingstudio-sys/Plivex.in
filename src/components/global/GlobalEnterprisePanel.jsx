@@ -15,6 +15,7 @@ async function responseError(error, fallback) {
 
 export default function GlobalEnterprisePanel({ workspaceId }) {
   const [branches, setBranches] = useState([]);
+  const [members, setMembers] = useState([]);
   const [approvals, setApprovals] = useState([]);
   const [approvalPolicies, setApprovalPolicies] = useState([]);
   const [approvalPolicyAction, setApprovalPolicyAction] = useState("expense.create");
@@ -36,18 +37,10 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
   const [approvalExpenseDate, setApprovalExpenseDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [approvalExpenseCurrency, setApprovalExpenseCurrency] = useState("USD");
   const [permissionRole, setPermissionRole] = useState("manager");
+  const [permissionTarget, setPermissionTarget] = useState("role");
+  const [permissionMemberId, setPermissionMemberId] = useState("");
   const [permissionKey, setPermissionKey] = useState("export.request");
   const [permissionEffect, setPermissionEffect] = useState("deny");
-  const [permissionDelegations, setPermissionDelegations] = useState([]);
-  const [delegationCandidates, setDelegationCandidates] = useState([]);
-  const [delegationCanManage, setDelegationCanManage] = useState(false);
-  const [delegationMemberId, setDelegationMemberId] = useState("");
-  const [delegationPermissionKeys, setDelegationPermissionKeys] = useState(["approval.request"]);
-  const [delegationExpiresAt, setDelegationExpiresAt] = useState(() => {
-    const date = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
-    return date.toISOString().slice(0, 16);
-  });
   const [auditDays, setAuditDays] = useState("365");
   const [exportType, setExportType] = useState("invoices");
   const [exportFormat, setExportFormat] = useState("csv");
@@ -74,7 +67,7 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
       enterprise("approval.policy.list"),
       enterprise("audit.list", { limit: 50 }),
       enterprise("health.read"),
-      enterprise("permission.delegation.list"),
+      enterprise("member.list"),
     ]);
     if (results[0].status === "fulfilled") setBranches(results[0].value.branches || []);
     if (results[1].status === "fulfilled") setApprovals(results[1].value.requests || []);
@@ -82,9 +75,9 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
     if (results[3].status === "fulfilled") setEvents(results[3].value.events || []);
     if (results[4].status === "fulfilled") setHealth(results[4].value.health || null);
     if (results[5].status === "fulfilled") {
-      setPermissionDelegations(results[5].value.delegations || []);
-      setDelegationCandidates(results[5].value.members || []);
-      setDelegationCanManage(results[5].value.canManage === true);
+      const activeMembers = results[5].value.members || [];
+      setMembers(activeMembers);
+      setPermissionMemberId((current) => current && activeMembers.some((member) => member.id === current) ? current : activeMembers[0]?.id || "");
     }
     const denied = results.find((result) => result.status === "rejected");
     if (denied) setError(denied.reason?.message || "Some enterprise information could not be loaded. Your role may not have access.");
@@ -171,26 +164,12 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
 
   const setPermission = (event) => {
     event.preventDefault();
-    perform(() => enterprise("permission.set", { role: permissionRole, permissionKey, effect: permissionEffect }), "Role permission updated.");
+    perform(() => enterprise("permission.set", {
+      ...(permissionTarget === "member" ? { memberId: permissionMemberId } : { role: permissionRole }),
+      permissionKey: permissionKey.trim(),
+      effect: permissionEffect,
+    }), permissionTarget === "member" ? "Individual member permission updated." : "Role permission updated.");
   };
-
-  const toggleDelegationPermission = (key) => setDelegationPermissionKeys((current) =>
-    current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
-  const createPermissionDelegation = (event) => {
-    event.preventDefault();
-    perform(async () => {
-      await enterprise("permission.delegation.create", {
-        delegateMemberId: delegationMemberId,
-        permissionKeys: delegationPermissionKeys,
-        expiresAt: new Date(delegationExpiresAt).toISOString(),
-      });
-      setDelegationMemberId("");
-    }, "Time-bound permission delegation created.");
-  };
-  const revokePermissionDelegation = (delegationId) => perform(
-    () => enterprise("permission.delegation.revoke", { delegationId }),
-    "Permission delegation revoked.",
-  );
 
   const saveRetention = (event) => {
     event.preventDefault();
@@ -338,69 +317,27 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="font-semibold text-slate-900">Role permissions</h2>
+          <h2 className="font-semibold text-slate-900">Role permissions & delegation</h2>
           <form onSubmit={setPermission} className="mt-3 grid gap-2 sm:grid-cols-2">
-            <select className={inputClass} value={permissionRole} onChange={(e) => setPermissionRole(e.target.value)} aria-label="Role">
-              {["manager", "employee", "accountant", "viewer"].map((role) => <option key={role}>{role}</option>)}
+            <select className={inputClass} value={permissionTarget} onChange={(e) => setPermissionTarget(e.target.value)} aria-label="Permission target">
+              <option value="role">Apply to a role</option><option value="member">Apply to one member</option>
             </select>
+            {permissionTarget === "role" ? (
+              <select className={inputClass} value={permissionRole} onChange={(e) => setPermissionRole(e.target.value)} aria-label="Role">
+                {["manager", "employee", "accountant", "viewer"].map((role) => <option key={role}>{role}</option>)}
+              </select>
+            ) : (
+              <select className={inputClass} value={permissionMemberId} onChange={(e) => setPermissionMemberId(e.target.value)} aria-label="Workspace member" required>
+                {members.map((member) => <option key={member.id} value={member.id}>{member.role} · {member.userId.slice(0, 8)}…</option>)}
+              </select>
+            )}
             <select className={inputClass} value={permissionEffect} onChange={(e) => setPermissionEffect(e.target.value)} aria-label="Effect">
               <option value="grant">Grant</option><option value="deny">Deny</option>
             </select>
-            <input className={inputClass + " sm:col-span-2"} required maxLength={96} value={permissionKey} onChange={(e) => setPermissionKey(e.target.value)} aria-label="Permission key" />
-            <button className={buttonClass} disabled={busy}>Save role rule</button>
+            <input className={inputClass} required maxLength={96} value={permissionKey} onChange={(e) => setPermissionKey(e.target.value)} aria-label="Permission key" />
+            <button className={buttonClass + " sm:col-span-2"} disabled={busy || (permissionTarget === "member" && (!permissionMemberId || members.length === 0))}>Save permission rule</button>
           </form>
-          <p className="mt-2 text-xs text-slate-500">Owner/admin controls are protected server-side. A role-level rule applies to that role across this workspace.</p>
-        </section>
-
-        <section className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="font-semibold text-slate-900">Time-bound permission delegation</h2>
-          <p className="mt-1 text-xs text-slate-500">Delegate selected enterprise permissions to an active workspace member for up to 90 days. Direct member/role rules take precedence.</p>
-          {delegationCanManage ? (
-            <form onSubmit={createPermissionDelegation} className="mt-3 space-y-3">
-              <select className={inputClass + " w-full"} required value={delegationMemberId} onChange={(e) => setDelegationMemberId(e.target.value)} aria-label="Delegate to member">
-                <option value="">Choose active workspace member</option>
-                {delegationCandidates.map((member) => <option key={member.id} value={member.id}>{member.email || member.id} · {member.role}</option>)}
-              </select>
-              <fieldset className="grid gap-2 sm:grid-cols-2">
-                <legend className="mb-2 text-sm font-medium text-slate-700">Delegated permissions</legend>
-                {[
-                  ["approval.request", "Request approvals"],
-                  ["approval.decide", "Approve or reject requests"],
-                  ["approval.read", "View approval queue"],
-                  ["audit.read", "Read audit history"],
-                  ["export.request", "Request data exports"],
-                  ["fx.convert", "Convert currencies"],
-                  ["branch.read", "View branches"],
-                  ["invoice.read", "Read invoices"],
-                  ["invoice.create", "Create invoices"],
-                ].map(([key, label]) => (
-                  <label key={key} className="flex items-center gap-2 text-sm text-slate-700">
-                    <input type="checkbox" checked={delegationPermissionKeys.includes(key)} onChange={() => toggleDelegationPermission(key)} />
-                    {label}
-                  </label>
-                ))}
-              </fieldset>
-              <label className="block text-sm font-medium text-slate-700">Expires at
-                <input className={inputClass + " mt-1 w-full"} type="datetime-local" required value={delegationExpiresAt} onChange={(e) => setDelegationExpiresAt(e.target.value)} />
-              </label>
-              <button className={buttonClass} disabled={busy || !delegationMemberId || delegationPermissionKeys.length === 0 || !delegationExpiresAt}>Create delegation</button>
-            </form>
-          ) : (
-            <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Only workspace owners and admins can create or revoke delegations. You can view delegations that involve your membership.</p>
-          )}
-          <div className="mt-4 space-y-2">
-            {permissionDelegations.length ? permissionDelegations.map((item) => (
-              <div key={item.id} className="rounded-lg border border-slate-200 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-slate-800">{item.delegate_email || item.delegate_member_id} <span className="font-normal text-slate-500">({item.delegate_role})</span></p>
-                  <span className={"rounded-full px-2 py-1 text-xs font-medium " + (item.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600")}>{item.status}</span>
-                </div>
-                <p className="mt-1 text-xs text-slate-600">{(item.permission_keys || []).join(" · ")}</p>
-                <p className="mt-1 text-xs text-slate-500">Granted by {item.delegator_email || "workspace admin"} · expires {new Date(item.expires_at).toLocaleString()}</p>
-                {delegationCanManage && item.status === "active" && <button type="button" className={secondaryClass + " mt-2"} disabled={busy} onClick={() => revokePermissionDelegation(item.id)}>Revoke delegation</button>}
-              </div>
-            )) : <p className="text-sm text-slate-500">No permission delegations yet.</p>}
-          </div>
+          <p className="mt-2 text-xs text-slate-500">Owner/admin-only member directory. Choose a role for workspace-wide defaults or a specific active member for an individual grant/deny override. Member-level rules take precedence over role-level rules.</p>
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white p-4">
