@@ -20,7 +20,7 @@ const scoreLead = (lead) => Math.min(100,
 export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   const [section, setSection] = useState(initialSection);
   useEffect(() => {
-    if (["crm", "warehouses", "transfers", "purchasing", "sales_docs", "traceability", "movements"].includes(initialSection)) setSection(initialSection);
+    if (["crm", "warehouses", "transfers", "purchasing", "sales_docs", "suppliers", "traceability", "movements"].includes(initialSection)) setSection(initialSection);
   }, [initialSection]);
   const [data, setData] = useState({ leads: [], activities: [], warehouses: [], stock: [], batches: [], movements: [], transfers: [], orders: [], orderItems: [], products: [], suppliers: [], salesOrders: [], challans: [], notes: [], clients: [], invoices: [], serials: [] });
   const [lead, setLead] = useState(blankLead);
@@ -29,6 +29,10 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   const [transfer, setTransfer] = useState({ from: "", to: "", product_id: "", quantity: "" });
   const [order, setOrder] = useState({ supplier_name: "", supplier_reference: "", expected_date: "", product_id: "", quantity: "1", unit_cost: "" });
   const [supplierGstinLookup, setSupplierGstinLookup] = useState("");
+  const [supplierPortalRows, setSupplierPortalRows] = useState([]);
+  const [supplierForm, setSupplierForm] = useState({ supplier_id: "", name: "", email: "", phone: "", tax_registration_number: "" });
+  const [supplierInviteUrl, setSupplierInviteUrl] = useState("");
+  const [supplierInviteEmailSent, setSupplierInviteEmailSent] = useState(false);
   const [salesOrderForm,setSalesOrderForm]=useState({client_id:"",order_date:dateOnly(),expected_date:"",description:"",quantity:"1",unit_price:"",notes:""});
   const [challanForm,setChallanForm]=useState({client_id:"",sales_order_id:"",challan_date:dateOnly(),description:"",quantity:"1",product_id:"",notes:""});
   const [noteForm,setNoteForm]=useState({invoice_id:"",note_type:"credit",note_date:dateOnly(),reason:"",taxable_amount:"",tax_amount:"",notes:""});
@@ -63,6 +67,22 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
     return result;
   }, [account.workspace_id]);
 
+  const callSupplierPortal = useCallback(async (body) => {
+    const { data: result, error: invokeError } = await supabase.functions.invoke("global-supplier-portal", { body: { workspace_id: account.workspace_id, ...body } });
+    if (invokeError) {
+      let message = invokeError.message || "Supplier portal request failed.";
+      try { const json = await invokeError.context?.clone?.().json(); if (json?.error) message = json.error; } catch {}
+      throw new Error(message);
+    }
+    if (result?.error) throw new Error(result.error);
+    return result;
+  }, [account.workspace_id]);
+
+  const loadSupplierPortal = useCallback(async () => {
+    const result = await callSupplierPortal({ action: "list" });
+    setSupplierPortalRows(result.records || []);
+  }, [callSupplierPortal]);
+
   const refresh = useCallback(async () => {
     const resources = ["crm_leads", "crm_activities", "warehouses", "warehouse_stock_levels", "inventory_batches", "warehouse_stock_movements", "stock_transfers", "purchase_orders", "purchase_order_items", "suppliers", "sales_orders", "delivery_challans", "credit_debit_notes", "inventory_serials"];
     const pairs = await Promise.all(resources.map(async (resource) => {
@@ -85,6 +105,11 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   }, [account.workspace_id, call]);
 
   useEffect(() => { refresh().catch((e) => setError(e.message)); }, [refresh]);
+  useEffect(() => {
+    if (section === "suppliers" && ["owner", "admin", "manager"].includes(account.role)) {
+      loadSupplierPortal().catch((e) => setError(e.message));
+    }
+  }, [section, account.role, loadSupplierPortal]);
 
   const run = async (fn, success) => {
     setBusy(true); setError(""); setNotice("");
@@ -230,6 +255,21 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
   };
   const updateSalesDocument=(operation,values,success)=>run(async()=>{await call({action:"mutate",operation,values});},success);
 
+  const inviteSupplier = (event) => {
+    event.preventDefault();
+    run(async () => {
+      const result = await callSupplierPortal({ action: "invite", ...supplierForm, supplier_id: supplierForm.supplier_id || null });
+      setSupplierInviteUrl(result.invite_url || "");
+      setSupplierInviteEmailSent(Boolean(result.email_sent));
+      await loadSupplierPortal();
+      setSupplierForm({ supplier_id: "", name: "", email: "", phone: "", tax_registration_number: "" });
+    }, "Supplier invitation created.");
+  };
+  const reviewSupplier = (supplierId, decision) => run(async () => {
+    await callSupplierPortal({ action: "decide", supplier_id: supplierId, decision });
+    await loadSupplierPortal();
+  }, decision === "approved" ? "Supplier approved." : "Supplier application rejected.");
+
   const saveProductBarcode = (event) => {
     event.preventDefault();
     run(async () => {
@@ -253,6 +293,7 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
       { id: "transfers", label: "Transfers", icon: ArrowLeftRight },
       { id: "purchasing", label: "Purchase orders", icon: ClipboardList },
       { id: "sales_docs", label: "Sales documents", icon: FileText },
+      ...(["owner", "admin", "manager"].includes(account.role) ? [{ id: "suppliers", label: "Supplier onboarding", icon: ClipboardList }] : []),
       { id: "traceability", label: "Serials & barcodes", icon: ClipboardList },
       { id: "movements", label: "Movement history", icon: History },
     ];
@@ -262,6 +303,7 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
       : section === "transfers" ? "Stock transfers"
         : section === "purchasing" ? "Purchase orders"
           : section === "sales_docs" ? "Sales documents"
+            : section === "suppliers" ? "Vendor onboarding & supplier portal"
             : section === "traceability" ? "Serial & barcode traceability"
           : "Movement history";
   const sectionDescription = section === "crm" ? "Manage leads, follow-ups and customer activity."
@@ -269,6 +311,7 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
       : section === "transfers" ? "Move stock between locations with a traceable transfer record."
         : section === "purchasing" ? "Create supplier orders and receive goods into the right warehouse."
           : section === "sales_docs" ? "Prepare sales orders, delivery challans and credit/debit notes."
+            : section === "suppliers" ? "Invite suppliers to submit their business profile through a secure one-time link, then review and approve submissions."
             : section === "traceability" ? "Assign unique product barcodes and track individual serialized units across stock status changes."
           : "A searchable audit trail of receipts, transfers and stock adjustments.";
 
@@ -276,11 +319,11 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
     <div className="overflow-hidden rounded-2xl border border-[#E7E2F2] bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8B7AAE]">Plivex workspace / {section === "crm" ? "CRM" : section === "sales_docs" ? "Sales" : "Inventory"}</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8B7AAE]">Plivex workspace / {section === "crm" ? "CRM" : section === "sales_docs" ? "Sales" : section === "suppliers" ? "Suppliers" : "Inventory"}</p>
           <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{sectionTitle}</h1>
           <p className="mt-1 text-xs leading-relaxed text-slate-500 sm:text-sm">{sectionDescription}</p>
         </div>
-        <button type="button" className={secondary + " inline-flex items-center gap-2"} onClick={() => refresh().catch((e) => setError(e.message))}>
+        <button type="button" className={secondary + " inline-flex items-center gap-2"} onClick={() => (section === "suppliers" ? loadSupplierPortal() : refresh()).catch((e) => setError(e.message))}>
           <RefreshCw className="h-4 w-4" /> Refresh data
         </button>
       </div>
@@ -429,6 +472,37 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
       <p className="text-xs text-slate-500">Sales orders, delivery challans and credit/debit notes are saved as workspace documents. Issuing a note does not automatically post a journal adjustment; reconcile and review the source invoice before accounting treatment.</p>
     </>}
 
+    {section === "suppliers" && !["owner", "admin", "manager"].includes(account.role) && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">Only workspace owners, admins and managers can manage supplier onboarding.</p>}
+    {section === "suppliers" && ["owner", "admin", "manager"].includes(account.role) && <>
+      <div className="rounded-xl border border-violet-100 bg-violet-50/60 p-4 text-xs leading-relaxed text-violet-900">
+        Supplier invitations are single-use links that expire after 7 days. Suppliers submit their own business details; workspace managers review each submission before approval. Email delivery depends on the workspace email provider configuration.
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(260px,0.8fr)]">
+        <form onSubmit={inviteSupplier} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div><h2 className="text-sm font-bold">Invite a supplier</h2><p className="mt-1 text-xs text-slate-500">Choose a saved supplier or create a new supplier record.</p></div>
+          <label className="block text-xs font-semibold text-slate-600">Existing supplier (optional)<select className={input+" mt-1"} value={supplierForm.supplier_id} onChange={(e)=>{const id=e.target.value;const existing=data.suppliers.find((item)=>item.id===id);setSupplierForm({supplier_id:id,name:existing?.name||supplierForm.name,email:existing?.email||supplierForm.email,phone:existing?.phone||supplierForm.phone,tax_registration_number:existing?.tax_registration_number||supplierForm.tax_registration_number});}}><option value="">Create a new supplier</option>{data.suppliers.map((item)=><option key={item.id} value={item.id}>{item.name} · {item.email||"no email"}</option>)}</select></label>
+          <label className="block text-xs font-semibold text-slate-600">Supplier / business name *<input required maxLength={200} className={input+" mt-1"} value={supplierForm.name} onChange={(e)=>setSupplierForm((v)=>({...v,name:e.target.value}))}/></label>
+          <label className="block text-xs font-semibold text-slate-600">Supplier email *<input required type="email" maxLength={254} className={input+" mt-1"} value={supplierForm.email} onChange={(e)=>setSupplierForm((v)=>({...v,email:e.target.value}))}/></label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-xs font-semibold text-slate-600">Phone<input maxLength={40} className={input+" mt-1"} value={supplierForm.phone} onChange={(e)=>setSupplierForm((v)=>({...v,phone:e.target.value}))}/></label>
+            <label className="block text-xs font-semibold text-slate-600">Tax registration no.<input maxLength={80} className={input+" mt-1"} value={supplierForm.tax_registration_number} onChange={(e)=>setSupplierForm((v)=>({...v,tax_registration_number:e.target.value}))}/></label>
+          </div>
+          <button type="submit" className={button} disabled={busy || !supplierForm.name.trim() || !supplierForm.email.trim()}>Create secure invitation</button>
+        </form>
+        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-bold">Latest invitation</h2>
+          {supplierInviteUrl ? <><p className="text-xs text-slate-600">{supplierInviteEmailSent ? "Invitation email sent successfully." : "Invitation created. Email could not be sent; share this secure link directly."}</p><input readOnly className={input+" font-mono text-xs"} value={supplierInviteUrl} onFocus={(e)=>e.target.select()}/><button type="button" className={secondary+" w-full"} onClick={()=>navigator.clipboard?.writeText(supplierInviteUrl)}>Copy invitation link</button></> : <p className="rounded-lg bg-slate-50 p-4 text-xs leading-5 text-slate-500">Create an invitation to generate a single-use supplier portal link. The raw token is never stored in the database.</p>}
+          <div className="rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-500">The portal collects business identity, tax registration, contact, address and preferred payment terms. It does not collect bank passwords, card details or account credentials.</div>
+        </div>
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-4 py-3"><h2 className="text-sm font-bold">Supplier onboarding register</h2><p className="mt-1 text-xs text-slate-500">Review submitted profiles and keep an approval record.</p></div>
+        <table className="w-full min-w-[820px] text-sm"><thead className="bg-[#F8F7FC] text-[10px] font-bold uppercase tracking-wider text-slate-500"><tr>{["Supplier","Contact","Tax registration","Status","Invite expiry","Review"].map((label)=><th key={label} className="px-3 py-3 text-left">{label}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">
+          {supplierPortalRows.map((item)=><tr key={item.supplier_id}><td className="px-3 py-3"><div className="font-semibold">{item.legal_name||item.name}</div><div className="text-xs text-slate-500">{item.email}</div></td><td className="px-3 py-3">{item.contact_name||"—"}<div className="text-xs text-slate-500">{item.phone||""}</div></td><td className="px-3 py-3 font-mono text-xs">{item.tax_registration_number||"—"}</td><td className="px-3 py-3"><span className="rounded-full bg-slate-100 px-2 py-1 text-xs capitalize">{item.status}</span></td><td className="px-3 py-3 text-xs text-slate-500">{item.invite_expires_at ? new Date(item.invite_expires_at).toLocaleDateString() : "—"}<div className="capitalize">{item.invite_status||"—"}</div></td><td className="px-3 py-3">{item.status==="submitted" ? <div className="flex gap-2"><button type="button" className={secondary} disabled={busy} onClick={()=>reviewSupplier(item.supplier_id,"approved")}>Approve</button><button type="button" className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50" disabled={busy} onClick={()=>reviewSupplier(item.supplier_id,"rejected")}>Reject</button></div> : <span className="text-xs text-slate-400">{item.review_note||"—"}</span>}</td></tr>)}
+        </tbody></table>
+        {!supplierPortalRows.length && <p className="p-8 text-center text-sm text-slate-500">No supplier invitations yet.</p>}
+      </div>
+    </>}
     {section === "traceability" && <>
       <div className="rounded-xl border border-violet-100 bg-violet-50/60 p-4 text-xs leading-relaxed text-violet-900">
         Register serials only for units already present in the selected warehouse. Moving a serial to Sold or Damaged updates the stock and batch balance; Reserved is a tracking state and does not deduct stock.
