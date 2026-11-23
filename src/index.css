@@ -513,3 +513,27 @@ button, a, [role="button"], input[type="checkbox"], input[type="radio"] {
   .plivex-tools-center form { min-width: 0; }
   .plivex-tools-center input[type="file"] { font-size: 12px; }
 }
+
+
+/* CRM pipeline: comfortable cards and phone-friendly horizontal stages */
+.plivex-crm { color: #171717; }
+.plivex-crm input:not([type="checkbox"]),
+.plivex-crm select,
+.plivex-crm textarea {
+  min-height: 40px;
+  border-radius: 10px;
+  border-color: #dedbe8;
+  background: #fff;
+  color: #171717;
+}
+.plivex-crm input:focus,
+.plivex-crm select:focus,
+.plivex-crm textarea:focus {
+  outline: none;
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(109, 40, 217, .10);
+}
+.plivex-crm section { min-width: 0; }
+.plivex-crm article { min-width: 0; overflow-wrap: anywhere; }
+.plivex-crm [role="dialog"] { max-height: min(90vh, 820px); overflow-y: auto; overscroll-behavior: contain; }
+.plivex-crm button { touch-action: manipulation; }
