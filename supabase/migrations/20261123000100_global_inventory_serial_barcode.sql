@@ -175,7 +175,7 @@ begin
      v_batch_number := nullif(trim(v_item->>'batch_number'),''); v_expiry := nullif(v_item->>'expires_on','')::date;
      if v_batch_number is not null then
        insert into global.inventory_batches(workspace_id,warehouse_id,product_id,batch_number,quantity,unit_cost_minor,expires_on)
-       values(p_workspace_id,v_receipt.warehouse_id,v_po_item.product_id,v_batch,v_qty,v_po_item.unit_cost_minor,v_expiry)
+       values(p_workspace_id,v_receipt.warehouse_id,v_po_item.product_id,v_batch_number,v_qty,v_po_item.unit_cost_minor,v_expiry)
        on conflict(workspace_id,warehouse_id,product_id,batch_number) do update set quantity=global.inventory_batches.quantity+excluded.quantity;
      end if;
      insert into global.purchase_receipt_items(workspace_id,receipt_id,purchase_order_item_id,product_id,quantity,batch_number,expires_on)
