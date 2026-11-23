@@ -87,14 +87,14 @@ export default function GlobalApp({ section = "overview" }) {
   }, [account?.workspace_id]);
 
   const loadRecords = useCallback(async (activeTab = tab) => {
-    if (!account?.workspace_id || ["crm", "inventory", "quotations", "suppliers"].includes(activeTab)) return;
+    if (!account?.workspace_id || ["crm", "inventory", "quotations", "suppliers", "platform"].includes(activeTab)) return;
     const tables = activeTab === "overview" ? ["clients", "products", "expenses", "invoices", "stock_levels"] : [TABLES[activeTab]];
     const results = await Promise.all(tables.map(async (table) => [table, await invoke(table)]));
     setRecords((current) => ({ ...current, ...Object.fromEntries(results.map(([table, result]) => [table, result.records || []])) }));
   }, [account?.workspace_id, invoke, tab]);
 
   useEffect(() => {
-    if (!account?.workspace_id || ["accounting", "quotations", "suppliers"].includes(tab)) return;
+    if (!account?.workspace_id || ["accounting", "quotations", "suppliers", "platform"].includes(tab)) return;
     loadRecords(tab).catch((loadError) => setError(loadError.message));
   }, [account?.workspace_id, tab, loadRecords]);
 
