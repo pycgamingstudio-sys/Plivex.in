@@ -72,6 +72,6 @@ test("Main Workspace CRM and multi-warehouse foundations remain the active publi
   assert.match(crm,/public\.leads/);
   assert.match(crmUi,/STAGES/);
   assert.match(warehouse,/create table if not exists public\.stock_transfers/);
-  assert.match(warehouse,/india_part4_create_stock_transfer/);
+  assert.match(warehouse,/india_part4_transfer_stock/);
   assert.match(warehouseUi,/india_part4_create_purchase_order/);
 });
