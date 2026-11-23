@@ -36,6 +36,7 @@ export default function GlobalQuotationsPanel({ account }) {
   const [clients, setClients] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [downloadingQuotationId, setDownloadingQuotationId] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [selectedId, setSelectedId] = useState("");
@@ -146,6 +147,8 @@ export default function GlobalQuotationsPanel({ account }) {
   };
 
   const downloadPdf = (entry) => {
+    const quotationId = entry?.quotation?.id || "";
+    setDownloadingQuotationId(quotationId);
     try {
       const { quotation, client, items = [] } = entry;
       const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -195,7 +198,9 @@ export default function GlobalQuotationsPanel({ account }) {
       doc.text(doc.splitTextToSize(note, pageWidth - 32), 16, Math.min(y, 280));
       if (quotation.notes) { y += 14; doc.setTextColor(40, 40, 40); doc.text(doc.splitTextToSize("Notes: " + quotation.notes, pageWidth - 32), 16, Math.min(y, 285)); }
       doc.save(`${quotation.quotation_number}.pdf`);
+      setNotice(`Downloading quotation ${quotation.quotation_number}…`);
     } catch (pdfError) { setError(pdfError.message || "Could not create quotation PDF."); }
+    finally { window.setTimeout(() => setDownloadingQuotationId(""), 1800); }
   };
 
   return (
@@ -242,7 +247,7 @@ export default function GlobalQuotationsPanel({ account }) {
               <div className="flex justify-between gap-3 font-bold"><span>Total including tax</span><span>{formatMoney(selected.quotation.total_including_tax_minor ?? selected.quotation.total_minor, selected.quotation.currency_code, locale)}</span></div>
             </div>
             {selected.quotation.notes && <p className="mt-3 text-xs leading-5 text-slate-600">{selected.quotation.notes}</p>}
-            <button type="button" className={secondary + " mt-4 w-full"} onClick={() => downloadPdf(selected)}><Download className="h-4 w-4" /> Download PDF</button>
+            <button type="button" className={secondary + " mt-4 w-full"} disabled={downloadingQuotationId === selected.quotation.id} onClick={() => downloadPdf(selected)}><Download className={`h-4 w-4 ${downloadingQuotationId === selected.quotation.id ? "animate-pulse" : ""}`} /> {downloadingQuotationId === selected.quotation.id ? "Downloading…" : "Download PDF"}</button>
             {selected.quotation.status === "draft" && <button type="button" className={primary + " mt-2 w-full"} disabled={busy} onClick={() => changeStatus("sent")}><Send className="h-4 w-4" /> Mark as sent</button>}
             {["draft", "sent"].includes(selected.quotation.status) && <div className="mt-2 grid grid-cols-2 gap-2"><button type="button" className={secondary} disabled={busy} onClick={() => changeStatus("accepted")}><CheckCircle2 className="h-4 w-4" /> Accept</button><button type="button" className={secondary} disabled={busy} onClick={() => changeStatus("rejected")}><XCircle className="h-4 w-4" /> Reject</button></div>}
             {selected.quotation.status === "accepted" && <button type="button" className={primary + " mt-2 w-full"} disabled={busy} onClick={convertToInvoice}>Convert to invoice draft <ArrowRight className="h-4 w-4" /></button>}
