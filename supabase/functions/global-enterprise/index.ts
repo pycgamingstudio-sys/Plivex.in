@@ -5,7 +5,7 @@ const APPROVER_ROLES = new Set(["owner", "admin", "manager", "employee", "accoun
 const ESCALATION_ROLES = new Set(["owner", "admin", "manager", "accountant"]);
 const ALLOWED_ACTIONS = new Set([
   "branch.create", "branch.archive", "branch.list", "health.read", "fx.snapshot.create", "fx.convert", "permission.set", "approval.request", "approval.list",
-  "approval.decide", "approval.cancel", "approval.policy.set", "approval.policy.list", "audit.list", "export.request", "retention.set",
+  "approval.decide", "approval.cancel", "approval.policy.set", "approval.policy.list", "audit.list", "export.request", "retention.set", "member.list",
 ]);
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
@@ -43,14 +43,17 @@ Deno.serve(async (req: Request) => {
 
     if (body.action === "approval.cancel" && !UUID.test(body.requestId || "")) return globalJson({ error: "Invalid approval request." }, 400, origin);
     if (body.action === "approval.decide" && (!UUID.test(body.requestId || "") || !["approve", "approved", "reject", "rejected"].includes(body.decision))) return globalJson({ error: "Invalid approval decision." }, 400, origin);
-    const rpcName = body.action === "approval.cancel" ? "global_approval_cancel_v2"
+    const rpcName = body.action === "member.list" ? "global_enterprise_members"
+      : body.action === "approval.cancel" ? "global_approval_cancel_v2"
       : body.action === "approval.request" ? "global_approval_request_v2"
         : body.action === "approval.decide" ? "global_approval_decide_v2"
           : body.action === "approval.list" ? "global_approval_list_v2"
             : body.action === "approval.policy.set" ? "global_set_approval_policy_v2"
               : body.action === "approval.policy.list" ? "global_list_approval_policies_v2" : "global_enterprise_action";
-    const rpcArgs = body.action === "approval.cancel"
-      ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_request_id: body.requestId }
+    const rpcArgs = body.action === "member.list"
+      ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId }
+      : body.action === "approval.cancel"
+        ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_request_id: body.requestId }
       : body.action === "approval.request" || body.action === "approval.decide"
         ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_payload: body }
         : body.action === "approval.list" || body.action === "approval.policy.list"
