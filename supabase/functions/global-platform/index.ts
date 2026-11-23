@@ -215,7 +215,11 @@ async function publicApi(req: Request, admin: any) {
   const operation = clean(raw.operation || (mcpMethod === "tools/call" ? raw.params?.name : mcpMethod), 80);
   const has = (scope: string) => apiKey.scopes.includes(scope);
   let result: any;
-  if (operation === "mcp.tools/list" || raw.method === "tools/list") {
+  if (mcpMethod === "notifications/initialized") return new Response(null, { status: 202 });
+  if (mcpMethod === "initialize") {
+    if (!has("mcp.read")) return json({ error: "Scope required: mcp.read" }, 403);
+    result = { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "plivex-global-business", version: "1.0.0" } };
+  } else if (operation === "mcp.tools/list" || raw.method === "tools/list") {
     if (!has("mcp.read")) return json({ error: "Scope required: mcp.read" }, 403);
     result = { tools: [
       { name: "workspace_summary", description: "Read invoice and client totals for this workspace.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
