@@ -20,7 +20,9 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
   const [approvalPolicyAction, setApprovalPolicyAction] = useState("expense.create");
   const [approvalPolicyEnabled, setApprovalPolicyEnabled] = useState(true);
   const [approvalMinimumAmount, setApprovalMinimumAmount] = useState("0");
-  const [approvalRoles, setApprovalRoles] = useState(["owner", "admin", "accountant"]);
+  const [approvalLevels, setApprovalLevels] = useState(["manager", "accountant"]);
+  const [approvalEscalationHours, setApprovalEscalationHours] = useState("24");
+  const [approvalEscalationRole, setApprovalEscalationRole] = useState("admin");
   const [events, setEvents] = useState([]);
   const [health, setHealth] = useState(null);
   const [branchCode, setBranchCode] = useState("");
@@ -78,7 +80,9 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
     const policy = approvalPolicies.find((item) => item.action_type === approvalPolicyAction);
     setApprovalPolicyEnabled(policy?.enabled ?? false);
     setApprovalMinimumAmount(String(policy?.minimum_amount_minor ?? 0));
-    setApprovalRoles(policy?.approver_roles || ["owner", "admin", "accountant"]);
+    setApprovalLevels(policy?.approval_levels?.length ? policy.approval_levels : [policy?.approver_roles?.[0] || "owner"]);
+    setApprovalEscalationHours(String(policy?.escalation_after_hours ?? 24));
+    setApprovalEscalationRole(policy?.escalation_role || "admin");
   }, [approvalPolicies, approvalPolicyAction]);
 
   const perform = async (work, successMessage) => {
@@ -138,16 +142,16 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
       actionType: approvalPolicyAction,
       enabled: approvalPolicyEnabled,
       minimumAmountMinor: Number(approvalMinimumAmount),
-      approverRoles: approvalRoles,
+      approvalLevels,
+      escalationAfterHours: Number(approvalEscalationHours),
+      escalationRole: approvalEscalationRole,
       preventSelfApproval: true,
     }), "Approval policy saved.");
   };
 
-  const toggleApproverRole = (role) => {
-    setApprovalRoles((current) => current.includes(role)
-      ? current.filter((item) => item !== role)
-      : [...current, role]);
-  };
+  const addApprovalLevel = () => setApprovalLevels((current) => current.length < 5 ? [...current, "accountant"] : current);
+  const removeApprovalLevel = (index) => setApprovalLevels((current) => current.length > 1 ? current.filter((_, i) => i !== index) : current);
+  const updateApprovalLevel = (index, role) => setApprovalLevels((current) => current.map((item, i) => i === index ? role : item));
 
   const setPermission = (event) => {
     event.preventDefault();
@@ -235,7 +239,7 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
           <div className="mt-3 divide-y divide-slate-100">
             {approvals.length === 0 ? <p className="py-3 text-sm text-slate-500">No pending requests.</p> : approvals.map((item) => (
               <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                <div className="min-w-0"><p className="text-sm font-medium">{item.action_type} · {item.resource_type}</p><p className="truncate text-xs text-slate-500">{item.resource_id} · requested {new Date(item.created_at).toLocaleString()}</p></div>
+                <div className="min-w-0"><p className="text-sm font-medium">{item.action_type} · {item.resource_type}</p><p className="truncate text-xs text-slate-500">{item.resource_id} · requested {new Date(item.created_at).toLocaleString()} · Level {item.current_level || 1} of {item.total_levels || 1}</p><div className="mt-1 flex flex-wrap gap-1">{(item.steps || []).map((step) => <span key={step.level} className={"rounded-full px-2 py-0.5 text-[10px] font-medium " + (step.status === "approved" ? "bg-emerald-50 text-emerald-700" : step.escalated_at ? "bg-amber-50 text-amber-800" : "bg-slate-100 text-slate-600")}>L{step.level}: {step.status}{step.escalated_at ? " · escalated to " + step.escalation_role : ""}</span>)}</div></div>
                 <div className="flex gap-2">
                   <button type="button" className={secondaryClass} disabled={busy} onClick={() => perform(() => enterprise("approval.cancel", { requestId: item.id }), "Request cancelled.")}>Cancel</button>
                   <button type="button" className={secondaryClass} disabled={busy} onClick={() => decideApproval(item.id, "approved")}>Approve</button>
@@ -268,21 +272,33 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
               Minimum amount (workspace base-currency minor units)
               <input className={inputClass + " mt-1 w-full"} type="number" min="0" max="9000000000000000" step="1" required value={approvalMinimumAmount} onChange={(e) => setApprovalMinimumAmount(e.target.value)} />
             </label>
-            <fieldset>
-              <legend className="text-sm font-medium text-slate-700">Allowed approver roles</legend>
-              <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-slate-700">
-                {["owner", "admin", "manager", "accountant", "employee"].map((role) => (
-                  <label key={role} className="flex items-center gap-2">
-                    <input type="checkbox" checked={approvalRoles.includes(role)} onChange={() => toggleApproverRole(role)} />
-                    {role}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2"><h3 className="text-sm font-medium text-slate-700">Sequential approval levels</h3><span className="text-xs text-slate-500">{approvalLevels.length}/5</span></div>
+              {approvalLevels.map((role, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <span className="w-16 shrink-0 text-xs font-semibold text-slate-500">Level {index + 1}</span>
+                  <select className={inputClass + " min-w-0 flex-1"} value={role} onChange={(e) => updateApprovalLevel(index, e.target.value)}>
+                    {["owner", "admin", "manager", "accountant", "employee"].map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
+                  <button type="button" className={secondaryClass} disabled={approvalLevels.length <= 1} onClick={() => removeApprovalLevel(index)}>Remove</button>
+                </div>
+              ))}
+              <button type="button" className={secondaryClass} disabled={approvalLevels.length >= 5} onClick={addApprovalLevel}>Add approval level</button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-sm font-medium text-slate-700">Escalate after (hours)
+                <input className={inputClass + " mt-1 w-full"} type="number" min="1" max="720" step="1" required value={approvalEscalationHours} onChange={(e) => setApprovalEscalationHours(e.target.value)} />
+              </label>
+              <label className="block text-sm font-medium text-slate-700">Escalate to role
+                <select className={inputClass + " mt-1 w-full"} value={approvalEscalationRole} onChange={(e) => setApprovalEscalationRole(e.target.value)}>
+                  {["owner", "admin", "manager", "accountant"].map((role) => <option key={role} value={role}>{role}</option>)}
+                </select>
+              </label>
+            </div>
             <p className="rounded-lg bg-violet-50 px-3 py-2 text-xs font-medium text-violet-800">
-              Self-approval is always blocked for safety.
+              Each level must approve in sequence. Overdue pending levels are automatically escalated. Self-approval is always blocked for safety.
             </p>
-            <button className={buttonClass} disabled={busy || approvalRoles.length === 0 || !Number.isSafeInteger(Number(approvalMinimumAmount)) || Number(approvalMinimumAmount) < 0}>Save approval policy</button>
+            <button className={buttonClass} disabled={busy || approvalLevels.length === 0 || !Number.isSafeInteger(Number(approvalMinimumAmount)) || Number(approvalMinimumAmount) < 0 || !Number.isSafeInteger(Number(approvalEscalationHours)) || Number(approvalEscalationHours) < 1 || Number(approvalEscalationHours) > 720}>Save approval policy</button>
           </form>
           <p className="mt-2 text-xs text-slate-500">{approvalPolicies.length} saved policy rule(s). Owner/admin authorization is enforced by the server.</p>
         </section>
