@@ -133,7 +133,7 @@ async function processOcr(ctx: any, body: any) {
   const payload = await response.json();
   const raw = payload?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("") || "";
   let extracted: Record<string, unknown>;
-  try { extracted = JSON.parse(raw); } catch { throw new Error("OCR_INVALID_RESPONSE"); }
+  try { extracted = JSON.parse(raw); } catch { await ctx.admin.from("document_ocr_jobs").update({status:"failed",error_code:"OCR_INVALID_RESPONSE"}).eq("id",jobId); throw new Error("OCR_INVALID_RESPONSE"); }
   const { error: updateError } = await ctx.admin.from("document_ocr_jobs").update({ status: "completed", extracted_data: extracted, model_name: model, completed_at: new Date().toISOString() }).eq("id", jobId).eq("workspace_id", ctx.workspaceId);
   if (updateError) throw new Error("OCR_SAVE_FAILED");
   return { ok: true, jobId, extracted, requiresHumanReview: true };
@@ -187,7 +187,7 @@ async function apiManagement(ctx: any, body: any) {
   }
   const label = clean(body.label,80), scopes = Array.isArray(body.scopes) ? [...new Set(body.scopes)] : [];
   const allowedScopes = ["workspace.read","invoices.read","clients.read","expenses.read","leads.read","inventory.read","suppliers.read","mcp.read"];
-  if (label.length < 2 || !scopes.length || scopes.length > 8 || scopes.some((s:string)=>!allowedScopes.includes(s))) throw new Error("INVALID_API_KEY");
+  if (label.length < 2 || !scopes.length || scopes.length > 8 || scopes.some((s:string)=>!allowedScopes.includes(s)) || (scopes.includes("mcp.read") && !scopes.includes("workspace.read"))) throw new Error("INVALID_API_KEY");
   const prefix = "plx_" + crypto.randomUUID().replaceAll("-","").slice(0,6); const secret = prefix + "_" + token(32), keyHash = await sha256(secret);
   const days = Math.min(365,Math.max(1,Number(body.expiryDays)||90));
   const { data, error } = await ctx.admin.from("public_api_keys").insert({ workspace_id:ctx.workspaceId,created_by:ctx.user.id,label,key_hash:keyHash,key_prefix:prefix,scopes,expires_at:new Date(Date.now()+days*86400000).toISOString() }).select("id,label,key_prefix,scopes,expires_at,created_at").single();
@@ -201,8 +201,11 @@ async function publicApi(req: Request, admin: any, body: any) {
   const hash = await sha256(secret);
   const { data: key, error } = await admin.from("public_api_keys").select("id,workspace_id,scopes,expires_at,revoked_at").eq("key_hash",hash).maybeSingle();
   if (error || !key || key.revoked_at || new Date(key.expires_at).getTime() <= Date.now()) throw new Error("API_KEY_INVALID");
+  const {data:withinLimit,error:rateError}=await admin.rpc("consume_main_workspace_api_rate_limit",{p_key_hash:hash,p_limit:60,p_window_seconds:60});
+  if(rateError||withinLimit!==true) throw new Error("API_RATE_LIMITED");
   const scope = (s:string) => key.scopes.includes(s);
   const action = clean(body.action,80);
+  if(action.startsWith("mcp.") && (!scope("mcp.read") || !scope("workspace.read"))) throw new Error("API_SCOPE_DENIED");
   if (action === "mcp.initialize") return { jsonrpc:"2.0", id:body.id ?? null, result:{ protocolVersion:"2025-03-26", capabilities:{tools:{}}, serverInfo:{name:"Plivex Main Workspace",version:"1.0.0"} } };
   if (action === "mcp.tools/list") return { jsonrpc:"2.0", id:body.id ?? null, result:{ tools:[
     {name:"workspace_summary",description:"Read aggregate workspace settings and counts",inputSchema:{type:"object",properties:{},additionalProperties:false}},
@@ -224,7 +227,9 @@ async function publicApi(req: Request, admin: any, body: any) {
         admin.from("leads").select("stage,value,currency_code").eq("workspace_id",key.workspace_id).limit(500),
         admin.from("stock").select("quantity,low_stock").eq("workspace_id",key.workspace_id).limit(500)
       ]);
-      const aggregate = {invoiceCount:inv?.length||0,invoiceCurrencies:[...new Set((inv||[]).map((x:any)=>x.currency||"UNK"))],expenseCount:exp?.length||0,leadCount:leads?.length||0,openLeadValue:(leads||[]).filter((x:any)=>!["Won","Lost","won","lost"].includes(String(x.stage))).reduce((n:number,x:any)=>n+Number(x.value||0),0),lowStockItems:(stock||[]).filter((x:any)=>Number(x.quantity)<=Number(x.low_stock)).length};
+      const sumByCurrency=(rows:any[],amountKey:string,currencyKey:string)=>rows.reduce((out:any,row:any)=>{const code=String(row[currencyKey]||"UNK");out[code]=(out[code]||0)+Number(row[amountKey]||0);return out;},{});
+      const openLeads=(leads||[]).filter((x:any)=>!["Won","Lost","won","lost"].includes(String(x.stage)));
+      const aggregate = {invoiceCount:inv?.length||0,invoiceTotalsByCurrency:sumByCurrency(inv||[],"total","currency"),expenseCount:exp?.length||0,expenseTotalsByCurrency:sumByCurrency(exp||[],"amount","currency_code"),leadCount:leads?.length||0,openLeadValueByCurrency:sumByCurrency(openLeads,"value","currency_code"),lowStockItems:(stock||[]).filter((x:any)=>Number(x.quantity)<=Number(x.low_stock)).length};
       const keyGemini=Deno.env.get("GEMINI_API_KEY");
       if(!keyGemini) throw new Error("AI_PROVIDER_NOT_CONFIGURED");
       const model=Deno.env.get("GEMINI_BUSINESS_MODEL")||"gemini-3.8-flash";
@@ -252,10 +257,11 @@ async function publicApi(req: Request, admin: any, body: any) {
   };
   const target = listMap[action];
   if (!target || !scope(target.scope)) throw new Error("API_SCOPE_DENIED");
-  const {data,error}=await admin.from(target.table).select(target.fields).eq("workspace_id",key.workspace_id).limit(100);
+  const {data,error}=await admin.from(target.table).select(target.fields).eq("workspace_id",key.workspace_id).limit(Math.min(100,Math.max(1,Number(body.limit)||100)));
   if(error) throw new Error("API_READ_FAILED");
+  const records = action === "inventory.low_stock" ? (data||[]).filter((x:any)=>Number(x.quantity)<=Number(x.low_stock)) : (data||[]);
   await admin.from("public_api_keys").update({last_used_at:new Date().toISOString()}).eq("id",key.id);
-  return {ok:true,records:data||[]};
+  return {ok:true,records};
 }
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
@@ -279,6 +285,13 @@ Deno.serve(async (req: Request) => {
     const ctx = await setup(req);
     let result: any;
     if (body.action === "signature.create") result = await signatureCreate(ctx,body);
+    else if (body.action === "signature.revoke") {
+      if (!canSign(ctx.role)) throw new Error("ACCESS_DENIED");
+      const {data,error}=await ctx.admin.from("document_signing_requests").update({status:"revoked",updated_at:new Date().toISOString()}).eq("workspace_id",ctx.workspaceId).eq("id",body.requestId).eq("status","pending").select("id").maybeSingle();
+      if(error||!data) throw new Error("SIGN_REQUEST_REVOKE_FAILED");
+      await ctx.admin.from("workspace_audit_events").insert({workspace_id:ctx.workspaceId,actor_id:ctx.user.id,action:"document.signing_request_revoked",entity_type:"signature_request",entity_id:data.id,metadata:{}});
+      result={ok:true};
+    }
     else if (body.action === "ocr.process") result = await processOcr(ctx,body);
     else if (body.action === "whatsapp.send") result = await whatsappSend(ctx,body);
     else if (body.action === "whatsapp.list") {
@@ -290,7 +303,7 @@ Deno.serve(async (req: Request) => {
     return json(result,200,origin);
   } catch (error) {
     const code = error instanceof Error ? error.message : "REQUEST_FAILED";
-    const status = code === "AUTH_REQUIRED" ? 401 : code === "ACCESS_DENIED" ? 403
+    const status = code === "AUTH_REQUIRED" ? 401 : code === "ACCESS_DENIED" ? 403 : code === "API_RATE_LIMITED" ? 429
       : code.includes("NOT_FOUND") ? 404 : code.includes("INVALID") || code.includes("REQUIRED") ? 400
       : code.includes("NOT_CONFIGURED") || code.includes("UNAVAILABLE") ? 503 : 500;
     return json({ok:false,error:code},status,origin);
