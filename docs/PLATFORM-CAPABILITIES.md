@@ -35,7 +35,8 @@ Subscribe the Meta app to the WhatsApp `messages` webhook field. The handler ver
 
 ## 4. Public API and MCP
 
-- Create scoped keys in the Global workspace Integrations & AI section. Keys expire in at most 365 days and can be revoked.\n- Available scopes: `workspace.read`, `invoices.read`, `clients.read`, `expenses.read`, `leads.read`, `inventory.read`, `suppliers.read`, `mcp.read`.
+- Create scoped keys in the Global workspace Integrations & AI section. Keys expire in at most 365 days and can be revoked.
+- Available scopes: `workspace.read`, `invoices.read`, `clients.read`, `expenses.read`, `leads.read`, `inventory.read`, `suppliers.read`, `mcp.read`.
 - Only SHA-256 key hashes are stored; the secret is displayed once.
 - Send the Supabase project anon key in the standard `apikey` header and your workspace key in `x-plivex-key` to:
   `https://sqzpaiibmfsvarrkwkvb.supabase.co/functions/v1/global-platform`
