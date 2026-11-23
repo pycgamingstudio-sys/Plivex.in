@@ -103,6 +103,11 @@ async function processOcr(admin: any, user: any, body: any) {
   if (!["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(mime)) throw new Error("UNSUPPORTED_FILE_TYPE");
   const bytes = bytesFromBase64(clean(body.fileBase64, 12 * 1024 * 1024));
   if (!bytes.length) throw new Error("EMPTY_FILE");
+  const validMagic = mime === "image/jpeg" ? bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
+    : mime === "image/png" ? bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+      : mime === "image/webp" ? new TextDecoder().decode(bytes.slice(0, 4)) === "RIFF" && new TextDecoder().decode(bytes.slice(8, 12)) === "WEBP"
+        : new TextDecoder().decode(bytes.slice(0, 5)) === "%PDF-";
+  if (!validMagic) throw new Error("FILE_TYPE_MISMATCH");
   const type = ["invoice", "receipt", "purchase_order", "identity", "other"].includes(body.documentType) ? body.documentType : "other";
   const jobId = crypto.randomUUID();
   await ensureBucket(admin, OCR_BUCKET, ["image/jpeg", "image/png", "image/webp", "application/pdf"]);
@@ -115,7 +120,7 @@ async function processOcr(admin: any, user: any, body: any) {
   });
   if (insertError) { await admin.storage.from(OCR_BUCKET).remove([path]); throw new Error("OCR_JOB_CREATE_FAILED"); }
   const apiKey = Deno.env.get("GEMINI_API_KEY");
-  if (!apiKey) throw new Error("OCR_PROVIDER_NOT_CONFIGURED");
+  if (!apiKey) { await admin.schema("global").from("document_ocr_jobs").update({ status: "failed", error_code: "OCR_PROVIDER_NOT_CONFIGURED" }).eq("id", jobId); throw new Error("OCR_PROVIDER_NOT_CONFIGURED"); }
   const model = Deno.env.get("GEMINI_OCR_MODEL") || "gemini-2.5-flash";
   const prompt = "Extract the document into JSON. Return only JSON with keys document_type, supplier_name, supplier_tax_id, document_number, document_date, due_date, currency, subtotal, tax_total, total, line_items (array of description, quantity, unit_price, tax_rate, line_total), payment_reference, confidence (0..1), and review_notes (array). Use null for unknown values. Never invent unreadable values. This is an extraction draft; it must be reviewed by a human before use.";
   const base64 = toBase64(bytes);
@@ -130,7 +135,7 @@ async function processOcr(admin: any, user: any, body: any) {
   const payload = await response.json();
   const output = payload?.candidates?.[0]?.content?.parts?.map((part: any) => part.text || "").join("") || "";
   let extracted: any;
-  try { extracted = JSON.parse(output); } catch { extracted = { raw_text: output.slice(0, 12000), review_notes: ["Provider response was not valid structured JSON; manual review required."] }; }
+  try { extracted = JSON.parse(output); if (!isObject(extracted)) throw new Error("INVALID_EXTRACTION"); } catch { extracted = { raw_text: output.slice(0, 12000), review_notes: ["Provider response was not valid structured JSON; manual review required."] }; }
   const { error: updateError } = await admin.schema("global").from("document_ocr_jobs").update({
     status: "completed", extracted_data: extracted, model_name: model, completed_at: new Date().toISOString(),
   }).eq("id", jobId);
