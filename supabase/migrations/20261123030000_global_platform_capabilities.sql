@@ -76,8 +76,8 @@ create table if not exists global.public_api_keys (
   expires_at timestamptz not null,
   revoked_at timestamptz,
   created_at timestamptz not null default now(),
-  check (cardinality(scopes) between 1 and 5),
-  check (scopes <@ array['workspace.read','invoices.read','clients.read','mcp.read']::text[])
+  check (cardinality(scopes) between 1 and 8),
+  check (scopes <@ array['workspace.read','invoices.read','clients.read','expenses.read','leads.read','inventory.read','suppliers.read','mcp.read']::text[])
 );
 create index if not exists global_public_api_keys_workspace_idx
   on global.public_api_keys(workspace_id, created_at desc);
