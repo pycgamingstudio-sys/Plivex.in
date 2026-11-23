@@ -37,7 +37,7 @@ export default function WorkspaceGSTCompliance(){
  const match=(line)=>run(()=>rpc("main_workspace_match_gstr2b_line",{p_workspace_id:workspaceId,p_line_id:line.id,p_expense_id:matches[line.id]||null,p_itc_eligible:itcEligible[line.id]??true}),"GSTR-2B line reviewed.");
  const compute=()=>run(async()=>{const d=await rpc("main_workspace_compute_gstr3b",{p_workspace_id:workspaceId,p_period_start:start,p_period_end:end});setWorksheet(d.snapshot);downloadJson("Plivex-GSTR3B-worksheet-"+start+"-"+end+".json",d.snapshot);},"GSTR-3B worksheet generated and exported. It is an estimate, not a filed return.");
  const calendar=()=>run(()=>rpc("main_workspace_generate_gst_calendar",{p_workspace_id:workspaceId,p_period_start:start.slice(0,7)+"-01"}),"GST calendar generated.");
- if(!["admin","manager","accountant"].includes(user?.role))return null;
+ if(user?.country_code!=="IN"||!["admin","manager","accountant"].includes(user?.role))return null;
  return <section className="rounded-2xl border bg-white p-4 sm:p-5">
   <div className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">India GST returns & reconciliation</h2></div>
   <p className="mt-1 text-xs text-slate-500">India Main Workspace only. Prepare GSTR-1 JSON, import GSTR-2B CSV, manually review ITC matches and calculate a GSTR-3B worksheet. This module does not connect to GSTN or file returns.</p>
