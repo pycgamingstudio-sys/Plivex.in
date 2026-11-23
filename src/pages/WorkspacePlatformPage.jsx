@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/api/backendClient";
-import { Copy, FileSignature, KeyRound, MessageCircle, ScanText, RefreshCw, ShieldCheck } from "lucide-react";
+import { Copy, FileSignature, KeyRound, MessageCircle, ScanText, RefreshCw, ShieldCheck, Search, Landmark, Boxes, Workflow, Users, ArrowRight } from "lucide-react";
 import WorkspaceEnterpriseControls from "@/components/workspace/WorkspaceEnterpriseControls";
 import WorkspaceRecurringInvoices from "@/components/workspace/WorkspaceRecurringInvoices";
 import WorkspaceSalesDocuments from "@/components/workspace/WorkspaceSalesDocuments";
@@ -48,6 +48,8 @@ export default function WorkspacePlatformPage() {
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState("");
   const [notice,setNotice] = useState("");
+  const [activeGroup,setActiveGroup] = useState("integrations");
+  const [search,setSearch] = useState("");
 
   const invoke = useCallback(async (body) => {
     const {data,error:invokeError}=await supabase.functions.invoke("workspace-platform",{body});
@@ -111,11 +113,57 @@ export default function WorkspacePlatformPage() {
 
   if(!isAdmin) return <section className="rounded-2xl border bg-white p-6"><h1 className="text-xl font-bold">Platform integrations</h1><p className="mt-2 text-sm text-slate-600">Only Workspace administrators and managers can manage integrations.</p></section>;
 
-  return <div className="space-y-5">
-    <header className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-violet-700">Main Workspace</p><h1 className="mt-1 text-2xl font-bold">Platform integrations</h1><p className="mt-1 text-sm text-slate-500">Signatures, document intelligence, WhatsApp and API access use this Workspace's existing identity and country.</p></div><button type="button" className={secondary} disabled={busy} onClick={()=>refresh().catch(e=>setError(e.message))}><RefreshCw className="mr-1 inline h-4 w-4"/>Refresh</button></header>
-    {error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-    {notice&&<p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
-    <section className="rounded-2xl border bg-white p-4 sm:p-5">
+  return <div className="plivex-tools-center space-y-5">
+     <header className="overflow-hidden rounded-3xl border border-violet-100 bg-gradient-to-br from-white via-[#FBFAFF] to-violet-50/80 shadow-[0_12px_36px_rgba(54,31,92,.07)]">
+       <div className="flex flex-wrap items-center justify-between gap-3 p-5 sm:p-7">
+         <div className="min-w-0">
+           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-700">Plivex business tools</p>
+           <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Business tools center</h1>
+           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">All advanced workspace tools, organised by the job they help you complete. Choose a section to see its tools and actions.</p>
+         </div>
+         <button type="button" className={secondary+" inline-flex items-center gap-2"} disabled={busy} onClick={()=>refresh().catch(e=>setError(e.message))}><RefreshCw className="h-4 w-4"/>Refresh data</button>
+       </div>
+       <div className="border-t border-violet-100/80 bg-white/80 px-5 py-3 sm:px-7">
+         <label className="flex max-w-xl items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100">
+           <Search className="h-4 w-4 shrink-0 text-slate-400"/>
+           <input aria-label="Search business tool categories" className="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-slate-400 focus:ring-0" placeholder="Find a tool category…" value={search} onChange={e=>setSearch(e.target.value)}/>
+         </label>
+       </div>
+     </header>
+     {error&&<p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+     {notice&&<p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
+     <section aria-label="Business tool categories" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+       {[
+         {id:"integrations",title:"Connected apps",description:"Electronic signatures, document OCR, WhatsApp Cloud, Public API and MCP.",detail:"4 tools",Icon:ShieldCheck},
+         {id:"finance",title:"Finance & tax",description:"GST return preparation, bank reconciliation, journals, reports and cash flow.",detail:"3 workspaces",Icon:Landmark},
+         {id:"inventory",title:"Inventory traceability",description:"Serial numbers, warehouse locations, batch references and item lifecycle.",detail:"Serial register",Icon:Boxes},
+         {id:"operations",title:"Sales & suppliers",description:"Sales orders, delivery challans, credit/debit notes, recurring invoices and supplier onboarding.",detail:"3 workflows",Icon:Workflow},
+         {id:"security",title:"Team & approvals",description:"Approval policies, approval requests and time-bound delegated permissions.",detail:"Access controls",Icon:Users},
+       ].filter(group=>(group.title+" "+group.description).toLowerCase().includes(search.trim().toLowerCase())).map(group=>{
+         const selected=activeGroup===group.id;
+         return <button key={group.id} type="button" aria-pressed={selected} onClick={()=>setActiveGroup(group.id)} className={`group flex min-h-[142px] items-start gap-3 rounded-2xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 sm:p-5 ${selected?"border-violet-300 bg-violet-50/70 shadow-[0_8px_24px_rgba(109,40,217,.10)]":"border-slate-200 bg-white hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-[0_8px_24px_rgba(30,20,60,.07)]"}`}>
+           <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${selected?"bg-violet-700 text-white":"bg-violet-50 text-violet-700"}`}><group.Icon className="h-5 w-5"/></span>
+           <span className="min-w-0 flex-1">
+             <span className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-900">{group.title}{selected&&<span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-800">Selected</span>}</span>
+             <span className="mt-1.5 block text-xs leading-5 text-slate-600">{group.description}</span>
+             <span className="mt-3 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-violet-700">{group.detail}<ArrowRight className="h-3 w-3"/></span>
+           </span>
+         </button>;
+       })}
+     </section>
+     {search.trim()&&![
+       "Connected apps Electronic signatures, document OCR, WhatsApp Cloud, Public API and MCP.",
+       "Finance & tax GST return preparation, bank reconciliation, journals, reports and cash flow.",
+       "Inventory traceability Serial numbers, warehouse locations, batch references and item lifecycle.",
+       "Sales & suppliers Sales orders, delivery challans, credit/debit notes, recurring invoices and supplier onboarding.",
+       "Team & approvals Approval policies, approval requests and time-bound delegated permissions."
+     ].some(label=>label.toLowerCase().includes(search.trim().toLowerCase()))&&<p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">No matching category. Try a shorter search.</p>}
+     <section className="space-y-4">
+       <div className="flex flex-wrap items-end justify-between gap-2">
+         <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-violet-700">Selected workspace</p><h2 className="mt-1 text-lg font-bold text-slate-950">{({integrations:"Connected apps",finance:"Finance & tax",inventory:"Inventory traceability",operations:"Sales & suppliers",security:"Team & approvals"})[activeGroup]}</h2></div>
+         <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-semibold text-slate-500">Changes are saved to this workspace</span>
+       </div>
+       {activeGroup==="integrations"&&<div className="space-y-4"><section className="rounded-2xl border bg-white p-4 sm:p-5">
       <div className="flex items-center gap-2"><FileSignature className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">Electronic signature audit</h2></div>
       <p className="mt-1 text-xs text-slate-500">Creates a one-time, expiring signing link and immutable consent/audit record. This is not a qualified eIDAS, Aadhaar eSign or government-certified signature.</p>
       <form onSubmit={createSignature} className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -152,14 +200,11 @@ export default function WorkspacePlatformPage() {
       {newSecret&&<div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-sm font-semibold">Copy this secret now</p><code className="mt-1 block break-all text-xs">{newSecret}</code><button className={secondary+" mt-2"} type="button" onClick={()=>navigator.clipboard.writeText(newSecret)}><Copy className="mr-1 inline h-3.5 w-3.5"/>Copy secret</button></div>}
       <div className="mt-4 space-y-2">{apiKeys.map(k=><div key={k.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-2 text-xs"><span>{k.label} · {k.key_prefix} · expires {new Date(k.expires_at).toLocaleDateString()}</span>{k.revoked_at?<span className="text-slate-500">Revoked</span>:<button type="button" className={secondary} disabled={busy} onClick={()=>run(()=>invoke({action:"api-key.revoke",keyId:k.id}),"API key revoked.")}>Revoke</button>}</div>)}</div>
       <div className="mt-4 rounded-lg bg-slate-50 p-3 text-xs"><p className="font-semibold"><ShieldCheck className="mr-1 inline h-3.5 w-3.5"/>MCP endpoint</p><code className="mt-1 block break-all">{mcpUrl}</code><p className="mt-2">Use the Supabase publishable/anon key as apikey and your Plivex key as x-plivex-key. Available read tools: workspace_summary, list_invoices, list_clients, business_insights.</p></div>
-    </section>
-    <WorkspaceGSTCompliance />
-    <WorkspaceBankAccounting />
-    <WorkspaceAnalyticsPanel />
-    <WorkspaceSerialTraceability />
-    <WorkspaceSupplierPortal />
-    <WorkspaceSalesDocuments />
-    <WorkspaceRecurringInvoices />
-    <WorkspaceEnterpriseControls />
-  </div>;
+    </section></div>}
+       {activeGroup==="finance"&&<div className="space-y-4"><WorkspaceGSTCompliance/><WorkspaceBankAccounting/><WorkspaceAnalyticsPanel/></div>}
+       {activeGroup==="inventory"&&<div className="space-y-4"><WorkspaceSerialTraceability/></div>}
+       {activeGroup==="operations"&&<div className="space-y-4"><WorkspaceSupplierPortal/><WorkspaceSalesDocuments/><WorkspaceRecurringInvoices/></div>}
+       {activeGroup==="security"&&<div className="space-y-4"><WorkspaceEnterpriseControls/></div>}
+     </section>
+   </div>;
 }
