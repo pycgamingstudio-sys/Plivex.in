@@ -53,7 +53,7 @@ export default function SupplierPortalPage() {
           city: address.city || "",
           region: address.region || "",
           postal_code: address.postal_code || "",
-          country_code: address.country_code || "IN",
+          country_code: address.country_code || s.workspace_country || "IN",
         });
       })
       .catch(() => { if (active) setError("Supplier invitation could not be loaded. Please try again."); })
@@ -107,7 +107,7 @@ export default function SupplierPortalPage() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-700 text-lg font-black text-white">P</div>
           <p className="mt-3 text-xs font-bold uppercase tracking-[0.18em] text-violet-700">Plivex supplier portal</p>
           <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Complete your supplier profile</h1>
-          <p className="mt-2 text-sm text-slate-500">{supplierName ? "Invitation from " + supplierName : "Secure supplier onboarding"}</p>
+          <p className="mt-2 text-sm text-slate-500">{supplierName ? "Supplier record: " + supplierName : "Secure supplier onboarding"}</p>
         </header>
         <section className="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm sm:p-7">
           {loading ? <p className="py-12 text-center text-sm text-slate-500">Checking your invitation…</p>
