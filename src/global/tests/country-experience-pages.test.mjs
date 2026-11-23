@@ -51,7 +51,12 @@ test("regional account activity and reports use workspace locale metadata", asyn
 });
 
 
-test("unified Main Workspace routes are not blocked by legacy edition gates", async () => {\n  const source = await read("../../App.jsx");\n  assert.match(source, /All supported countries use the same Main Workspace routes/);\n  assert.match(source, /path="\\/dashboard" element=\{<HomeGate \/>\}/);\n  assert.doesNotMatch(source, /GlobalApp|isGlobalWorkspace/);\n});\n\ntest("public marketing copy presents one unified Plivex product with country-aware capabilities", async () => {
+test("unified Main Workspace routes are not blocked by legacy edition gates", async () => {
+  const source = await read("../../App.jsx");
+  assert.match(source, /All supported countries use the same Main Workspace routes/);
+  assert.match(source, /path="\/dashboard" element=\{<HomeGate \/>\}/);
+  assert.doesNotMatch(source, /GlobalApp|isGlobalWorkspace/);
+});\n\ntest("public marketing copy presents one unified Plivex product with country-aware capabilities", async () => {
   const pages = await read("../../pages/PublicInfoPages.jsx");
   const about = await read("../../components/landing/AboutSection.jsx");
   assert.doesNotMatch(pages, /platform for Indian small businesses/);
