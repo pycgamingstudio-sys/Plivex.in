@@ -1,6 +1,5 @@
 import { formatMoney } from "@/lib/currency";
 import { useEffect, useState, useMemo } from "react";
-import { Link } from "react-router-dom";
 import { Receipt, Download } from "lucide-react";
 import PageShell from "@/components/PageShell";
 import { backend } from "@/api/backendClient";
