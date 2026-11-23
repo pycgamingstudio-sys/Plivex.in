@@ -237,3 +237,11 @@ test("Main Workspace GST return preparation is India-only, auditable and never c
   assert.match(gstUi,/GSTR-2B/);
   assert.match(gstUi,/GSTR-3B/);
 });
+
+test("All country routes use the single Main Workspace and do not load the retired Global application",()=>{
+  assert.doesNotMatch(app,/GlobalApp/);
+  assert.doesNotMatch(app,/GlobalCountryOnboarding/);
+  assert.doesNotMatch(app,/isGlobalWorkspace/);
+  assert.match(app,/All supported countries use the same Main Workspace routes/);
+  assert.match(app,/path="\/platform"/);
+});
