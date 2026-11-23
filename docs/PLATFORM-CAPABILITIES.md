@@ -35,14 +35,14 @@ Subscribe the Meta app to the WhatsApp `messages` webhook field. The handler ver
 
 ## 4. Public API and MCP
 
-- Create scoped keys in the Global workspace Integrations & AI section. Keys expire in at most 365 days and can be revoked.
+- Create scoped keys in the Global workspace Integrations & AI section. Keys expire in at most 365 days and can be revoked.\n- Available scopes: `workspace.read`, `invoices.read`, `clients.read`, `expenses.read`, `leads.read`, `inventory.read`, `suppliers.read`, `mcp.read`.
 - Only SHA-256 key hashes are stored; the secret is displayed once.
 - Send the Supabase project anon key in the standard `apikey` header and your workspace key in `x-plivex-key` to:
   `https://sqzpaiibmfsvarrkwkvb.supabase.co/functions/v1/global-platform`
 - REST operations: `workspace.summary`, `invoices.list`, `clients.list`, `expenses.list`, `leads.list`, `inventory.low_stock`, `suppliers.list`.
 - MCP JSON-RPC methods: `tools/list`, `tools/call`.
 - Tools: `workspace_summary`, `list_invoices`, `list_clients`, `list_expenses`, `list_leads`, `low_stock_items`, `list_suppliers`, `business_insights`.
-- Data tools are read-only. The AI insight tool uses aggregate invoice, expense, CRM pipeline and inventory metrics only and requires `workspace.read` + `mcp.read` scopes.
+- Data tools are read-only. The AI insight tool uses aggregate invoice, expense, CRM pipeline and inventory metrics only, keeps currencies separate, and requires `workspace.read` + `mcp.read` scopes.
 - Keys are rate-limited and invalidated if the creating workspace administrator is no longer active.
 
 ## Deployment and verification
