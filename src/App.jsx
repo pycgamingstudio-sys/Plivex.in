@@ -56,6 +56,8 @@ const PricingPage = lazy(() => import("./pages/PublicInfoPages").then((module) =
 const PaymentResult = lazy(() => import("./pages/PaymentResult"));
 const PublicInvoicePage = lazy(() => import("./pages/PublicInvoicePage"));
 const SupplierPortalPage = lazy(() => import("./pages/SupplierPortalPage"));
+const WorkspacePlatformPage = lazy(() => import("./pages/WorkspacePlatformPage"));
+const PublicSignaturePage = lazy(() => import("./pages/PublicSignaturePage"));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, isAuthenticated, user, logout } = useAuth();
@@ -129,6 +131,7 @@ const AuthenticatedApp = () => {
       <Route path="/features" element={<FeaturesPage />} />
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/i/:token" element={<PublicInvoicePage />} />
+      <Route path="/sign/:token" element={<PublicSignaturePage />} />
       <Route path="/" element={isGlobalWorkspace && isAuthenticated ? <Navigate to="/dashboard" replace /> : <HomeGate />} />
       <Route path="/dashboard" element={<HomeGate />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/" replace />} />}>
@@ -158,6 +161,7 @@ const AuthenticatedApp = () => {
           <Route path="/account-activity" element={<GlobalFeatureGate feature="Account activity"><WorkspaceFeatureGate feature="reports"><AccountActivity /></WorkspaceFeatureGate></GlobalFeatureGate>} />
           <Route path="/service-catalog" element={<GlobalFeatureGate feature="Service catalog"><ServiceCatalog /></GlobalFeatureGate>} />
           <Route path="/team-management" element={<GlobalFeatureGate feature="Team management"><WorkspaceFeatureGate feature="team"><ProTeamRoute /></WorkspaceFeatureGate></GlobalFeatureGate>} />
+          <Route path="/platform" element={<WorkspacePlatformPage />} />
             </Route>
           </Route>
         </Route>
