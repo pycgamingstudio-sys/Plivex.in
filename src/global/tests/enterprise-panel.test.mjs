@@ -13,7 +13,7 @@ test("Global Enterprise workspace is reachable from the Global app navigation", 
 });
 
 test("Enterprise panel uses authenticated server functions for privileged operations", () => {
-  for (const action of ["branch.list", "branch.create", "branch.archive", "approval.list", "approval.request", "approval.decide", "approval.policy.list", "approval.policy.set", "permission.set", "retention.set", "audit.list", "health.read", "export.request"]) {
+  for (const action of ["branch.list", "branch.create", "branch.archive", "approval.list", "approval.request", "approval.decide", "approval.policy.list", "approval.policy.set", "permission.set", "retention.set", "audit.list", "health.read", "export.request", "member.list"]) {
     assert.ok(panel.includes(action), "missing action " + action);
   }
   assert.match(panel, /functions\.invoke\("global-enterprise"/);
@@ -45,4 +45,16 @@ test("Read-only viewers cannot be configured as transaction approvers", () => {
   assert.match(edge, /APPROVER_ROLES = new Set\(\["owner", "admin", "manager", "employee", "accountant"\]\)/);
   assert.doesNotMatch(edge, /APPROVER_ROLES = new Set\([^)]*viewer/);
   assert.doesNotMatch(migration, /approver_roles <@ array\[[^\]]*viewer/);
+});
+
+
+test("Enterprise permissions support member-specific delegation as well as role defaults", () => {
+  assert.match(panel, /permissionTarget/);
+  assert.match(panel, /permissionMemberId/);
+  assert.match(panel, /Apply to one member/);
+  assert.match(panel, /member\.list/);
+  assert.match(panel, /memberId: permissionMemberId/);
+  assert.match(panel, /Member-level rules take precedence over role-level rules/);
+  assert.match(edge, /"member\.list"/);
+  assert.match(edge, /global_enterprise_members/);
 });
