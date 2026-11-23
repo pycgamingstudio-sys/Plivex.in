@@ -139,12 +139,12 @@ begin
     where s.workspace_id=r.workspace_id and s.request_id=r.id
       and r.status='pending' and s.status='pending' and s.due_at<=now()
       and s.escalated_at is null and s.escalation_role is not null
-    returning s.workspace_id,s.id,s.request_id,s.level,s.escalation_role,r.branch_id
+    returning s.workspace_id,s.id,s.request_id,s.level,s.escalation_role
   )
   insert into global.audit_events(workspace_id,branch_id,actor_id,action,entity_type,entity_id,request_id,metadata,occurred_at)
-  select d.workspace_id,d.branch_id,null,'approval.escalated','approval_step',d.id::text,d.request_id::text,
+  select d.workspace_id,r.branch_id,null,'approval.escalated','approval_step',d.id::text,d.request_id::text,
     jsonb_build_object('level',d.level,'escalation_role',d.escalation_role),now()
-  from due d;
+  from due d join global.approval_requests r on r.workspace_id=d.workspace_id and r.id=d.request_id;
   get diagnostics v_count = row_count;
   return v_count;
 end $$;
@@ -336,13 +336,15 @@ declare v_role text; v_resource text; v_roles text[]; v_id uuid;
 begin
   select role into v_role from global.workspace_members
     where workspace_id=p_workspace_id and user_id=p_user_id and status='active' limit 1;
-  if v_role not in ('owner','admin') then return jsonb_build_object('ok',false,'code','ADMIN_REQUIRED'); end if;
-  if p_action_type not in ('expense.create','expense.update','invoice.issue','invoice.payment.record')
+  if v_role is null or v_role not in ('owner','admin') then return jsonb_build_object('ok',false,'code','ADMIN_REQUIRED'); end if;
+  if p_action_type is null or p_action_type not in ('expense.create','expense.update','invoice.issue','invoice.payment.record')
     or p_enabled is null or p_minimum_amount_minor is null or p_minimum_amount_minor<0
-    or not global.is_valid_approval_levels(p_approval_levels) or jsonb_array_length(p_approval_levels)<1
-    or p_escalation_after_hours not between 1 and 720
-    or p_escalation_role not in ('owner','admin','manager','accountant')
+    or p_escalation_after_hours is null or p_escalation_after_hours not between 1 and 720
+    or p_escalation_role is null or p_escalation_role not in ('owner','admin','manager','accountant')
     or p_prevent_self_approval is distinct from true then
+    return jsonb_build_object('ok',false,'code','INVALID_POLICY');
+  end if;
+  if not global.is_valid_approval_levels(p_approval_levels) or jsonb_array_length(p_approval_levels)<1 then
     return jsonb_build_object('ok',false,'code','INVALID_POLICY');
   end if;
   select array_agg(distinct value) into v_roles from jsonb_array_elements_text(p_approval_levels) as x(value);
