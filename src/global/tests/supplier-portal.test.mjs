@@ -16,6 +16,7 @@ test("supplier onboarding portal stores only token hashes and enforces single-us
   assert.match(migration, /expires_at>now\(\)/);
   assert.match(migration, /status='used',used_at=now\(\)/);
   assert.match(migration, /status='revoked'/);
+  assert.match(migration, /country_code.*IN.*US.*GB.*AE.*CA.*AU.*SG/);
   assert.doesNotMatch(migration, /token text/i);
   assert.match(migration, /revoke all on function public\.global_supplier_portal_read\(text\) from public,anon,authenticated/);
   assert.match(migration, /grant execute on function public\.global_supplier_portal_submit\(text,jsonb\) to service_role/);
