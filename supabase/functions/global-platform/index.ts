@@ -19,7 +19,13 @@ const randomToken = (bytes = 32) => {
   return btoa(String.fromCharCode(...value)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 };
 const clean = (value: unknown, max = 200) => String(value ?? "").trim().slice(0, max);
-const toBase64 = (bytes: Uint8Array) => {\n  let binary = "";\n  const chunk = 0x8000;\n  for (let offset = 0; offset < bytes.length; offset += chunk) binary += String.fromCharCode(...bytes.subarray(offset, offset + chunk));\n  return btoa(binary);\n};\nconst bytesFromBase64 = (value: string) => {
+const toBase64 = (bytes: Uint8Array) => {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunk) binary += String.fromCharCode(...bytes.subarray(offset, offset + chunk));
+  return btoa(binary);
+};
+const bytesFromBase64 = (value: string) => {
   const raw = atob(value);
   if (raw.length > MAX_FILE_BYTES) throw new Error("FILE_TOO_LARGE");
   return Uint8Array.from(raw, (char) => char.charCodeAt(0));
