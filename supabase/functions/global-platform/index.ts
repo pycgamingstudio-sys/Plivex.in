@@ -138,7 +138,7 @@ async function processOcr(admin: any, user: any, body: any) {
   return { ok: true, jobId, extracted, requiresHumanReview: true };
 }
 async function sendWhatsApp(admin: any, user: any, body: any) {
-  if (!UUID.test(body.workspaceId || "") || body.consentConfirmed !== true) throw new Error("WHATSAPP_OPT_IN_REQUIRED");
+  if (!UUID.test(body.workspaceId || "") || body.consentConfirmed !== true || clean(body.consentStatement, 500).length < 10) throw new Error("WHATSAPP_OPT_IN_REQUIRED");
   if (!await member(admin, user.id, body.workspaceId, ["owner", "admin", "manager", "accountant", "employee"])) throw new Error("ACCESS_DENIED");
   const phone = clean(body.recipientPhone, 20).replace(/[\s()-]/g, "");
   if (!/^\+[1-9][0-9]{7,14}$/.test(phone)) throw new Error("INVALID_RECIPIENT");
