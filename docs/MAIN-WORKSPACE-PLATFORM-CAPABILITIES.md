@@ -4,7 +4,7 @@ These capabilities are implemented against the canonical `public.workspace_setti
 
 ## Electronic signature audit
 
-- Create a one-time link for an issued Main Workspace invoice.
+- Create or revoke a one-time link for an issued Main Workspace invoice.
 - Store only the SHA-256 token hash; links expire after 1–30 days and can be completed once.
 - Record signer consent, timestamp, hashed IP, user agent, document snapshot hash and a workspace audit event in one database transaction.
 - This is an electronic-signature audit record, not a qualified eIDAS signature, Aadhaar eSign, DSC or government-certified signing service.
@@ -32,6 +32,7 @@ Subscribe the Meta app to the WhatsApp `messages` webhook field. The handler ver
 ## Public API and MCP
 
 - Create scoped, hashed, expiring and revocable keys from Workspace → More → Platform integrations.
+- Requests are limited to 60 per key per rolling fixed window; rate-limit counters are stored separately from API key secrets.
 - The secret is displayed once only. Store it on a trusted server, never in browser code.
 - Send the Supabase publishable/anon key as `apikey` and the Plivex key as `x-plivex-key` to:
   `https://sqzpaiibmfsvarrkwkvb.supabase.co/functions/v1/workspace-platform`
