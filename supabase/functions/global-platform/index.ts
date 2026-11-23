@@ -177,8 +177,9 @@ async function sendWhatsApp(admin: any, user: any, body: any) {
   } else {
     const name = clean(body.templateName, 100);
     const language = clean(body.templateLanguage || "en", 10);
-    if (!/^[a-z0-9_]+$/.test(name)) throw new Error("INVALID_TEMPLATE");
-    payload.template = { name, language: { code: language }, ...(Array.isArray(body.templateComponents) ? { components: body.templateComponents.slice(0, 5) } : {}) };
+    const components = Array.isArray(body.templateComponents) ? body.templateComponents.filter(isObject).slice(0, 5) : [];
+    if (!/^[a-z0-9_]+$/.test(name) || !/^[a-z]{2}(?:_[A-Z]{2})?$/.test(language) || JSON.stringify(components).length > 12000) throw new Error("INVALID_TEMPLATE");
+    payload.template = { name, language: { code: language }, ...(components.length ? { components } : {}) };
   }
   const version = Deno.env.get("WHATSAPP_GRAPH_VERSION") || "v22.0";
   const response = await fetch("https://graph.facebook.com/" + version + "/" + phoneNumberId + "/messages", {
