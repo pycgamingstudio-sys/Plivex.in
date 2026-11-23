@@ -104,3 +104,20 @@ test("Main Workspace permission delegations and overrides are time-bounded and a
   assert.match(enterpriseControls,/Enterprise permissions & delegation/);
   assert.match(enterpriseControls,/main_workspace_permission_delegation_create/);
 });
+
+const recurringMigration=readFileSync(new URL("../../../supabase/migrations/20261123031536_main_workspace_recurring_invoice_schedules.sql",import.meta.url),"utf8");
+const recurringGuard=readFileSync(new URL("../../../supabase/migrations/20261123031712_main_workspace_recurring_invoice_country_guard.sql",import.meta.url),"utf8");
+const recurringUi=readFileSync(new URL("../../components/workspace/WorkspaceRecurringInvoices.jsx",import.meta.url),"utf8");
+
+test("Main Workspace recurring invoices generate idempotent review-only drafts",()=>{
+  assert.match(recurringMigration,/recurring_invoice_generations/);
+  assert.match(recurringMigration,/unique\(schedule_id,occurrence_date\)/);
+  assert.match(recurringMigration,/main_workspace_generate_recurring_invoice_drafts/);
+  assert.match(recurringMigration,/'Draft',true/);
+  assert.match(recurringMigration,/cron\.schedule/);
+  assert.match(recurringGuard,/schedule_paused_country_changed/);
+  assert.match(recurringGuard,/source_country_code/);
+  assert.match(recurringUi,/Recurring invoices/);
+  assert.match(recurringUi,/main_workspace_create_recurring_invoice_schedule/);
+  assert.match(recurringUi,/main_workspace_recurring_schedule_set_status/);
+});
