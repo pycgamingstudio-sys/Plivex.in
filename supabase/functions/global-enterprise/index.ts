@@ -57,14 +57,23 @@ Deno.serve(async (req: Request) => {
 
     if (body.action === "approval.cancel" && !UUID.test(body.requestId || "")) return globalJson({ error: "Invalid approval request." }, 400, origin);
     if (body.action === "approval.decide" && (!UUID.test(body.requestId || "") || !["approve", "approved", "reject", "rejected"].includes(body.decision))) return globalJson({ error: "Invalid approval decision." }, 400, origin);
-    const rpcName = body.action === "approval.cancel" ? "global_approval_cancel_v2"
+    const rpcName = body.action === "permission.delegation.create" ? "global_permission_delegation_create"
+      : body.action === "permission.delegation.list" ? "global_permission_delegation_list"
+        : body.action === "permission.delegation.revoke" ? "global_permission_delegation_revoke"
+          : body.action === "approval.cancel" ? "global_approval_cancel_v2"
       : body.action === "approval.request" ? "global_approval_request_v2"
         : body.action === "approval.decide" ? "global_approval_decide_v2"
           : body.action === "approval.list" ? "global_approval_list_v2"
             : body.action === "approval.policy.set" ? "global_set_approval_policy_v2"
               : body.action === "approval.policy.list" ? "global_list_approval_policies_v2" : "global_enterprise_action";
-    const rpcArgs = body.action === "approval.cancel"
-      ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_request_id: body.requestId }
+    const rpcArgs = body.action === "permission.delegation.create"
+      ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_delegate_member_id: body.delegateMemberId, p_permission_keys: body.permissionKeys, p_expires_at: new Date(body.expiresAt).toISOString() }
+      : body.action === "permission.delegation.list"
+        ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId }
+        : body.action === "permission.delegation.revoke"
+          ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_delegation_id: body.delegationId }
+          : body.action === "approval.cancel"
+            ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_request_id: body.requestId }
       : body.action === "approval.request" || body.action === "approval.decide"
         ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_payload: body }
         : body.action === "approval.list" || body.action === "approval.policy.list"
@@ -86,12 +95,12 @@ Deno.serve(async (req: Request) => {
     if (error || !data) return globalJson({ error: "Enterprise operation failed" }, 503, origin);
     if (data.ok !== true) {
       const status = data.code === "ACCESS_DENIED" || data.code === "ADMIN_REQUIRED" || data.code === "PERMISSION_DENIED" || data.code === "APPROVER_ROLE_REQUIRED" || data.code === "SELF_APPROVAL_BLOCKED" ? 403
-        : data.code === "BRANCH_NOT_FOUND" || data.code === "MEMBER_NOT_FOUND" || data.code === "REQUEST_NOT_FOUND" ? 404
-        : data.code === "REQUEST_NOT_DECIDABLE" || data.code === "REQUEST_NOT_CANCELLABLE" ? 409 : 400;
+        : data.code === "BRANCH_NOT_FOUND" || data.code === "MEMBER_NOT_FOUND" || data.code === "REQUEST_NOT_FOUND" || data.code === "DELEGATION_NOT_FOUND" ? 404
+        : data.code === "REQUEST_NOT_DECIDABLE" || data.code === "REQUEST_NOT_CANCELLABLE" || data.code === "PERMISSION_ALREADY_OVERRIDDEN" ? 409 : 400;
       return globalJson({ error: data.code }, status, origin);
     }
     const status = body.action === "export.request" || body.action === "approval.request" ? 202
-      : body.action === "branch.create" || body.action === "permission.set" || body.action === "approval.policy.set" ? 201 : 200;
+      : body.action === "branch.create" || body.action === "permission.set" || body.action === "approval.policy.set" || body.action === "permission.delegation.create" ? 201 : 200;
     return globalJson(data, status, origin);
   } catch {
     return globalJson({ error: "Enterprise operation failed" }, 500, origin);
