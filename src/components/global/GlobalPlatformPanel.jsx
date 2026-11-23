@@ -74,7 +74,7 @@ export default function GlobalPlatformPanel({ workspaceId }) {
     if (!files.length || files.length > 10) throw new Error("Choose between 1 and 10 files.");
     const results = [];
     for (const item of files) {
-      if (item.size > 8 * 1024 * 1024) throw new Error(item.name + " exceeds the 8 MB per-file limit.");
+      if (item.size > 4 * 1024 * 1024) throw new Error(item.name + " exceeds the 4 MB per-file limit.");
       const result = await invoke({ action: "ocr.process", workspaceId, documentType, mimeType: item.type, fileBase64: await fileBase64(item) });
       results.push({ name: item.name, ...result });
       setOcrResults([...results]);
@@ -113,7 +113,7 @@ export default function GlobalPlatformPanel({ workspaceId }) {
     </section>
     <section className="rounded-xl border border-slate-200 bg-white p-4">
       <h2 className="font-semibold">Document OCR & AI extraction</h2>
-      <p className="mt-1 text-xs text-slate-500">Upload up to 10 invoices, receipts or purchase orders in one batch (8 MB each). Files are sent to Google Gemini using your configured API key. Extraction is a draft and never posts accounting or inventory records automatically.</p>
+      <p className="mt-1 text-xs text-slate-500">Upload up to 10 invoices, receipts or purchase orders in one batch (4 MB each). Files are sent to Google Gemini using your configured API key. Extraction is a draft and never posts accounting or inventory records automatically.</p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <select className={field} value={documentType} onChange={(e) => setDocumentType(e.target.value)}><option value="invoice">Invoice</option><option value="receipt">Receipt</option><option value="purchase_order">Purchase order</option><option value="identity">Identity document</option><option value="other">Other</option></select>
         <input className={field} type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => { setFiles(Array.from(e.target.files || [])); setOcrResults([]); }} />
