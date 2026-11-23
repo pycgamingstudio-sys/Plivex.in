@@ -209,7 +209,13 @@ async function publicApi(req: Request, admin: any) {
   if (!activeOwner) return json({ error: "API key owner is no longer an active workspace administrator" }, 401);
   const { data: limited, error: rateError } = await admin.rpc("global_consume_enterprise_rate_limit", { p_key: "public-api:" + keyHash, p_limit: 120, p_window_seconds: 60 });
   if (rateError || limited !== true) return json({ error: "API rate limit exceeded" }, 429);
-  const raw = req.method === "GET" ? Object.fromEntries(new URL(req.url).searchParams.entries()) : await req.json().catch(() => ({}));
+  let raw: any;
+  if (req.method === "GET") raw = Object.fromEntries(new URL(req.url).searchParams.entries());
+  else {
+    const rawBody = await req.text();
+    if (new TextEncoder().encode(rawBody).byteLength > 64 * 1024) return json({ error: "API request too large" }, 413);
+    try { raw = JSON.parse(rawBody); } catch { raw = {}; }
+  }
   if (!isObject(raw)) return json({ error: "Invalid API request body" }, 400);
   const mcpMethod = clean(raw.method, 80);
   const operation = clean(raw.operation || (mcpMethod === "tools/call" ? raw.params?.name : mcpMethod), 80);
