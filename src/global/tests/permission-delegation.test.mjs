@@ -40,5 +40,5 @@ test("delegated approvals and FX permissions are enforced by server-side checks"
   assert.match(enforcement, /delegator\.role=v_step\.approver_role/);
   assert.match(enforcement, /permission_keys @> array\['approval\.decide'\]/);
   assert.match(enforcement, /main_workspace_user_has_permission\(p_workspace_id,v_user,'fx\.convert'\)/);
-  assert.match(enforcement, /main_workspace_permission_overrides/);
+  assert.match(enforcement, /workspace_permission_overrides/);
 });
