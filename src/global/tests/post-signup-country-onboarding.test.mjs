@@ -94,7 +94,20 @@ test("onboarding asks only for Freelancer or Business and derives workspace modu
   assert.match(featureCatalog, /export const WORKSPACE_FEATURE_CATALOG/);
 });
 
-test("unified workspace feature links open the matching Main Workspace dashboard modules", async () => {\n  const app = await read("../../App.jsx");\n  const homeGate = await read("../../components/HomeGate.jsx");\n  const dashboard = await read("../../pages/Dashboard.jsx");\n  const sales = await read("../../components/dashboard/SalesTab.jsx");\n  assert.match(app, /path="\\/expenses" element=\{<Navigate to="\\/dashboard" replace state=\{\{ initialTab: "purchase" \}\} \/>\}/);\n  assert.match(app, /path="\\/products" element=\{<Navigate to="\\/dashboard" replace state=\{\{ initialTab: "stock" \}\} \/>\}/);\n  assert.match(app, /path="\\/quotations" element=\{<Navigate to="\\/dashboard" replace state=\{\{ initialTab: "sales", initialSub: "quotations" \}\} \/>\}/);\n  assert.match(homeGate, /routeState\\.initialTab/);\n  assert.match(homeGate, /routeState\\.initialSub/);\n  assert.match(dashboard, /initialSub=\{initialSub\}/);\n  assert.match(sales, /initialSub === "quotations" \\? "quotations" : "invoices"/);\n  assert.doesNotMatch(app, /GlobalApp|isGlobalWorkspace/);\n});\n\ntest("dashboard waits for workspace feature preferences before validating a deep-linked tab", async () => {
+test("unified workspace feature links open the matching Main Workspace dashboard modules", async () => {
+  const app = await read("../../App.jsx");
+  const homeGate = await read("../../components/HomeGate.jsx");
+  const dashboard = await read("../../pages/Dashboard.jsx");
+  const sales = await read("../../components/dashboard/SalesTab.jsx");
+  assert.match(app, /path="\/expenses" element=\{<Navigate to="\/dashboard" replace state=\{\{ initialTab: "purchase" \}\} \/>\}/);
+  assert.match(app, /path="\/products" element=\{<Navigate to="\/dashboard" replace state=\{\{ initialTab: "stock" \}\} \/>\}/);
+  assert.match(app, /path="\/quotations" element=\{<Navigate to="\/dashboard" replace state=\{\{ initialTab: "sales", initialSub: "quotations" \}\} \/>\}/);
+  assert.match(homeGate, /routeState\.initialTab/);
+  assert.match(homeGate, /routeState\.initialSub/);
+  assert.match(dashboard, /initialSub=\{initialSub\}/);
+  assert.match(sales, /initialSub === "quotations" \? "quotations" : "invoices"/);
+  assert.doesNotMatch(app, /GlobalApp|isGlobalWorkspace/);
+});\n\ntest("dashboard waits for workspace feature preferences before validating a deep-linked tab", async () => {
   const dashboard = await read("../../pages/Dashboard.jsx");
   assert.match(dashboard, /ready: workspaceFeaturesReady/);
   assert.match(dashboard, /if \(!workspaceFeaturesReady\) return/);
