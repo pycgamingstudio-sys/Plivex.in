@@ -296,7 +296,7 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
               </label>
             </div>
             <p className="rounded-lg bg-violet-50 px-3 py-2 text-xs font-medium text-violet-800">
-              Each level must approve in sequence. Overdue pending levels are automatically escalated; self-approval is always blocked.
+              Each level must approve in sequence. Overdue pending levels are automatically escalated. Self-approval is always blocked for safety.
             </p>
             <button className={buttonClass} disabled={busy || approvalLevels.length === 0 || !Number.isSafeInteger(Number(approvalMinimumAmount)) || Number(approvalMinimumAmount) < 0 || !Number.isSafeInteger(Number(approvalEscalationHours)) || Number(approvalEscalationHours) < 1 || Number(approvalEscalationHours) > 720}>Save approval policy</button>
           </form>
