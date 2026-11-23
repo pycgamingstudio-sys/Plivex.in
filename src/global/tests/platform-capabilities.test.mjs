@@ -74,6 +74,11 @@ test("MCP exposes only scoped read tools and an aggregate AI business insight to
   assert.match(platform, /list_invoices/);
   assert.match(platform, /list_clients/);
   assert.match(platform, /business_insights/);
+  assert.match(platform, /expenses.list/);
+  assert.match(platform, /leads.list/);
+  assert.match(platform, /inventory.low_stock/);
+  assert.match(platform, /suppliers.list/);
+  assert.match(platform, /You are Plivex AI Business Manager/);
   assert.match(platform, /GEMINI_BUSINESS_MODEL/);
   assert.match(platform, /Scopes required: mcp\.read and workspace\.read/);
   assert.match(config, /\[functions\.global-platform\][\s\S]*?verify_jwt = false/);
