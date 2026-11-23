@@ -224,7 +224,7 @@ async function publicApi(req: Request, admin: any, body: any) {
         admin.from("leads").select("stage,value,currency_code").eq("workspace_id",key.workspace_id).limit(500),
         admin.from("stock").select("quantity,low_stock").eq("workspace_id",key.workspace_id).limit(500)
       ]);
-      const aggregate = {invoiceCount:inv?.length||0,invoiceTotalsByCurrency:Object.groupBy ? Object.groupBy(inv||[],x=>x.currency||"UNK") : {},expenseCount:exp?.length||0,leadCount:leads?.length||0,openLeadValue:(leads||[]).filter((x:any)=>!["Won","Lost","won","lost"].includes(String(x.stage))).reduce((n:number,x:any)=>n+Number(x.value||0),0),lowStockItems:(stock||[]).filter((x:any)=>Number(x.quantity)<=Number(x.low_stock)).length};
+      const aggregate = {invoiceCount:inv?.length||0,invoiceCurrencies:[...new Set((inv||[]).map((x:any)=>x.currency||"UNK"))],expenseCount:exp?.length||0,leadCount:leads?.length||0,openLeadValue:(leads||[]).filter((x:any)=>!["Won","Lost","won","lost"].includes(String(x.stage))).reduce((n:number,x:any)=>n+Number(x.value||0),0),lowStockItems:(stock||[]).filter((x:any)=>Number(x.quantity)<=Number(x.low_stock)).length};
       const keyGemini=Deno.env.get("GEMINI_API_KEY");
       if(!keyGemini) throw new Error("AI_PROVIDER_NOT_CONFIGURED");
       const model=Deno.env.get("GEMINI_BUSINESS_MODEL")||"gemini-3.8-flash";
