@@ -1,0 +1,285 @@
+import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowed } from "../_shared/global.ts";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const HEX = /^[a-f0-9]{64}$/;
+const SIGN_BUCKET = "global-signing-documents";
+const OCR_BUCKET = "global-ocr-documents";
+const MAX_FILE_BYTES = 8 * 1024 * 1024;
+const encoder = new TextEncoder();
+const json = (body: unknown, status = 200, origin: string | null = null) =>
+  new Response(JSON.stringify(body), { status, headers: { ...globalCorsHeaders(origin), "Content-Type": "application/json", "Cache-Control": "no-store" } });
+const isObject = (value: unknown): value is Record<string, any> => !!value && typeof value === "object" && !Array.isArray(value);
+const sha256 = async (value: string | Uint8Array) => {
+  const bytes = typeof value === "string" ? encoder.encode(value) : value;
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((v) => v.toString(16).padStart(2, "0")).join("");
+};
+const randomToken = (bytes = 32) => {
+  const value = crypto.getRandomValues(new Uint8Array(bytes));
+  return btoa(String.fromCharCode(...value)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+};
+const clean = (value: unknown, max = 200) => String(value ?? "").trim().slice(0, max);
+const bytesFromBase64 = (value: string) => {
+  const raw = atob(value);
+  if (raw.length > MAX_FILE_BYTES) throw new Error("FILE_TOO_LARGE");
+  return Uint8Array.from(raw, (char) => char.charCodeAt(0));
+};
+
+async function member(admin: any, userId: string, workspaceId: string, roles?: string[]) {
+  const { data, error } = await admin.schema("global").from("workspace_members")
+    .select("id,role,status").eq("workspace_id", workspaceId).eq("user_id", userId).eq("status", "active").maybeSingle();
+  if (error || !data || (roles && !roles.includes(data.role))) return null;
+  return data;
+}
+async function ensureBucket(admin: any, name: string, mime: string[]) {
+  const { data, error } = await admin.storage.listBuckets();
+  if (error) throw new Error("STORAGE_UNAVAILABLE");
+  const found = (data || []).find((item: any) => item.name === name);
+  if (found) {
+    if (found.public !== false) throw new Error("PRIVATE_BUCKET_REQUIRED");
+    return;
+  }
+  const { error: createError } = await admin.storage.createBucket(name, { public: false, fileSizeLimit: MAX_FILE_BYTES, allowedMimeTypes: mime });
+  if (createError && !String(createError.message || "").toLowerCase().includes("already exists")) throw new Error("BUCKET_CREATE_FAILED");
+}
+async function createSignature(admin: any, user: any, body: any, origin: string | null) {
+  if (!UUID.test(body.workspaceId || "") || !UUID.test(body.invoiceId || "")) throw new Error("INVALID_REQUEST");
+  const membership = await member(admin, user.id, body.workspaceId, ["owner", "admin", "manager", "accountant"]);
+  if (!membership) throw new Error("ACCESS_DENIED");
+  const signerName = clean(body.signerName, 160);
+  const signerEmail = clean(body.signerEmail, 254).toLowerCase();
+  if (signerName.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signerEmail)) throw new Error("INVALID_SIGNER");
+  const { data: invoice, error } = await admin.schema("global").from("invoices")
+    .select("id,invoice_number,invoice_snapshot,status,total_minor,currency_code")
+    .eq("workspace_id", body.workspaceId).eq("id", body.invoiceId).maybeSingle();
+  if (error || !invoice) throw new Error("INVOICE_NOT_FOUND");
+  if (["draft", "cancelled", "void"].includes(String(invoice.status).toLowerCase())) throw new Error("INVOICE_NOT_ISSUED");
+  const documentSha = await sha256(JSON.stringify({ id: invoice.id, number: invoice.invoice_number, snapshot: invoice.invoice_snapshot, total: invoice.total_minor, currency: invoice.currency_code }));
+  const token = randomToken();
+  const tokenHash = await sha256(token);
+  const expiresAt = new Date(Date.now() + Math.min(30, Math.max(1, Number(body.expiryDays) || 14)) * 86400000).toISOString();
+  const { data, error: insertError } = await admin.schema("global").from("document_signing_requests").insert({
+    workspace_id: body.workspaceId, invoice_id: invoice.id, requested_by: user.id,
+    signer_name: signerName, signer_email: signerEmail, token_hash: tokenHash,
+    document_sha256: documentSha, expires_at: expiresAt,
+  }).select("id,status,expires_at,created_at").single();
+  if (insertError || !data) throw new Error("SIGN_REQUEST_CREATE_FAILED");
+  const base = Deno.env.get("PLIVEX_APP_URL") || "https://plivex.in";
+  const signUrl = base.replace(/\/$/, "") + "/sign/" + token;
+  return { ok: true, request: data, signUrl, invoiceNumber: invoice.invoice_number, note: "Copy and send this link to the named signer. This records an electronic-signature consent and audit trail; it is not a qualified or government-certified digital signature." };
+}
+async function signDocument(admin: any, req: Request, body: any) {
+  const token = clean(body.token, 256);
+  const signatureName = clean(body.signatureName, 160);
+  if (token.length < 30 || signatureName.length < 2 || body.consent !== true) throw new Error("SIGNATURE_CONSENT_REQUIRED");
+  const tokenHash = await sha256(token);
+  const { data: record, error } = await admin.schema("global").from("document_signing_requests")
+    .select("id,workspace_id,signer_name,signer_email,status,document_sha256,expires_at")
+    .eq("token_hash", tokenHash).maybeSingle();
+  if (error || !record) throw new Error("SIGN_REQUEST_NOT_FOUND");
+  if (record.status !== "pending" || new Date(record.expires_at).getTime() <= Date.now()) throw new Error("SIGN_REQUEST_NOT_ACTIVE");
+  if (signatureName.toLowerCase() !== String(record.signer_name).toLowerCase()) throw new Error("SIGNER_NAME_MISMATCH");
+  const consentText = "I agree to sign this document electronically and confirm that the typed name above represents my signature.";
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ipHash = await sha256(ip + (Deno.env.get("SIGNING_AUDIT_SALT") || "plivex-signing-audit"));
+  const userAgent = clean(req.headers.get("user-agent"), 500);
+  const signedAt = new Date().toISOString();
+  const auditHash = await sha256([record.id, record.document_sha256, signatureName, record.signer_email, consentText, signedAt, ipHash, userAgent].join("|"));
+  const { data: updated, error: updateError } = await admin.schema("global").from("document_signing_requests")
+    .update({ status: "signed", signature_name: signatureName, consent_text: consentText, signer_ip_hash: ipHash, signer_user_agent: userAgent, signed_at: signedAt, updated_at: signedAt })
+    .eq("id", record.id).eq("status", "pending").select("id,status,signed_at,document_sha256").maybeSingle();
+  if (updateError || !updated) throw new Error("SIGN_REQUEST_ALREADY_USED");
+  await admin.schema("global").from("audit_events").insert({
+    workspace_id: record.workspace_id, actor_id: null, action: "document.electronically_signed",
+    entity_type: "invoice", entity_id: record.id,
+    metadata: { signature_request_id: record.id, signer_email: record.signer_email, document_sha256: record.document_sha256, audit_sha256: auditHash, signed_at: signedAt },
+  });
+  return { ok: true, signedAt, documentSha256: record.document_sha256, auditSha256: auditHash };
+}
+async function processOcr(admin: any, user: any, body: any) {
+  if (!UUID.test(body.workspaceId || "")) throw new Error("INVALID_REQUEST");
+  if (!await member(admin, user.id, body.workspaceId, ["owner", "admin", "manager", "accountant", "employee"])) throw new Error("ACCESS_DENIED");
+  const mime = clean(body.mimeType, 40);
+  if (!["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(mime)) throw new Error("UNSUPPORTED_FILE_TYPE");
+  const bytes = bytesFromBase64(clean(body.fileBase64, 12 * 1024 * 1024));
+  if (!bytes.length) throw new Error("EMPTY_FILE");
+  const type = ["invoice", "receipt", "purchase_order", "identity", "other"].includes(body.documentType) ? body.documentType : "other";
+  const jobId = crypto.randomUUID();
+  await ensureBucket(admin, OCR_BUCKET, ["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+  const path = body.workspaceId + "/" + jobId;
+  const { error: uploadError } = await admin.storage.from(OCR_BUCKET).upload(path, new Blob([bytes], { type: mime }), { contentType: mime, upsert: false });
+  if (uploadError) throw new Error("OCR_UPLOAD_FAILED");
+  const { error: insertError } = await admin.schema("global").from("document_ocr_jobs").insert({
+    id: jobId, workspace_id: body.workspaceId, created_by: user.id, document_type: type,
+    storage_path: path, mime_type: mime, status: "processing",
+  });
+  if (insertError) { await admin.storage.from(OCR_BUCKET).remove([path]); throw new Error("OCR_JOB_CREATE_FAILED"); }
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
+  if (!apiKey) throw new Error("OCR_PROVIDER_NOT_CONFIGURED");
+  const model = Deno.env.get("GEMINI_OCR_MODEL") || "gemini-2.5-flash";
+  const prompt = "Extract the document into JSON. Return only JSON with keys document_type, supplier_name, supplier_tax_id, document_number, document_date, due_date, currency, subtotal, tax_total, total, line_items (array of description, quantity, unit_price, tax_rate, line_total), payment_reference, confidence (0..1), and review_notes (array). Use null for unknown values. Never invent unreadable values. This is an extraction draft; it must be reviewed by a human before use.";
+  const base64 = btoa(String.fromCharCode(...bytes));
+  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(apiKey), {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mime, data: base64 } }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.1 } }),
+  });
+  if (!response.ok) {
+    await admin.schema("global").from("document_ocr_jobs").update({ status: "failed", error_code: "OCR_PROVIDER_ERROR" }).eq("id", jobId);
+    throw new Error("OCR_PROVIDER_ERROR");
+  }
+  const payload = await response.json();
+  const output = payload?.candidates?.[0]?.content?.parts?.map((part: any) => part.text || "").join("") || "";
+  let extracted: any;
+  try { extracted = JSON.parse(output); } catch { extracted = { raw_text: output.slice(0, 12000), review_notes: ["Provider response was not valid structured JSON; manual review required."] }; }
+  const { error: updateError } = await admin.schema("global").from("document_ocr_jobs").update({
+    status: "completed", extracted_data: extracted, model_name: model, completed_at: new Date().toISOString(),
+  }).eq("id", jobId);
+  if (updateError) throw new Error("OCR_RESULT_SAVE_FAILED");
+  return { ok: true, jobId, extracted, requiresHumanReview: true };
+}
+async function sendWhatsApp(admin: any, user: any, body: any) {
+  if (!UUID.test(body.workspaceId || "") || body.consentConfirmed !== true) throw new Error("WHATSAPP_OPT_IN_REQUIRED");
+  if (!await member(admin, user.id, body.workspaceId, ["owner", "admin", "manager", "accountant", "employee"])) throw new Error("ACCESS_DENIED");
+  const phone = clean(body.recipientPhone, 20).replace(/[\s()-]/g, "");
+  if (!/^\+[1-9][0-9]{7,14}$/.test(phone)) throw new Error("INVALID_RECIPIENT");
+  const accessToken = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
+  const phoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
+  if (!accessToken || !phoneNumberId) throw new Error("WHATSAPP_PROVIDER_NOT_CONFIGURED");
+  const type = body.messageType === "template" ? "template" : "text";
+  const payload: any = { messaging_product: "whatsapp", recipient_type: "individual", to: phone, type };
+  if (type === "text") {
+    const initiatedAt = new Date(body.customerInitiatedAt || 0).getTime();
+    if (!Number.isFinite(initiatedAt) || Date.now() - initiatedAt > 24 * 60 * 60 * 1000 || initiatedAt > Date.now() + 60000) throw new Error("WHATSAPP_24_HOUR_WINDOW_REQUIRED");
+    const message = clean(body.message, 4000);
+    if (!message) throw new Error("MESSAGE_REQUIRED");
+    payload.text = { preview_url: false, body: message };
+  } else {
+    const name = clean(body.templateName, 100);
+    const language = clean(body.templateLanguage || "en", 10);
+    if (!/^[a-z0-9_]+$/.test(name)) throw new Error("INVALID_TEMPLATE");
+    payload.template = { name, language: { code: language }, ...(Array.isArray(body.templateComponents) ? { components: body.templateComponents.slice(0, 5) } : {}) };
+  }
+  const version = Deno.env.get("WHATSAPP_GRAPH_VERSION") || "v22.0";
+  const response = await fetch("https://graph.facebook.com/" + version + "/" + phoneNumberId + "/messages", {
+    method: "POST", headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  });
+  const result = await response.json().catch(() => ({}));
+  const providerId = result?.messages?.[0]?.id || null;
+  const status = response.ok && providerId ? "accepted" : "failed";
+  await admin.schema("global").from("whatsapp_delivery_logs").insert({
+    workspace_id: body.workspaceId, created_by: user.id, recipient_phone: phone,
+    message_type: type, template_name: type === "template" ? payload.template.name : null,
+    provider_message_id: providerId, status, consent_confirmed: true,
+    error_code: status === "failed" ? "META_SEND_FAILED" : null,
+  });
+  if (status === "failed") throw new Error("WHATSAPP_SEND_FAILED");
+  return { ok: true, providerMessageId: providerId, status: "accepted" };
+}
+
+async function publicApi(req: Request, admin: any) {
+  const key = req.headers.get("x-plivex-key") || "";
+  if (!/^plx_[A-Za-z0-9]{6}_[A-Za-z0-9_-]{30,}$/.test(key)) return json({ error: "API key required" }, 401);
+  const keyHash = await sha256(key);
+  const { data: apiKey, error } = await admin.schema("global").from("public_api_keys")
+    .select("id,workspace_id,scopes,expires_at,revoked_at").eq("key_hash", keyHash).maybeSingle();
+  if (error || !apiKey || apiKey.revoked_at || new Date(apiKey.expires_at).getTime() <= Date.now()) return json({ error: "API key invalid or expired" }, 401);
+  const { data: limited, error: rateError } = await admin.rpc("global_consume_enterprise_rate_limit", { p_key: "public-api:" + keyHash, p_limit: 120, p_window_seconds: 60 });
+  if (rateError || limited !== true) return json({ error: "API rate limit exceeded" }, 429);
+  const raw = req.method === "GET" ? Object.fromEntries(new URL(req.url).searchParams.entries()) : await req.json().catch(() => ({}));
+  const operation = clean(raw.operation || raw.method, 80);
+  const has = (scope: string) => apiKey.scopes.includes(scope);
+  let result: any;
+  if (operation === "mcp.tools/list" || raw.method === "tools/list") {
+    if (!has("mcp.read")) return json({ error: "Scope required: mcp.read" }, 403);
+    result = { tools: [
+      { name: "workspace_summary", description: "Read invoice and client totals for this workspace.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
+      { name: "list_invoices", description: "List recent invoices.", inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 100 } }, additionalProperties: false } },
+      { name: "list_clients", description: "List workspace clients.", inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 100 } }, additionalProperties: false } },
+    ] };
+  } else {
+    const args = isObject(raw.arguments) ? raw.arguments : raw;
+    if (operation === "workspace.summary" || args.name === "workspace_summary") {
+      if (!has("workspace.read")) return json({ error: "Scope required: workspace.read" }, 403);
+      const [invoices, clients] = await Promise.all([
+        admin.schema("global").from("invoices").select("id,total_minor,status,currency_code").eq("workspace_id", apiKey.workspace_id).limit(5000),
+        admin.schema("global").from("clients").select("id").eq("workspace_id", apiKey.workspace_id).limit(5000),
+      ]);
+      if (invoices.error || clients.error) return json({ error: "Workspace data unavailable" }, 503);
+      result = { invoiceCount: invoices.data.length, clientCount: clients.data.length, currencies: [...new Set(invoices.data.map((item: any) => item.currency_code))], invoiceTotalsByCurrency: Object.values(invoices.data.reduce((acc: any, item: any) => { const c = item.currency_code; acc[c] ||= { currency: c, totalMinor: 0 }; acc[c].totalMinor += Number(item.total_minor || 0); return acc; }, {})) };
+    } else if (operation === "invoices.list" || args.name === "list_invoices") {
+      if (!has("invoices.read")) return json({ error: "Scope required: invoices.read" }, 403);
+      const limit = Math.min(100, Math.max(1, Number(args.limit) || 50));
+      const { data, error: readError } = await admin.schema("global").from("invoices").select("id,invoice_number,status,currency_code,issue_date,due_date,total_minor,amount_paid_minor").eq("workspace_id", apiKey.workspace_id).order("created_at", { ascending: false }).limit(limit);
+      if (readError) return json({ error: "Invoices unavailable" }, 503);
+      result = { invoices: data };
+    } else if (operation === "clients.list" || args.name === "list_clients") {
+      if (!has("clients.read")) return json({ error: "Scope required: clients.read" }, 403);
+      const limit = Math.min(100, Math.max(1, Number(args.limit) || 50));
+      const { data, error: readError } = await admin.schema("global").from("clients").select("id,name,email,phone,status").eq("workspace_id", apiKey.workspace_id).order("created_at", { ascending: false }).limit(limit);
+      if (readError) return json({ error: "Clients unavailable" }, 503);
+      result = { clients: data };
+    } else {
+      return json({ error: "Unsupported operation" }, 400);
+    }
+  }
+  await admin.schema("global").from("public_api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", apiKey.id);
+  if (raw.jsonrpc === "2.0") return json({ jsonrpc: "2.0", id: raw.id ?? null, result: operation === "mcp.tools/list" || raw.method === "tools/list" ? result : { content: [{ type: "text", text: JSON.stringify(result) }] } });
+  return json({ ok: true, data: result });
+}
+
+Deno.serve(async (req: Request) => {
+  const origin = req.headers.get("origin");
+  if (req.method === "OPTIONS") return new Response("ok", { headers: globalCorsHeaders(origin) });
+  const auth = await authenticateGlobal(req);
+  const admin = "error" in auth ? (await import("../_shared/global.ts")).createGlobalAdminClient() : auth.admin;
+  try {
+    if (req.headers.has("x-plivex-key")) return await publicApi(req, admin);
+    if ("error" in auth) return globalJson({ error: auth.error }, auth.status, origin);
+    if (!isGlobalOriginAllowed(origin)) return globalJson({ error: "Origin not allowed" }, 403, origin);
+    if (req.method !== "POST") return globalJson({ error: "Method not allowed" }, 405, origin);
+    const body = await req.json();
+    if (!isObject(body) || !["signature.request", "signature.complete", "signature.list", "ocr.process", "whatsapp.send", "api-key.create", "api-key.list", "api-key.revoke"].includes(body.action)) return globalJson({ error: "Invalid action" }, 400, origin);
+    const user = auth.user;
+    if (body.action === "signature.complete") return globalJson(await signDocument(admin, req, body), 200, origin);
+    if (body.action === "signature.request") return globalJson(await createSignature(admin, user, body, origin), 201, origin);
+    if (body.action === "signature.list") {
+      if (!UUID.test(body.workspaceId || "") || !await member(admin, user.id, body.workspaceId, ["owner", "admin", "manager", "accountant"])) throw new Error("ACCESS_DENIED");
+      const { data, error } = await admin.schema("global").from("document_signing_requests").select("id,invoice_id,signer_name,signer_email,status,document_sha256,expires_at,signed_at,created_at").eq("workspace_id", body.workspaceId).order("created_at", { ascending: false }).limit(100);
+      if (error) throw new Error("SIGNATURE_LIST_FAILED");
+      return globalJson({ ok: true, requests: data }, 200, origin);
+    }
+    if (body.action === "ocr.process") return globalJson(await processOcr(admin, user, body), 200, origin);
+    if (body.action === "whatsapp.send") return globalJson(await sendWhatsApp(admin, user, body), 200, origin);
+    if (body.action === "api-key.create") {
+      if (!UUID.test(body.workspaceId || "") || !await member(admin, user.id, body.workspaceId, ["owner", "admin"])) throw new Error("ACCESS_DENIED");
+      const label = clean(body.label, 80);
+      const scopes = Array.isArray(body.scopes) ? [...new Set(body.scopes.filter((s: string) => ["workspace.read", "invoices.read", "clients.read", "mcp.read"].includes(s)))] : ["workspace.read"];
+      if (label.length < 2 || !scopes.length) throw new Error("INVALID_API_KEY");
+      const token = "plx_" + randomToken(4).slice(0, 6) + "_" + randomToken(32);
+      const expiresAt = new Date(Date.now() + Math.min(365, Math.max(1, Number(body.expiryDays) || 90)) * 86400000).toISOString();
+      const { data, error } = await admin.schema("global").from("public_api_keys").insert({
+        workspace_id: body.workspaceId, created_by: user.id, label, key_hash: await sha256(token),
+        key_prefix: token.slice(0, 10), scopes, expires_at: expiresAt,
+      }).select("id,label,key_prefix,scopes,expires_at,created_at").single();
+      if (error) throw new Error("API_KEY_CREATE_FAILED");
+      return globalJson({ ok: true, apiKey: data, secret: token, warning: "Copy this key now. It will not be shown again." }, 201, origin);
+    }
+    if (body.action === "api-key.list") {
+      if (!UUID.test(body.workspaceId || "") || !await member(admin, user.id, body.workspaceId, ["owner", "admin"])) throw new Error("ACCESS_DENIED");
+      const { data, error } = await admin.schema("global").from("public_api_keys").select("id,label,key_prefix,scopes,last_used_at,expires_at,revoked_at,created_at").eq("workspace_id", body.workspaceId).order("created_at", { ascending: false }).limit(100);
+      if (error) throw new Error("API_KEY_LIST_FAILED");
+      return globalJson({ ok: true, keys: data }, 200, origin);
+    }
+    if (body.action === "api-key.revoke") {
+      if (!UUID.test(body.workspaceId || "") || !UUID.test(body.keyId || "") || !await member(admin, user.id, body.workspaceId, ["owner", "admin"])) throw new Error("ACCESS_DENIED");
+      const { data, error } = await admin.schema("global").from("public_api_keys").update({ revoked_at: new Date().toISOString() }).eq("workspace_id", body.workspaceId).eq("id", body.keyId).is("revoked_at", null).select("id").maybeSingle();
+      if (error || !data) throw new Error("API_KEY_NOT_FOUND");
+      return globalJson({ ok: true, revoked: true }, 200, origin);
+    }
+    return globalJson({ error: "Unsupported action" }, 400, origin);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "PLATFORM_OPERATION_FAILED";
+    const status = message === "ACCESS_DENIED" ? 403 : message.includes("NOT_FOUND") ? 404 : message.includes("REQUIRED") || message.startsWith("INVALID") || message.startsWith("UNSUPPORTED") ? 400 : 500;
+    return globalJson({ error: message }, status, origin);
+  }
+});
