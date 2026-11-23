@@ -99,9 +99,9 @@ test("unified workspace feature links open the matching Main Workspace dashboard
   const homeGate = await read("../../components/HomeGate.jsx");
   const dashboard = await read("../../pages/Dashboard.jsx");
   const sales = await read("../../components/dashboard/SalesTab.jsx");
-  assert.match(app, /path="\/expenses" element=\{<Navigate to="\/dashboard" replace state=\{\{ initialTab: "purchase" \}\} \/>\}/);
-  assert.match(app, /path="\/products" element=\{<Navigate to="\/dashboard" replace state=\{\{ initialTab: "stock" \}\} \/>\}/);
-  assert.match(app, /path="\/quotations" element=\{<Navigate to="\/dashboard" replace state=\{\{ initialTab: "sales", initialSub: "quotations" \}\} \/>\}/);
+  assert.ok(app.includes('path="/expenses" element={<Navigate to="/dashboard" replace state={{ initialTab: "purchase" }} />}'));
+  assert.ok(app.includes('path="/products" element={<Navigate to="/dashboard" replace state={{ initialTab: "stock" }} />}'));
+  assert.ok(app.includes('path="/quotations" element={<Navigate to="/dashboard" replace state={{ initialTab: "sales", initialSub: "quotations" }} />}'));
   assert.match(homeGate, /routeState\.initialTab/);
   assert.match(homeGate, /routeState\.initialSub/);
   assert.match(dashboard, /initialSub=\{initialSub\}/);
