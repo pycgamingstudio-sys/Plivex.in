@@ -265,6 +265,8 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json().catch(()=>({}));
     if (!isObject(body)) return json({error:"Invalid request"},400,origin);
+    if (body.method === "notifications/initialized") return new Response(null,{status:202,headers:cors(origin)});
+    if (!body.action && typeof body.method === "string") body.action = body.method === "initialize" ? "mcp.initialize" : body.method === "tools/list" ? "mcp.tools/list" : body.method === "tools/call" ? "mcp.tools/call" : body.method;
     if (body.action === "signature.preview") return json(await signaturePreview(createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!),clean(body.token,256)),200,origin);
     if (body.action === "signature.complete") {
       const admin = createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
