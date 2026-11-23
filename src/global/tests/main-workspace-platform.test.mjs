@@ -138,3 +138,24 @@ test("Main Workspace sales orders, delivery challans and credit/debit notes are 
   assert.match(salesDocsUi,/Delivery challans/);
   assert.match(salesDocsUi,/Credit & debit notes/);
 });
+
+const supplierMigration=readFileSync(new URL("../../../supabase/migrations/20261123032231_main_workspace_supplier_onboarding_portal.sql",import.meta.url),"utf8");
+const supplierAtomic=readFileSync(new URL("../../../supabase/migrations/20261123032328_main_workspace_supplier_portal_atomic_submit.sql",import.meta.url),"utf8");
+const supplierFn=readFileSync(new URL("../../../supabase/functions/workspace-supplier-portal/index.ts",import.meta.url),"utf8");
+const supplierUi=readFileSync(new URL("../../components/workspace/WorkspaceSupplierPortal.jsx",import.meta.url),"utf8");
+const supplierPage=readFileSync(new URL("../../pages/PublicSupplierOnboardingPage.jsx",import.meta.url),"utf8");
+
+test("Main Workspace supplier onboarding uses expiring single-use invitations and atomic country-checked submission",()=>{
+  assert.match(supplierMigration,/supplier_invitation_tokens/);
+  assert.match(supplierMigration,/token_hash text not null unique/);
+  assert.match(supplierMigration,/supplier_one_active_invite_idx/);
+  assert.match(supplierAtomic,/for update/);
+  assert.match(supplierAtomic,/tax_country_mismatch/);
+  assert.match(supplierAtomic,/supplier\.profile_submitted/);
+  assert.match(supplierFn,/BREVO_API_KEY/);
+  assert.match(supplierFn,/RESEND_API_KEY/);
+  assert.match(supplierFn,/supplier_invitation_tokens/);
+  assert.match(supplierUi,/Supplier onboarding portal/);
+  assert.match(supplierPage,/Complete supplier profile/);
+  assert.match(app,/path="\/supplier-onboarding\/:token"/);
+});
