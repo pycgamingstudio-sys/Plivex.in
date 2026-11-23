@@ -29,6 +29,7 @@ export const navItems = [
   { to: "/service-catalog", label: "Service catalog", icon: Package, roles: ["admin", "employee"] },
   { to: "/payment-logs", label: "Payment logs", icon: CreditCard, roles: ["admin", "accountant"] },
   { to: "/tax-summary", label: "Tax summary", icon: Receipt, roles: ["admin", "accountant"] },
+  { to: "/platform", label: "Business tools center", icon: ShieldCheck, roles: ["admin", "manager"] },
 ];
 
 export const MORE_NAV_ITEMS = [
@@ -44,7 +45,6 @@ export const MORE_NAV_ITEMS = [
   { to: "/account-activity", label: "Account activity", icon: Activity, roles: ["admin", "accountant"] },
   { to: "/settings", label: "Settings", icon: SettingsIcon, roles: ["admin"] },
   { to: "/help-center", label: "Help center", icon: LifeBuoy, roles: ALL },
-  { to: "/platform", label: "Business tools center", icon: ShieldCheck, roles: ["admin", "manager"] },
 ];
 
 export const HIDDEN_FROM_SIDEBAR = [

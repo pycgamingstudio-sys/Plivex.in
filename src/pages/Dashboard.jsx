@@ -41,6 +41,9 @@ const TABS = [
 
 export default function Dashboard({ initialTab, initialSub, initialIntent }) {
   const [tab, setTab] = useState(initialTab || "dashboard");
+  useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [initialTab]);
   const [isDark, setIsDark] = useState(() => { try { return localStorage.getItem("plivex-main-workspace-theme") === "dark"; } catch { return false; } });
   const [intent, setIntent] = useState(initialIntent || null);
   const [moreOpen, setMoreOpen] = useState(false);

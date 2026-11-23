@@ -127,6 +127,14 @@ const AuthenticatedApp = () => {
       <Route path="/supplier-onboarding/:token" element={<PublicSupplierOnboardingPage />} />
       <Route path="/" element={<HomeGate />} />
       <Route path="/dashboard" element={<HomeGate />} />
+      <Route path="/workspace/dashboard" element={<HomeGate initialTab="dashboard" />} />
+      <Route path="/workspace/sales" element={<HomeGate initialTab="sales" />} />
+      <Route path="/workspace/purchase" element={<HomeGate initialTab="purchase" />} />
+      <Route path="/workspace/reports" element={<HomeGate initialTab="reports" />} />
+      <Route path="/workspace/crm" element={<HomeGate initialTab="crm" />} />
+      <Route path="/workspace/stock" element={<HomeGate initialTab="stock" />} />
+      <Route path="/workspace/warehouses" element={<HomeGate initialTab="warehouses" />} />
+      <Route path="/workspace/reconciliation" element={<HomeGate initialTab="reconciliation" />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/" replace />} />}>
         <Route element={<TrialGate />}>
           <Route element={<RoleGuard />}>
@@ -155,6 +163,8 @@ const AuthenticatedApp = () => {
           <Route path="/service-catalog" element={<GlobalFeatureGate feature="Service catalog"><ServiceCatalog /></GlobalFeatureGate>} />
           <Route path="/team-management" element={<GlobalFeatureGate feature="Team management"><WorkspaceFeatureGate feature="team"><ProTeamRoute /></WorkspaceFeatureGate></GlobalFeatureGate>} />
           <Route path="/platform" element={<WorkspacePlatformPage />} />
+          <Route path="/platform/:group" element={<WorkspacePlatformPage />} />
+          <Route path="/platform/:group/:tool" element={<WorkspacePlatformPage />} />
             </Route>
           </Route>
         </Route>

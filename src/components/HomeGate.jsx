@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
+import { LayoutDashboard, ReceiptText, UsersRound, Package, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import { APP_EDITION, isUnifiedBuild } from "@/api/backendClient";
+import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
 import AppLayout from "@/components/AppLayout";
 import Logo from "@/components/Logo";
 import { lazy } from "react";
@@ -13,9 +15,10 @@ import TrialGate from "@/components/TrialGate";
 // Public landing gate: guests land on the demo dashboard without any account;
 // authenticated users land on their real workspace. Pending guest intents
 // (stored before sign-in) are resumed automatically.
-export default function HomeGate() {
-  const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings } = useAuth();
+export default function HomeGate({ initialTab: routeInitialTab }) {
+  const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings, user } = useAuth();
   const location = useLocation();
+  const { features: workspaceFeatures } = useWorkspaceFeatures(user?.workspace_id);
   const [pending, setPending] = useState(null);
 
   useEffect(() => {
@@ -52,9 +55,29 @@ export default function HomeGate() {
     : pending === "open-crm" ? <Dashboard initialTab="crm" />
       : pending === "export-gst" ? <Dashboard initialTab="sales" />
         : <Dashboard
-            initialTab={typeof routeState.initialTab === "string" ? routeState.initialTab : undefined}
+            initialTab={routeInitialTab || (typeof routeState.initialTab === "string" ? routeState.initialTab : undefined)}
             initialSub={typeof routeState.initialSub === "string" ? routeState.initialSub : undefined}
             initialIntent={typeof routeState.initialIntent === "string" ? routeState.initialIntent : undefined}
           />;
-  return <TrialGate>{dashboard}</TrialGate>;
+  const mobileItems = [
+    { to: "/workspace/dashboard", label: "Home", Icon: LayoutDashboard, active: ["/", "/dashboard", "/workspace/dashboard"].includes(location.pathname) },
+    { to: "/workspace/sales", label: "Sales", Icon: ReceiptText, active: location.pathname === "/workspace/sales" },
+    { to: "/workspace/crm", label: "CRM", Icon: UsersRound, active: location.pathname === "/workspace/crm" },
+    { to: "/workspace/stock", label: "Stock", Icon: Package, active: location.pathname === "/workspace/stock" },
+    { to: "/platform", label: "Business Tools", Icon: ShieldCheck, active: location.pathname.startsWith("/platform") },
+  ];
+  const visibleMobileItems = mobileItems.filter((item) => {
+    if (item.to === "/platform") return ["admin", "manager"].includes(user?.role);
+    if (item.to === "/workspace/crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
+    if (item.to === "/workspace/stock") return user?.workspace_type === "business" || workspaceFeatures.includes("stock");
+    return true;
+  });
+  return <TrialGate><div className="plivex-route-shell">{dashboard}
+    <style>{".plivex-route-shell .plivex-bottom-nav{display:none!important}"}</style>
+    <nav aria-label="Main workspace navigation" className="fixed inset-x-0 bottom-0 z-[45] grid border-t border-slate-200 bg-white/95 shadow-[0_-8px_28px_rgba(24,24,40,.08)] backdrop-blur-xl md:hidden" style={{gridTemplateColumns:"repeat("+visibleMobileItems.length+", minmax(0, 1fr))",paddingBottom:"env(safe-area-inset-bottom, 0px)"}}>
+      {visibleMobileItems.map(({to,label,Icon,active})=><Link key={to} to={to} aria-current={active?"page":undefined} className={"flex min-h-[62px] flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-semibold transition-colors "+(active?"text-violet-700":"text-slate-500 hover:text-slate-900")}>
+        <Icon className="h-5 w-5" strokeWidth={active?2.4:1.8}/><span className="max-w-full truncate">{label}</span>
+      </Link>)}
+    </nav>
+  </div></TrialGate>;
 }

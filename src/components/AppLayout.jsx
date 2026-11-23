@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { APP_EDITION } from "@/api/backendClient";
 import { getCountryByCode, getCountryFlag } from "@/global/countries/country-registry.js";
 import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
-import { LayoutDashboard, Users, Package, FileText, Handshake, Warehouse, Calculator, ShoppingCart, MoreHorizontal, ChevronDown, Moon, Sun } from "lucide-react";
+import { LayoutDashboard, Users, Package, FileText, Handshake, Warehouse, Calculator, ShoppingCart, MoreHorizontal, ChevronDown, Moon, Sun, ShieldCheck } from "lucide-react";
 
 const GLOBAL_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -62,6 +62,14 @@ export default function AppLayout({ children }) {
     (!item.roles || item.roles.includes(role)) && isFeatureAvailable(item.to)
   );
 
+  const mobilePrimaryItems = [
+    { to: "/workspace/dashboard", label: "Home", icon: LayoutDashboard, visible: true },
+    { to: "/workspace/sales", label: "Sales", icon: FileText, visible: true },
+    { to: "/workspace/crm", label: "CRM", icon: Handshake, visible: workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads") },
+    { to: "/workspace/stock", label: "Stock", icon: Package, visible: user?.workspace_type === "business" || workspaceFeatures.includes("stock") },
+    { to: "/platform", label: "Tools", icon: ShieldCheck, visible: ["admin", "manager"].includes(role) },
+  ].filter((item) => item.visible);
+
   const globalItems = GLOBAL_NAV.filter((item) => {
     if (item.to === "/inventory-procurement") return workspaceFeatures.includes("inventoryWorkspace");
     if (item.to === "/expenses") return workspaceFeatures.includes("expenses");
@@ -103,7 +111,7 @@ export default function AppLayout({ children }) {
           <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground">{user?.workspace_name || "Workspace"}</span>
           <span className="shrink-0 text-[10px] text-muted-foreground">{getCountryByCode(user?.country_code)?.name || "Country not set"}{user?.currency_code ? ` · ${user.currency_code}` : ""}</span>
         </div>
-        <nav className="mx-auto flex max-w-6xl items-center gap-2 px-4 pb-2.5" aria-label="Workspace">
+        <nav className={isGlobal ? "mx-auto flex max-w-6xl items-center gap-2 px-4 pb-2.5" : "mx-auto hidden max-w-6xl items-center gap-2 px-4 pb-2.5 md:flex xl:hidden"} aria-label="Workspace">
           <div className="flex min-w-0 flex-1 snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {isGlobal ? globalItems.map((item) => (
               <NavLink key={item.to} to={item.to} className={({ isActive }) => navPillClass(isActive)}>
@@ -154,7 +162,30 @@ export default function AppLayout({ children }) {
           </div>
         </nav>
       </header>
-      <main className={`mx-auto max-w-6xl px-4 py-6 ${isGlobal ? "min-h-[calc(100vh-120px)] bg-[#F8F7FC]" : ""}`}>{children ?? <Outlet />}</main>
+      <div className="mx-auto flex max-w-[1600px] items-start">
+        {!isGlobal && <aside aria-label="Primary workspace navigation" className="sticky top-[76px] hidden h-[calc(100dvh-76px)] w-64 shrink-0 flex-col overflow-y-auto border-r border-[#E8E7EF] bg-white px-3 py-5 xl:flex">
+          <p className="px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Workspace</p>
+          <nav className="mt-2 space-y-1">
+            {items.map((item) => <NavLink key={item.to} to={item.to} className={({ isActive }) => "flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-[12px] font-semibold transition-colors " + (isActive ? "bg-violet-50 text-violet-800" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950")}>
+              <item.icon className="h-4 w-4 shrink-0" />{item.label}
+            </NavLink>)}
+          </nav>
+          <div className="mt-5 border-t border-slate-100 pt-4">
+            <p className="px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">More</p>
+            <nav className="mt-2 space-y-1">
+              {moreItems.map((item) => <NavLink key={item.to} to={item.to} className={({ isActive }) => "flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-[12px] font-medium transition-colors " + (isActive ? "bg-violet-50 text-violet-800" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900")}>
+                <item.icon className="h-4 w-4 shrink-0" />{item.label}
+              </NavLink>)}
+            </nav>
+          </div>
+        </aside>}
+        <main className={`mx-auto min-w-0 w-full max-w-6xl flex-1 px-4 py-6 pb-24 md:pb-6 ${isGlobal ? "min-h-[calc(100vh-120px)] bg-[#F8F7FC]" : "xl:px-8"}`}>{children ?? <Outlet />}</main>
+      </div>
+      {!isGlobal && <nav aria-label="Main workspace navigation" className="fixed inset-x-0 bottom-0 z-40 grid border-t border-[#E8E7EF] bg-white/95 shadow-[0_-8px_28px_rgba(24,24,40,.08)] backdrop-blur-xl md:hidden" style={{ gridTemplateColumns: "repeat(" + mobilePrimaryItems.length + ", minmax(0, 1fr))", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+        {mobilePrimaryItems.map((item) => <NavLink key={item.to} to={item.to} className={({ isActive }) => "flex min-h-[62px] flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-semibold transition-colors " + (isActive ? "text-violet-700" : "text-slate-500 hover:text-slate-900")}>
+          <item.icon className="h-5 w-5" /><span className="max-w-full truncate">{item.label}</span>
+        </NavLink>)}
+      </nav>}
       {!isGlobal && <PresenceBeacon />}
     </div>
   );
