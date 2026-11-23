@@ -41,6 +41,6 @@ Subscribe the Meta app to the WhatsApp `messages` webhook field. The handler ver
 - MCP JSON-RPC methods: `initialize`, `notifications/initialized`, `tools/list`, `tools/call`.
 - MCP tools are scope-limited. Business insights use aggregate metrics only; customer PII is not sent to Gemini.
 
-## Deployment status and limitations
+## Approvals and permissions\n\n- Main Workspace supports five sequential approval steps, self-approval blocking, per-currency minimum thresholds and a five-minute overdue escalation job. Requests and decisions are audited.\n- Admins/managers can delegate selected permissions to an active workspace member for up to 90 days, revoke delegations and set role/member overrides.\n- Approval policy and permission RPCs validate the authenticated user against the same public Main Workspace ID.\n\n## Deployment status and limitations
 
 The Main Workspace database migration and Edge Functions are deployed. Provider-backed WhatsApp delivery still requires the owner's Meta credentials and a real test message/webhook. OCR requires a valid Gemini key/model and a real sample-document test. Do not treat this feature as production-certified until those provider smoke tests pass.
