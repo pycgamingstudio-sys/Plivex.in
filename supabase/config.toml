@@ -31,6 +31,11 @@ verify_jwt = true
 [functions.global-part4]
 verify_jwt = true
 
+# Public supplier portal actions authenticate with single-use token hashes;
+# internal invite/list/review actions validate the Supabase JWT in the handler.
+[functions.global-supplier-portal]
+verify_jwt = false
+
 # Global accounting operations require a verified Supabase JWT.
 [functions.global-accounting]
 verify_jwt = true
