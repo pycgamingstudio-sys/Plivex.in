@@ -121,13 +121,14 @@ begin
     return jsonb_build_object('ok',false,'reason','invalid_or_expired');
   end if;
   select jsonb_build_object('ok',true,'supplier',jsonb_build_object(
-    'supplier_id',s.id,'name',s.name,'email',s.email,'phone',s.phone,
+    'supplier_id',s.id,'name',s.name,'email',s.email,'phone',s.phone,'workspace_country',w.country_code,
     'tax_registration_number',s.tax_registration_number,
     'legal_name',p.legal_name,'contact_name',p.contact_name,'website',p.website,
     'business_type',p.business_type,'payment_terms',p.payment_terms,'address',p.address
   )) into v_result
   from global.supplier_portal_invites i
   join global.suppliers s on s.workspace_id=i.workspace_id and s.id=i.supplier_id
+  join global.workspaces w on w.id=i.workspace_id
   left join global.supplier_onboarding_profiles p on p.workspace_id=i.workspace_id and p.supplier_id=i.supplier_id
   where i.token_hash=p_token_hash and i.status='active' and i.expires_at>now();
   return coalesce(v_result,jsonb_build_object('ok',false,'reason','invalid_or_expired'));
