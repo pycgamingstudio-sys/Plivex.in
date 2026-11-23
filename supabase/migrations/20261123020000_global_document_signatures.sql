@@ -83,7 +83,7 @@ begin
   if v_member.role not in ('owner','admin','manager','accountant') then
     return jsonb_build_object('ok',false,'code','PERMISSION_DENIED');
   end if;
-  if p_document_type not in ('invoice','quotation') or p_document_id is null
+  if p_document_type is null or p_document_type not in ('invoice','quotation') or p_document_id is null
     or p_signer_name is null or length(btrim(p_signer_name)) not between 1 and 160
     or p_signer_email is null or length(p_signer_email)>254
     or p_signer_email !~* '^[^\s@]+@[^\s@]+\.[^\s@]+$'
