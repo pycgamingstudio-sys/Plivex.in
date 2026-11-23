@@ -29,7 +29,6 @@ const Home = lazy(() => import("./pages/Home"));
 const InvoiceHistory = lazy(() => import("./pages/InvoiceHistory"));
 const InvoiceShareManagement = lazy(() => import("./pages/InvoiceShareManagement"));
 const BusinessProfile = lazy(() => import("./pages/BusinessProfile"));
-const ClientDatabase = lazy(() => import("./pages/ClientDatabase"));
 const UsageReports = lazy(() => import("./pages/UsageReports"));
 const Settings = lazy(() => import("./pages/Settings"));
 const QuickTemplates = lazy(() => import("./pages/QuickTemplates"));
@@ -39,7 +38,7 @@ const HelpCenter = lazy(() => import("./pages/HelpCenter"));
 const AccountActivity = lazy(() => import("./pages/AccountActivity"));
 const ServiceCatalog = lazy(() => import("./pages/ServiceCatalog"));
 const TeamManagement = lazy(() => import("./pages/TeamManagement"));
-const CrmTab = lazy(() => import("@/components/dashboard/CrmTab"));
+const WorkspaceCRMPanel = lazy(() => import("@/components/workspace/WorkspaceCRMPanel"));
 const IndiaPart4Tab = lazy(() => import("@/components/dashboard/IndiaPart4Tab"));
 const ContactUs = lazy(() => import("./pages/ContactUs"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
@@ -141,8 +140,8 @@ const AuthenticatedApp = () => {
           <Route path="/quotations" element={<Navigate to="/dashboard" replace state={{ initialTab: "sales", initialSub: "quotations" }} />} />
           <Route path="/invoice-shares" element={<GlobalFeatureGate feature="Shared invoice links"><InvoiceShareManagement /></GlobalFeatureGate>} />
           <Route path="/business-profile" element={<GlobalFeatureGate feature="Business profile"><BusinessProfile /></GlobalFeatureGate>} />
-          <Route path="/client-database" element={<WorkspaceFeatureGate anyOf={["crm", "leads"]}><ClientDatabase /></WorkspaceFeatureGate>} />
-          <Route path="/crm" element={<WorkspaceFeatureGate anyOf={["crm", "leads"]}><CrmTab /></WorkspaceFeatureGate>} />
+          <Route path="/client-database" element={<WorkspaceFeatureGate anyOf={["crm", "leads"]}><WorkspaceCRMPanel initialTab="clients" /></WorkspaceFeatureGate>} />
+          <Route path="/crm" element={<WorkspaceFeatureGate anyOf={["crm", "leads"]}><WorkspaceCRMPanel initialTab="leads" /></WorkspaceFeatureGate>} />
           <Route path="/sales-documents" element={<Navigate to="/dashboard" replace state={{ initialTab: "sales" }} />} />
           <Route path="/suppliers" element={<Navigate to="/platform" replace />} />
           <Route path="/inventory-procurement" element={<WorkspaceFeatureGate feature="inventoryWorkspace"><IndiaPart4Tab user={user} /></WorkspaceFeatureGate>} />
