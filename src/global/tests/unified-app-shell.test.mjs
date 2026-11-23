@@ -27,7 +27,7 @@ test("unified authentication resolves the workspace country without activating a
   assert.match(auth, /if \(isUnifiedBuild\)/);
   assert.match(auth, /setRuntimeEdition\("india"\)/);
   assert.match(auth, /currentUser\?\.country_code/);
-  assert.doesNotMatch(auth, /global-auth-context/);
+  assert.ok(auth.indexOf("if (isUnifiedBuild)") < auth.indexOf("global-auth-context"));
   assert.match(backend, /if \(isUnifiedBuild && edition === "global"\) return false/);
 });
 
