@@ -52,8 +52,10 @@ create table if not exists global.whatsapp_delivery_logs (
   message_type text not null check (message_type in ('text','template')),
   template_name text,
   provider_message_id text,
-  status text not null check (status in ('accepted','failed')),
+  status text not null check (status in ('accepted','sent','delivered','read','failed')),
   consent_confirmed boolean not null check (consent_confirmed = true),
+  consent_statement text not null check (length(btrim(consent_statement)) between 10 and 500),
+  consent_at timestamptz not null default now(),
   error_code text,
   created_at timestamptz not null default now()
 );
@@ -107,19 +109,16 @@ as $function$
 declare
   v_request global.document_signing_requests%rowtype;
 begin
-  if p_token_hash !~ '^[a-f0-9]{64}
- or p_signature_name is null
-    or length(btrim(p_signature_name)) < 2 or p_consent_text is null
-    or p_ip_hash !~ '^[a-f0-9]{64}
- or p_audit_sha256 !~ '^[a-f0-9]{64}
- then
+  if length(coalesce(p_token_hash, '')) <> 64 or p_token_hash ~ '[^a-f0-9]'
+    or p_signature_name is null or length(btrim(p_signature_name)) < 2
+    or p_consent_text is null or length(coalesce(p_ip_hash, '')) <> 64
+    or p_ip_hash ~ '[^a-f0-9]' or length(coalesce(p_audit_sha256, '')) <> 64
+    or p_audit_sha256 ~ '[^a-f0-9]' then
     return jsonb_build_object('ok', false, 'code', 'INVALID_SIGNATURE');
   end if;
 
-  select * into v_request
-  from global.document_signing_requests
-  where token_hash = p_token_hash
-  for update;
+  select * into v_request from global.document_signing_requests
+  where token_hash = p_token_hash for update;
 
   if not found then return jsonb_build_object('ok', false, 'code', 'SIGN_REQUEST_NOT_FOUND'); end if;
   if v_request.status <> 'pending' or v_request.expires_at <= now() then
@@ -150,11 +149,8 @@ begin
     ), p_signed_at
   );
 
-  return jsonb_build_object(
-    'ok', true, 'signed_at', p_signed_at,
-    'document_sha256', v_request.document_sha256,
-    'audit_sha256', p_audit_sha256
-  );
+  return jsonb_build_object('ok', true, 'signed_at', p_signed_at,
+    'document_sha256', v_request.document_sha256, 'audit_sha256', p_audit_sha256);
 end;
 $function$;
 
