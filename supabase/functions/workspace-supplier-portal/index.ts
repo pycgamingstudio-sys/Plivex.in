@@ -64,13 +64,8 @@ Deno.serve(async(req:Request)=>{
    const phone=clean(body.phone,32),taxCountry=clean(body.taxCountryCode,3).toUpperCase(),taxId=clean(body.taxId,80);
    const paymentTerms=clean(body.paymentTerms,200),address=body.address;
    if(!isValidAddress(address)||phone.length>32||paymentTerms.length>200||taxCountry!==String(preview.workspaceCountry).toUpperCase())throw new Error("INVALID_SUPPLIER_PROFILE");
-   const {data:invite}=await admin.from("supplier_invitation_tokens").select("id,workspace_id,supplier_id").eq("token_hash",await sha(secret)).is("used_at",null).is("revoked_at",null).gt("expires_at",new Date().toISOString()).maybeSingle();
-   if(!invite)throw new Error("INVITE_NOT_ACTIVE");
-   const {error:updateError}=await admin.from("suppliers").update({phone,tax_country_code:taxCountry,tax_id:taxId||null,address,payment_terms:paymentTerms,status:"submitted",submitted_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("workspace_id",invite.workspace_id).eq("id",invite.supplier_id).eq("status","invited");
-   if(updateError)throw new Error("SUPPLIER_SUBMIT_FAILED");
-   const {error:tokenError}=await admin.from("supplier_invitation_tokens").update({used_at:new Date().toISOString()}).eq("id",invite.id).is("used_at",null);
-   if(tokenError)throw new Error("INVITE_ALREADY_USED");
-   await admin.from("workspace_audit_events").insert({workspace_id:invite.workspace_id,actor_id:null,action:"supplier.profile_submitted",entity_type:"supplier",entity_id:invite.supplier_id,metadata:{}});
+   const {data:submitted,error:submitError}=await admin.rpc("submit_main_workspace_supplier_profile",{p_token_hash:await sha(secret),p_phone:phone,p_tax_country_code:taxCountry,p_tax_id:taxId||null,p_address:address,p_payment_terms:paymentTerms});
+   if(submitError||!submitted?.ok)throw new Error(submitted?.reason||"SUPPLIER_SUBMIT_FAILED");
    return json({ok:true},200,origin);
   }
   const ctx=await context(req);if(!canManage(ctx.role))throw new Error("ACCESS_DENIED");
