@@ -50,7 +50,10 @@ test("WhatsApp sends require opt-in evidence and obey the 24-hour free-form wind
   assert.match(webhook, /x-hub-signature-256/);
   assert.match(webhook, /WHATSAPP_VERIFY_TOKEN/);
   assert.match(webhook, /WHATSAPP_APP_SECRET/);
+  assert.match(platform, /whatsapp\.list/);
   assert.match(panel, /Customer has explicitly opted in/);
+  assert.match(panel, /Recent WhatsApp delivery statuses/);
+  assert.match(panel, /Template components JSON/);
 });
 
 test("public API keys are hashed, scoped, revocable and workspace-bound", () => {
