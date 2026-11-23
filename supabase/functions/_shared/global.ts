@@ -11,7 +11,7 @@ const allowedOrigin = (origin: string | null) => !origin || ALLOWED_ORIGINS.has(
 export const globalCorsHeaders = (origin: string | null) => ({
   "Access-Control-Allow-Origin": origin && allowedOrigin(origin) ? origin : "https://plivex.in",
   "Vary": "Origin",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-plivex-key",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 });
 export const globalJson = (body: unknown, status: number, origin: string | null) =>
