@@ -68,6 +68,8 @@ test("public API keys are hashed, scoped, revocable and workspace-bound", () => 
 test("MCP exposes only scoped read tools and an aggregate AI business insight tool", () => {
   assert.match(platform, /mcp\.tools\/list/);
   assert.match(platform, /tools\/call/);
+  assert.match(platform, /mcpMethod === "initialize"/);
+  assert.match(platform, /notifications\/initialized/);
   assert.match(platform, /workspace_summary/);
   assert.match(platform, /list_invoices/);
   assert.match(platform, /list_clients/);
