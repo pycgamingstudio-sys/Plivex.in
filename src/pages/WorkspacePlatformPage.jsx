@@ -144,6 +144,13 @@ export default function WorkspacePlatformPage() {
     operations: "border-amber-100 bg-gradient-to-br from-white via-amber-50/50 to-orange-50",
     security: "border-rose-100 bg-gradient-to-br from-white via-rose-50/50 to-pink-50",
   };
+  const groupLabelTone = {
+    integrations: "text-violet-700",
+    finance: "text-emerald-700",
+    inventory: "text-sky-700",
+    operations: "text-amber-700",
+    security: "text-rose-700",
+  };
 
   const mcpUrl = useMemo(()=>((import.meta.env.VITE_SUPABASE_URL||"").replace(/\/$/,"")+"/functions/v1/workspace-platform"),[]);
 
@@ -154,7 +161,7 @@ export default function WorkspacePlatformPage() {
      <header className={"overflow-hidden rounded-3xl border shadow-[0_12px_36px_rgba(54,31,92,.07)] " + (groupHeroTone[activeGroup] || groupHeroTone.integrations)}>
        <div className="flex flex-wrap items-center justify-between gap-3 p-5 sm:p-7">
          <div className="min-w-0">
-           <p className={"text-[10px] font-bold uppercase tracking-[0.18em] " + groupToneClasses[activeGroup].icon}>Plivex workspace</p>
+           <p className={"text-[10px] font-bold uppercase tracking-[0.18em] " + groupLabelTone[activeGroup]}>Plivex workspace</p>
            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{selectedTool?.title || (groupParam ? selectedGroupTitle : "Business tools center")}</h1>
            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{selectedTool?.description || (groupParam ? "A dedicated workspace for this part of your business." : "All advanced workspace tools, organised by the job they help you complete.")}</p>
          </div>
