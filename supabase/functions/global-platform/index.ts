@@ -223,7 +223,7 @@ async function publicApi(req: Request, admin: any) {
   let result: any;
   if (mcpMethod === "notifications/initialized") return new Response(null, { status: 202 });
   if (mcpMethod === "ping") result = {};
-  if (mcpMethod === "initialize") {
+  else if (mcpMethod === "initialize") {
     if (!has("mcp.read")) return json({ error: "Scope required: mcp.read" }, 403);
     result = { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "plivex-global-business", version: "1.0.0" } };
   } else if (operation === "mcp.tools/list" || raw.method === "tools/list") {
