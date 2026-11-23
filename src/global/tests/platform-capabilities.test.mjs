@@ -33,7 +33,9 @@ test("OCR stores private source files and returns review-only structured extract
   assert.match(platform, /requiresHumanReview: true/);
   assert.match(platform, /Never invent unreadable values/);
   assert.match(panel, /Document OCR & AI extraction/);
-  assert.match(panel, /Review every field before using it/);
+  assert.match(panel, /Review every extracted field before using it/);
+  assert.match(panel, /multiple accept=/);
+  assert.match(panel, /files.length > 10/);
   assert.doesNotMatch(platform, /insert\(.*(?:global\.invoices|global\.expenses)/s);
 });
 
