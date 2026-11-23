@@ -9,6 +9,7 @@ import GlobalInvoicesPanel from "@/components/global/GlobalInvoicesPanel";
 import GlobalQuotationsPanel from "@/components/global/GlobalQuotationsPanel";
 import GlobalAccountingPanel from "@/components/global/GlobalAccountingPanel";
 import GlobalEnterprisePanel from "@/components/global/GlobalEnterprisePanel";
+import GlobalPlatformPanel from "@/components/global/GlobalPlatformPanel";
 import GlobalPart4Panel from "@/components/global/GlobalPart4Panel";
 
 
@@ -25,6 +26,7 @@ const NAV = [
   { id: "quotations", label: "Quotations" },
   { id: "accounting", label: "Accounting" },
   { id: "enterprise", label: "Enterprise" },
+  { id: "platform", label: "Integrations & AI" },
 ];
 const TABLES = { clients: "clients", products: "products", expenses: "expenses", inventory: "stock_levels", invoices: "invoices" };
 const TAB_PATHS = {
@@ -40,6 +42,7 @@ const TAB_PATHS = {
   quotations: "/quotations",
   accounting: "/accounting",
   enterprise: "/enterprise",
+  platform: "/platform",
 };
 const localDate = () => {
   const date = new Date();
