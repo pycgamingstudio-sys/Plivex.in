@@ -10,7 +10,7 @@ test("Main Workspace permission delegations are workspace-scoped, time-bound and
   assert.match(migration, /public\.workspace_permission_delegations/);
   assert.match(migration, /expires_at/);
   assert.match(migration, /interval '90 days'/);
-  assert.match(migration, /alter table public\.workspace_permission_delegations enable row level security/);
+  assert.match(migration, /alter table public.%I enable row level security/);
   assert.match(migration, /revoke all on public\.workspace_permission_delegations from public,anon,authenticated/);
   assert.match(migration, /grant all on public\.workspace_permission_delegations to service_role/);
 });
@@ -26,7 +26,7 @@ test("Main Workspace delegation create/list/revoke RPCs enforce roles, expiry an
 });
 
 test("Main Workspace enterprise UI supports creating, reviewing and revoking delegations", () => {
-  assert.match(panel, /Time-bound permission delegation/);
+  assert.match(panel, /Temporary permission delegation/);
   assert.match(panel, /Delegated permissions/);
   assert.match(panel, /Create delegation/);
   assert.match(panel, /Revoke delegation/);
