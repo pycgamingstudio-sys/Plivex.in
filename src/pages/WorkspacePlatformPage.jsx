@@ -21,6 +21,7 @@ export default function WorkspacePlatformPage() {
   const [signerName,setSignerName] = useState("");
   const [signerEmail,setSignerEmail] = useState("");
   const [signatureLink,setSignatureLink] = useState("");
+  const [signatureRequestId,setSignatureRequestId] = useState("");
   const [files,setFiles] = useState([]);
   const [ocrResults,setOcrResults] = useState([]);
   const [phone,setPhone] = useState("");
@@ -75,7 +76,7 @@ export default function WorkspacePlatformPage() {
 
   const createSignature = (e) => {
     e.preventDefault();
-    return run(async()=>{const result=await invoke({action:"signature.create",invoiceId,signerName,signerEmail,expiryDays:14});setSignatureLink(result.signUrl);return result;},"Secure signing link created. Share it with the named signer.");
+    return run(async()=>{const result=await invoke({action:"signature.create",invoiceId,signerName,signerEmail,expiryDays:14});setSignatureLink(result.signUrl);setSignatureRequestId(result.request?.id||"");return result;},"Secure signing link created. Share it with the named signer.");
   };
   const runOcr = () => run(async()=>{
     if(!files.length||files.length>10) throw new Error("Choose between 1 and 10 documents.");
@@ -115,7 +116,7 @@ export default function WorkspacePlatformPage() {
         <input className={field} required type="email" placeholder="Signer email" value={signerEmail} onChange={e=>setSignerEmail(e.target.value)}/>
         <button className={primary+" sm:col-span-2"} disabled={busy||!invoiceId}>Create signing link</button>
       </form>
-      {signatureLink&&<div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 p-3"><p className="text-xs font-semibold">One-time signing link</p><code className="mt-1 block break-all text-xs">{signatureLink}</code><button type="button" className={secondary+" mt-2"} onClick={()=>navigator.clipboard.writeText(signatureLink)}><Copy className="mr-1 inline h-3.5 w-3.5"/>Copy link</button></div>}
+      {signatureLink&&<div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 p-3"><p className="text-xs font-semibold">One-time signing link</p><code className="mt-1 block break-all text-xs">{signatureLink}</code><div className="mt-2 flex flex-wrap gap-2"><button type="button" className={secondary} onClick={()=>navigator.clipboard.writeText(signatureLink)}><Copy className="mr-1 inline h-3.5 w-3.5"/>Copy link</button><button type="button" className={secondary} disabled={busy||!signatureRequestId} onClick={()=>run(()=>invoke({action:"signature.revoke",requestId:signatureRequestId}),"Signing link revoked.")}>Revoke link</button></div></div>}
     </section>
     <section className="rounded-2xl border bg-white p-4 sm:p-5">
       <div className="flex items-center gap-2"><ScanText className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">Document OCR & AI extraction</h2></div>
