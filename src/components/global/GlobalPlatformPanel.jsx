@@ -36,6 +36,8 @@ export default function GlobalPlatformPanel({ workspaceId }) {
   const [customerInitiatedAt, setCustomerInitiatedAt] = useState("");
   const [templateName, setTemplateName] = useState("");
   const [templateLanguage, setTemplateLanguage] = useState("en");
+  const [templateComponentsJson, setTemplateComponentsJson] = useState("[]");
+  const [whatsappLogs, setWhatsappLogs] = useState([]);
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [consentStatement, setConsentStatement] = useState("");
   const [apiLabel, setApiLabel] = useState("Accounting integration");
@@ -47,13 +49,15 @@ export default function GlobalPlatformPanel({ workspaceId }) {
   const [notice, setNotice] = useState("");
 
   const refresh = async () => {
-    const [signatureResult, keyResult] = await Promise.allSettled([
+    const [signatureResult, keyResult, whatsappResult] = await Promise.allSettled([
       invoke({ action: "signature.list", workspaceId }),
       invoke({ action: "api-key.list", workspaceId }),
+      invoke({ action: "whatsapp.list", workspaceId }),
     ]);
     if (signatureResult.status === "fulfilled") setSignatures(signatureResult.value.requests || []);
     if (keyResult.status === "fulfilled") setApiKeys(keyResult.value.keys || []);
     else setError("API key management is available to workspace owners and admins. Other integration controls remain available according to your role.");
+    if (whatsappResult.status === "fulfilled") setWhatsappLogs(whatsappResult.value.messages || []);
   };
   useEffect(() => { refresh().catch((e) => setError(e.message)); }, [workspaceId]);
 
@@ -83,7 +87,12 @@ export default function GlobalPlatformPanel({ workspaceId }) {
   const sendMessage = (event) => {
     event.preventDefault();
     run(async () => {
-      await invoke({ action: "whatsapp.send", workspaceId, recipientPhone, messageType, message, consentStatement, customerInitiatedAt: customerInitiatedAt ? new Date(customerInitiatedAt).toISOString() : null, templateName, templateLanguage, consentConfirmed });
+      let templateComponents = [];
+      try { templateComponents = templateComponentsJson.trim() ? JSON.parse(templateComponentsJson) : []; } catch { throw new Error("Template components must be valid JSON."); }
+      if (!Array.isArray(templateComponents)) throw new Error("Template components must be a JSON array.");
+      await invoke({ action: "whatsapp.send", workspaceId, recipientPhone, messageType, message, consentStatement, customerInitiatedAt: customerInitiatedAt ? new Date(customerInitiatedAt).toISOString() : null, templateName, templateLanguage, templateComponents, consentConfirmed });
+      const history = await invoke({ action: "whatsapp.list", workspaceId });
+      setWhatsappLogs(history.messages || []);
     }, "WhatsApp message accepted by Meta for delivery.");
   };
   const createKey = (event) => {
@@ -127,11 +136,15 @@ export default function GlobalPlatformPanel({ workspaceId }) {
       <form onSubmit={sendMessage} className="mt-3 grid gap-2 sm:grid-cols-2">
         <input className={field} required placeholder="Recipient phone (+country code)" value={recipientPhone} onChange={(e) => setRecipientPhone(e.target.value)} />
         <select className={field} value={messageType} onChange={(e) => setMessageType(e.target.value)}><option value="template">Approved template</option><option value="text">Free-form (24-hour window)</option></select>
-        {messageType === "template" ? <><input className={field} required placeholder="Approved Meta template name" value={templateName} onChange={(e) => setTemplateName(e.target.value)} /><input className={field} placeholder="Template language (en)" value={templateLanguage} onChange={(e) => setTemplateLanguage(e.target.value)} /></> : <><textarea className={field} required maxLength={4000} placeholder="Message" value={message} onChange={(e) => setMessage(e.target.value)} /><input className={field} required type="datetime-local" value={customerInitiatedAt} onChange={(e) => setCustomerInitiatedAt(e.target.value)} aria-label="Customer initiated conversation time" /></>}
+        {messageType === "template" ? <><input className={field} required placeholder="Approved Meta template name" value={templateName} onChange={(e) => setTemplateName(e.target.value)} /><input className={field} placeholder="Template language (en)" value={templateLanguage} onChange={(e) => setTemplateLanguage(e.target.value)} /><textarea className={field + " sm:col-span-2"} rows={3} placeholder="Template components JSON (optional)" value={templateComponentsJson} onChange={(e) => setTemplateComponentsJson(e.target.value)} /></> : <><textarea className={field} required maxLength={4000} placeholder="Message" value={message} onChange={(e) => setMessage(e.target.value)} /><input className={field} required type="datetime-local" value={customerInitiatedAt} onChange={(e) => setCustomerInitiatedAt(e.target.value)} aria-label="Customer initiated conversation time" /></>}
         <input className={field + " sm:col-span-2"} required minLength={10} maxLength={500} placeholder="Opt-in evidence (e.g. website checkout consent on 2026-11-23)" value={consentStatement} onChange={(e) => setConsentStatement(e.target.value)} />
         <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" checked={consentConfirmed} onChange={(e) => setConsentConfirmed(e.target.checked)} required /> Customer has explicitly opted in to receive WhatsApp messages.</label>
         <button className={primary} disabled={busy || !consentConfirmed || consentStatement.trim().length < 10}>Send WhatsApp message</button>
       </form>
+      <div className="mt-4 space-y-2">
+        <h3 className="text-sm font-semibold">Recent WhatsApp delivery statuses</h3>
+        {whatsappLogs.length ? whatsappLogs.map((item) => <div key={item.id} className="flex flex-wrap justify-between gap-2 border-t py-2 text-xs"><span>{item.recipient_phone} · {item.message_type === "template" ? item.template_name : "Text"} · {new Date(item.created_at).toLocaleString()}</span><span className={item.status === "failed" ? "font-semibold text-red-700" : "font-semibold text-emerald-700"}>{item.status}{item.error_code ? " · " + item.error_code : ""}</span></div>) : <p className="text-xs text-slate-500">No WhatsApp messages recorded yet.</p>}
+      </div>
     </section>
     <section className="rounded-xl border border-slate-200 bg-white p-4">
       <h2 className="font-semibold">Public API & MCP access</h2>
