@@ -222,6 +222,7 @@ async function publicApi(req: Request, admin: any) {
   const has = (scope: string) => apiKey.scopes.includes(scope);
   let result: any;
   if (mcpMethod === "notifications/initialized") return new Response(null, { status: 202 });
+  if (mcpMethod === "ping") result = {};
   if (mcpMethod === "initialize") {
     if (!has("mcp.read")) return json({ error: "Scope required: mcp.read" }, 403);
     result = { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "plivex-global-business", version: "1.0.0" } };
@@ -344,7 +345,7 @@ async function publicApi(req: Request, admin: any) {
     }
   }
   await admin.schema("global").from("public_api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", apiKey.id);
-  if (raw.jsonrpc === "2.0") return json({ jsonrpc: "2.0", id: raw.id ?? null, result: ["initialize", "mcp.tools/list", "tools/list"].includes(mcpMethod) ? result : { content: [{ type: "text", text: JSON.stringify(result) }], isError: false } });
+  if (raw.jsonrpc === "2.0") return json({ jsonrpc: "2.0", id: raw.id ?? null, result: ["initialize", "mcp.tools/list", "tools/list", "ping"].includes(mcpMethod) ? result : { content: [{ type: "text", text: JSON.stringify(result) }], isError: false } });
   return json({ ok: true, data: result });
 }
 Deno.serve(async (req: Request) => {
