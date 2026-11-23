@@ -3,9 +3,10 @@ import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowe
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const APPROVER_ROLES = new Set(["owner", "admin", "manager", "employee", "accountant"]);
 const ESCALATION_ROLES = new Set(["owner", "admin", "manager", "accountant"]);
+const DELEGATABLE_PERMISSIONS = new Set(["approval.request","approval.decide","approval.read","audit.read","export.request","fx.convert","branch.read","invoice.read","invoice.create"]);
 const ALLOWED_ACTIONS = new Set([
   "branch.create", "branch.archive", "branch.list", "health.read", "fx.snapshot.create", "fx.convert", "permission.set", "approval.request", "approval.list",
-  "approval.decide", "approval.cancel", "approval.policy.set", "approval.policy.list", "audit.list", "export.request", "retention.set",
+  "approval.decide", "approval.cancel", "approval.policy.set", "approval.policy.list", "permission.delegation.create", "permission.delegation.list", "permission.delegation.revoke", "audit.list", "export.request", "retention.set",
 ]);
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
@@ -34,6 +35,19 @@ Deno.serve(async (req: Request) => {
         || body.preventSelfApproval !== true) {
         return globalJson({ error: "Invalid approval policy." }, 400, origin);
       }
+    }
+    if (body.action === "permission.delegation.create") {
+      const expires = typeof body.expiresAt === "string" ? Date.parse(body.expiresAt) : NaN;
+      if (!UUID.test(body.delegateMemberId || "") || !Array.isArray(body.permissionKeys)
+        || body.permissionKeys.length < 1 || body.permissionKeys.length > 9
+        || body.permissionKeys.some((key: unknown) => typeof key !== "string" || !DELEGATABLE_PERMISSIONS.has(key))
+        || new Set(body.permissionKeys).size !== body.permissionKeys.length
+        || !Number.isFinite(expires) || expires <= Date.now() || expires > Date.now() + 90 * 24 * 60 * 60 * 1000) {
+        return globalJson({ error: "Invalid permission delegation." }, 400, origin);
+      }
+    }
+    if (body.action === "permission.delegation.revoke" && !UUID.test(body.delegationId || "")) {
+      return globalJson({ error: "Invalid permission delegation." }, 400, origin);
     }
     const { data: limited, error: limitError } = await auth.admin.rpc("global_consume_enterprise_rate_limit", {
       p_key: auth.user.id, p_limit: 60, p_window_seconds: 60,
