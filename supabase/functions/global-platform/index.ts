@@ -4,7 +4,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const HEX = /^[a-f0-9]{64}$/;
 const SIGN_BUCKET = "global-signing-documents";
 const OCR_BUCKET = "global-ocr-documents";
-const MAX_FILE_BYTES = 8 * 1024 * 1024;
+const MAX_FILE_BYTES = 4 * 1024 * 1024;
 const encoder = new TextEncoder();
 const json = (body: unknown, status = 200, origin: string | null = null) =>
   new Response(JSON.stringify(body), { status, headers: { ...globalCorsHeaders(origin), "Content-Type": "application/json", "Cache-Control": "no-store" } });
@@ -293,7 +293,10 @@ Deno.serve(async (req: Request) => {
     if (req.headers.has("x-plivex-key")) return await publicApi(req, admin);
     if (!isGlobalOriginAllowed(origin)) return globalJson({ error: "Origin not allowed" }, 403, origin);
     if (req.method !== "POST") return globalJson({ error: "Method not allowed" }, 405, origin);
-    const body = await req.json();
+    const rawBody = await req.text();
+    if (new TextEncoder().encode(rawBody).byteLength > 6 * 1024 * 1024) return globalJson({ error: "Request too large" }, 413, origin);
+    let body: any;
+    try { body = JSON.parse(rawBody); } catch { return globalJson({ error: "Invalid JSON request" }, 400, origin); }
     if (isObject(body) && body.action === "signature.complete") return globalJson(await signDocument(admin, req, body), 200, origin);
     if (isObject(body) && body.action === "signature.preview") return globalJson(await signPreview(admin, clean(body.token, 256)), 200, origin);
     if ("error" in auth) return globalJson({ error: auth.error }, auth.status, origin);
