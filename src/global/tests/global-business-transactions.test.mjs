@@ -142,8 +142,8 @@ test("Global commercial invoice creation has one atomic server-side finalization
 test("all supported countries use the same Main Workspace invoice routes", async () => {
   const app = await read("../../App.jsx");
   assert.match(app, /All supported countries use the same Main Workspace routes/);
-  assert.match(app, /path="\/invoice-builder" element=\{<Home \/>\}/);
-  assert.match(app, /path="\/invoice-history" element=\{<InvoiceHistory \/>\}/);
-  assert.match(app, /path="\/quotations" element=\{<Navigate to="\/dashboard" replace state=\{\{ initialTab: "sales", initialSub: "quotations" \}\} \/>\}/);
+  assert.ok(app.includes('path="/invoice-builder" element={<Home />}'));
+  assert.ok(app.includes('path="/invoice-history" element={<InvoiceHistory />}'));
+  assert.ok(app.includes('path="/quotations" element={<Navigate to="/dashboard" replace state={{ initialTab: "sales", initialSub: "quotations" }} />}'));
   assert.doesNotMatch(app, /GlobalApp|isGlobalWorkspace/);
 });
