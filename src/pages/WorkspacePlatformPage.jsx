@@ -7,6 +7,7 @@ import WorkspaceRecurringInvoices from "@/components/workspace/WorkspaceRecurrin
 import WorkspaceSalesDocuments from "@/components/workspace/WorkspaceSalesDocuments";
 import WorkspaceSupplierPortal from "@/components/workspace/WorkspaceSupplierPortal";
 import WorkspaceSerialTraceability from "@/components/workspace/WorkspaceSerialTraceability";
+import WorkspaceAnalyticsPanel from "@/components/workspace/WorkspaceAnalyticsPanel";
 
 const field = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm";
 const primary = "rounded-lg bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50";
@@ -150,6 +151,7 @@ export default function WorkspacePlatformPage() {
       <div className="mt-4 space-y-2">{apiKeys.map(k=><div key={k.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-2 text-xs"><span>{k.label} · {k.key_prefix} · expires {new Date(k.expires_at).toLocaleDateString()}</span>{k.revoked_at?<span className="text-slate-500">Revoked</span>:<button type="button" className={secondary} disabled={busy} onClick={()=>run(()=>invoke({action:"api-key.revoke",keyId:k.id}),"API key revoked.")}>Revoke</button>}</div>)}</div>
       <div className="mt-4 rounded-lg bg-slate-50 p-3 text-xs"><p className="font-semibold"><ShieldCheck className="mr-1 inline h-3.5 w-3.5"/>MCP endpoint</p><code className="mt-1 block break-all">{mcpUrl}</code><p className="mt-2">Use the Supabase publishable/anon key as apikey and your Plivex key as x-plivex-key. Available read tools: workspace_summary, list_invoices, list_clients, business_insights.</p></div>
     </section>
+    <WorkspaceAnalyticsPanel />
     <WorkspaceSerialTraceability />
     <WorkspaceSupplierPortal />
     <WorkspaceSalesDocuments />
