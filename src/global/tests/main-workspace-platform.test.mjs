@@ -190,3 +190,32 @@ test("Main Workspace custom BI reports and currency-safe cashflow/sales analytic
   assert.match(biUi,/3-month cash-flow forecast/);
   assert.match(biUi,/Six-month sales analytics/);
 });
+
+const bankMigration=readFileSync(new URL("../../../supabase/migrations/20261123033111_main_workspace_bank_accounting_and_fx.sql",import.meta.url),"utf8");
+const bankLists=readFileSync(new URL("../../../supabase/migrations/20261123033131_main_workspace_accounting_list_rpcs.sql",import.meta.url),"utf8");
+const bankFx=readFileSync(new URL("../../../supabase/migrations/20261123033153_main_workspace_bank_fx_reconciliation_fixes.sql",import.meta.url),"utf8");
+const bankHardening=readFileSync(new URL("../../../supabase/migrations/20261123033332_main_workspace_bank_fx_matching_hardening.sql",import.meta.url),"utf8");
+const bankUi=readFileSync(new URL("../../components/workspace/WorkspaceBankAccounting.jsx",import.meta.url),"utf8");
+
+test("Main Workspace bank imports, matching and statement reconciliation are private and auditable",()=>{
+  assert.match(bankMigration,/bank_statement_imports/);
+  assert.match(bankMigration,/main_workspace_import_bank_statement/);
+  assert.match(bankMigration,/auto/);
+  assert.match(bankMigration,/main_workspace_reconcile_bank_import/);
+  assert.match(bankHardening,/v_candidates=1/);
+  assert.match(bankUi,/CSV import only/);
+  assert.match(bankUi,/Confirm match/);
+  assert.match(bankUi,/does not automatically mark an invoice paid/);
+});
+
+test("Main Workspace journals enforce balanced double-entry and FX snapshots stay dated",()=>{
+  assert.match(bankMigration,/journal_not_balanced/);
+  assert.match(bankMigration,/main_workspace_post_journal_entry/);
+  assert.match(bankMigration,/workspace_fx_rates/);
+  assert.match(bankFx,/main_workspace_convert_amount/);
+  assert.match(bankFx,/main_workspace_fx_reconciliation/);
+  assert.match(bankUi,/Double-entry accounting/);
+  assert.match(bankUi,/FX rates & reconciliation/);
+  assert.match(bankUi,/manual, dated FX snapshots/);
+  assert.match(bankLists,/main_workspace_list_bank_data/);
+});
