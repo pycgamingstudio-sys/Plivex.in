@@ -29,7 +29,7 @@ function validateProfile(profile: unknown): string | null {
   }
   if (profile.business_type !== undefined && profile.business_type !== null && (typeof profile.business_type !== "string" || profile.business_type.length > 100)) return "Business type is too long.";
   if (profile.payment_terms !== undefined && profile.payment_terms !== null && profile.payment_terms !== "" && !PAYMENT_TERMS.has(String(profile.payment_terms))) return "Payment terms are invalid.";
-  if (profile.address !== undefined && (!object(profile.address) || JSON.stringify(profile.address).length > 4000 || !COUNTRY_CODES.has(String(profile.address.country_code || "")))) return "Supplier address is invalid.";
+  if (!object(profile.address) || JSON.stringify(profile.address).length > 4000 || !COUNTRY_CODES.has(String(profile.address.country_code || ""))) return "Choose a supported country and enter a valid supplier address.";
   return null;
 }
 
