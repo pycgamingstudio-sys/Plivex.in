@@ -157,7 +157,8 @@ begin
     or (v_website is not null and (length(v_website)>200 or v_website !~ '^https://'))
     or (v_business is not null and length(v_business)>100)
     or (v_terms is not null and v_terms not in ('due_on_receipt','net_7','net_15','net_30','net_45','net_60','custom'))
-    or jsonb_typeof(v_address)<>'object' or length(v_address::text)>4000 then
+    or jsonb_typeof(v_address)<>'object' or length(v_address::text)>4000
+    or coalesce(v_address->>'country_code','') not in ('IN','US','GB','AE','CA','AU','SG') then
     return jsonb_build_object('ok',false,'reason','invalid_submission');
   end if;
   select * into v_invite from global.supplier_portal_invites
