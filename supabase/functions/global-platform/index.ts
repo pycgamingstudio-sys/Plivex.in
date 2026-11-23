@@ -48,7 +48,7 @@ async function ensureBucket(admin: any, name: string, mime: string[]) {
   const { error: createError } = await admin.storage.createBucket(name, { public: false, fileSizeLimit: MAX_FILE_BYTES, allowedMimeTypes: mime });
   if (createError && !String(createError.message || "").toLowerCase().includes("already exists")) throw new Error("BUCKET_CREATE_FAILED");
 }
-async function createSignature(admin: any, user: any, body: any, origin: string | null) {
+async function createSignature(admin: any, user: any, body: any) {
   if (!UUID.test(body.workspaceId || "") || !UUID.test(body.invoiceId || "")) throw new Error("INVALID_REQUEST");
   const membership = await member(admin, user.id, body.workspaceId, ["owner", "admin", "manager", "accountant"]);
   if (!membership) throw new Error("ACCESS_DENIED");
@@ -101,7 +101,7 @@ async function signDocument(admin: any, req: Request, body: any) {
   if (signatureName.toLowerCase() !== String(record.signer_name).toLowerCase()) throw new Error("SIGNER_NAME_MISMATCH");
   const consentText = "I agree to sign this document electronically and confirm that the typed name above represents my signature.";
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  const ipHash = await sha256(ip + (Deno.env.get("SIGNING_AUDIT_SALT") || "plivex-signing-audit"));
+  const ipHash = await sha256(ip + (Deno.env.get("SIGNING_AUDIT_SALT") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "plivex-signing-audit"));
   const userAgent = clean(req.headers.get("user-agent"), 500);
   const signedAt = new Date().toISOString();
   const auditHash = await sha256([record.id, record.document_sha256, signatureName, record.signer_email, consentText, signedAt, ipHash, userAgent].join("|"));
@@ -310,7 +310,7 @@ Deno.serve(async (req: Request) => {
     const user = auth.user;
     const { data: userLimit, error: userLimitError } = await admin.rpc("global_consume_enterprise_rate_limit", { p_key: user.id + ":platform", p_limit: 30, p_window_seconds: 60 });
     if (userLimitError || userLimit !== true) return globalJson({ error: "Platform rate limit exceeded" }, 429, origin);
-    if (body.action === "signature.request") return globalJson(await createSignature(admin, user, body, origin), 201, origin);
+    if (body.action === "signature.request") return globalJson(await createSignature(admin, user, body), 201, origin);
     if (body.action === "signature.list") {
       if (!UUID.test(body.workspaceId || "") || !await member(admin, user.id, body.workspaceId, ["owner", "admin", "manager", "accountant"])) throw new Error("ACCESS_DENIED");
       const { data, error } = await admin.schema("global").from("document_signing_requests").select("id,invoice_id,signer_name,signer_email,status,document_sha256,expires_at,signed_at,created_at").eq("workspace_id", body.workspaceId).order("created_at", { ascending: false }).limit(100);
