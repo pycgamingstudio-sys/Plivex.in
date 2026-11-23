@@ -2,7 +2,7 @@ import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowe
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_BODY = 32 * 1024;
-const RESOURCES = new Set(["warehouses","warehouse_stock_levels","inventory_batches","warehouse_stock_movements","stock_transfers","purchase_orders","purchase_order_items","crm_leads","crm_activities","suppliers","sales_orders","delivery_challans","credit_debit_notes"]);
+const RESOURCES = new Set(["warehouses","warehouse_stock_levels","inventory_batches","warehouse_stock_movements","stock_transfers","purchase_orders","purchase_order_items","crm_leads","crm_activities","suppliers","sales_orders","delivery_challans","credit_debit_notes","inventory_serials"]);
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 
 const validDate = (value: unknown) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
@@ -38,6 +38,17 @@ function validateMutation(operation: string, values: Record<string, unknown>): s
       || !Number.isSafeInteger(item.unit_cost_minor) || Number(item.unit_cost_minor) < 0)) return "Purchase order lines are invalid.";
     if (values.order_date !== undefined && !validDate(values.order_date)) return "Order date is invalid.";
     if (values.expected_date !== undefined && values.expected_date !== null && !validDate(values.expected_date)) return "Expected date is invalid.";
+  } else if (operation === "set_product_barcode") {
+    if(typeof values.product_id!=="string"||!UUID.test(values.product_id)
+      ||(values.barcode!==null&&values.barcode!==undefined&&(typeof values.barcode!=="string"||values.barcode.trim().length<3||values.barcode.trim().length>128))) return "Product barcode details are invalid.";
+  } else if (operation === "register_inventory_serial") {
+    if(typeof values.product_id!=="string"||!UUID.test(values.product_id)||typeof values.warehouse_id!=="string"||!UUID.test(values.warehouse_id)
+      ||typeof values.serial_number!=="string"||!values.serial_number.trim()||values.serial_number.length>128
+      ||typeof values.idempotency_key!=="string"||!UUID.test(values.idempotency_key)
+      ||(values.batch_id!==null&&values.batch_id!==undefined&&(typeof values.batch_id!=="string"||!UUID.test(values.batch_id)))) return "Inventory serial details are invalid.";
+  } else if (operation === "update_inventory_serial_status") {
+    if(typeof values.serial_id!=="string"||!UUID.test(values.serial_id)||typeof values.idempotency_key!=="string"||!UUID.test(values.idempotency_key)
+      ||!["available","reserved","sold","damaged","returned"].includes(String(values.status||""))) return "Inventory serial status update is invalid.";
   } else if (operation === "create_sales_order") {
     if (typeof values.client_id!=="string"||!UUID.test(values.client_id)
       ||typeof values.idempotency_key!=="string"||!UUID.test(values.idempotency_key)
@@ -158,7 +169,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (body.action === "mutate") {
-      const allowed = new Set(["create_warehouse","create_lead","update_lead","add_lead_activity","create_purchase_order","receive_purchase_order","create_sales_order","update_sales_order_status","create_delivery_challan","update_delivery_challan_status","create_credit_debit_note","update_credit_debit_note_status"]);
+      const allowed = new Set(["create_warehouse","create_lead","update_lead","add_lead_activity","create_purchase_order","receive_purchase_order","create_sales_order","update_sales_order_status","create_delivery_challan","update_delivery_challan_status","create_credit_debit_note","update_credit_debit_note_status","set_product_barcode","register_inventory_serial","update_inventory_serial_status"]);
       if (typeof body.operation !== "string" || !allowed.has(body.operation) || !object(body.values)) {
         return globalJson({ error: "Unsupported Part 4 operation or invalid values." }, 400, origin);
       }
@@ -175,7 +186,7 @@ Deno.serve(async (req: Request) => {
       if (!data?.ok) {
         const reason = String(data?.reason || "request_failed");
         const status = reason === "access_denied" || reason === "forbidden" ? 403
-          : reason === "purchase_order_not_found" || reason === "warehouse_not_found" || reason === "lead_not_found" || reason === "client_not_found" || reason === "invoice_not_found" || reason === "sales_order_not_found" || reason === "delivery_challan_not_found" || reason === "credit_debit_note_not_found" ? 404
+          : reason === "purchase_order_not_found" || reason === "warehouse_not_found" || reason === "lead_not_found" || reason === "client_not_found" || reason === "invoice_not_found" || reason === "sales_order_not_found" || reason === "delivery_challan_not_found" || reason === "credit_debit_note_not_found" || reason === "product_not_found" || reason === "warehouse_not_found" || reason === "batch_not_found" || reason === "serial_not_found" ? 404
           : reason === "idempotency_conflict" || reason === "receipt_quantity_exceeded" ? 409 : 400;
         const messages: Record<string,string> = {
           access_denied: "You do not have access to this workspace.",
@@ -193,6 +204,16 @@ Deno.serve(async (req: Request) => {
           invalid_delivery_challan_item: "A delivery challan line has an invalid quantity or description.",
           invalid_delivery_challan: "Delivery challan details are invalid.",
           invalid_credit_debit_note: "Credit/debit note details are invalid.",
+          invalid_barcode: "Product barcode must contain 3–128 characters.",
+          barcode_in_use: "This barcode is already assigned to another product in this workspace.",
+          invalid_serial: "Serial number or product details are invalid.",
+          serial_in_use: "This serial number is already registered in this workspace.",
+          serial_count_exceeds_stock: "Registered serials cannot exceed the available product stock.",
+          serial_count_exceeds_batch: "Registered serials cannot exceed the selected batch quantity.",
+          invalid_serial_status: "Serial status details are invalid.",
+          invalid_serial_transition: "This serial status transition is not allowed.",
+          insufficient_stock: "There is not enough stock to make this serial status change.",
+          insufficient_batch_stock: "There is not enough quantity in the selected batch.",
           invalid_note_amount: "The note taxable value, tax and total do not match.",
           credit_note_exceeds_invoice: "Total credit notes cannot exceed the source invoice amount.",
         };
