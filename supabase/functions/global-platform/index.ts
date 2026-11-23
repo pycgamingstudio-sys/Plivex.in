@@ -228,59 +228,117 @@ async function publicApi(req: Request, admin: any) {
   } else if (operation === "mcp.tools/list" || raw.method === "tools/list") {
     if (!has("mcp.read")) return json({ error: "Scope required: mcp.read" }, 403);
     result = { tools: [
-      { name: "workspace_summary", description: "Read invoice and client totals for this workspace.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
+      { name: "workspace_summary", description: "Read aggregate invoice, expense, lead, inventory and supplier totals.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
       { name: "list_invoices", description: "List recent invoices.", inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 100 } }, additionalProperties: false } },
       { name: "list_clients", description: "List workspace clients.", inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 100 } }, additionalProperties: false } },
-      { name: "business_insights", description: "Generate an AI summary from aggregate workspace financial metrics.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
+      { name: "list_expenses", description: "List workspace expenses.", inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 100 } }, additionalProperties: false } },
+      { name: "list_leads", description: "List CRM leads and pipeline stages.", inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 100 } }, additionalProperties: false } },
+      { name: "low_stock_items", description: "Find stock items at or below their reorder level.", inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 100 } }, additionalProperties: false } },
+      { name: "list_suppliers", description: "List workspace suppliers.", inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 100 } }, additionalProperties: false } },
+      { name: "business_insights", description: "Generate AI analysis from aggregate financial, sales pipeline and inventory metrics.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
     ] };
   } else {
-    const args = isObject(raw.arguments) ? raw.arguments : isObject(raw.params?.arguments) ? raw.params.arguments : raw;
-    if (operation === "workspace.summary" || args.name === "workspace_summary") {
+    const args = isObject(raw.arguments) ? raw.arguments : isObject(raw.params?.arguments) ? raw.params.arguments : {};
+    const limit = Math.min(100, Math.max(1, Number(args.limit) || 50));
+    if (operation === "workspace.summary" || operation === "workspace_summary") {
       if (!has("workspace.read")) return json({ error: "Scope required: workspace.read" }, 403);
-      const [invoices, clients] = await Promise.all([
-        admin.schema("global").from("invoices").select("id,total_minor,status,currency_code").eq("workspace_id", apiKey.workspace_id).limit(5000),
+      const [invoices, clients, expenses, leads, products, stock, suppliers] = await Promise.all([
+        admin.schema("global").from("invoices").select("total_minor,amount_paid_minor,currency_code").eq("workspace_id", apiKey.workspace_id).limit(5000),
         admin.schema("global").from("clients").select("id").eq("workspace_id", apiKey.workspace_id).limit(5000),
+        admin.schema("global").from("expenses").select("amount_minor,currency_code").eq("workspace_id", apiKey.workspace_id).limit(5000),
+        admin.schema("global").from("crm_leads").select("estimated_value_minor,currency_code,stage").eq("workspace_id", apiKey.workspace_id).limit(5000),
+        admin.schema("global").from("products").select("id,is_active").eq("workspace_id", apiKey.workspace_id).limit(5000),
+        admin.schema("global").from("stock_levels").select("quantity,reorder_level").eq("workspace_id", apiKey.workspace_id).limit(5000),
+        admin.schema("global").from("suppliers").select("id").eq("workspace_id", apiKey.workspace_id).limit(5000),
       ]);
-      if (invoices.error || clients.error) return json({ error: "Workspace data unavailable" }, 503);
-      result = { invoiceCount: invoices.data.length, clientCount: clients.data.length, currencies: [...new Set(invoices.data.map((item: any) => item.currency_code))], invoiceTotalsByCurrency: Object.values(invoices.data.reduce((acc: any, item: any) => { const c = item.currency_code; acc[c] ||= { currency: c, totalMinor: 0 }; acc[c].totalMinor += Number(item.total_minor || 0); return acc; }, {})) };
-    } else if (operation === "invoices.list" || args.name === "list_invoices") {
+      if ([invoices, clients, expenses, leads, products, stock, suppliers].some((item: any) => item.error)) return json({ error: "Workspace data unavailable" }, 503);
+      const totalByCurrency = (rows: any[], amountField: string) => Object.values(rows.reduce((acc: any, row: any) => {
+        const currency = row.currency_code || "UNK";
+        acc[currency] ||= { currency, totalMinor: 0, count: 0 };
+        acc[currency].totalMinor += Number(row[amountField] || 0);
+        acc[currency].count += 1;
+        return acc;
+      }, {}));
+      result = {
+        invoiceCount: invoices.data.length,
+        invoiceTotalsByCurrency: totalByCurrency(invoices.data, "total_minor"),
+        expenseTotalsByCurrency: totalByCurrency(expenses.data, "amount_minor"),
+        leadPipelineByCurrency: totalByCurrency(leads.data, "estimated_value_minor"),
+        clientCount: clients.data.length,
+        leadCount: leads.data.length,
+        productCount: products.data.length,
+        activeProductCount: products.data.filter((item: any) => item.is_active).length,
+        lowStockCount: stock.data.filter((item: any) => Number(item.quantity) <= Number(item.reorder_level)).length,
+        supplierCount: suppliers.data.length,
+      };
+    } else if (operation === "invoices.list" || operation === "list_invoices") {
       if (!has("invoices.read")) return json({ error: "Scope required: invoices.read" }, 403);
-      const limit = Math.min(100, Math.max(1, Number(args.limit) || 50));
       const { data, error: readError } = await admin.schema("global").from("invoices").select("id,invoice_number,status,currency_code,issue_date,due_date,total_minor,amount_paid_minor").eq("workspace_id", apiKey.workspace_id).order("created_at", { ascending: false }).limit(limit);
       if (readError) return json({ error: "Invoices unavailable" }, 503);
       result = { invoices: data };
-    } else if (operation === "clients.list" || args.name === "list_clients") {
+    } else if (operation === "clients.list" || operation === "list_clients") {
       if (!has("clients.read")) return json({ error: "Scope required: clients.read" }, 403);
-      const limit = Math.min(100, Math.max(1, Number(args.limit) || 50));
       const { data, error: readError } = await admin.schema("global").from("clients").select("id,name,email,phone,status").eq("workspace_id", apiKey.workspace_id).order("created_at", { ascending: false }).limit(limit);
       if (readError) return json({ error: "Clients unavailable" }, 503);
       result = { clients: data };
+    } else if (operation === "expenses.list" || operation === "list_expenses") {
+      if (!has("expenses.read")) return json({ error: "Scope required: expenses.read" }, 403);
+      const { data, error: readError } = await admin.schema("global").from("expenses").select("id,category,vendor,amount_minor,currency_code,expense_date,payment_method").eq("workspace_id", apiKey.workspace_id).order("expense_date", { ascending: false }).limit(limit);
+      if (readError) return json({ error: "Expenses unavailable" }, 503);
+      result = { expenses: data };
+    } else if (operation === "leads.list" || operation === "list_leads") {
+      if (!has("leads.read")) return json({ error: "Scope required: leads.read" }, 403);
+      const { data, error: readError } = await admin.schema("global").from("crm_leads").select("id,name,company,estimated_value_minor,currency_code,stage,score,next_follow_up_at").eq("workspace_id", apiKey.workspace_id).order("created_at", { ascending: false }).limit(limit);
+      if (readError) return json({ error: "Leads unavailable" }, 503);
+      result = { leads: data };
+    } else if (operation === "inventory.low_stock" || operation === "low_stock_items") {
+      if (!has("inventory.read")) return json({ error: "Scope required: inventory.read" }, 403);
+      const { data, error: readError } = await admin.schema("global").from("stock_levels").select("product_id,quantity,reorder_level").eq("workspace_id", apiKey.workspace_id).order("updated_at", { ascending: false }).limit(5000);
+      if (readError) return json({ error: "Inventory unavailable" }, 503);
+      const low = (data || []).filter((item: any) => Number(item.quantity) <= Number(item.reorder_level)).slice(0, limit);
+      result = { lowStockItems: low };
+    } else if (operation === "suppliers.list" || operation === "list_suppliers") {
+      if (!has("suppliers.read")) return json({ error: "Scope required: suppliers.read" }, 403);
+      const { data, error: readError } = await admin.schema("global").from("suppliers").select("id,name,email,phone,tax_registration_number").eq("workspace_id", apiKey.workspace_id).order("created_at", { ascending: false }).limit(limit);
+      if (readError) return json({ error: "Suppliers unavailable" }, 503);
+      result = { suppliers: data };
     } else if (operation === "business_insights") {
       if (!has("mcp.read") || !has("workspace.read")) return json({ error: "Scopes required: mcp.read and workspace.read" }, 403);
-      const apiKeyData = await admin.schema("global").from("invoices")
-        .select("status,currency_code,total_minor,amount_paid_minor,issue_date,due_date")
-        .eq("workspace_id", apiKey.workspace_id).limit(5000);
-      if (apiKeyData.error) return json({ error: "Workspace metrics unavailable" }, 503);
-      const rows = apiKeyData.data || [];
-      const aggregate = rows.reduce((acc: any, row: any) => {
+      const [invoices, expenses, leads, stock, products, suppliers] = await Promise.all([
+        admin.schema("global").from("invoices").select("currency_code,total_minor,amount_paid_minor").eq("workspace_id", apiKey.workspace_id).limit(5000),
+        admin.schema("global").from("expenses").select("currency_code,amount_minor").eq("workspace_id", apiKey.workspace_id).limit(5000),
+        admin.schema("global").from("crm_leads").select("currency_code,estimated_value_minor,stage").eq("workspace_id", apiKey.workspace_id).limit(5000),
+        admin.schema("global").from("stock_levels").select("quantity,reorder_level").eq("workspace_id", apiKey.workspace_id).limit(5000),
+        admin.schema("global").from("products").select("id,is_active").eq("workspace_id", apiKey.workspace_id).limit(5000),
+        admin.schema("global").from("suppliers").select("id").eq("workspace_id", apiKey.workspace_id).limit(5000),
+      ]);
+      if ([invoices, expenses, leads, stock, products, suppliers].some((item: any) => item.error)) return json({ error: "Workspace metrics unavailable" }, 503);
+      const group = (rows: any[], field: string) => Object.values(rows.reduce((acc: any, row: any) => {
         const currency = row.currency_code || "UNK";
-        acc[currency] ||= { currency, invoiceCount: 0, totalMinor: 0, paidMinor: 0, outstandingMinor: 0 };
-        acc[currency].invoiceCount += 1;
-        acc[currency].totalMinor += Number(row.total_minor || 0);
-        acc[currency].paidMinor += Number(row.amount_paid_minor || 0);
-        acc[currency].outstandingMinor += Math.max(0, Number(row.total_minor || 0) - Number(row.amount_paid_minor || 0));
+        acc[currency] ||= { currency, totalMinor: 0, count: 0 };
+        acc[currency].totalMinor += Number(row[field] || 0);
+        acc[currency].count += 1;
         return acc;
-      }, {});
+      }, {}));
+      const metrics = {
+        invoices: group(invoices.data, "total_minor"),
+        expenses: group(expenses.data, "amount_minor"),
+        leads: group(leads.data, "estimated_value_minor"),
+        leadStages: leads.data.reduce((acc: any, row: any) => { const stage = String(row.stage || "unknown"); acc[stage] = (acc[stage] || 0) + 1; return acc; }, {}),
+        lowStockCount: stock.data.filter((row: any) => Number(row.quantity) <= Number(row.reorder_level)).length,
+        activeProducts: products.data.filter((row: any) => row.is_active).length,
+        supplierCount: suppliers.data.length,
+      };
       const apiKeyGemini = Deno.env.get("GEMINI_API_KEY");
       if (!apiKeyGemini) return json({ error: "AI provider is not configured" }, 503);
       const model = Deno.env.get("GEMINI_BUSINESS_MODEL") || "gemini-2.5-flash";
       const aiResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent", {
         method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKeyGemini },
-        body: JSON.stringify({ contents: [{ parts: [{ text: "You are a cautious small-business analyst. Analyze only these aggregate metrics. Do not invent trends, dates, causes or advice unsupported by the metrics. Clearly label observations and suggested checks. Keep the answer concise. Metrics: " + JSON.stringify(Object.values(aggregate)) }] }], generationConfig: { temperature: 0.2 } }),
+        body: JSON.stringify({ contents: [{ parts: [{ text: "You are Plivex AI Business Manager. Analyze only these aggregate multi-module metrics. Identify cash collection and expense observations, CRM pipeline follow-up priorities, and inventory reorder risks. Do not invent trends, causes or amounts; currencies are separate and must never be added together. Clearly label facts versus suggestions and state when data is insufficient. Metrics: " + JSON.stringify(metrics) }] }], generationConfig: { temperature: 0.2 } }),
       });
       if (!aiResponse.ok) return json({ error: "AI insights provider unavailable" }, 503);
       const aiPayload = await aiResponse.json();
-      result = { aggregateMetrics: Object.values(aggregate), insights: aiPayload?.candidates?.[0]?.content?.parts?.map((part: any) => part.text || "").join("") || "No insight generated." };
+      result = { metrics, insights: aiPayload?.candidates?.[0]?.content?.parts?.map((part: any) => part.text || "").join("") || "No insight generated." };
     } else {
       return json({ error: "Unsupported operation" }, 400);
     }
@@ -289,7 +347,6 @@ async function publicApi(req: Request, admin: any) {
   if (raw.jsonrpc === "2.0") return json({ jsonrpc: "2.0", id: raw.id ?? null, result: ["initialize", "mcp.tools/list", "tools/list"].includes(mcpMethod) ? result : { content: [{ type: "text", text: JSON.stringify(result) }], isError: false } });
   return json({ ok: true, data: result });
 }
-
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
   if (req.method === "OPTIONS") return new Response("ok", { headers: globalCorsHeaders(origin) });
