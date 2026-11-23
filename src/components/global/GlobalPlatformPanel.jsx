@@ -46,12 +46,13 @@ export default function GlobalPlatformPanel({ workspaceId }) {
   const [notice, setNotice] = useState("");
 
   const refresh = async () => {
-    const [signatureData, keyData] = await Promise.all([
+    const [signatureResult, keyResult] = await Promise.allSettled([
       invoke({ action: "signature.list", workspaceId }),
       invoke({ action: "api-key.list", workspaceId }),
     ]);
-    setSignatures(signatureData.requests || []);
-    setApiKeys(keyData.keys || []);
+    if (signatureResult.status === "fulfilled") setSignatures(signatureResult.value.requests || []);
+    if (keyResult.status === "fulfilled") setApiKeys(keyResult.value.keys || []);
+    else setError("API key management is available to workspace owners and admins. Other integration controls remain available according to your role.");
   };
   useEffect(() => { refresh().catch((e) => setError(e.message)); }, [workspaceId]);
 
