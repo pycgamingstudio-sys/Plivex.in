@@ -7,6 +7,7 @@ These capabilities are implemented against the canonical `public.workspace_setti
 - Create or revoke a one-time link for an issued Main Workspace invoice.
 - Store only the SHA-256 token hash; links expire after 1–30 days and can be completed once.
 - Record signer consent, timestamp, hashed IP, user agent, document snapshot hash and a workspace audit event in one database transaction.
+- Pending requests can be revoked by a Workspace administrator/manager; revocation is audited.
 - This is an electronic-signature audit record, not a qualified eIDAS signature, Aadhaar eSign, DSC or government-certified signing service.
 
 ## Document OCR
