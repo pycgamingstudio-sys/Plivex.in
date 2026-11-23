@@ -61,6 +61,8 @@ create table if not exists global.whatsapp_delivery_logs (
 );
 create index if not exists global_whatsapp_workspace_idx
   on global.whatsapp_delivery_logs(workspace_id, created_at desc);
+create unique index if not exists global_whatsapp_provider_message_unique_idx
+  on global.whatsapp_delivery_logs(provider_message_id) where provider_message_id is not null;
 
 create table if not exists global.public_api_keys (
   id uuid primary key default gen_random_uuid(),
