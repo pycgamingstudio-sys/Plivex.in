@@ -1,4 +1,4 @@
-import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowed } from "../_shared/global.ts";
+import { authenticateGlobal, createGlobalAdminClient, globalCorsHeaders, globalJson, isGlobalOriginAllowed } from "../_shared/global.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TOKEN = /^[a-f0-9]{64}$/;
@@ -35,7 +35,8 @@ Deno.serve(async (req: Request) => {
       if (typeof body.token !== "string" || !TOKEN.test(body.token)) return globalJson({ error: "Invalid or expired signing link." }, 400, origin);
       const tokenHash = await sha256(body.token);
       if (body.action === "read") {
-        const { data, error } = await (await authenticateGlobal(new Request(req.url, { method: "POST", headers: req.headers, body: raw }))).admin.rpc("global_document_signature_read", { p_token_hash: tokenHash });
+        const admin = createGlobalAdminClient();
+        const { data, error } = await admin.rpc("global_document_signature_read", { p_token_hash: tokenHash });
         if (error) return globalJson({ error: "Could not load the signing request." }, 500, origin);
         if (!data?.ok) return globalJson({ error: data?.code || "SIGNATURE_LINK_UNAVAILABLE" }, errorStatus(data?.code || ""), origin);
         return globalJson(data, 200, origin);
@@ -43,12 +44,8 @@ Deno.serve(async (req: Request) => {
       if (typeof body.signedName !== "string" || body.signedName.trim().length < 1 || body.signedName.trim().length > 160 || body.consent !== true) {
         return globalJson({ error: "Enter the invited signer name and confirm the consent statement." }, 400, origin);
       }
-      const auth = await authenticateGlobal(req);
-      if ("error" in auth) {
-        // Public signing links are bearer-token requests; the service-role client is created by the shared helper.
-        return globalJson({ error: "Signing service unavailable." }, 503, origin);
-      }
-      const { data, error } = await auth.admin.rpc("global_document_signature_sign", {
+      const admin = createGlobalAdminClient();
+      const { data, error } = await admin.rpc("global_document_signature_sign", {
         p_token_hash: tokenHash, p_signed_name: body.signedName.trim(), p_consent: true,
       });
       if (error) return globalJson({ error: "Could not record the signature." }, 500, origin);
