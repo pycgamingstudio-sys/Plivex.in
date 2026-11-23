@@ -55,12 +55,17 @@ const FeaturesPage = lazy(() => import("./pages/PublicInfoPages").then((module) 
 const PricingPage = lazy(() => import("./pages/PublicInfoPages").then((module) => ({ default: module.PricingPage })));
 const PaymentResult = lazy(() => import("./pages/PaymentResult"));
 const PublicInvoicePage = lazy(() => import("./pages/PublicInvoicePage"));
+const SupplierPortalPage = lazy(() => import("./pages/SupplierPortalPage"));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, isAuthenticated, user, logout } = useAuth();
 
   // Payment callbacks must remain visible even if the customer session expires during checkout.
   // Keep hooks unconditional so navigating to/from this public callback never changes hook order.
+  if (window.location.pathname === "/supplier-portal") {
+    return <Routes><Route path="/supplier-portal" element={<SupplierPortalPage />} /></Routes>;
+  }
+
   if (window.location.pathname === "/payment-result") {
     return <Routes><Route path="/payment-result" element={<PaymentResult />} /></Routes>;
   }
@@ -142,6 +147,7 @@ const AuthenticatedApp = () => {
           <Route path="/client-database" element={isGlobalWorkspace ? <GlobalApp section="clients" /> : <WorkspaceFeatureGate anyOf={["crm", "leads"]}><ClientDatabase /></WorkspaceFeatureGate>} />
           <Route path="/crm" element={isGlobalWorkspace ? <GlobalApp section="crm" /> : <WorkspaceFeatureGate anyOf={["crm", "leads"]}><CrmTab /></WorkspaceFeatureGate>} />
           <Route path="/sales-documents" element={isGlobalWorkspace ? <GlobalApp section="sales_docs" /> : <Navigate to="/dashboard" replace state={{ initialTab: "sales" }} />} />
+          <Route path="/suppliers" element={isGlobalWorkspace ? <GlobalApp section="suppliers" /> : <Navigate to="/dashboard" replace />} />
           <Route path="/inventory-procurement" element={isGlobalWorkspace ? <GlobalApp section="inventory" /> : <WorkspaceFeatureGate feature="inventoryWorkspace"><IndiaPart4Tab user={user} /></WorkspaceFeatureGate>} />
           <Route path="/usage-reports" element={<GlobalFeatureGate feature="Usage reports"><WorkspaceFeatureGate feature="reports"><UsageReports /></WorkspaceFeatureGate></GlobalFeatureGate>} />
           <Route path="/settings" element={<GlobalFeatureGate feature="Workspace settings"><Settings /></GlobalFeatureGate>} />
