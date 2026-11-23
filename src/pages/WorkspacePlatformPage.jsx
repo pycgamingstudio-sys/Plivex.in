@@ -196,13 +196,12 @@ export default function WorkspacePlatformPage() {
        "Team & approvals Approval policies, approval requests and time-bound delegated permissions."
      ].some(label=>label.toLowerCase().includes(search.trim().toLowerCase()))&&<p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">No matching category. Try a shorter search.</p>}
      {groupParam && !toolParam && <section aria-label="Tools in this category" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{(toolDirectory[activeGroup] || []).map((tool) => <Link key={tool.slug} to={"/platform/"+groupParam+"/"+tool.slug} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"><span className={"flex h-10 w-10 items-center justify-center rounded-xl "+groupToneClasses[activeGroup].icon}><tool.Icon className="h-5 w-5"/></span><h2 className="mt-4 text-sm font-bold text-slate-900">{tool.title}</h2><p className="mt-1 text-xs leading-5 text-slate-600">{tool.description}</p><span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-violet-700">Open workspace <ArrowRight className="h-3.5 w-3.5"/></span></Link>)}</section>}
-     <style>{toolFilterCss}</style>
-     <section className={toolParam ? "space-y-4" : "hidden"}>
+     {toolParam && <section className="space-y-4">
        <div className="flex flex-wrap items-end justify-between gap-2">
          <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-violet-700">Selected workspace</p><h2 className="mt-1 text-lg font-bold text-slate-950">{({integrations:"Connected apps",finance:"Finance & tax",inventory:"Inventory traceability",operations:"Sales & suppliers",security:"Team & approvals"})[activeGroup]}</h2></div>
          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-semibold text-slate-500">Changes are saved to this workspace</span>
        </div>
-       {activeGroup==="integrations"&&<div className="space-y-4"><section data-tool="signature-audit" className="rounded-2xl border bg-white p-4 sm:p-5">
+       {activeGroup==="integrations"&&<div className="space-y-4">{toolParam==="signature-audit"&&<section className="rounded-2xl border bg-white p-4 sm:p-5">
       <div className="flex items-center gap-2"><FileSignature className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">Electronic signature audit</h2></div>
       <p className="mt-1 text-xs text-slate-500">Creates a one-time, expiring signing link and immutable consent/audit record. This is not a qualified eIDAS, Aadhaar eSign or government-certified signature.</p>
       <form onSubmit={createSignature} className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -212,14 +211,14 @@ export default function WorkspacePlatformPage() {
         <button className={primary+" sm:col-span-2"} disabled={busy||!invoiceId}>Create signing link</button>
       </form>
       {signatureLink&&<div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 p-3"><p className="text-xs font-semibold">One-time signing link</p><code className="mt-1 block break-all text-xs">{signatureLink}</code><div className="mt-2 flex flex-wrap gap-2"><button type="button" className={secondary} onClick={()=>navigator.clipboard.writeText(signatureLink)}><Copy className="mr-1 inline h-3.5 w-3.5"/>Copy link</button><button type="button" className={secondary} disabled={busy||!signatureRequestId} onClick={()=>run(()=>invoke({action:"signature.revoke",requestId:signatureRequestId}),"Signing link revoked.")}>Revoke link</button></div></div>}
-    </section>
-    <section data-tool="document-ocr" className="rounded-2xl border bg-white p-4 sm:p-5">
+    </section>}
+    {toolParam==="document-ocr"&&<section className="rounded-2xl border bg-white p-4 sm:p-5">
       <div className="flex items-center gap-2"><ScanText className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">Document intelligence · Plivex Nova</h2></div>
       <p className="mt-1 text-xs text-slate-500">Upload up to 10 JPEG, PNG, WebP or PDF files (4 MB each). Plivex Nova extracts review-only draft data for your team to verify; no accounting records are posted automatically.</p>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row"><input className={field} type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e=>{setFiles(Array.from(e.target.files||[]));setOcrResults([]);}}/><button type="button" className={primary} disabled={busy||!files.length||files.length>10} onClick={runOcr}>Extract {files.length||""} document(s)</button></div>
       {ocrResults.map(r=><article key={r.jobId} className="mt-3 rounded-lg border p-3"><p className="text-sm font-semibold">{r.name}</p><pre className="mt-2 max-h-72 overflow-auto rounded bg-slate-50 p-3 text-xs">{JSON.stringify(r.extracted,null,2)}</pre></article>)}
-    </section>
-    <section data-tool="whatsapp-cloud" className="rounded-2xl border bg-white p-4 sm:p-5">
+    </section>}
+    {toolParam==="whatsapp-cloud"&&<section className="rounded-2xl border bg-white p-4 sm:p-5">
       <div className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">WhatsApp Cloud messaging</h2></div>
       <p className="mt-1 text-xs text-slate-500">Requires Meta WhatsApp Cloud credentials in Supabase secrets, an approved template outside the 24-hour customer-service window, and recorded opt-in evidence.</p>
       <form onSubmit={sendWhatsapp} className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -231,19 +230,19 @@ export default function WorkspacePlatformPage() {
         <button className={primary+" sm:col-span-2"} disabled={busy||!consent}>Send WhatsApp message</button>
       </form>
       <div className="mt-4"><h3 className="text-sm font-semibold">Recent delivery statuses</h3>{whatsappLogs.length?whatsappLogs.map(x=><p key={x.id} className="border-t py-2 text-xs">{x.recipient_phone} · {x.message_type} · {x.status} · {new Date(x.created_at).toLocaleString()}</p>):<p className="mt-2 text-xs text-slate-500">No messages recorded yet.</p>}</div>
-    </section>
-    <section data-tool="public-api" className="rounded-2xl border bg-white p-4 sm:p-5">
+    </section>}
+    {toolParam==="public-api"&&<section className="rounded-2xl border bg-white p-4 sm:p-5">
       <div className="flex items-center gap-2"><KeyRound className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">Public API & MCP access</h2></div>
       <p className="mt-1 text-xs text-slate-500">Scoped, hashed, revocable and expiring keys. The secret is displayed once; keep it on a trusted server, never in browser code.</p>
       <form onSubmit={createKey} className="mt-4 space-y-3"><input className={field} required minLength={2} maxLength={80} placeholder="API key label" value={apiLabel} onChange={e=>setApiLabel(e.target.value)}/><div className="flex flex-wrap gap-3 text-xs">{scopes.map(s=><label key={s} className="flex items-center gap-1"><input type="checkbox" checked={apiScopes.includes(s)} onChange={()=>toggleScope(s)}/>{s}</label>)}</div><button className={primary} disabled={busy||!apiScopes.length}>Create API key</button></form>
       {newSecret&&<div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-sm font-semibold">Copy this secret now</p><code className="mt-1 block break-all text-xs">{newSecret}</code><button className={secondary+" mt-2"} type="button" onClick={()=>navigator.clipboard.writeText(newSecret)}><Copy className="mr-1 inline h-3.5 w-3.5"/>Copy secret</button></div>}
       <div className="mt-4 space-y-2">{apiKeys.map(k=><div key={k.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-2 text-xs"><span>{k.label} · {k.key_prefix} · expires {new Date(k.expires_at).toLocaleDateString()}</span>{k.revoked_at?<span className="text-slate-500">Revoked</span>:<button type="button" className={secondary} disabled={busy} onClick={()=>run(()=>invoke({action:"api-key.revoke",keyId:k.id}),"API key revoked.")}>Revoke</button>}</div>)}</div>
       <div className="mt-4 rounded-lg bg-slate-50 p-3 text-xs"><p className="font-semibold"><ShieldCheck className="mr-1 inline h-3.5 w-3.5"/>MCP endpoint</p><code className="mt-1 block break-all">{mcpUrl}</code><p className="mt-2">Use the Supabase publishable/anon key as apikey and your Plivex key as x-plivex-key. Available read tools: workspace_summary, list_invoices, list_clients, business_insights.</p></div>
-    </section></div>}
-       {activeGroup==="finance"&&<div className="space-y-4"><div data-tool="gst-compliance"><WorkspaceGSTCompliance/></div><div data-tool="bank-accounting"><WorkspaceBankAccounting/></div><div data-tool="analytics"><WorkspaceAnalyticsPanel/></div></div>}
-       {activeGroup==="inventory"&&<div className="space-y-4"><div data-tool="serial-traceability"><WorkspaceSerialTraceability/></div></div>}
-       {activeGroup==="operations"&&<div className="space-y-4"><div data-tool="supplier-portal"><WorkspaceSupplierPortal/></div><div data-tool="sales-documents"><WorkspaceSalesDocuments/></div><div data-tool="recurring-invoices"><WorkspaceRecurringInvoices/></div></div>}
-       {activeGroup==="security"&&<div className="space-y-4"><div data-tool="enterprise-controls"><WorkspaceEnterpriseControls/></div></div>}
-     </section>
+    </section>}</div>}
+       {activeGroup==="finance"&&<div className="space-y-4">{toolParam==="gst-compliance"&&<WorkspaceGSTCompliance/>}{toolParam==="bank-accounting"&&<WorkspaceBankAccounting/>}{toolParam==="analytics"&&<WorkspaceAnalyticsPanel/>}</div>}
+       {activeGroup==="inventory"&&<div className="space-y-4">{toolParam==="serial-traceability"&&<WorkspaceSerialTraceability/>}</div>}
+       {activeGroup==="operations"&&<div className="space-y-4">{toolParam==="supplier-portal"&&<WorkspaceSupplierPortal/>}{toolParam==="sales-documents"&&<WorkspaceSalesDocuments/>}{toolParam==="recurring-invoices"&&<WorkspaceRecurringInvoices/>}</div>}
+       {activeGroup==="security"&&<div className="space-y-4">{toolParam==="enterprise-controls"&&<WorkspaceEnterpriseControls/>}</div>}
+     </section>}
    </div>;
 }
