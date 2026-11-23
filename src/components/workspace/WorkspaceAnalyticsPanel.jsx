@@ -26,8 +26,8 @@ export default function WorkspaceAnalyticsPanel(){
  const toggleMetric=m=>setMetrics(v=>v.includes(m)?v.filter(x=>x!==m):[...v,m]);
  const runReport=async(config={metrics,groupBy,days:Number(days)})=>{
   const since=startDate(config.days);const [i,e,l,st]=await Promise.all([
-   supabase.from("invoices").select("issue_date,total,currency,status,is_draft").eq("workspace_id",workspaceId).gte("issue_date",since).eq("is_draft",false),
-   supabase.from("expenses").select("date,amount,currency_code,category,status").eq("workspace_id",workspaceId).gte("date",since),
+   supabase.from("invoices").select("issue_date,total,currency,status,is_draft").eq("workspace_id",workspaceId).gte("issue_date",since).eq("is_draft",false).not("status","in","(cancelled,void,draft)"),
+   supabase.from("expenses").select("date,amount,currency_code,category,status").eq("workspace_id",workspaceId).gte("date",since).neq("status","cancelled"),
    supabase.from("leads").select("created_at,value,currency_code,stage").eq("workspace_id",workspaceId).gte("created_at",since+"T00:00:00"),
    supabase.from("stock").select("quantity,low_stock").eq("workspace_id",workspaceId)
   ]);
