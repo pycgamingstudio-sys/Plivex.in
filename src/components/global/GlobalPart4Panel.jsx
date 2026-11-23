@@ -472,7 +472,8 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
       <p className="text-xs text-slate-500">Sales orders, delivery challans and credit/debit notes are saved as workspace documents. Issuing a note does not automatically post a journal adjustment; reconcile and review the source invoice before accounting treatment.</p>
     </>}
 
-    {section === "suppliers" && <>
+    {section === "suppliers" && !["owner", "admin", "manager"].includes(account.role) && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">Only workspace owners, admins and managers can manage supplier onboarding.</p>}
+    {section === "suppliers" && ["owner", "admin", "manager"].includes(account.role) && <>
       <div className="rounded-xl border border-violet-100 bg-violet-50/60 p-4 text-xs leading-relaxed text-violet-900">
         Supplier invitations are single-use links that expire after 7 days. Suppliers submit their own business details; workspace managers review each submission before approval. Email delivery depends on the workspace email provider configuration.
       </div>
