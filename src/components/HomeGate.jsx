@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation } from "react-router-dom";
 import { LayoutDashboard, ReceiptText, UsersRound, Package, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import { APP_EDITION, isUnifiedBuild } from "@/api/backendClient";
+import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
 import AppLayout from "@/components/AppLayout";
 import Logo from "@/components/Logo";
 import { lazy } from "react";
@@ -17,6 +18,7 @@ import TrialGate from "@/components/TrialGate";
 export default function HomeGate({ initialTab: routeInitialTab }) {
   const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings, user } = useAuth();
   const location = useLocation();
+  const { features: workspaceFeatures } = useWorkspaceFeatures(user?.workspace_id);
   const [pending, setPending] = useState(null);
 
   useEffect(() => {
@@ -65,7 +67,12 @@ export default function HomeGate({ initialTab: routeInitialTab }) {
     { to: "/workspace/stock", label: "Stock", Icon: Package, active: location.pathname === "/workspace/stock" },
     { to: "/platform", label: "Business Tools", Icon: ShieldCheck, active: location.pathname.startsWith("/platform") },
   ];
-  const visibleMobileItems = mobileItems.filter((item) => item.to !== "/platform" || ["admin", "manager"].includes(user?.role));
+  const visibleMobileItems = mobileItems.filter((item) => {
+    if (item.to === "/platform") return ["admin", "manager"].includes(user?.role);
+    if (item.to === "/workspace/crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
+    if (item.to === "/workspace/stock") return user?.workspace_type === "business" || workspaceFeatures.includes("stock");
+    return true;
+  });
   return <TrialGate><div className="plivex-route-shell">{dashboard}
     <style>{".plivex-route-shell .plivex-bottom-nav{display:none!important}"}</style>
     <nav aria-label="Main workspace navigation" className={"fixed inset-x-0 bottom-0 z-[45] grid grid-cols-"+visibleMobileItems.length+" border-t border-slate-200 bg-white/95 shadow-[0_-8px_28px_rgba(24,24,40,.08)] backdrop-blur-xl md:hidden"} style={{paddingBottom:"env(safe-area-inset-bottom, 0px)"}}>
