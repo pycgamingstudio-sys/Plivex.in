@@ -6,6 +6,7 @@ const migration = readFileSync(new URL("../../../supabase/migrations/20261116120
 const edge = readFileSync(new URL("../../../supabase/functions/global-enterprise/index.ts", import.meta.url), "utf8");
 const exportEdge = readFileSync(new URL("../../../supabase/functions/global-export/index.ts", import.meta.url), "utf8");
 const hardening = readFileSync(new URL("../../../supabase/migrations/20261116123000_global_enterprise_hardening.sql", import.meta.url), "utf8");
+const delegation = readFileSync(new URL("../../../supabase/migrations/20261123020000_global_member_permission_delegation.sql", import.meta.url), "utf8");
 
 test("enterprise migration keeps Global data in private schema and enables RLS", () => {
   for (const table of ["workspace_branches", "workspace_permission_overrides", "approval_requests", "audit_events", "export_jobs", "workspace_retention_policies", "exchange_rate_snapshots", "currency_conversion_history", "tax_rule_versions"]) {
@@ -52,4 +53,15 @@ test("workspace health snapshot is admin-gated and reports only operational coun
   assert.match(migration, /health\.read/);
   assert.match(migration, /failedExportsLast24h/);
   assert.match(edge, /health\.read/);
+});
+
+
+test("member directory RPC is workspace-scoped and service-role-only", () => {
+  assert.match(delegation, /public\.global_enterprise_members/);
+  assert.match(delegation, /where workspace_id = p_workspace_id/);
+  assert.match(delegation, /user_id = p_user_id/);
+  assert.match(delegation, /status = 'active'/);
+  assert.match(delegation, /not in \('owner', 'admin'\)/);
+  assert.match(delegation, /revoke all on function public\.global_enterprise_members\(uuid, uuid\) from public, anon, authenticated/);
+  assert.match(delegation, /grant execute on function public\.global_enterprise_members\(uuid, uuid\) to service_role/);
 });
