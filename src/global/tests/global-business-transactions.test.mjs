@@ -146,4 +146,4 @@ test("all supported countries use the same Main Workspace invoice routes", async
   assert.match(app, /path="\/invoice-history" element=\{<InvoiceHistory \/>\}/);
   assert.match(app, /path="\/quotations" element=\{<Navigate to="\/dashboard" replace state=\{\{ initialTab: "sales", initialSub: "quotations" \}\} \/>\}/);
   assert.doesNotMatch(app, /GlobalApp|isGlobalWorkspace/);
-});\n
+});
