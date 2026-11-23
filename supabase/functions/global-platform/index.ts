@@ -68,6 +68,20 @@ async function createSignature(admin: any, user: any, body: any, origin: string 
   const signUrl = base.replace(/\/$/, "") + "/sign/" + token;
   return { ok: true, request: data, signUrl, invoiceNumber: invoice.invoice_number, note: "Copy and send this link to the named signer. This records an electronic-signature consent and audit trail; it is not a qualified or government-certified digital signature." };
 }
+async function signPreview(admin: any, token: string) {
+  if (token.length < 30) throw new Error("SIGN_REQUEST_NOT_FOUND");
+  const tokenHash = await sha256(token);
+  const { data: record, error } = await admin.schema("global").from("document_signing_requests")
+    .select("id,invoice_id,signer_name,signer_email,status,document_sha256,expires_at")
+    .eq("token_hash", tokenHash).maybeSingle();
+  if (error || !record) throw new Error("SIGN_REQUEST_NOT_FOUND");
+  if (record.status !== "pending" || new Date(record.expires_at).getTime() <= Date.now()) throw new Error("SIGN_REQUEST_NOT_ACTIVE");
+  const { data: invoice, error: invoiceError } = await admin.schema("global").from("invoices")
+    .select("invoice_number,status,currency_code,issue_date,due_date,subtotal_minor,tax_minor,total_minor,invoice_snapshot")
+    .eq("id", record.invoice_id).maybeSingle();
+  if (invoiceError || !invoice) throw new Error("SIGN_DOCUMENT_NOT_FOUND");
+  return { ok: true, signerName: record.signer_name, signerEmail: record.signer_email, documentSha256: record.document_sha256, invoice };
+}
 async function signDocument(admin: any, req: Request, body: any) {
   const token = clean(body.token, 256);
   const signatureName = clean(body.signatureName, 160);
@@ -85,16 +99,12 @@ async function signDocument(admin: any, req: Request, body: any) {
   const userAgent = clean(req.headers.get("user-agent"), 500);
   const signedAt = new Date().toISOString();
   const auditHash = await sha256([record.id, record.document_sha256, signatureName, record.signer_email, consentText, signedAt, ipHash, userAgent].join("|"));
-  const { data: updated, error: updateError } = await admin.schema("global").from("document_signing_requests")
-    .update({ status: "signed", signature_name: signatureName, consent_text: consentText, signer_ip_hash: ipHash, signer_user_agent: userAgent, signed_at: signedAt, updated_at: signedAt })
-    .eq("id", record.id).eq("status", "pending").select("id,status,signed_at,document_sha256").maybeSingle();
-  if (updateError || !updated) throw new Error("SIGN_REQUEST_ALREADY_USED");
-  await admin.schema("global").from("audit_events").insert({
-    workspace_id: record.workspace_id, actor_id: null, action: "document.electronically_signed",
-    entity_type: "invoice", entity_id: record.id,
-    metadata: { signature_request_id: record.id, signer_email: record.signer_email, document_sha256: record.document_sha256, audit_sha256: auditHash, signed_at: signedAt },
+  const { data, error: rpcError } = await admin.rpc("global_complete_document_signature", {
+    p_token_hash: tokenHash, p_signature_name: signatureName, p_consent_text: consentText,
+    p_ip_hash: ipHash, p_user_agent: userAgent, p_signed_at: signedAt, p_audit_sha256: auditHash,
   });
-  return { ok: true, signedAt, documentSha256: record.document_sha256, auditSha256: auditHash };
+  if (rpcError || !data?.ok) throw new Error(data?.code || "SIGN_REQUEST_ALREADY_USED");
+  return { ok: true, signedAt: data.signed_at, documentSha256: data.document_sha256, auditSha256: data.audit_sha256 };
 }
 async function processOcr(admin: any, user: any, body: any) {
   if (!UUID.test(body.workspaceId || "")) throw new Error("INVALID_REQUEST");
@@ -175,6 +185,7 @@ async function sendWhatsApp(admin: any, user: any, body: any) {
     workspace_id: body.workspaceId, created_by: user.id, recipient_phone: phone,
     message_type: type, template_name: type === "template" ? payload.template.name : null,
     provider_message_id: providerId, status, consent_confirmed: true,
+    consent_statement: clean(body.consentStatement, 500),
     error_code: status === "failed" ? "META_SEND_FAILED" : null,
   });
   if (status === "failed") throw new Error("WHATSAPP_SEND_FAILED");
