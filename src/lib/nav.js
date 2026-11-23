@@ -44,7 +44,7 @@ export const MORE_NAV_ITEMS = [
   { to: "/account-activity", label: "Account activity", icon: Activity, roles: ["admin", "accountant"] },
   { to: "/settings", label: "Settings", icon: SettingsIcon, roles: ["admin"] },
   { to: "/help-center", label: "Help center", icon: LifeBuoy, roles: ALL },
-  { to: "/platform", label: "Platform integrations", icon: ShieldCheck, roles: ["admin", "manager"] },
+  { to: "/platform", label: "Business tools center", icon: ShieldCheck, roles: ["admin", "manager"] },
 ];
 
 export const HIDDEN_FROM_SIDEBAR = [
