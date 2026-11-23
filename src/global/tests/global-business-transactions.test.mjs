@@ -139,12 +139,4 @@ test("Global commercial invoice creation has one atomic server-side finalization
 });
 
 
-test("Unified non-India workspaces keep the Main Workspace invoice routes", async () => {
-  const app = await read("../../App.jsx");
-  const panel = await read("../../components/global/GlobalInvoicesPanel.jsx");
-  assert.match(app, /const isGlobalWorkspace = !isUnifiedBuild && APP_EDITION === "global"/);
-  assert.match(app, /isGlobalWorkspace \? <AppLayout><GlobalApp section="invoices" \/><\/AppLayout> : <Home \/>/);
-  assert.match(panel, /resolveGlobalInvoiceContext\(account\)/);
-  assert.doesNotMatch(panel, /multi_currency|canAccess\(/);
-  assert.match(panel, /currency_code:currency/);
-});
+test("all supported countries use the same Main Workspace invoice routes", async () => {\n  const app = await read("../../App.jsx");\n  assert.match(app, /All supported countries use the same Main Workspace routes/);\n  assert.match(app, /path="\\/invoice-builder" element=\{<Home \/>\}/);\n  assert.match(app, /path="\\/invoice-history" element=\{<InvoiceHistory \/>\}/);\n  assert.match(app, /path="\\/quotations" element=\{<Navigate to="\\/dashboard" replace state=\{\{ initialTab: "sales", initialSub: "quotations" \}\} \/>\}/);\n  assert.doesNotMatch(app, /GlobalApp|isGlobalWorkspace/);\n});\n
