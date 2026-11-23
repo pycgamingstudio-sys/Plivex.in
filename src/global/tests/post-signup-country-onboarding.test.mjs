@@ -107,7 +107,9 @@ test("unified workspace feature links open the matching Main Workspace dashboard
   assert.match(dashboard, /initialSub=\{initialSub\}/);
   assert.match(sales, /initialSub === "quotations" \? "quotations" : "invoices"/);
   assert.doesNotMatch(app, /GlobalApp|isGlobalWorkspace/);
-});\n\ntest("dashboard waits for workspace feature preferences before validating a deep-linked tab", async () => {
+});
+
+test("dashboard waits for workspace feature preferences before validating a deep-linked tab", async () => {
   const dashboard = await read("../../pages/Dashboard.jsx");
   assert.match(dashboard, /ready: workspaceFeaturesReady/);
   assert.match(dashboard, /if \(!workspaceFeaturesReady\) return/);
