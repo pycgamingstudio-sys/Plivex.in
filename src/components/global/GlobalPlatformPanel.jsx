@@ -27,9 +27,9 @@ export default function GlobalPlatformPanel({ workspaceId }) {
   const [signerEmail, setSignerEmail] = useState("");
   const [signatures, setSignatures] = useState([]);
   const [signUrl, setSignUrl] = useState("");
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]);
   const [documentType, setDocumentType] = useState("invoice");
-  const [ocrResult, setOcrResult] = useState(null);
+  const [ocrResults, setOcrResults] = useState([]);
   const [recipientPhone, setRecipientPhone] = useState("");
   const [messageType, setMessageType] = useState("template");
   const [message, setMessage] = useState("");
@@ -70,10 +70,15 @@ export default function GlobalPlatformPanel({ workspaceId }) {
     }, "Signature request created. Copy and send the link to the signer.");
   };
   const runOcr = () => run(async () => {
-    if (!file || file.size > 8 * 1024 * 1024) throw new Error("Choose a file up to 8 MB.");
-    const result = await invoke({ action: "ocr.process", workspaceId, documentType, mimeType: file.type, fileBase64: await fileBase64(file) });
-    setOcrResult(result);
-  }, "OCR extraction completed. Review every field before using it.");
+    if (!files.length || files.length > 10) throw new Error("Choose between 1 and 10 files.");
+    const results = [];
+    for (const item of files) {
+      if (item.size > 8 * 1024 * 1024) throw new Error(item.name + " exceeds the 8 MB per-file limit.");
+      const result = await invoke({ action: "ocr.process", workspaceId, documentType, mimeType: item.type, fileBase64: await fileBase64(item) });
+      results.push({ name: item.name, ...result });
+      setOcrResults([...results]);
+    }
+  }, "OCR batch completed. Review every extracted field before using it.");
   const sendMessage = (event) => {
     event.preventDefault();
     run(async () => {
@@ -107,13 +112,13 @@ export default function GlobalPlatformPanel({ workspaceId }) {
     </section>
     <section className="rounded-xl border border-slate-200 bg-white p-4">
       <h2 className="font-semibold">Document OCR & AI extraction</h2>
-      <p className="mt-1 text-xs text-slate-500">Upload an invoice, receipt or purchase order. Extraction is a draft and never posts accounting or inventory records automatically.</p>
+      <p className="mt-1 text-xs text-slate-500">Upload up to 10 invoices, receipts or purchase orders in one batch (8 MB each). Files are sent to Google Gemini using your configured API key. Extraction is a draft and never posts accounting or inventory records automatically.</p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <select className={field} value={documentType} onChange={(e) => setDocumentType(e.target.value)}><option value="invoice">Invoice</option><option value="receipt">Receipt</option><option value="purchase_order">Purchase order</option><option value="identity">Identity document</option><option value="other">Other</option></select>
-        <input className={field} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-        <button className={primary} type="button" disabled={busy || !file} onClick={runOcr}>Extract document data</button>
+        <input className={field} type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => { setFiles(Array.from(e.target.files || [])); setOcrResults([]); }} />
+        <button className={primary} type="button" disabled={busy || !files.length || files.length > 10} onClick={runOcr}>Extract {files.length || ""} document(s)</button>
       </div>
-      {ocrResult && <pre className="mt-3 max-h-80 overflow-auto rounded-lg bg-slate-50 p-3 text-xs">{JSON.stringify(ocrResult.extracted, null, 2)}</pre>}
+      {ocrResults.map((result) => <div key={result.jobId} className="mt-3 rounded-lg border border-slate-200 p-3"><p className="text-sm font-semibold">{result.name}</p><pre className="mt-2 max-h-80 overflow-auto rounded-lg bg-slate-50 p-3 text-xs">{JSON.stringify(result.extracted, null, 2)}</pre></div>)}
     </section>
     <section className="rounded-xl border border-slate-200 bg-white p-4">
       <h2 className="font-semibold">WhatsApp Cloud messaging</h2>
