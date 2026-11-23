@@ -71,6 +71,10 @@ const AuthenticatedApp = () => {
     return <Routes><Route path="/payment-result" element={<PaymentResult />} /></Routes>;
   }
 
+  if (window.location.pathname.startsWith("/sign/")) {
+    return <Routes><Route path="/sign/:token" element={<PublicSignaturePage />} /></Routes>;
+  }
+
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
