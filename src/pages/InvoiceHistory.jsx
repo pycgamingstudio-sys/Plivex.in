@@ -129,11 +129,9 @@ export default function InvoiceHistory() {
       const blob = await createInvoicePdfBlob(it, user?.currency_code || "INR");
       const file = new File([blob], getInvoicePdfFilename(it), { type: "application/pdf" });
       const message = `Hello ${it.clientName || "there"}, your invoice ${it.number || ""} from ${it.businessName || "our business"} is ready.`;
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: `Invoice ${it.number || ""}`, text: message });
-        setReminderMessage("Choose WhatsApp, Gmail, or another app to send the invoice PDF.");
-        return;
-      }
+      // PDF generation is asynchronous, so the original tap's transient
+      // activation may have expired. Download first and open a safe WhatsApp
+      // hand-off instead of calling navigator.share outside a user gesture.
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -141,6 +139,7 @@ export default function InvoiceHistory() {
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 60000);
       window.open(`https://wa.me/?text=${encodeURIComponent(message + " — The PDF is downloaded; please attach it to this message.")}`, "_blank", "noopener,noreferrer");
+      setReminderMessage("Invoice PDF downloaded. WhatsApp opened; attach the PDF before sending.");
     } catch (error) {
       if (error?.name !== "AbortError") setReminderMessage(error?.message || "Could not share this invoice.");
     }
@@ -295,7 +294,7 @@ export default function InvoiceHistory() {
               </div>
               <div className="flex items-center gap-3">
                 <p className="text-[16px] font-bold tracking-[-0.03em]">{money(it.total, it.currency || user?.currency_code)}</p>
-                <button onClick={() => setView(it)} className="rounded-lg border p-2 hover:bg-secondary" aria-label="View invoice"><Eye className="h-4 w-4" /></button>\n                <button onClick={() => downloadOldInvoice(it)} disabled={!!downloadingId} className="rounded-lg border p-2 text-primary hover:bg-secondary disabled:opacity-50" aria-label="Download old invoice PDF" title="Download PDF"><Download className="h-4 w-4" /></button>
+                <button onClick={() => setView(it)} className="rounded-lg border p-2 hover:bg-secondary" aria-label="View invoice"><Eye className="h-4 w-4" /></button>\n                <button onClick={() => downloadOldInvoice(it)} disabled={!!downloadingId} className="inline-flex min-w-10 items-center justify-center gap-1.5 rounded-lg border px-2.5 py-2 text-primary hover:bg-secondary disabled:opacity-70" aria-label="Download old invoice PDF" title="Download PDF"><Download className={`h-4 w-4 ${downloadingId === it.id ? "animate-pulse" : ""}`} />{downloadingId === it.id && <span className="text-[11px] font-semibold">Downloading…</span>}</button>
                 <button onClick={() => shareInvoicePdf(it)} className="rounded-lg border p-2 text-emerald-700 hover:bg-emerald-50" aria-label="Share invoice PDF" title="Share PDF"><Share2 className="h-4 w-4" /></button>
                 <button onClick={() => remove(it.id)} className="rounded-lg border p-2 text-destructive hover:bg-destructive/10" aria-label="Delete invoice"><Trash2 className="h-4 w-4" /></button>
               </div>
