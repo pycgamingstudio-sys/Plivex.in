@@ -21,6 +21,7 @@ test("CRM lead score and follow-up urgency are visually scannable", () => {
   assert.match(crm, /Lead score<\/span>/);
   assert.match(crm, /from-sky-500 via-cyan-500 to-emerald-500/);
   assert.match(crm, /overdue\?"border-rose-200 bg-rose-50 text-rose-700":"border-amber-200 bg-amber-50 text-amber-700"/);
+  for (const tone of ["call:\"border-sky-200 bg-sky-50 text-sky-700\"","email:\"border-violet-200 bg-violet-50 text-violet-700\"","meeting:\"border-amber-200 bg-amber-50 text-amber-700\"","follow_up:\"border-cyan-200 bg-cyan-50 text-cyan-700\""]) assert.ok(crm.includes(tone), "missing CRM activity colour cue: " + tone);
 });
 
 test("existing dashboard and financial module card colours remain intact", () => {
