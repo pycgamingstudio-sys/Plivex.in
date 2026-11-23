@@ -200,7 +200,7 @@ const bankUi=readFileSync(new URL("../../components/workspace/WorkspaceBankAccou
 test("Main Workspace bank imports, matching and statement reconciliation are private and auditable",()=>{
   assert.match(bankMigration,/bank_statement_imports/);
   assert.match(bankMigration,/main_workspace_import_bank_statement/);
-  assert.match(bankMigration,/auto/);
+  assert.match(bankMigration,/Customer receipt/);
   assert.match(bankMigration,/main_workspace_reconcile_bank_import/);
   assert.match(bankHardening,/v_candidates=1/);
   assert.match(bankUi,/CSV import only/);
@@ -216,6 +216,6 @@ test("Main Workspace journals enforce balanced double-entry and FX snapshots sta
   assert.match(bankFx,/main_workspace_fx_reconciliation/);
   assert.match(bankUi,/Double-entry accounting/);
   assert.match(bankUi,/FX rates & reconciliation/);
-  assert.match(bankUi,/manual, dated FX snapshots/);
+  assert.match(bankUi,/Manual, dated FX snapshots/);
   assert.match(bankLists,/main_workspace_list_bank_data/);
 });
