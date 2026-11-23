@@ -177,7 +177,9 @@ function WorkspaceFeatureGate({ children, feature, anyOf = [], businessOnly = fa
   return children;
 }
 
-function GlobalFeatureGate({ children }) {\n  return children;\n}
+function GlobalFeatureGate({ children }) {
+  return children;
+}
 function ProTeamRoute() {
   const { canAccess, openPaywall } = usePaywall();
   useEffect(() => { if (!canAccess("team_management")) openPaywall("Team management requires the Pro plan."); }, [canAccess, openPaywall]);
