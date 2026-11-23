@@ -159,3 +159,19 @@ test("Main Workspace supplier onboarding uses expiring single-use invitations an
   assert.match(supplierPage,/Complete supplier profile/);
   assert.match(app,/path="\/supplier-onboarding\/:token"/);
 });
+
+const serialMigration=readFileSync(new URL("../../../supabase/migrations/20261123032619_main_workspace_inventory_serial_traceability.sql",import.meta.url),"utf8");
+const serialUi=readFileSync(new URL("../../components/workspace/WorkspaceSerialTraceability.jsx",import.meta.url),"utf8");
+
+test("Main Workspace serial traceability validates warehouse ownership and audits lifecycle transitions",()=>{
+  assert.match(serialMigration,/inventory_serial_units/);
+  assert.match(serialMigration,/inventory_serial_events/);
+  assert.match(serialMigration,/serial_number_already_registered/);
+  assert.match(serialMigration,/invalid_serial_transition/);
+  assert.match(serialMigration,/issued_invoice_required/);
+  assert.match(serialMigration,/workspace_id=p_workspace_id/);
+  assert.match(serialUi,/Serial-number traceability/);
+  assert.match(serialUi,/main_workspace_register_inventory_serials/);
+  assert.match(serialUi,/main_workspace_update_inventory_serial/);
+  assert.match(serialUi,/does not change aggregate stock quantity/);
+});
