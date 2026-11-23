@@ -379,7 +379,7 @@ Deno.serve(async (req: Request) => {
     if (body.action === "api-key.create") {
       if (!UUID.test(body.workspaceId || "") || !await member(admin, user.id, body.workspaceId, ["owner", "admin"])) throw new Error("ACCESS_DENIED");
       const label = clean(body.label, 80);
-      const scopes = Array.isArray(body.scopes) ? [...new Set(body.scopes.filter((s: string) => ["workspace.read", "invoices.read", "clients.read", "mcp.read"].includes(s)))] : ["workspace.read"];
+      const scopes = Array.isArray(body.scopes) ? [...new Set(body.scopes.filter((s: string) => ["workspace.read", "invoices.read", "clients.read", "expenses.read", "leads.read", "inventory.read", "suppliers.read", "mcp.read"].includes(s)))] : ["workspace.read"];
       if (label.length < 2 || !scopes.length) throw new Error("INVALID_API_KEY");
       const token = "plx_" + randomToken(4).slice(0, 6) + "_" + randomToken(32);
       const expiresAt = new Date(Date.now() + Math.min(365, Math.max(1, Number(body.expiryDays) || 90)) * 86400000).toISOString();
