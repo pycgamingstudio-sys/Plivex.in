@@ -121,3 +121,20 @@ test("Main Workspace recurring invoices generate idempotent review-only drafts",
   assert.match(recurringUi,/main_workspace_create_recurring_invoice_schedule/);
   assert.match(recurringUi,/main_workspace_recurring_schedule_set_status/);
 });
+
+const salesDocsMigration=readFileSync(new URL("../../../supabase/migrations/20261123031922_main_workspace_sales_document_workflows.sql",import.meta.url),"utf8");
+const salesDocsManagement=readFileSync(new URL("../../../supabase/migrations/20261123032023_main_workspace_sales_documents_management.sql",import.meta.url),"utf8");
+const salesDocsUi=readFileSync(new URL("../../components/workspace/WorkspaceSalesDocuments.jsx",import.meta.url),"utf8");
+
+test("Main Workspace sales orders, delivery challans and credit/debit notes are transactional and audited",()=>{
+  assert.match(salesDocsMigration,/main_workspace_create_sales_order/);
+  assert.match(salesDocsMigration,/main_workspace_create_delivery_challan/);
+  assert.match(salesDocsMigration,/main_workspace_create_credit_debit_note/);
+  assert.match(salesDocsMigration,/credit_exceeds_remaining_invoice_total/);
+  assert.match(salesDocsMigration,/idempotency_key/);
+  assert.match(salesDocsManagement,/main_workspace_list_sales_documents/);
+  assert.match(salesDocsManagement,/challan_quantity/);
+  assert.match(salesDocsUi,/Sales orders/);
+  assert.match(salesDocsUi,/Delivery challans/);
+  assert.match(salesDocsUi,/Credit & debit notes/);
+});
