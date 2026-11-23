@@ -30,6 +30,9 @@ alter table global.approval_policies add constraint approval_policies_escalation
 alter table global.approval_requests
   add column if not exists current_level integer not null default 1,
   add column if not exists total_levels integer not null default 1;
+alter table global.approval_requests drop constraint if exists approval_requests_level_bounds;
+alter table global.approval_requests add constraint approval_requests_level_bounds
+  check (current_level between 1 and 5 and total_levels between 1 and 5 and current_level<=total_levels);
 create unique index if not exists global_approval_requests_workspace_id_uidx
   on global.approval_requests(workspace_id,id);
 
@@ -296,11 +299,14 @@ begin
   select id,role into v_member_id,v_role from global.workspace_members
     where workspace_id=p_workspace_id and user_id=p_user_id and status='active' limit 1;
   if v_role is null then return jsonb_build_object('ok',false,'code','ACCESS_DENIED'); end if;
-  perform public.global_escalate_due_approvals();
   select effect into v_override from global.workspace_permission_overrides
     where workspace_id=p_workspace_id and permission_key='approval.read'
       and (member_id=v_member_id or (member_id is null and role=v_role))
     order by (member_id is not null) desc,created_at desc limit 1;
+  if v_role not in ('owner','admin') and v_override='deny' then
+    return jsonb_build_object('ok',false,'code','PERMISSION_DENIED');
+  end if;
+  perform public.global_escalate_due_approvals();
   if v_role not in ('owner','admin','manager','accountant','viewer') and v_override is distinct from 'grant' then
     select coalesce(jsonb_agg(jsonb_build_object(
       'id',r.id,'requester_id',r.requester_id,'approver_id',r.approver_id,'action_type',r.action_type,
