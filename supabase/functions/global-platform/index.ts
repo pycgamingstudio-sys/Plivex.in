@@ -259,7 +259,7 @@ async function publicApi(req: Request, admin: any) {
     }
   }
   await admin.schema("global").from("public_api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", apiKey.id);
-  if (raw.jsonrpc === "2.0") return json({ jsonrpc: "2.0", id: raw.id ?? null, result: operation === "mcp.tools/list" || raw.method === "tools/list" ? result : { content: [{ type: "text", text: JSON.stringify(result) }] } });
+  if (raw.jsonrpc === "2.0") return json({ jsonrpc: "2.0", id: raw.id ?? null, result: ["initialize", "mcp.tools/list", "tools/list"].includes(mcpMethod) ? result : { content: [{ type: "text", text: JSON.stringify(result) }], isError: false } });
   return json({ ok: true, data: result });
 }
 
