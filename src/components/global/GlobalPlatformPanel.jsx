@@ -36,7 +36,8 @@ export default function GlobalPlatformPanel({ workspaceId }) {
   const [customerInitiatedAt, setCustomerInitiatedAt] = useState("");
   const [templateName, setTemplateName] = useState("");
   const [templateLanguage, setTemplateLanguage] = useState("en");
-  const [consentConfirmed, setConsentConfirmed] = useState(false);\n  const [consentStatement, setConsentStatement] = useState("");
+  const [consentConfirmed, setConsentConfirmed] = useState(false);
+  const [consentStatement, setConsentStatement] = useState("");
   const [apiLabel, setApiLabel] = useState("Accounting integration");
   const [apiScopes, setApiScopes] = useState(["workspace.read", "invoices.read", "clients.read", "mcp.read"]);
   const [apiKeys, setApiKeys] = useState([]);
