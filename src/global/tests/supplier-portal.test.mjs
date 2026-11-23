@@ -42,6 +42,7 @@ test("supplier portal is reachable publicly and managed inside the authenticated
   assert.match(panel, /Vendor onboarding & supplier portal/);
   assert.match(panel, /Create secure invitation/);
   assert.match(panel, /reviewSupplier/);
+  assert.match(panel, /Only workspace owners, admins and managers/);
   assert.match(globalApp, /suppliers: "\/suppliers"/);
   assert.match(config, /\[functions\.global-supplier-portal\]\s+verify_jwt = false/);
 });
