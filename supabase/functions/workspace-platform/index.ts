@@ -188,9 +188,9 @@ async function apiManagement(ctx: any, body: any) {
   const label = clean(body.label,80), scopes = Array.isArray(body.scopes) ? [...new Set(body.scopes)] : [];
   const allowedScopes = ["workspace.read","invoices.read","clients.read","expenses.read","leads.read","inventory.read","suppliers.read","mcp.read"];
   if (label.length < 2 || !scopes.length || scopes.length > 8 || scopes.some((s:string)=>!allowedScopes.includes(s))) throw new Error("INVALID_API_KEY");
-  const secret = "plx_" + token(32), keyHash = await sha256(secret);
+  const prefix = "plx_" + crypto.randomUUID().replaceAll("-","").slice(0,6); const secret = prefix + "_" + token(32), keyHash = await sha256(secret);
   const days = Math.min(365,Math.max(1,Number(body.expiryDays)||90));
-  const { data, error } = await ctx.admin.from("public_api_keys").insert({ workspace_id:ctx.workspaceId,created_by:ctx.user.id,label,key_hash:keyHash,key_prefix:secret.slice(0,10),scopes,expires_at:new Date(Date.now()+days*86400000).toISOString() }).select("id,label,key_prefix,scopes,expires_at,created_at").single();
+  const { data, error } = await ctx.admin.from("public_api_keys").insert({ workspace_id:ctx.workspaceId,created_by:ctx.user.id,label,key_hash:keyHash,key_prefix:prefix,scopes,expires_at:new Date(Date.now()+days*86400000).toISOString() }).select("id,label,key_prefix,scopes,expires_at,created_at").single();
   if (error || !data) throw new Error("API_KEY_CREATE_FAILED");
   await ctx.admin.from("workspace_audit_events").insert({ workspace_id:ctx.workspaceId,actor_id:ctx.user.id,action:"api_key.created",entity_type:"api_key",entity_id:data.id,metadata:{scopes,expires_at:data.expires_at} });
   return { ok:true,key:data,secret };
@@ -203,6 +203,38 @@ async function publicApi(req: Request, admin: any, body: any) {
   if (error || !key || key.revoked_at || new Date(key.expires_at).getTime() <= Date.now()) throw new Error("API_KEY_INVALID");
   const scope = (s:string) => key.scopes.includes(s);
   const action = clean(body.action,80);
+  if (action === "mcp.initialize") return { jsonrpc:"2.0", id:body.id ?? null, result:{ protocolVersion:"2025-03-26", capabilities:{tools:{}}, serverInfo:{name:"Plivex Main Workspace",version:"1.0.0"} } };
+  if (action === "mcp.tools/list") return { jsonrpc:"2.0", id:body.id ?? null, result:{ tools:[
+    {name:"workspace_summary",description:"Read aggregate workspace settings and counts",inputSchema:{type:"object",properties:{},additionalProperties:false}},
+    {name:"list_invoices",description:"List recent workspace invoices",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}},
+    {name:"list_clients",description:"List workspace clients",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}},
+    {name:"business_insights",description:"Generate aggregate AI business insights without customer PII",inputSchema:{type:"object",properties:{},additionalProperties:false}}
+  ] } };
+  if (action === "mcp.tools/call") {
+    const name = clean(body.name || body.params?.name,80);
+    const args = isObject(body.arguments) ? body.arguments : (isObject(body.params?.arguments) ? body.params.arguments : {});
+    if (!key.scopes.includes("mcp.read") || !key.scopes.includes("workspace.read")) throw new Error("API_SCOPE_DENIED");
+    if (name === "workspace_summary") return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify(await publicApi(req,admin,{action:"workspace.summary",_workspaceId:key.workspace_id}))}]}};
+    if (name === "list_invoices") return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify(await publicApi(req,admin,{action:"invoices.list",_workspaceId:key.workspace_id,limit:args.limit}))}]}};
+    if (name === "list_clients") return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify(await publicApi(req,admin,{action:"clients.list",_workspaceId:key.workspace_id,limit:args.limit}))}]}};
+    if (name === "business_insights") {
+      const [{data:inv},{data:exp},{data:leads},{data:stock}] = await Promise.all([
+        admin.from("invoices").select("status,total,currency").eq("workspace_id",key.workspace_id).limit(500),
+        admin.from("expenses").select("amount,currency_code").eq("workspace_id",key.workspace_id).limit(500),
+        admin.from("leads").select("stage,value,currency_code").eq("workspace_id",key.workspace_id).limit(500),
+        admin.from("stock").select("quantity,low_stock").eq("workspace_id",key.workspace_id).limit(500)
+      ]);
+      const aggregate = {invoiceCount:inv?.length||0,invoiceTotalsByCurrency:Object.groupBy ? Object.groupBy(inv||[],x=>x.currency||"UNK") : {},expenseCount:exp?.length||0,leadCount:leads?.length||0,openLeadValue:(leads||[]).filter((x:any)=>!["Won","Lost","won","lost"].includes(String(x.stage))).reduce((n:number,x:any)=>n+Number(x.value||0),0),lowStockItems:(stock||[]).filter((x:any)=>Number(x.quantity)<=Number(x.low_stock)).length};
+      const keyGemini=Deno.env.get("GEMINI_API_KEY");
+      if(!keyGemini) throw new Error("AI_PROVIDER_NOT_CONFIGURED");
+      const model=Deno.env.get("GEMINI_BUSINESS_MODEL")||"gemini-3.8-flash";
+      const ai=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent?key="+encodeURIComponent(keyGemini),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{role:"user",parts:[{text:"You are Plivex AI Business Manager. Analyze only these aggregate metrics; never request or infer customer personal data. Keep different currencies separate. Give concise actionable insights and explicitly label estimates.\n"+JSON.stringify(aggregate)}]}],generationConfig:{temperature:0.2}})});
+      if(!ai.ok) throw new Error("AI_PROVIDER_ERROR");
+      const aiBody=await ai.json(); const insight=aiBody?.candidates?.[0]?.content?.parts?.map((p:any)=>p.text||"").join("")||"No insight returned.";
+      return {jsonrpc:"2.0",id:body.id??null,result:{content:[{type:"text",text:insight}],structuredContent:{aggregate}}};
+    }
+    throw new Error("MCP_TOOL_NOT_FOUND");
+  }
   if (action === "workspace.summary" && scope("workspace.read")) {
     const [{data:settings},{count:invoices},{count:clients}] = await Promise.all([
       admin.from("workspace_settings").select("country_code,currency_code,locale_code").eq("workspace_id",key.workspace_id).maybeSingle(),
