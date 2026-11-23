@@ -206,8 +206,8 @@ async function publicApi(req: Request, admin: any, body: any) {
   if (action === "mcp.initialize") return { jsonrpc:"2.0", id:body.id ?? null, result:{ protocolVersion:"2025-03-26", capabilities:{tools:{}}, serverInfo:{name:"Plivex Main Workspace",version:"1.0.0"} } };
   if (action === "mcp.tools/list") return { jsonrpc:"2.0", id:body.id ?? null, result:{ tools:[
     {name:"workspace_summary",description:"Read aggregate workspace settings and counts",inputSchema:{type:"object",properties:{},additionalProperties:false}},
-    {name:"list_invoices",description:"List recent workspace invoices",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}},
-    {name:"list_clients",description:"List workspace clients",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}},
+    ...(key.scopes.includes("invoices.read") ? [{name:"list_invoices",description:"List recent workspace invoices",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
+    ...(key.scopes.includes("clients.read") ? [{name:"list_clients",description:"List workspace clients",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
     {name:"business_insights",description:"Generate aggregate AI business insights without customer PII",inputSchema:{type:"object",properties:{},additionalProperties:false}}
   ] } };
   if (action === "mcp.tools/call") {
