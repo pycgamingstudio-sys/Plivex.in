@@ -319,11 +319,11 @@ export default function GlobalPart4Panel({ account, initialSection = "crm" }) {
     <div className="overflow-hidden rounded-2xl border border-[#E7E2F2] bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8B7AAE]">Plivex workspace / {section === "crm" ? "CRM" : section === "sales_docs" ? "Sales" : "Inventory"}</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8B7AAE]">Plivex workspace / {section === "crm" ? "CRM" : section === "sales_docs" ? "Sales" : section === "suppliers" ? "Suppliers" : "Inventory"}</p>
           <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{sectionTitle}</h1>
           <p className="mt-1 text-xs leading-relaxed text-slate-500 sm:text-sm">{sectionDescription}</p>
         </div>
-        <button type="button" className={secondary + " inline-flex items-center gap-2"} onClick={() => refresh().catch((e) => setError(e.message))}>
+        <button type="button" className={secondary + " inline-flex items-center gap-2"} onClick={() => (section === "suppliers" ? loadSupplierPortal() : refresh()).catch((e) => setError(e.message))}>
           <RefreshCw className="h-4 w-4" /> Refresh data
         </button>
       </div>
