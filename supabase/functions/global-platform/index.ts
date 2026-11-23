@@ -264,13 +264,14 @@ Deno.serve(async (req: Request) => {
   const admin = "error" in auth ? (await import("../_shared/global.ts")).createGlobalAdminClient() : auth.admin;
   try {
     if (req.headers.has("x-plivex-key")) return await publicApi(req, admin);
-    if ("error" in auth) return globalJson({ error: auth.error }, auth.status, origin);
     if (!isGlobalOriginAllowed(origin)) return globalJson({ error: "Origin not allowed" }, 403, origin);
     if (req.method !== "POST") return globalJson({ error: "Method not allowed" }, 405, origin);
     const body = await req.json();
-    if (!isObject(body) || !["signature.request", "signature.complete", "signature.preview", "signature.list", "ocr.process", "whatsapp.send", "api-key.create", "api-key.list", "api-key.revoke"].includes(body.action)) return globalJson({ error: "Invalid action" }, 400, origin);
+    if (isObject(body) && body.action === "signature.complete") return globalJson(await signDocument(admin, req, body), 200, origin);
+    if (isObject(body) && body.action === "signature.preview") return globalJson(await signPreview(admin, clean(body.token, 256)), 200, origin);
+    if ("error" in auth) return globalJson({ error: auth.error }, auth.status, origin);
+    if (!isObject(body) || !["signature.request", "signature.list", "ocr.process", "whatsapp.send", "api-key.create", "api-key.list", "api-key.revoke"].includes(body.action)) return globalJson({ error: "Invalid action" }, 400, origin);
     const user = auth.user;
-    if (body.action === "signature.complete") return globalJson(await signDocument(admin, req, body), 200, origin);
     if (body.action === "signature.request") return globalJson(await createSignature(admin, user, body, origin), 201, origin);
     if (body.action === "signature.list") {
       if (!UUID.test(body.workspaceId || "") || !await member(admin, user.id, body.workspaceId, ["owner", "admin", "manager", "accountant"])) throw new Error("ACCESS_DENIED");
