@@ -19,7 +19,7 @@ const randomToken = (bytes = 32) => {
   return btoa(String.fromCharCode(...value)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 };
 const clean = (value: unknown, max = 200) => String(value ?? "").trim().slice(0, max);
-const bytesFromBase64 = (value: string) => {
+const toBase64 = (bytes: Uint8Array) => {\n  let binary = "";\n  const chunk = 0x8000;\n  for (let offset = 0; offset < bytes.length; offset += chunk) binary += String.fromCharCode(...bytes.subarray(offset, offset + chunk));\n  return btoa(binary);\n};\nconst bytesFromBase64 = (value: string) => {
   const raw = atob(value);
   if (raw.length > MAX_FILE_BYTES) throw new Error("FILE_TOO_LARGE");
   return Uint8Array.from(raw, (char) => char.charCodeAt(0));
@@ -118,7 +118,7 @@ async function processOcr(admin: any, user: any, body: any) {
   if (!apiKey) throw new Error("OCR_PROVIDER_NOT_CONFIGURED");
   const model = Deno.env.get("GEMINI_OCR_MODEL") || "gemini-2.5-flash";
   const prompt = "Extract the document into JSON. Return only JSON with keys document_type, supplier_name, supplier_tax_id, document_number, document_date, due_date, currency, subtotal, tax_total, total, line_items (array of description, quantity, unit_price, tax_rate, line_total), payment_reference, confidence (0..1), and review_notes (array). Use null for unknown values. Never invent unreadable values. This is an extraction draft; it must be reviewed by a human before use.";
-  const base64 = btoa(String.fromCharCode(...bytes));
+  const base64 = toBase64(bytes);
   const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(apiKey), {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mime, data: base64 } }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.1 } }),
@@ -197,7 +197,7 @@ async function publicApi(req: Request, admin: any) {
       { name: "list_clients", description: "List workspace clients.", inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 100 } }, additionalProperties: false } },
     ] };
   } else {
-    const args = isObject(raw.arguments) ? raw.arguments : raw;
+    const args = isObject(raw.arguments) ? raw.arguments : isObject(raw.params?.arguments) ? raw.params.arguments : raw;
     if (operation === "workspace.summary" || args.name === "workspace_summary") {
       if (!has("workspace.read")) return json({ error: "Scope required: workspace.read" }, 403);
       const [invoices, clients] = await Promise.all([
