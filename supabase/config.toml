@@ -39,3 +39,12 @@ verify_jwt = false
 # Global accounting operations require a verified Supabase JWT.
 [functions.global-accounting]
 verify_jwt = true
+
+# Global platform API authenticates workspace actions in-handler and accepts
+# one-time public signing links / scoped x-plivex-key requests without a user JWT.
+[functions.global-platform]
+verify_jwt = false
+
+# Meta verifies the WhatsApp webhook challenge and HMAC signature in the handler.
+[functions.whatsapp-webhook]
+verify_jwt = false

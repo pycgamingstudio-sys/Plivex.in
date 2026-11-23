@@ -9,6 +9,7 @@ import GlobalInvoicesPanel from "@/components/global/GlobalInvoicesPanel";
 import GlobalQuotationsPanel from "@/components/global/GlobalQuotationsPanel";
 import GlobalAccountingPanel from "@/components/global/GlobalAccountingPanel";
 import GlobalEnterprisePanel from "@/components/global/GlobalEnterprisePanel";
+import GlobalPlatformPanel from "@/components/global/GlobalPlatformPanel";
 import GlobalPart4Panel from "@/components/global/GlobalPart4Panel";
 
 
@@ -25,6 +26,7 @@ const NAV = [
   { id: "quotations", label: "Quotations" },
   { id: "accounting", label: "Accounting" },
   { id: "enterprise", label: "Enterprise" },
+  { id: "platform", label: "Integrations & AI" },
 ];
 const TABLES = { clients: "clients", products: "products", expenses: "expenses", inventory: "stock_levels", invoices: "invoices" };
 const TAB_PATHS = {
@@ -40,6 +42,7 @@ const TAB_PATHS = {
   quotations: "/quotations",
   accounting: "/accounting",
   enterprise: "/enterprise",
+  platform: "/platform",
 };
 const localDate = () => {
   const date = new Date();
@@ -84,14 +87,14 @@ export default function GlobalApp({ section = "overview" }) {
   }, [account?.workspace_id]);
 
   const loadRecords = useCallback(async (activeTab = tab) => {
-    if (!account?.workspace_id || ["crm", "inventory", "quotations", "suppliers"].includes(activeTab)) return;
+    if (!account?.workspace_id || ["crm", "inventory", "quotations", "suppliers", "platform"].includes(activeTab)) return;
     const tables = activeTab === "overview" ? ["clients", "products", "expenses", "invoices", "stock_levels"] : [TABLES[activeTab]];
     const results = await Promise.all(tables.map(async (table) => [table, await invoke(table)]));
     setRecords((current) => ({ ...current, ...Object.fromEntries(results.map(([table, result]) => [table, result.records || []])) }));
   }, [account?.workspace_id, invoke, tab]);
 
   useEffect(() => {
-    if (!account?.workspace_id || ["accounting", "quotations", "suppliers"].includes(tab)) return;
+    if (!account?.workspace_id || ["accounting", "quotations", "suppliers", "platform"].includes(tab)) return;
     loadRecords(tab).catch((loadError) => setError(loadError.message));
   }, [account?.workspace_id, tab, loadRecords]);
 
@@ -194,6 +197,8 @@ export default function GlobalApp({ section = "overview" }) {
           <GlobalAccountingPanel account={account} invoke={invoke} />
         ) : tab === "enterprise" ? (
           <GlobalEnterprisePanel workspaceId={account.workspace_id} />
+        ) : tab === "platform" ? (
+          <GlobalPlatformPanel workspaceId={account.workspace_id} />
         ) : ["crm", "inventory", "sales_docs", "suppliers"].includes(tab) ? (
           <GlobalPart4Panel account={account} initialSection={tab === "crm" ? "crm" : tab === "sales_docs" ? "sales_docs" : tab === "suppliers" ? "suppliers" : "warehouses"} />
         ) : (

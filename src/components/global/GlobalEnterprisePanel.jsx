@@ -15,6 +15,7 @@ async function responseError(error, fallback) {
 
 export default function GlobalEnterprisePanel({ workspaceId }) {
   const [branches, setBranches] = useState([]);
+  const [members, setMembers] = useState([]);
   const [approvals, setApprovals] = useState([]);
   const [approvalPolicies, setApprovalPolicies] = useState([]);
   const [approvalPolicyAction, setApprovalPolicyAction] = useState("expense.create");
@@ -36,6 +37,8 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
   const [approvalExpenseDate, setApprovalExpenseDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [approvalExpenseCurrency, setApprovalExpenseCurrency] = useState("USD");
   const [permissionRole, setPermissionRole] = useState("manager");
+  const [permissionTarget, setPermissionTarget] = useState("role");
+  const [permissionMemberId, setPermissionMemberId] = useState("");
   const [permissionKey, setPermissionKey] = useState("export.request");
   const [permissionEffect, setPermissionEffect] = useState("deny");
   const [permissionDelegations, setPermissionDelegations] = useState([]);
@@ -75,6 +78,7 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
       enterprise("audit.list", { limit: 50 }),
       enterprise("health.read"),
       enterprise("permission.delegation.list"),
+      enterprise("member.list"),
     ]);
     if (results[0].status === "fulfilled") setBranches(results[0].value.branches || []);
     if (results[1].status === "fulfilled") setApprovals(results[1].value.requests || []);
@@ -85,6 +89,11 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
       setPermissionDelegations(results[5].value.delegations || []);
       setDelegationCandidates(results[5].value.members || []);
       setDelegationCanManage(results[5].value.canManage === true);
+    }
+    if (results[6].status === "fulfilled") {
+      const activeMembers = results[6].value.members || [];
+      setMembers(activeMembers);
+      setPermissionMemberId((current) => current && activeMembers.some((member) => member.id === current) ? current : activeMembers[0]?.id || "");
     }
     const denied = results.find((result) => result.status === "rejected");
     if (denied) setError(denied.reason?.message || "Some enterprise information could not be loaded. Your role may not have access.");
@@ -171,7 +180,11 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
 
   const setPermission = (event) => {
     event.preventDefault();
-    perform(() => enterprise("permission.set", { role: permissionRole, permissionKey, effect: permissionEffect }), "Role permission updated.");
+    perform(() => enterprise("permission.set", {
+      ...(permissionTarget === "member" ? { memberId: permissionMemberId } : { role: permissionRole }),
+      permissionKey: permissionKey.trim(),
+      effect: permissionEffect,
+    }), permissionTarget === "member" ? "Individual member permission updated." : "Role permission updated.");
   };
 
   const toggleDelegationPermission = (key) => setDelegationPermissionKeys((current) =>
@@ -338,18 +351,27 @@ export default function GlobalEnterprisePanel({ workspaceId }) {
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="font-semibold text-slate-900">Role permissions</h2>
+          <h2 className="font-semibold text-slate-900">Role permissions & member delegation</h2>
           <form onSubmit={setPermission} className="mt-3 grid gap-2 sm:grid-cols-2">
-            <select className={inputClass} value={permissionRole} onChange={(e) => setPermissionRole(e.target.value)} aria-label="Role">
-              {["manager", "employee", "accountant", "viewer"].map((role) => <option key={role}>{role}</option>)}
+            <select className={inputClass} value={permissionTarget} onChange={(e) => setPermissionTarget(e.target.value)} aria-label="Permission target">
+              <option value="role">Apply to a role</option><option value="member">Apply to one member</option>
             </select>
+            {permissionTarget === "role" ? (
+              <select className={inputClass} value={permissionRole} onChange={(e) => setPermissionRole(e.target.value)} aria-label="Role">
+                {["manager", "employee", "accountant", "viewer"].map((role) => <option key={role}>{role}</option>)}
+              </select>
+            ) : (
+              <select className={inputClass} value={permissionMemberId} onChange={(e) => setPermissionMemberId(e.target.value)} aria-label="Workspace member" required>
+                {members.map((member) => <option key={member.id} value={member.id}>{member.role} · {member.userId.slice(0, 8)}…</option>)}
+              </select>
+            )}
             <select className={inputClass} value={permissionEffect} onChange={(e) => setPermissionEffect(e.target.value)} aria-label="Effect">
               <option value="grant">Grant</option><option value="deny">Deny</option>
             </select>
-            <input className={inputClass + " sm:col-span-2"} required maxLength={96} value={permissionKey} onChange={(e) => setPermissionKey(e.target.value)} aria-label="Permission key" />
-            <button className={buttonClass} disabled={busy}>Save role rule</button>
+            <input className={inputClass} required maxLength={96} value={permissionKey} onChange={(e) => setPermissionKey(e.target.value)} aria-label="Permission key" />
+            <button className={buttonClass + " sm:col-span-2"} disabled={busy || (permissionTarget === "member" && (!permissionMemberId || members.length === 0))}>Save permission rule</button>
           </form>
-          <p className="mt-2 text-xs text-slate-500">Owner/admin controls are protected server-side. A role-level rule applies to that role across this workspace.</p>
+          <p className="mt-2 text-xs text-slate-500">Owner/admin-only member directory. Choose a role for workspace-wide defaults or a specific active member for an individual grant/deny override. Member-level rules take precedence over role-level rules.</p>
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white p-4">
