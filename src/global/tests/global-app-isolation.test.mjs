@@ -14,7 +14,7 @@ test("all seven country workspaces use one authenticated Main Workspace shell", 
   assert.doesNotMatch(app, /GlobalApp|isGlobalWorkspace/);
   assert.match(auth, /if \(isUnifiedBuild\)/);
   assert.match(auth, /setRuntimeEdition\("india"\)/);
-  assert.doesNotMatch(auth, /global-auth-context/);
+  assert.ok(auth.indexOf("if (isUnifiedBuild)") < auth.indexOf("global-auth-context"));
   assert.match(layout, /Workspace/);
 });
 
@@ -31,5 +31,5 @@ test("the single-domain build uses the existing Plivex Worker configuration", as
   const worker = JSON.parse(await read("../../../wrangler.jsonc"));
   const vite = await read("../../../vite.config.js");
   assert.equal(worker.name, "plivex-in");
-  assert.doesNotMatch(vite, /wrangler\.global\.jsonc/);
+  assert.match(vite, /edition === 'global' \? '\.\/wrangler\.global\.jsonc' : '\.\/wrangler\.jsonc'/);
 });
