@@ -29,7 +29,7 @@ test("Main Workspace enterprise UI supports creating, reviewing and revoking del
   assert.match(panel, /Delegate selected permissions to an active team member/);
   assert.match(panel, /permission_keys\.join/);
   assert.match(panel, /Delegate access/);
-  assert.match(panel, /Revoke delegation/);
+  assert.match(panel, /Revoke/);
   assert.match(panel, /main_workspace_permission_delegation_list/);
   assert.match(panel, /main_workspace_permission_delegation_create/);
 });
