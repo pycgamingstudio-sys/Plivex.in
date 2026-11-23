@@ -181,12 +181,15 @@ async function publicApi(req: Request, admin: any) {
   if (!/^plx_[A-Za-z0-9]{6}_[A-Za-z0-9_-]{30,}$/.test(key)) return json({ error: "API key required" }, 401);
   const keyHash = await sha256(key);
   const { data: apiKey, error } = await admin.schema("global").from("public_api_keys")
-    .select("id,workspace_id,scopes,expires_at,revoked_at").eq("key_hash", keyHash).maybeSingle();
+    .select("id,workspace_id,created_by,scopes,expires_at,revoked_at").eq("key_hash", keyHash).maybeSingle();
   if (error || !apiKey || apiKey.revoked_at || new Date(apiKey.expires_at).getTime() <= Date.now()) return json({ error: "API key invalid or expired" }, 401);
+  const activeOwner = await member(admin, apiKey.created_by, apiKey.workspace_id, ["owner", "admin"]);
+  if (!activeOwner) return json({ error: "API key owner is no longer an active workspace administrator" }, 401);
   const { data: limited, error: rateError } = await admin.rpc("global_consume_enterprise_rate_limit", { p_key: "public-api:" + keyHash, p_limit: 120, p_window_seconds: 60 });
   if (rateError || limited !== true) return json({ error: "API rate limit exceeded" }, 429);
   const raw = req.method === "GET" ? Object.fromEntries(new URL(req.url).searchParams.entries()) : await req.json().catch(() => ({}));
-  const operation = clean(raw.operation || raw.method, 80);
+  const mcpMethod = clean(raw.method, 80);
+  const operation = clean(raw.operation || (mcpMethod === "tools/call" ? raw.params?.name : mcpMethod), 80);
   const has = (scope: string) => apiKey.scopes.includes(scope);
   let result: any;
   if (operation === "mcp.tools/list" || raw.method === "tools/list") {
@@ -195,6 +198,7 @@ async function publicApi(req: Request, admin: any) {
       { name: "workspace_summary", description: "Read invoice and client totals for this workspace.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
       { name: "list_invoices", description: "List recent invoices.", inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 100 } }, additionalProperties: false } },
       { name: "list_clients", description: "List workspace clients.", inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 100 } }, additionalProperties: false } },
+      { name: "business_insights", description: "Generate an AI summary from aggregate workspace financial metrics.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
     ] };
   } else {
     const args = isObject(raw.arguments) ? raw.arguments : isObject(raw.params?.arguments) ? raw.params.arguments : raw;
@@ -218,6 +222,32 @@ async function publicApi(req: Request, admin: any) {
       const { data, error: readError } = await admin.schema("global").from("clients").select("id,name,email,phone,status").eq("workspace_id", apiKey.workspace_id).order("created_at", { ascending: false }).limit(limit);
       if (readError) return json({ error: "Clients unavailable" }, 503);
       result = { clients: data };
+    } else if (operation === "business_insights") {
+      if (!has("mcp.read") || !has("workspace.read")) return json({ error: "Scopes required: mcp.read and workspace.read" }, 403);
+      const apiKeyData = await admin.schema("global").from("invoices")
+        .select("status,currency_code,total_minor,amount_paid_minor,issue_date,due_date")
+        .eq("workspace_id", apiKey.workspace_id).limit(5000);
+      if (apiKeyData.error) return json({ error: "Workspace metrics unavailable" }, 503);
+      const rows = apiKeyData.data || [];
+      const aggregate = rows.reduce((acc: any, row: any) => {
+        const currency = row.currency_code || "UNK";
+        acc[currency] ||= { currency, invoiceCount: 0, totalMinor: 0, paidMinor: 0, outstandingMinor: 0 };
+        acc[currency].invoiceCount += 1;
+        acc[currency].totalMinor += Number(row.total_minor || 0);
+        acc[currency].paidMinor += Number(row.amount_paid_minor || 0);
+        acc[currency].outstandingMinor += Math.max(0, Number(row.total_minor || 0) - Number(row.amount_paid_minor || 0));
+        return acc;
+      }, {});
+      const apiKeyGemini = Deno.env.get("GEMINI_API_KEY");
+      if (!apiKeyGemini) return json({ error: "AI provider is not configured" }, 503);
+      const model = Deno.env.get("GEMINI_BUSINESS_MODEL") || "gemini-2.5-flash";
+      const aiResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(apiKeyGemini), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: "You are a cautious small-business analyst. Analyze only these aggregate metrics. Do not invent trends, dates, causes or advice unsupported by the metrics. Clearly label observations and suggested checks. Keep the answer concise. Metrics: " + JSON.stringify(Object.values(aggregate)) }] }], generationConfig: { temperature: 0.2 } }),
+      });
+      if (!aiResponse.ok) return json({ error: "AI insights provider unavailable" }, 503);
+      const aiPayload = await aiResponse.json();
+      result = { aggregateMetrics: Object.values(aggregate), insights: aiPayload?.candidates?.[0]?.content?.parts?.map((part: any) => part.text || "").join("") || "No insight generated." };
     } else {
       return json({ error: "Unsupported operation" }, 400);
     }
@@ -238,7 +268,7 @@ Deno.serve(async (req: Request) => {
     if (!isGlobalOriginAllowed(origin)) return globalJson({ error: "Origin not allowed" }, 403, origin);
     if (req.method !== "POST") return globalJson({ error: "Method not allowed" }, 405, origin);
     const body = await req.json();
-    if (!isObject(body) || !["signature.request", "signature.complete", "signature.list", "ocr.process", "whatsapp.send", "api-key.create", "api-key.list", "api-key.revoke"].includes(body.action)) return globalJson({ error: "Invalid action" }, 400, origin);
+    if (!isObject(body) || !["signature.request", "signature.complete", "signature.preview", "signature.list", "ocr.process", "whatsapp.send", "api-key.create", "api-key.list", "api-key.revoke"].includes(body.action)) return globalJson({ error: "Invalid action" }, 400, origin);
     const user = auth.user;
     if (body.action === "signature.complete") return globalJson(await signDocument(admin, req, body), 200, origin);
     if (body.action === "signature.request") return globalJson(await createSignature(admin, user, body, origin), 201, origin);
