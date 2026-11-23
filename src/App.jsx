@@ -56,6 +56,7 @@ const PricingPage = lazy(() => import("./pages/PublicInfoPages").then((module) =
 const PaymentResult = lazy(() => import("./pages/PaymentResult"));
 const PublicInvoicePage = lazy(() => import("./pages/PublicInvoicePage"));
 const SupplierPortalPage = lazy(() => import("./pages/SupplierPortalPage"));
+const PublicSignaturePage = lazy(() => import("./pages/PublicSignaturePage"));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, isAuthenticated, user, logout } = useAuth();
@@ -129,6 +130,7 @@ const AuthenticatedApp = () => {
       <Route path="/features" element={<FeaturesPage />} />
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/i/:token" element={<PublicInvoicePage />} />
+      <Route path="/sign/:token" element={<PublicSignaturePage />} />
       <Route path="/" element={isGlobalWorkspace && isAuthenticated ? <Navigate to="/dashboard" replace /> : <HomeGate />} />
       <Route path="/dashboard" element={<HomeGate />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/" replace />} />}>
@@ -140,6 +142,7 @@ const AuthenticatedApp = () => {
           <Route path="/expenses" element={isGlobalWorkspace ? <GlobalApp section="expenses" /> : <Navigate to="/dashboard" replace state={{ initialTab: "purchase" }} />} />
           <Route path="/accounting" element={isGlobalWorkspace ? <GlobalApp section="accounting" /> : <Navigate to="/dashboard" replace state={{ initialTab: "reconciliation" }} />} />
           <Route path="/enterprise" element={isGlobalWorkspace ? <GlobalApp section="enterprise" /> : <Navigate to="/dashboard" replace state={{ initialTab: "team" }} />} />
+          <Route path="/platform" element={isGlobalWorkspace ? <GlobalApp section="platform" /> : <Navigate to="/dashboard" replace />} />
           <Route path="/invoice-history" element={isGlobalWorkspace ? <GlobalApp section="invoices" /> : <InvoiceHistory />} />
           <Route path="/quotations" element={isGlobalWorkspace ? <GlobalApp section="quotations" /> : <Navigate to="/dashboard" replace state={{ initialTab: "sales", initialSub: "quotations" }} />} />
           <Route path="/invoice-shares" element={<GlobalFeatureGate feature="Shared invoice links"><InvoiceShareManagement /></GlobalFeatureGate>} />
