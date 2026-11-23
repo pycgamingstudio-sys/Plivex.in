@@ -175,3 +175,18 @@ test("Main Workspace serial traceability validates warehouse ownership and audit
   assert.match(serialUi,/main_workspace_update_inventory_serial/);
   assert.match(serialUi,/does not change aggregate stock quantity/);
 });
+
+const biMigration=readFileSync(new URL("../../../supabase/migrations/20261123032824_main_workspace_custom_bi_and_cashflow_analytics.sql",import.meta.url),"utf8");
+const biUi=readFileSync(new URL("../../components/workspace/WorkspaceAnalyticsPanel.jsx",import.meta.url),"utf8");
+
+test("Main Workspace custom BI reports and currency-safe cashflow/sales analytics are available",()=>{
+  assert.match(biMigration,/workspace_custom_reports/);
+  assert.match(biMigration,/main_workspace_cashflow_forecast/);
+  assert.match(biMigration,/main_workspace_sales_analytics/);
+  assert.match(biMigration,/currency/);
+  assert.match(biMigration,/partial receipts are not netted/);
+  assert.match(biUi,/Business intelligence & cash-flow analytics/);
+  assert.match(biUi,/Save report/);
+  assert.match(biUi,/3-month cash-flow forecast/);
+  assert.match(biUi,/Six-month sales analytics/);
+});
