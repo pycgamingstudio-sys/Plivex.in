@@ -39,7 +39,7 @@ export default function GlobalPlatformPanel({ workspaceId }) {
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [consentStatement, setConsentStatement] = useState("");
   const [apiLabel, setApiLabel] = useState("Accounting integration");
-  const [apiScopes, setApiScopes] = useState(["workspace.read", "invoices.read", "clients.read", "mcp.read"]);
+  const [apiScopes, setApiScopes] = useState(["workspace.read", "invoices.read", "clients.read", "expenses.read", "leads.read", "inventory.read", "suppliers.read", "mcp.read"]);
   const [apiKeys, setApiKeys] = useState([]);
   const [newSecret, setNewSecret] = useState("");
   const [busy, setBusy] = useState(false);
@@ -138,12 +138,12 @@ export default function GlobalPlatformPanel({ workspaceId }) {
       <p className="mt-1 text-xs text-slate-500">Read-only workspace API with scoped, expiring, revocable keys. The secret is displayed once only. Keep it on a trusted server, never in browser code.</p>
       <form onSubmit={createKey} className="mt-3 space-y-2">
         <input className={field} required minLength={2} maxLength={80} value={apiLabel} onChange={(e) => setApiLabel(e.target.value)} placeholder="API key label" />
-        <div className="flex flex-wrap gap-3 text-sm">{["workspace.read","invoices.read","clients.read","mcp.read"].map((scope) => <label key={scope} className="flex items-center gap-1"><input type="checkbox" checked={apiScopes.includes(scope)} onChange={() => toggleScope(scope)} />{scope}</label>)}</div>
+        <div className="flex flex-wrap gap-3 text-sm">{["workspace.read","invoices.read","clients.read","expenses.read","leads.read","inventory.read","suppliers.read","mcp.read"].map((scope) => <label key={scope} className="flex items-center gap-1"><input type="checkbox" checked={apiScopes.includes(scope)} onChange={() => toggleScope(scope)} />{scope}</label>)}</div>
         <button className={primary} disabled={busy || apiScopes.length === 0}>Create API key</button>
       </form>
       {newSecret && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-sm font-semibold">Copy this API key now</p><code className="mt-2 block break-all text-xs">{newSecret}</code><button type="button" className={secondary + " mt-2"} onClick={() => navigator.clipboard.writeText(newSecret)}>Copy secret</button></div>}
       <div className="mt-3 space-y-2">{apiKeys.map((key) => <div key={key.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-2 text-sm"><span>{key.label} · {key.key_prefix} · expires {new Date(key.expires_at).toLocaleDateString()}</span>{key.revoked_at ? <span className="text-slate-500">Revoked</span> : <button type="button" className={secondary} disabled={busy} onClick={() => run(async () => { await invoke({ action: "api-key.revoke", workspaceId, keyId: key.id }); await refresh(); }, "API key revoked.")}>Revoke</button>}</div>)}</div>
-      <div className="mt-4 rounded-lg bg-slate-50 p-3 text-xs"><p className="font-semibold">MCP endpoint</p><code>https://sqzpaiibmfsvarrkwkvb.supabase.co/functions/v1/global-platform</code><p className="mt-1">Headers: <code>apikey: SUPABASE_ANON_KEY</code> and <code>x-plivex-key: YOUR_KEY</code>. JSON-RPC methods: <code>tools/list</code> and <code>tools/call</code>. Read-only tools: workspace_summary, list_invoices, list_clients.</p></div>
+      <div className="mt-4 rounded-lg bg-slate-50 p-3 text-xs"><p className="font-semibold">MCP endpoint</p><code>https://sqzpaiibmfsvarrkwkvb.supabase.co/functions/v1/global-platform</code><p className="mt-1">Headers: <code>apikey: SUPABASE_ANON_KEY</code> and <code>x-plivex-key: YOUR_KEY</code>. JSON-RPC methods: <code>tools/list</code> and <code>tools/call</code>. Read-only tools: workspace_summary, list_invoices, list_clients, list_expenses, list_leads, low_stock_items, list_suppliers, business_insights.</p></div>
     </section>
   </section>;
 }
