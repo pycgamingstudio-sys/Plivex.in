@@ -125,7 +125,7 @@ export default function SupplierPortalPage() {
                 </div></div>
                 <div><h2 className="text-sm font-bold">Contact details</h2><div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <label className="text-xs font-semibold text-slate-600">Contact person *<input required maxLength={160} className={input+" mt-1"} value={form.contact_name} onChange={(e)=>change("contact_name",e.target.value)}/></label>
-                  <label className="text-xs font-semibold text-slate-600">Email *<input required type="email" maxLength={254} className={input+" mt-1"} value={form.email} onChange={(e)=>change("email",e.target.value)}/></label>
+                  <label className="text-xs font-semibold text-slate-600">Invitation email<input required type="email" maxLength={254} readOnly className={input+" mt-1 bg-slate-50"} value={form.email}/></label>
                   <label className="text-xs font-semibold text-slate-600 sm:col-span-2">Phone<input type="tel" maxLength={40} className={input+" mt-1"} value={form.phone} onChange={(e)=>change("phone",e.target.value)}/></label>
                 </div></div>
                 <div><h2 className="text-sm font-bold">Business address</h2><div className="mt-3 grid gap-3 sm:grid-cols-2">
