@@ -36,7 +36,7 @@ export default function GlobalPlatformPanel({ workspaceId }) {
   const [customerInitiatedAt, setCustomerInitiatedAt] = useState("");
   const [templateName, setTemplateName] = useState("");
   const [templateLanguage, setTemplateLanguage] = useState("en");
-  const [consentConfirmed, setConsentConfirmed] = useState(false);
+  const [consentConfirmed, setConsentConfirmed] = useState(false);\n  const [consentStatement, setConsentStatement] = useState("");
   const [apiLabel, setApiLabel] = useState("Accounting integration");
   const [apiScopes, setApiScopes] = useState(["workspace.read", "invoices.read", "clients.read", "mcp.read"]);
   const [apiKeys, setApiKeys] = useState([]);
@@ -76,7 +76,7 @@ export default function GlobalPlatformPanel({ workspaceId }) {
   const sendMessage = (event) => {
     event.preventDefault();
     run(async () => {
-      await invoke({ action: "whatsapp.send", workspaceId, recipientPhone, messageType, message, customerInitiatedAt: customerInitiatedAt ? new Date(customerInitiatedAt).toISOString() : null, templateName, templateLanguage, consentConfirmed });
+      await invoke({ action: "whatsapp.send", workspaceId, recipientPhone, messageType, message, consentStatement, customerInitiatedAt: customerInitiatedAt ? new Date(customerInitiatedAt).toISOString() : null, templateName, templateLanguage, consentConfirmed });
     }, "WhatsApp message accepted by Meta for delivery.");
   };
   const createKey = (event) => {
@@ -121,8 +121,8 @@ export default function GlobalPlatformPanel({ workspaceId }) {
         <input className={field} required placeholder="Recipient phone (+country code)" value={recipientPhone} onChange={(e) => setRecipientPhone(e.target.value)} />
         <select className={field} value={messageType} onChange={(e) => setMessageType(e.target.value)}><option value="template">Approved template</option><option value="text">Free-form (24-hour window)</option></select>
         {messageType === "template" ? <><input className={field} required placeholder="Approved Meta template name" value={templateName} onChange={(e) => setTemplateName(e.target.value)} /><input className={field} placeholder="Template language (en)" value={templateLanguage} onChange={(e) => setTemplateLanguage(e.target.value)} /></> : <><textarea className={field} required maxLength={4000} placeholder="Message" value={message} onChange={(e) => setMessage(e.target.value)} /><input className={field} required type="datetime-local" value={customerInitiatedAt} onChange={(e) => setCustomerInitiatedAt(e.target.value)} aria-label="Customer initiated conversation time" /></>}
-        <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" checked={consentConfirmed} onChange={(e) => setConsentConfirmed(e.target.checked)} required /> Customer has explicitly opted in to receive WhatsApp messages.</label>
-        <button className={primary} disabled={busy || !consentConfirmed}>Send WhatsApp message</button>
+        <input className={field + " sm:col-span-2"} required minLength={10} maxLength={500} placeholder="Opt-in evidence (e.g. website checkout consent on 2026-11-23)" value={consentStatement} onChange={(e) => setConsentStatement(e.target.value)} />\n        <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" checked={consentConfirmed} onChange={(e) => setConsentConfirmed(e.target.checked)} required /> Customer has explicitly opted in to receive WhatsApp messages.</label>
+        <button className={primary} disabled={busy || !consentConfirmed || consentStatement.trim().length < 10}>Send WhatsApp message</button>
       </form>
     </section>
     <section className="rounded-xl border border-slate-200 bg-white p-4">
