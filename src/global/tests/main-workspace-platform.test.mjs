@@ -245,3 +245,18 @@ test("All country routes use the single Main Workspace and do not load the retir
   assert.match(app,/All supported countries use the same Main Workspace routes/);
   assert.match(app,/path="\/platform"/);
 });
+
+const crmUi=readFileSync(new URL("../../components/workspace/WorkspaceCRMPanel.jsx",import.meta.url),"utf8");
+
+test("Main Workspace CRM persists clients, leads, stages and follow-up activity in Supabase",()=>{
+  assert.match(crmUi,/supabase\.from\("clients"\)/);
+  assert.match(crmUi,/supabase\.from\("leads"\)/);
+  assert.match(crmUi,/supabase\.from\("lead_activities"\)/);
+  assert.match(crmUi,/Lead pipeline/);
+  assert.match(crmUi,/Upcoming & overdue follow-ups/);
+  assert.match(crmUi,/Activity timeline/);
+  assert.match(crmUi,/main_workspace_complete_lead_activity/);
+  assert.match(app,/WorkspaceCRMPanel initialTab="leads"/);
+  assert.match(app,/WorkspaceCRMPanel initialTab="clients"/);
+  assert.doesNotMatch(app,/CrmTab/);
+});
