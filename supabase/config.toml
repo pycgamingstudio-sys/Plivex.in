@@ -39,3 +39,8 @@ verify_jwt = false
 # Global accounting operations require a verified Supabase JWT.
 [functions.global-accounting]
 verify_jwt = true
+
+# Main Workspace platform endpoint authenticates workspace actions in-handler.
+# Public signing links and API-key/MCP calls are authenticated by one-time hashes.
+[functions.workspace-platform]
+verify_jwt = false
