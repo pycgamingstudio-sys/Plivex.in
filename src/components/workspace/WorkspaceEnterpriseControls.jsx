@@ -71,12 +71,12 @@ export default function WorkspaceEnterpriseControls(){
     <div className="flex gap-2"><input className={input} type="number" min="1" max="90" value={delegate.days} onChange={e=>setDelegate(v=>({...v,days:e.target.value}))}/><button className={button} disabled={busy||!delegate.memberId||!delegate.permissions.length}>Delegate access</button></div>
    </form>
    <div className="mt-4 space-y-2">{delegations.length?delegations.map(d=><div key={d.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-2 text-xs"><span>{d.delegate_name||d.delegate_email} · {d.permission_keys.join(", ")} · until {new Date(d.expires_at).toLocaleDateString()}</span>{d.revoked_at?<span>Revoked</span>:<button className={outline} disabled={busy} onClick={()=>revoke(d.id)}>Revoke</button>}</div>):<p className="text-xs text-slate-500">No active delegations.</p>}</div>
-   <form onSubmit={saveOverride} className="mt-5 space-y-2 border-t pt-4">
+   {user?.role==="admin"&&<form onSubmit={saveOverride} className="mt-5 space-y-2 border-t pt-4">
     <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-violet-700"/><h3 className="text-sm font-semibold">Permission override</h3></div>
     <select className={input} value={override.target} onChange={e=>setOverride(v=>({...v,target:e.target.value}))}><optgroup label="Roles">{ROLES.map(r=><option key={r} value={"role:"+r}>{r} role</option>)}</optgroup><optgroup label="Members">{members.map(m=><option key={m.id} value={"member:"+m.id}>{m.name||m.email}</option>)}</optgroup></select>
     <div className="grid gap-2 sm:grid-cols-2"><select className={input} value={override.permission} onChange={e=>setOverride(v=>({...v,permission:e.target.value}))}>{PERMISSIONS.map(p=><option key={p} value={p}>{p}</option>)}</select><select className={input} value={override.effect} onChange={e=>setOverride(v=>({...v,effect:e.target.value}))}><option value="allow">Allow</option><option value="deny">Deny</option></select></div>
     <button className={outline} disabled={busy}>Save permission override</button>
-   </form>
+   </form>}
   </section>
   {error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
   {notice&&<p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
