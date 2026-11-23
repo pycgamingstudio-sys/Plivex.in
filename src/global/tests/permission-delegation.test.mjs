@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const migration = readFileSync(new URL("../../../supabase/migrations/20261123014000_global_permission_delegation.sql", import.meta.url), "utf8");
+const migration = readFileSync(new URL("../../../supabase/migrations/20261123014256_global_permission_delegation.sql", import.meta.url), "utf8");
 const edge = readFileSync(new URL("../../../supabase/functions/global-enterprise/index.ts", import.meta.url), "utf8");
 const panel = readFileSync(new URL("../../components/global/GlobalEnterprisePanel.jsx", import.meta.url), "utf8");
 
