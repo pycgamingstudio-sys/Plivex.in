@@ -13,7 +13,7 @@ This release candidate adds four workspace platform capabilities on top of the e
 
 ## 2. Document OCR
 
-- Upload JPEG, PNG, WebP or PDF up to 8 MB to a private Storage bucket.
+- Upload JPEG, PNG, WebP or PDF up to 4 MB to a private Storage bucket.
 - Gemini extracts a structured draft for invoices, receipts and purchase orders.
 - The original file is kept in private storage and the extraction is stored as an OCR job.
 - No invoice, expense, inventory or accounting record is created automatically. A human must review and confirm extracted values.
@@ -37,7 +37,7 @@ Subscribe the Meta app to the WhatsApp `messages` webhook field. The handler ver
 
 - Create scoped keys in the Global workspace Integrations & AI section. Keys expire in at most 365 days and can be revoked.
 - Only SHA-256 key hashes are stored; the secret is displayed once.
-- Send the key in `x-plivex-key` to:
+- Send the Supabase project anon key in the standard `apikey` header and your workspace key in `x-plivex-key` to:
   `https://sqzpaiibmfsvarrkwkvb.supabase.co/functions/v1/global-platform`
 - REST operations: `workspace.summary`, `invoices.list`, `clients.list`.
 - MCP JSON-RPC methods: `tools/list`, `tools/call`.
