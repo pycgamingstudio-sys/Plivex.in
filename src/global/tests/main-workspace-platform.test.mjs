@@ -219,3 +219,21 @@ test("Main Workspace journals enforce balanced double-entry and FX snapshots sta
   assert.match(bankUi,/Manual, dated FX snapshots/);
   assert.match(bankLists,/main_workspace_list_bank_data/);
 });
+
+const gstMigration=readFileSync(new URL("../../../supabase/migrations/20261123033733_main_workspace_gst_return_preparation.sql",import.meta.url),"utf8");
+const gstHardening=readFileSync(new URL("../../../supabase/migrations/20261123033803_main_workspace_gst_return_hardening.sql",import.meta.url),"utf8");
+const gstUi=readFileSync(new URL("../../components/workspace/WorkspaceGSTCompliance.jsx",import.meta.url),"utf8");
+
+test("Main Workspace GST return preparation is India-only, auditable and never claims GSTN submission",()=>{
+  assert.match(gstMigration,/india_workspace_required/);
+  assert.match(gstMigration,/main_workspace_prepare_gstr1_draft/);
+  assert.match(gstMigration,/main_workspace_import_gstr2b/);
+  assert.match(gstMigration,/main_workspace_match_gstr2b_line/);
+  assert.match(gstMigration,/main_workspace_compute_gstr3b/);
+  assert.match(gstMigration,/main_workspace_generate_gst_calendar/);
+  assert.match(gstHardening,/main_workspace_mark_gstr1_exported/);
+  assert.match(gstUi,/does not connect to GSTN or file returns/);
+  assert.match(gstUi,/GSTR-1/);
+  assert.match(gstUi,/GSTR-2B/);
+  assert.match(gstUi,/GSTR-3B/);
+});
