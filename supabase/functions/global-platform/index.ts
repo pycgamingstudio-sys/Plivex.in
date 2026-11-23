@@ -125,7 +125,7 @@ async function processOcr(admin: any, user: any, body: any) {
   const prompt = "Extract the document into JSON. Return only JSON with keys document_type, supplier_name, supplier_tax_id, document_number, document_date, due_date, currency, subtotal, tax_total, total, line_items (array of description, quantity, unit_price, tax_rate, line_total), payment_reference, confidence (0..1), and review_notes (array). Use null for unknown values. Never invent unreadable values. This is an extraction draft; it must be reviewed by a human before use.";
   const base64 = toBase64(bytes);
   const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(apiKey), {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mime, data: base64 } }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.1 } }),
   });
   if (!response.ok) {
@@ -193,6 +193,7 @@ async function publicApi(req: Request, admin: any) {
   const { data: limited, error: rateError } = await admin.rpc("global_consume_enterprise_rate_limit", { p_key: "public-api:" + keyHash, p_limit: 120, p_window_seconds: 60 });
   if (rateError || limited !== true) return json({ error: "API rate limit exceeded" }, 429);
   const raw = req.method === "GET" ? Object.fromEntries(new URL(req.url).searchParams.entries()) : await req.json().catch(() => ({}));
+  if (!isObject(raw)) return json({ error: "Invalid API request body" }, 400);
   const mcpMethod = clean(raw.method, 80);
   const operation = clean(raw.operation || (mcpMethod === "tools/call" ? raw.params?.name : mcpMethod), 80);
   const has = (scope: string) => apiKey.scopes.includes(scope);
@@ -247,7 +248,7 @@ async function publicApi(req: Request, admin: any) {
       if (!apiKeyGemini) return json({ error: "AI provider is not configured" }, 503);
       const model = Deno.env.get("GEMINI_BUSINESS_MODEL") || "gemini-2.5-flash";
       const aiResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(apiKeyGemini), {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKeyGemini },
         body: JSON.stringify({ contents: [{ parts: [{ text: "You are a cautious small-business analyst. Analyze only these aggregate metrics. Do not invent trends, dates, causes or advice unsupported by the metrics. Clearly label observations and suggested checks. Keep the answer concise. Metrics: " + JSON.stringify(Object.values(aggregate)) }] }], generationConfig: { temperature: 0.2 } }),
       });
       if (!aiResponse.ok) return json({ error: "AI insights provider unavailable" }, 503);
@@ -277,6 +278,8 @@ Deno.serve(async (req: Request) => {
     if ("error" in auth) return globalJson({ error: auth.error }, auth.status, origin);
     if (!isObject(body) || !["signature.request", "signature.list", "ocr.process", "whatsapp.send", "api-key.create", "api-key.list", "api-key.revoke"].includes(body.action)) return globalJson({ error: "Invalid action" }, 400, origin);
     const user = auth.user;
+    const { data: userLimit, error: userLimitError } = await admin.rpc("global_consume_enterprise_rate_limit", { p_key: user.id + ":platform", p_limit: 30, p_window_seconds: 60 });
+    if (userLimitError || userLimit !== true) return globalJson({ error: "Platform rate limit exceeded" }, 429, origin);
     if (body.action === "signature.request") return globalJson(await createSignature(admin, user, body, origin), 201, origin);
     if (body.action === "signature.list") {
       if (!UUID.test(body.workspaceId || "") || !await member(admin, user.id, body.workspaceId, ["owner", "admin", "manager", "accountant"])) throw new Error("ACCESS_DENIED");
