@@ -90,4 +90,75 @@ revoke all on global.document_signing_requests, global.document_ocr_jobs,
 grant all on global.document_signing_requests, global.document_ocr_jobs,
   global.whatsapp_delivery_logs, global.public_api_keys to service_role;
 
+
+create or replace function public.global_complete_document_signature(
+  p_token_hash text,
+  p_signature_name text,
+  p_consent_text text,
+  p_ip_hash text,
+  p_user_agent text,
+  p_signed_at timestamptz,
+  p_audit_sha256 text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog, global
+as $function$
+declare
+  v_request global.document_signing_requests%rowtype;
+begin
+  if p_token_hash !~ '^[a-f0-9]{64}
+ or p_signature_name is null
+    or length(btrim(p_signature_name)) < 2 or p_consent_text is null
+    or p_ip_hash !~ '^[a-f0-9]{64}
+ or p_audit_sha256 !~ '^[a-f0-9]{64}
+ then
+    return jsonb_build_object('ok', false, 'code', 'INVALID_SIGNATURE');
+  end if;
+
+  select * into v_request
+  from global.document_signing_requests
+  where token_hash = p_token_hash
+  for update;
+
+  if not found then return jsonb_build_object('ok', false, 'code', 'SIGN_REQUEST_NOT_FOUND'); end if;
+  if v_request.status <> 'pending' or v_request.expires_at <= now() then
+    return jsonb_build_object('ok', false, 'code', 'SIGN_REQUEST_NOT_ACTIVE');
+  end if;
+  if lower(v_request.signer_name) <> lower(btrim(p_signature_name)) then
+    return jsonb_build_object('ok', false, 'code', 'SIGNER_NAME_MISMATCH');
+  end if;
+
+  update global.document_signing_requests
+  set status = 'signed', signature_name = btrim(p_signature_name),
+      consent_text = p_consent_text, signer_ip_hash = p_ip_hash,
+      signer_user_agent = left(coalesce(p_user_agent, ''), 500),
+      signed_at = p_signed_at, updated_at = p_signed_at
+  where id = v_request.id;
+
+  insert into global.audit_events(
+    workspace_id, actor_id, action, entity_type, entity_id, metadata, occurred_at
+  ) values (
+    v_request.workspace_id, null, 'document.electronically_signed', 'invoice',
+    v_request.invoice_id::text,
+    jsonb_build_object(
+      'signature_request_id', v_request.id,
+      'signer_email', v_request.signer_email,
+      'document_sha256', v_request.document_sha256,
+      'audit_sha256', p_audit_sha256,
+      'signed_at', p_signed_at
+    ), p_signed_at
+  );
+
+  return jsonb_build_object(
+    'ok', true, 'signed_at', p_signed_at,
+    'document_sha256', v_request.document_sha256,
+    'audit_sha256', p_audit_sha256
+  );
+end;
+$function$;
+
+revoke all on function public.global_complete_document_signature(text,text,text,text,text,timestamptz,text) from public, anon, authenticated;
+grant execute on function public.global_complete_document_signature(text,text,text,text,text,timestamptz,text) to service_role;
+
 commit;
