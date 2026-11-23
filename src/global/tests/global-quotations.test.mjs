@@ -32,7 +32,7 @@ test("quotations are reachable from the shared Main Workspace sales module", asy
   const app = await read("../../App.jsx");
   const sales = await read("../../components/dashboard/SalesTab.jsx");
   const dashboard = await read("../../pages/Dashboard.jsx");
-  assert.match(app, /path="\/quotations" element=\{<Navigate to="\/dashboard" replace state=\{\{ initialTab: "sales", initialSub: "quotations" \}\} \/>\}/);
+  assert.ok(app.includes('path="/quotations" element={<Navigate to="/dashboard" replace state={{ initialTab: "sales", initialSub: "quotations" }} />}'));
   assert.match(dashboard, /initialSub=\{initialSub\}/);
   assert.match(sales, /initialSub === "quotations" \? "quotations" : "invoices"/);
   assert.doesNotMatch(app, /GlobalApp|isGlobalWorkspace/);
