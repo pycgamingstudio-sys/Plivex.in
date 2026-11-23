@@ -36,7 +36,9 @@ test("quotations are reachable from the shared Main Workspace sales module", asy
   assert.match(dashboard, /initialSub=\{initialSub\}/);
   assert.match(sales, /initialSub === "quotations" \? "quotations" : "invoices"/);
   assert.doesNotMatch(app, /GlobalApp|isGlobalWorkspace/);
-});\n\ntest("quotation totals and statuses cannot create payment or tax side effects", async () => {
+});
+
+test("quotation totals and statuses cannot create payment or tax side effects", async () => {
   const migration = await read("../../../supabase/migrations/20261117170000_global_quotations_workflow.sql");
   const panel = await read("../../components/global/GlobalQuotationsPanel.jsx");
   assert.match(migration, /if v_quote\.status<>'accepted' then/);
