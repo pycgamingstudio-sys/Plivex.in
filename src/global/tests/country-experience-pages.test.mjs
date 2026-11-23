@@ -84,7 +84,7 @@ test("public legal copy describes country-dependent tax workflows rather than GS
 test("all supported countries land in the shared Main Workspace dashboard", async () => {
   const app = await read("../../App.jsx");
   const gate = await read("../../components/HomeGate.jsx");
-  assert.match(app, /path="\\/dashboard" element=\{<HomeGate \/>\}/);
+  assert.ok(app.includes('<Route path="/dashboard" element={<HomeGate />} />'));
   assert.doesNotMatch(app, /GlobalApp|isGlobalWorkspace/);
   assert.match(gate, /<Dashboard/);
 });
