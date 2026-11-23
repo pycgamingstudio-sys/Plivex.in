@@ -48,7 +48,7 @@ create table if not exists global.whatsapp_delivery_logs (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references global.workspaces(id) on delete cascade,
   created_by uuid not null references auth.users(id) on delete restrict,
-  recipient_phone text not null check (left(recipient_phone, 1) = '+' and substring(recipient_phone from 2) ~ '^[1-9][0-9]{7,14}
+  recipient_phone text not null check (left(recipient_phone, 1) = '+' and length(recipient_phone) between 9 and 16 and substring(recipient_phone from 2) !~ '[^0-9]'),
   message_type text not null check (message_type in ('text','template')),
   template_name text,
   provider_message_id text,
