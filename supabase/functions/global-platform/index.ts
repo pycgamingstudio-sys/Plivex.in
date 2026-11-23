@@ -390,7 +390,9 @@ Deno.serve(async (req: Request) => {
       const label = clean(body.label, 80);
       const scopes = Array.isArray(body.scopes) ? [...new Set(body.scopes.filter((s: string) => ["workspace.read", "invoices.read", "clients.read", "expenses.read", "leads.read", "inventory.read", "suppliers.read", "mcp.read"].includes(s)))] : ["workspace.read"];
       if (label.length < 2 || !scopes.length) throw new Error("INVALID_API_KEY");
-      const prefix = randomToken(16).replace(/[^A-Za-z0-9]/g, "").slice(0, 6);\n      if (prefix.length !== 6) throw new Error("API_KEY_GENERATION_FAILED");\n      const token = "plx_" + prefix + "_" + randomToken(32);
+      const prefix = randomToken(16).replace(/[^A-Za-z0-9]/g, "").slice(0, 6);
+      if (prefix.length !== 6) throw new Error("API_KEY_GENERATION_FAILED");
+      const token = "plx_" + prefix + "_" + randomToken(32);
       const expiresAt = new Date(Date.now() + Math.min(365, Math.max(1, Number(body.expiryDays) || 90)) * 86400000).toISOString();
       const { data, error } = await admin.schema("global").from("public_api_keys").insert({
         workspace_id: body.workspaceId, created_by: user.id, label, key_hash: await sha256(token),
