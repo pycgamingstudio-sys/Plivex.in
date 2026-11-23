@@ -77,3 +77,30 @@ test("Main Workspace CRM and multi-warehouse foundations remain the active publi
   assert.match(warehouse,/india_part4_transfer_stock/);
   assert.match(warehouseUi,/india_part4_create_purchase_order/);
 });
+
+const enterpriseMigration=readFileSync(new URL("../../../supabase/migrations/20261123031111_main_workspace_approvals_and_permission_delegation.sql",import.meta.url),"utf8");
+const enterpriseControls=readFileSync(new URL("../../components/workspace/WorkspaceEnterpriseControls.jsx",import.meta.url),"utf8");
+const enterpriseFixes=readFileSync(new URL("../../../supabase/migrations/20261123031227_main_workspace_approval_lists_permission_overrides.sql",import.meta.url),"utf8");
+
+test("Main Workspace approvals are sequential, self-approval protected and escalated by cron",()=>{
+  assert.match(enterpriseMigration,/workspace_approval_policies/);
+  assert.match(enterpriseMigration,/workspace_approval_requests/);
+  assert.match(enterpriseMigration,/workspace_approval_steps/);
+  assert.match(enterpriseMigration,/self_approval_blocked/);
+  assert.match(enterpriseMigration,/main_workspace_escalate_overdue_approvals/);
+  assert.match(enterpriseMigration,/\*\/5 \* \* \* \*/);
+  assert.match(enterpriseFixes,/main_workspace_list_approval_requests/);
+  assert.match(enterpriseControls,/Multi-level approvals/);
+  assert.match(enterpriseControls,/main_workspace_decide_approval/);
+});
+
+test("Main Workspace permission delegations and overrides are time-bounded and audited",()=>{
+  assert.match(enterpriseMigration,/workspace_permission_delegations/);
+  assert.match(enterpriseMigration,/90 days/);
+  assert.match(enterpriseMigration,/permission\.delegation\.created/);
+  assert.match(enterpriseMigration,/permission\.delegation\.revoked/);
+  assert.match(enterpriseFixes,/main_workspace_permission_override_set/);
+  assert.match(enterpriseFixes,/main_workspace_has_permission/);
+  assert.match(enterpriseControls,/Enterprise permissions & delegation/);
+  assert.match(enterpriseControls,/main_workspace_permission_delegation_create/);
+});
