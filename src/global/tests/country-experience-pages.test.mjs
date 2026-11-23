@@ -51,19 +51,7 @@ test("regional account activity and reports use workspace locale metadata", asyn
 });
 
 
-test("legacy Global feature restrictions do not block unified Main Workspace routes", async () => {
-  const source = await read("../../App.jsx");
-  assert.match(source, /!isUnifiedBuild && APP_EDITION === "global"/);
-  assert.doesNotMatch(source, /isUnifiedBuild && Boolean\(user\?\.country_code && user\.country_code !== "IN"\)/);
-  assert.match(source, /user\?\.country_code && user\.country_code !== "IN"/);
-  for (const feature of ["Shared invoice links", "Usage reports", "Quick templates", "Payment logs", "Service catalog", "Team management"]) {
-    assert.ok(source.includes(`feature="${feature}"`), `missing Global gate for ${feature}`);
-  }
-  assert.match(source, /Open invoices/);
-});
-
-
-test("public marketing copy presents one unified Plivex product with country-aware capabilities", async () => {
+test("unified Main Workspace routes are not blocked by legacy edition gates", async () => {\n  const source = await read("../../App.jsx");\n  assert.match(source, /All supported countries use the same Main Workspace routes/);\n  assert.match(source, /path="\\/dashboard" element=\{<HomeGate \/>\}/);\n  assert.doesNotMatch(source, /GlobalApp|isGlobalWorkspace/);\n});\n\ntest("public marketing copy presents one unified Plivex product with country-aware capabilities", async () => {
   const pages = await read("../../pages/PublicInfoPages.jsx");
   const about = await read("../../components/landing/AboutSection.jsx");
   assert.doesNotMatch(pages, /platform for Indian small businesses/);
@@ -86,11 +74,4 @@ test("public legal copy describes country-dependent tax workflows rather than GS
 });
 
 
-test("all unified countries use the Main Workspace dashboard; legacy Global builds remain isolated", async () => {
-  const gate = await read("../../components/HomeGate.jsx");
-  const app = await read("../../App.jsx");
-  assert.match(gate, /const isGlobalWorkspace = !isUnifiedBuild && APP_EDITION === "global"/);
-  assert.doesNotMatch(gate, /isUnifiedBuild && Boolean\(user\?\.country_code/);
-  assert.match(gate, /<TrialGate><AppLayout><GlobalApp section="overview" \/><\/AppLayout><\/TrialGate>/);
-  assert.match(app, /path="\/dashboard" element=\{<HomeGate \/>\}/);
-});
+test("all supported countries land in the shared Main Workspace dashboard", async () => {\n  const app = await read("../../App.jsx");\n  const gate = await read("../../components/HomeGate.jsx");\n  assert.match(app, /path="\\/dashboard" element=\{<HomeGate \/>\}/);\n  assert.doesNotMatch(app, /GlobalApp|isGlobalWorkspace/);\n  assert.match(gate, /<Dashboard/);\n});\n
