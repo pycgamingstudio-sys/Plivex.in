@@ -30,7 +30,7 @@ export default function WorkspaceGSTCompliance(){
   ]);
   if(exp.error)throw exp.error;setData(gst);setExpenses(exp.data||[]);
  },[workspaceId]);
- useEffect(()=>{if(["admin","manager","accountant"].includes(user?.role))load().catch(e=>setError(e.message||"GST workspace module unavailable."));},[load,user?.role]);
+ useEffect(()=>{if(user?.country_code==="IN"&&["admin","manager","accountant"].includes(user?.role))load().catch(e=>setError(e.message||"GST workspace module unavailable."));},[load,user?.role,user?.country_code]);
  const run=async(fn,msg)=>{setBusy(true);setError("");setNotice("");try{await fn();setNotice(msg);await load();}catch(e){setError(e.message||"Operation failed.");}finally{setBusy(false);}};
  const prepare=()=>run(async()=>{const d=await rpc("main_workspace_prepare_gstr1_draft",{p_workspace_id:workspaceId,p_period_start:start,p_period_end:end});setWorksheet(d.snapshot);downloadJson("Plivex-GSTR1-"+start+"-"+end+".json",d.snapshot);await rpc("main_workspace_mark_gstr1_exported",{p_workspace_id:workspaceId,p_draft_id:d.draft_id});},"GSTR-1 draft generated and JSON export downloaded. It is not filed with GSTN.");
  const import2b=e=>{e.preventDefault();if(!file){setError("Choose the GSTR-2B CSV file.");return;}if(file.size>5*1024*1024){setError("CSV file must be 5 MB or smaller.");return;}return run(async()=>{const rows=parseGstr2b(await file.text());await rpc("main_workspace_import_gstr2b",{p_workspace_id:workspaceId,p_period_start:start,p_period_end:end,p_file_name:file.name,p_rows:rows,p_import_key:crypto.randomUUID()});setFile(null);},"GSTR-2B statement imported. Review and match each line before including ITC.");};
