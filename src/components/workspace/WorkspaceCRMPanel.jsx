@@ -1,7 +1,7 @@
 import { useCallback,useEffect,useMemo,useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/api/backendClient";
-import { Users,Target,Wallet,Plus,Search,Trash2,Phone,Mail,CalendarClock,CheckCircle2,Building2 } from "lucide-react";
+import { Users,Target,Wallet,Plus,Search,Trash2,CheckCircle2 } from "lucide-react";
 const stages=["New Lead","Qualified","Proposal","Negotiation","Won","Lost"];
 const field="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm";
 const primary="rounded-lg bg-violet-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50";
