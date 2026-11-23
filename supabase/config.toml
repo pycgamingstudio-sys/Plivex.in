@@ -24,6 +24,10 @@ verify_jwt = true
 [functions.global-enterprise]
 verify_jwt = true
 
+# Public signing links authenticate with a one-time SHA-256 token; internal actions validate a Supabase JWT.
+[functions.global-document-signature]
+verify_jwt = false
+
 [functions.global-export]
 verify_jwt = true
 
