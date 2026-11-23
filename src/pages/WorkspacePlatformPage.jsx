@@ -133,7 +133,7 @@ export default function WorkspacePlatformPage() {
     operations: { icon: "bg-amber-50 text-amber-700", active: "bg-amber-600 text-white", selected: "border-amber-300 bg-amber-50/70" },
     security: { icon: "bg-rose-50 text-rose-700", active: "bg-rose-700 text-white", selected: "border-rose-300 bg-rose-50/70" },
   };
-  const toolFilterCss = groupParam && !toolParam ? "[data-tool]{display:none!important}" : (selectedTool ? '[data-tool]:not([data-tool="' + selectedTool.slug + '"]){display:none!important}' : "");
+  const toolFilterCss = !groupParam || !toolParam ? "[data-tool]{display:none!important}" : (selectedTool ? '[data-tool]:not([data-tool="' + selectedTool.slug + '"]){display:none!important}' : "");
   const mcpUrl = useMemo(()=>((import.meta.env.VITE_SUPABASE_URL||"").replace(/\/$/,"")+"/functions/v1/workspace-platform"),[]);
 
   if(toolParam && !selectedTool) return <Navigate to={"/platform/"+(groupParam || "integrations")} replace />;
@@ -186,7 +186,7 @@ export default function WorkspacePlatformPage() {
      ].some(label=>label.toLowerCase().includes(search.trim().toLowerCase()))&&<p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">No matching category. Try a shorter search.</p>}
      {groupParam && !toolParam && <section aria-label="Tools in this category" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{(toolDirectory[activeGroup] || []).map((tool) => <Link key={tool.slug} to={"/platform/"+groupParam+"/"+tool.slug} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"><span className={"flex h-10 w-10 items-center justify-center rounded-xl "+groupToneClasses[activeGroup].icon}><tool.Icon className="h-5 w-5"/></span><h2 className="mt-4 text-sm font-bold text-slate-900">{tool.title}</h2><p className="mt-1 text-xs leading-5 text-slate-600">{tool.description}</p><span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-violet-700">Open workspace <ArrowRight className="h-3.5 w-3.5"/></span></Link>)}</section>}
      <style>{toolFilterCss}</style>
-     <section className="space-y-4">
+     <section className={toolParam ? "space-y-4" : "hidden"}>
        <div className="flex flex-wrap items-end justify-between gap-2">
          <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-violet-700">Selected workspace</p><h2 className="mt-1 text-lg font-bold text-slate-950">{({integrations:"Connected apps",finance:"Finance & tax",inventory:"Inventory traceability",operations:"Sales & suppliers",security:"Team & approvals"})[activeGroup]}</h2></div>
          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-semibold text-slate-500">Changes are saved to this workspace</span>
