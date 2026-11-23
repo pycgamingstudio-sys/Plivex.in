@@ -55,7 +55,6 @@ export default function HomeGate({ initialTab: routeInitialTab }) {
     : pending === "open-crm" ? <Dashboard initialTab="crm" />
       : pending === "export-gst" ? <Dashboard initialTab="sales" />
         : <Dashboard
-            key={location.pathname}
             initialTab={routeInitialTab || (typeof routeState.initialTab === "string" ? routeState.initialTab : undefined)}
             initialSub={typeof routeState.initialSub === "string" ? routeState.initialSub : undefined}
             initialIntent={typeof routeState.initialIntent === "string" ? routeState.initialIntent : undefined}
