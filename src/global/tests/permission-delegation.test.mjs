@@ -6,6 +6,7 @@ const migration = readFileSync(new URL("../../../supabase/migrations/20261123031
 const followup = readFileSync(new URL("../../../supabase/migrations/20261123031227_main_workspace_approval_lists_permission_overrides.sql", import.meta.url), "utf8");
 const panel = readFileSync(new URL("../../components/workspace/WorkspaceEnterpriseControls.jsx", import.meta.url), "utf8");
 const enforcement = readFileSync(new URL("../../../supabase/migrations/20261123074843_main_workspace_permission_delegation_enforcement.sql", import.meta.url), "utf8");
+const listEnforcement = readFileSync(new URL("../../../supabase/migrations/20261123080000_main_workspace_permission_list_override_enforcement.sql", import.meta.url), "utf8");
 
 test("Main Workspace permission delegations are workspace-scoped, time-bound and private", () => {
   assert.match(migration, /public\.workspace_permission_delegations/);
@@ -41,4 +42,5 @@ test("delegated approvals and FX permissions are enforced by server-side checks"
   assert.match(enforcement, /permission_keys @> array\['approval\.decide'\]/);
   assert.match(enforcement, /main_workspace_user_has_permission\(p_workspace_id,v_user,'fx\.convert'\)/);
   assert.match(enforcement, /workspace_permission_overrides/);
+  assert.match(listEnforcement, /main_workspace_has_permission\(p_workspace_id,v_member_id/);
 });
