@@ -64,7 +64,7 @@ begin
   if p_user_id is null or p_workspace_id is null or p_name is null or length(btrim(p_name)) not between 1 and 200
     or p_email is null or length(p_email)>254 or p_email !~* '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]{2,}$'
     or p_token_hash is null or p_token_hash !~ '^[a-f0-9]{64}$'
-    or p_expires_at <= now() or p_expires_at > now() + interval '8 days'
+    or p_expires_at is null or p_expires_at <= now() or p_expires_at > now() + interval '8 days'
     or (p_phone is not null and length(p_phone)>40)
     or (p_tax_registration_number is not null and length(p_tax_registration_number)>80) then
     return jsonb_build_object('ok',false,'reason','invalid_invite');
@@ -75,9 +75,17 @@ begin
   if v_role not in ('owner','admin','manager') then return jsonb_build_object('ok',false,'reason','forbidden'); end if;
 
   if p_supplier_id is null then
-    insert into global.suppliers(workspace_id,name,email,phone,tax_registration_number,created_by)
-    values(p_workspace_id,trim(p_name),lower(trim(p_email)),nullif(trim(p_phone),''),nullif(trim(p_tax_registration_number),''),p_user_id)
-    returning id into v_supplier_id;
+    select id into v_supplier_id from global.suppliers
+      where workspace_id=p_workspace_id and lower(email)=lower(trim(p_email))
+      order by id limit 1;
+    if v_supplier_id is null then
+      insert into global.suppliers(workspace_id,name,email,phone,tax_registration_number,created_by)
+      values(p_workspace_id,trim(p_name),lower(trim(p_email)),nullif(trim(p_phone),''),nullif(trim(p_tax_registration_number),''),p_user_id)
+      returning id into v_supplier_id;
+    else
+      update global.suppliers set name=trim(p_name),phone=nullif(trim(p_phone),''),tax_registration_number=nullif(trim(p_tax_registration_number),'')
+        where workspace_id=p_workspace_id and id=v_supplier_id;
+    end if;
   else
     update global.suppliers set name=trim(p_name),email=lower(trim(p_email)),
       phone=nullif(trim(p_phone),''),tax_registration_number=nullif(trim(p_tax_registration_number),'')
@@ -155,6 +163,9 @@ begin
   select * into v_invite from global.supplier_portal_invites
     where token_hash=p_token_hash and status='active' and expires_at>now() for update;
   if v_invite.id is null then return jsonb_build_object('ok',false,'reason','invalid_or_expired'); end if;
+  if not exists(select 1 from global.suppliers where workspace_id=v_invite.workspace_id and id=v_invite.supplier_id and lower(email)=v_email) then
+    return jsonb_build_object('ok',false,'reason','invalid_submission');
+  end if;
 
   update global.suppliers set name=v_legal,email=v_email,phone=v_phone,tax_registration_number=v_tax
     where workspace_id=v_invite.workspace_id and id=v_invite.supplier_id;
@@ -213,7 +224,7 @@ begin
     where workspace_id=p_workspace_id and user_id=p_user_id and status='active' limit 1;
   if v_role is null then return jsonb_build_object('ok',false,'reason','access_denied'); end if;
   if v_role not in ('owner','admin','manager') then return jsonb_build_object('ok',false,'reason','forbidden'); end if;
-  if p_decision not in ('approved','rejected') or (p_note is not null and length(p_note)>1000) then
+  if p_decision is null or p_decision not in ('approved','rejected') or (p_note is not null and length(p_note)>1000) then
     return jsonb_build_object('ok',false,'reason','invalid_decision');
   end if;
   update global.supplier_onboarding_profiles set status=p_decision,reviewed_at=now(),reviewed_by=p_user_id,
