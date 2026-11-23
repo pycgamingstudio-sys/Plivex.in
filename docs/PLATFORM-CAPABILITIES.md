@@ -39,10 +39,10 @@ Subscribe the Meta app to the WhatsApp `messages` webhook field. The handler ver
 - Only SHA-256 key hashes are stored; the secret is displayed once.
 - Send the Supabase project anon key in the standard `apikey` header and your workspace key in `x-plivex-key` to:
   `https://sqzpaiibmfsvarrkwkvb.supabase.co/functions/v1/global-platform`
-- REST operations: `workspace.summary`, `invoices.list`, `clients.list`.
+- REST operations: `workspace.summary`, `invoices.list`, `clients.list`, `expenses.list`, `leads.list`, `inventory.low_stock`, `suppliers.list`.
 - MCP JSON-RPC methods: `tools/list`, `tools/call`.
-- Tools: `workspace_summary`, `list_invoices`, `list_clients`, `business_insights`.
-- Data tools are read-only. The AI insight tool uses aggregate invoice metrics only and requires `workspace.read` + `mcp.read` scopes.
+- Tools: `workspace_summary`, `list_invoices`, `list_clients`, `list_expenses`, `list_leads`, `low_stock_items`, `list_suppliers`, `business_insights`.
+- Data tools are read-only. The AI insight tool uses aggregate invoice, expense, CRM pipeline and inventory metrics only and requires `workspace.read` + `mcp.read` scopes.
 - Keys are rate-limited and invalidated if the creating workspace administrator is no longer active.
 
 ## Deployment and verification
