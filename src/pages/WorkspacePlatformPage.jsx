@@ -71,17 +71,21 @@ export default function WorkspacePlatformPage() {
   },[]);
 
   const refresh = useCallback(async () => {
-    if(!workspaceId) return;
-    const [{data:invoiceRows,error:invoiceError},{data:keyRows,error:keyError}] = await Promise.all([
-      supabase.from("invoices").select("id,number,status,total,currency,issue_date,due_date").eq("workspace_id",workspaceId).order("created_at",{ascending:false}).limit(100),
-      invoke({action:"api-key.list"}).then(v=>({data:v.keys||[],error:null})).catch(e=>({data:[],error:e}))
-    ]);
-    if(invoiceError) throw invoiceError;
-    if(keyError) throw keyError;
-    setInvoices(invoiceRows||[]);
-    setApiKeys(keyRows||[]);
-    try { const w=await invoke({action:"whatsapp.list"}); setWhatsappLogs(w.messages||[]); } catch { setWhatsappLogs([]); }
-  },[workspaceId,invoke]);
+    if (!workspaceId) return;
+    if (toolParam === "signature-audit") {
+      const { data, error: invoiceError } = await supabase.from("invoices").select("id,number,status,total,currency,issue_date,due_date").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(100);
+      if (invoiceError) throw invoiceError;
+      setInvoices(data || []);
+    }
+    if (toolParam === "public-api") {
+      const result = await invoke({ action: "api-key.list" });
+      setApiKeys(result.keys || []);
+    }
+    if (toolParam === "whatsapp-cloud") {
+      try { const result = await invoke({ action: "whatsapp.list" }); setWhatsappLogs(result.messages || []); }
+      catch { setWhatsappLogs([]); }
+    }
+  }, [workspaceId, invoke, toolParam]);
 
   useEffect(()=>{refresh().catch(e=>setError(e.message||"Could not load platform settings."));},[refresh]);
 
@@ -133,17 +137,24 @@ export default function WorkspacePlatformPage() {
     operations: { icon: "bg-amber-50 text-amber-700", active: "bg-amber-600 text-white", selected: "border-amber-300 bg-amber-50/70" },
     security: { icon: "bg-rose-50 text-rose-700", active: "bg-rose-700 text-white", selected: "border-rose-300 bg-rose-50/70" },
   };
-  const toolFilterCss = !groupParam || !toolParam ? "[data-tool]{display:none!important}" : (selectedTool ? '[data-tool]:not([data-tool="' + selectedTool.slug + '"]){display:none!important}' : "");
+  const groupHeroTone = {
+    integrations: "border-violet-100 bg-gradient-to-br from-white via-[#FBFAFF] to-violet-50/80",
+    finance: "border-emerald-100 bg-gradient-to-br from-white via-emerald-50/50 to-emerald-100/50",
+    inventory: "border-sky-100 bg-gradient-to-br from-white via-sky-50/60 to-cyan-50",
+    operations: "border-amber-100 bg-gradient-to-br from-white via-amber-50/50 to-orange-50",
+    security: "border-rose-100 bg-gradient-to-br from-white via-rose-50/50 to-pink-50",
+  };
+
   const mcpUrl = useMemo(()=>((import.meta.env.VITE_SUPABASE_URL||"").replace(/\/$/,"")+"/functions/v1/workspace-platform"),[]);
 
   if(toolParam && !selectedTool) return <Navigate to={"/platform/"+(groupParam || "integrations")} replace />;
   if(!isAdmin) return <section className="rounded-2xl border bg-white p-6"><h1 className="text-xl font-bold">Platform integrations</h1><p className="mt-2 text-sm text-slate-600">Only Workspace administrators and managers can manage integrations.</p></section>;
 
   return <div className="plivex-tools-center space-y-5">
-     <header className="overflow-hidden rounded-3xl border border-violet-100 bg-gradient-to-br from-white via-[#FBFAFF] to-violet-50/80 shadow-[0_12px_36px_rgba(54,31,92,.07)]">
+     <header className={"overflow-hidden rounded-3xl border shadow-[0_12px_36px_rgba(54,31,92,.07)] " + (groupHeroTone[activeGroup] || groupHeroTone.integrations)}>
        <div className="flex flex-wrap items-center justify-between gap-3 p-5 sm:p-7">
          <div className="min-w-0">
-           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-700">Plivex business tools</p>
+           <p className={"text-[10px] font-bold uppercase tracking-[0.18em] " + groupToneClasses[activeGroup].icon}>Plivex workspace</p>
            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{selectedTool?.title || (groupParam ? selectedGroupTitle : "Business tools center")}</h1>
            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{selectedTool?.description || (groupParam ? "A dedicated workspace for this part of your business." : "All advanced workspace tools, organised by the job they help you complete.")}</p>
          </div>
@@ -203,8 +214,8 @@ export default function WorkspacePlatformPage() {
       {signatureLink&&<div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 p-3"><p className="text-xs font-semibold">One-time signing link</p><code className="mt-1 block break-all text-xs">{signatureLink}</code><div className="mt-2 flex flex-wrap gap-2"><button type="button" className={secondary} onClick={()=>navigator.clipboard.writeText(signatureLink)}><Copy className="mr-1 inline h-3.5 w-3.5"/>Copy link</button><button type="button" className={secondary} disabled={busy||!signatureRequestId} onClick={()=>run(()=>invoke({action:"signature.revoke",requestId:signatureRequestId}),"Signing link revoked.")}>Revoke link</button></div></div>}
     </section>
     <section data-tool="document-ocr" className="rounded-2xl border bg-white p-4 sm:p-5">
-      <div className="flex items-center gap-2"><ScanText className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">Document OCR & AI extraction</h2></div>
-      <p className="mt-1 text-xs text-slate-500">Upload up to 10 JPEG, PNG, WebP or PDF files (4 MB each). Gemini returns review-only draft data; no accounting records are posted automatically.</p>
+      <div className="flex items-center gap-2"><ScanText className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">Document intelligence · Plivex Nova</h2></div>
+      <p className="mt-1 text-xs text-slate-500">Upload up to 10 JPEG, PNG, WebP or PDF files (4 MB each). Plivex Nova extracts review-only draft data for your team to verify; no accounting records are posted automatically.</p>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row"><input className={field} type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e=>{setFiles(Array.from(e.target.files||[]));setOcrResults([]);}}/><button type="button" className={primary} disabled={busy||!files.length||files.length>10} onClick={runOcr}>Extract {files.length||""} document(s)</button></div>
       {ocrResults.map(r=><article key={r.jobId} className="mt-3 rounded-lg border p-3"><p className="text-sm font-semibold">{r.name}</p><pre className="mt-2 max-h-72 overflow-auto rounded bg-slate-50 p-3 text-xs">{JSON.stringify(r.extracted,null,2)}</pre></article>)}
     </section>
