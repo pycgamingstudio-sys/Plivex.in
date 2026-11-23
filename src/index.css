@@ -481,3 +481,59 @@ button, a, [role="button"], input[type="checkbox"], input[type="radio"] {
 .plivex-main-layout.dark :where(table) { color: #e2e8f0; }
 .plivex-main-layout.dark :where(thead th) { background: #1f2937; color: #cbd5e1; }
 .plivex-main-layout.dark :where(tbody td) { border-color: #374151; }
+
+
+/* Plivex Ultra-Premium Business Tools Center */
+.plivex-tools-center { color: #171717; }
+.plivex-tools-center section.rounded-2xl { border-color: #e8e7ef; box-shadow: 0 2px 10px rgba(34, 24, 60, .035); }
+.plivex-tools-center input:not([type="checkbox"]):not([type="file"]),
+.plivex-tools-center select,
+.plivex-tools-center textarea {
+  min-height: 42px;
+  border-radius: 11px;
+  border-color: #dedbe8;
+  background-color: #fff;
+  color: #171717;
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+.plivex-tools-center input:focus,
+.plivex-tools-center select:focus,
+.plivex-tools-center textarea:focus {
+  outline: none;
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(109, 40, 217, .10);
+}
+.plivex-tools-center button { touch-action: manipulation; }
+.plivex-tools-center pre { max-width: 100%; overflow-wrap: anywhere; white-space: pre-wrap; }
+.plivex-tools-center code { overflow-wrap: anywhere; }
+.plivex-tools-center article { min-width: 0; }
+@media (max-width: 640px) {
+  .plivex-tools-center { gap: 1rem; }
+  .plivex-tools-center section.rounded-2xl { border-radius: 16px; }
+  .plivex-tools-center form { min-width: 0; }
+  .plivex-tools-center input[type="file"] { font-size: 12px; }
+}
+
+
+/* CRM pipeline: comfortable cards and phone-friendly horizontal stages */
+.plivex-crm { color: #171717; }
+.plivex-crm input:not([type="checkbox"]),
+.plivex-crm select,
+.plivex-crm textarea {
+  min-height: 40px;
+  border-radius: 10px;
+  border-color: #dedbe8;
+  background: #fff;
+  color: #171717;
+}
+.plivex-crm input:focus,
+.plivex-crm select:focus,
+.plivex-crm textarea:focus {
+  outline: none;
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(109, 40, 217, .10);
+}
+.plivex-crm section { min-width: 0; }
+.plivex-crm article { min-width: 0; overflow-wrap: anywhere; }
+.plivex-crm [role="dialog"] { max-height: min(90vh, 820px); overflow-y: auto; overscroll-behavior: contain; }
+.plivex-crm button { touch-action: manipulation; }
