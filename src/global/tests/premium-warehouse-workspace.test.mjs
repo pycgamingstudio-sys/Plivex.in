@@ -18,11 +18,11 @@ test("inventory and warehouse are represented by one top-level workspace", () =>
 });
 
 test("the unified inventory entry opens the existing warehouse workflow adapter", () => {
-  assert.match(globalApp, /\["crm", "inventory", "sales_docs"\]\.includes\(tab\)/);
-  assert.match(globalApp, /initialSection=\{tab === "crm" \? "crm" : tab === "sales_docs" \? "sales_docs" : "warehouses"\}/);
+  assert.match(globalApp, /\["crm", "inventory", "sales_docs", "suppliers"\]\.includes\(tab\)/);
+  assert.match(globalApp, /initialSection=\{tab === "crm" \? "crm" : tab === "sales_docs" \? "sales_docs" : tab === "suppliers" \? "suppliers" : "warehouses"\}/);
   assert.match(warehousePanel, /initialSection = "crm"/);
   assert.match(warehousePanel, /setSection\(initialSection\)/);
-  assert.match(globalApp, /\["crm", "inventory", "quotations"\]\.includes\(activeTab\)/);
+  assert.match(globalApp, /\["crm", "inventory", "quotations", "suppliers"\]\.includes\(activeTab\)/);
 });
 
 test("warehouse operations use compact in-page tabs rather than destination cards", () => {
