@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/api/backendClient";
 import { Copy, FileSignature, KeyRound, MessageCircle, ScanText, RefreshCw, ShieldCheck, Search, Landmark, Boxes, Workflow, Users, ArrowRight } from "lucide-react";
@@ -125,9 +125,11 @@ export default function WorkspacePlatformPage() {
     security: [{ slug: "enterprise-controls", title: "Team & approvals", description: "Manage workspace controls, approvals and delegated access." }],
   };
   const selectedTool = (toolDirectory[activeGroup] || []).find((item) => item.slug === toolParam);
-  const toolFilterCss = groupParam && !toolParam ? "[data-tool]{display:none!important}" : (toolParam ? '[data-tool]:not([data-tool="' + toolParam + '"]){display:none!important}' : "");
+  const selectedGroupTitle = { integrations: "Connected apps", finance: "Finance & tax", inventory: "Inventory traceability", operations: "Sales & suppliers", security: "Team & approvals" }[activeGroup];
+  const toolFilterCss = groupParam && !toolParam ? "[data-tool]{display:none!important}" : (selectedTool ? '[data-tool]:not([data-tool="' + selectedTool.slug + '"]){display:none!important}' : "");
   const mcpUrl = useMemo(()=>((import.meta.env.VITE_SUPABASE_URL||"").replace(/\/$/,"")+"/functions/v1/workspace-platform"),[]);
 
+  if(toolParam && !selectedTool) return <Navigate to={"/platform/"+(groupParam || "integrations")} replace />;
   if(!isAdmin) return <section className="rounded-2xl border bg-white p-6"><h1 className="text-xl font-bold">Platform integrations</h1><p className="mt-2 text-sm text-slate-600">Only Workspace administrators and managers can manage integrations.</p></section>;
 
   return <div className="plivex-tools-center space-y-5">
@@ -135,12 +137,12 @@ export default function WorkspacePlatformPage() {
        <div className="flex flex-wrap items-center justify-between gap-3 p-5 sm:p-7">
          <div className="min-w-0">
            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-700">Plivex business tools</p>
-           <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{selectedTool?.title || (groupParam ? "Business tools" : "Business tools center")}</h1>
+           <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{selectedTool?.title || (groupParam ? selectedGroupTitle : "Business tools center")}</h1>
            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{selectedTool?.description || (groupParam ? "A dedicated workspace for this part of your business." : "All advanced workspace tools, organised by the job they help you complete.")}</p>
          </div>
          <div className="flex items-center gap-2">{groupParam && <Link to={toolParam ? "/platform/"+groupParam : "/platform"} className={secondary+" inline-flex items-center gap-2"}>← {toolParam ? "Category" : "All tools"}</Link>}<button type="button" className={secondary+" inline-flex items-center gap-2"} disabled={busy} onClick={()=>refresh().catch(e=>setError(e.message))}><RefreshCw className="h-4 w-4"/>Refresh data</button></div>
        </div>
-       <div className="border-t border-violet-100/80 bg-white/80 px-5 py-3 sm:px-7">
+       <div className={groupParam ? "hidden" : "border-t border-violet-100/80 bg-white/80 px-5 py-3 sm:px-7"}>
          <label className="flex max-w-xl items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100">
            <Search className="h-4 w-4 shrink-0 text-slate-400"/>
            <input aria-label="Search business tool categories" className="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-slate-400 focus:ring-0" placeholder="Find a tool category…" value={search} onChange={e=>{const value=e.target.value;setSearch(value);const term=value.trim().toLowerCase();if(term&&["finance & tax gst return preparation bank reconciliation journals reports cash flow","inventory traceability serial numbers warehouse locations batch references item lifecycle","sales & suppliers sales orders delivery challans credit debit notes recurring invoices supplier onboarding","team & approvals approval policies approval requests time-bound delegated permissions","connected apps electronic signatures document ocr whatsapp cloud public api mcp"].some(label=>label.includes(term))){const labels=[["finance","finance & tax gst return preparation bank reconciliation journals reports cash flow"],["inventory","inventory traceability serial numbers warehouse locations batch references item lifecycle"],["operations","sales & suppliers sales orders delivery challans credit debit notes recurring invoices supplier onboarding"],["security","team & approvals approval policies approval requests time-bound delegated permissions"],["integrations","connected apps electronic signatures document ocr whatsapp cloud public api mcp"]];setActiveGroup(labels.find(([,label])=>label.includes(term))?.[0]||"integrations");}}}/>
