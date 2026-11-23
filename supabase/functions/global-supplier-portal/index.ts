@@ -5,6 +5,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const TOKEN = /^[a-f0-9]{64}$/;
 const MAX_BODY = 24 * 1024;
 const PAYMENT_TERMS = new Set(["due_on_receipt","net_7","net_15","net_30","net_45","net_60","custom"]);
+const COUNTRY_CODES = new Set(["IN","US","GB","AE","CA","AU","SG"]);
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 
 function randomToken() {
@@ -28,7 +29,7 @@ function validateProfile(profile: unknown): string | null {
   }
   if (profile.business_type !== undefined && profile.business_type !== null && (typeof profile.business_type !== "string" || profile.business_type.length > 100)) return "Business type is too long.";
   if (profile.payment_terms !== undefined && profile.payment_terms !== null && profile.payment_terms !== "" && !PAYMENT_TERMS.has(String(profile.payment_terms))) return "Payment terms are invalid.";
-  if (profile.address !== undefined && (!object(profile.address) || JSON.stringify(profile.address).length > 4000)) return "Supplier address is invalid.";
+  if (profile.address !== undefined && (!object(profile.address) || JSON.stringify(profile.address).length > 4000 || !COUNTRY_CODES.has(String(profile.address.country_code || "")))) return "Supplier address is invalid.";
   return null;
 }
 
