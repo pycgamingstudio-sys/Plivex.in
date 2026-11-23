@@ -133,7 +133,7 @@ test("Main Workspace sales orders, delivery challans and credit/debit notes are 
   assert.match(salesDocsMigration,/credit_exceeds_remaining_invoice_total/);
   assert.match(salesDocsMigration,/idempotency_key/);
   assert.match(salesDocsManagement,/main_workspace_list_sales_documents/);
-  assert.match(salesDocsManagement,/challan_quantity/);
+  assert.match(salesDocsManagement,/delivered_quantity/);
   assert.match(salesDocsUi,/Sales orders/);
   assert.match(salesDocsUi,/Delivery challans/);
   assert.match(salesDocsUi,/Credit & debit notes/);
