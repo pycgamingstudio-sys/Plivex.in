@@ -170,6 +170,7 @@ test("Global inventory serial and barcode workflow is workspace-scoped and wired
   const serialMigration = await readFile(new URL("../../../supabase/migrations/20261123000100_global_inventory_serial_barcode.sql", import.meta.url), "utf8");
   assert.match(serialMigration, /create table if not exists global\.inventory_serials/);
   assert.match(serialMigration, /unique\(workspace_id,idempotency_key\)/);
+  assert.doesNotMatch(serialMigration, /v_batch text/);
   assert.match(serialMigration, /global_part4_list/);
   assert.match(serialMigration, /register_inventory_serial/);
   assert.match(serialMigration, /update_inventory_serial_status/);
