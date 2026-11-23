@@ -1,0 +1,93 @@
+-- Final platform capabilities: e-sign audit, OCR intake, WhatsApp delivery and public API/MCP.
+begin;
+
+create table if not exists global.document_signing_requests (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references global.workspaces(id) on delete cascade,
+  invoice_id uuid not null references global.invoices(id) on delete cascade,
+  requested_by uuid not null references auth.users(id) on delete restrict,
+  signer_name text not null check (length(btrim(signer_name)) between 2 and 160),
+  signer_email text not null check (length(btrim(signer_email)) between 3 and 254),
+  token_hash text not null unique check (token_hash ~ '^[a-f0-9]{64}$'),
+  status text not null default 'pending' check (status in ('pending','signed','declined','expired','revoked')),
+  document_sha256 text not null check (document_sha256 ~ '^[a-f0-9]{64}$'),
+  signature_name text,
+  consent_text text,
+  signer_ip_hash text,
+  signer_user_agent text,
+  signed_at timestamptz,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check ((status = 'signed' and signature_name is not null and signed_at is not null and consent_text is not null)
+      or status <> 'signed')
+);
+create index if not exists global_document_signing_workspace_idx
+  on global.document_signing_requests(workspace_id, created_at desc);
+create index if not exists global_document_signing_invoice_idx
+  on global.document_signing_requests(workspace_id, invoice_id, created_at desc);
+
+create table if not exists global.document_ocr_jobs (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references global.workspaces(id) on delete cascade,
+  created_by uuid not null references auth.users(id) on delete restrict,
+  document_type text not null check (document_type in ('invoice','receipt','purchase_order','identity','other')),
+  storage_path text not null,
+  mime_type text not null check (mime_type in ('image/jpeg','image/png','image/webp','application/pdf')),
+  status text not null default 'queued' check (status in ('queued','processing','completed','failed')),
+  extracted_data jsonb not null default '{}'::jsonb check (jsonb_typeof(extracted_data) = 'object'),
+  model_name text,
+  error_code text,
+  created_at timestamptz not null default now(),
+  completed_at timestamptz
+);
+create index if not exists global_document_ocr_workspace_idx
+  on global.document_ocr_jobs(workspace_id, created_at desc);
+
+create table if not exists global.whatsapp_delivery_logs (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references global.workspaces(id) on delete cascade,
+  created_by uuid not null references auth.users(id) on delete restrict,
+  recipient_phone text not null check (recipient_phone ~ '^\\+[1-9][0-9]{7,14}$'),
+  message_type text not null check (message_type in ('text','template')),
+  template_name text,
+  provider_message_id text,
+  status text not null check (status in ('accepted','failed')),
+  consent_confirmed boolean not null check (consent_confirmed = true),
+  error_code text,
+  created_at timestamptz not null default now()
+);
+create index if not exists global_whatsapp_workspace_idx
+  on global.whatsapp_delivery_logs(workspace_id, created_at desc);
+
+create table if not exists global.public_api_keys (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references global.workspaces(id) on delete cascade,
+  created_by uuid not null references auth.users(id) on delete restrict,
+  label text not null check (length(btrim(label)) between 2 and 80),
+  key_hash text not null unique check (key_hash ~ '^[a-f0-9]{64}$'),
+  key_prefix text not null check (key_prefix ~ '^plx_[a-zA-Z0-9]{6}$'),
+  scopes text[] not null default array['workspace.read','invoices.read','clients.read'],
+  last_used_at timestamptz,
+  expires_at timestamptz not null,
+  revoked_at timestamptz,
+  created_at timestamptz not null default now(),
+  check (cardinality(scopes) between 1 and 5),
+  check (scopes <@ array['workspace.read','invoices.read','clients.read','mcp.read']::text[])
+);
+create index if not exists global_public_api_keys_workspace_idx
+  on global.public_api_keys(workspace_id, created_at desc);
+create index if not exists global_public_api_keys_active_idx
+  on global.public_api_keys(key_hash) where revoked_at is null;
+
+alter table global.document_signing_requests enable row level security;
+alter table global.document_ocr_jobs enable row level security;
+alter table global.whatsapp_delivery_logs enable row level security;
+alter table global.public_api_keys enable row level security;
+
+revoke all on global.document_signing_requests, global.document_ocr_jobs,
+  global.whatsapp_delivery_logs, global.public_api_keys from public, anon, authenticated;
+grant all on global.document_signing_requests, global.document_ocr_jobs,
+  global.whatsapp_delivery_logs, global.public_api_keys to service_role;
+
+commit;
