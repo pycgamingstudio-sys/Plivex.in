@@ -64,7 +64,7 @@ as $$
 declare
  v_role text; v_currency text; v_id uuid; v_row jsonb; v_item jsonb; v_order global.purchase_orders%rowtype;
  v_receipt global.purchase_receipts%rowtype; v_po_item global.purchase_order_items%rowtype;
- v_qty numeric(18,4); v_batch text; v_client uuid; v_key uuid; v_number text; v_existing_id uuid; v_existing_fingerprint text; v_price bigint; v_discount bigint; v_taxable bigint; v_tax bigint; v_total bigint; v_invoice global.invoices%rowtype; v_serial global.inventory_serials%rowtype; v_product global.products%rowtype; v_warehouse global.warehouses%rowtype; v_batch global.inventory_batches%rowtype; v_stock numeric(18,4); v_serial_count numeric(18,4); v_delta numeric(18,4); v_barcode text; v_serial_number text; v_new_status text; v_movement_id uuid; v_expiry date; v_received numeric(18,4); v_fingerprint text; v_subtotal numeric(20,0);
+ v_qty numeric(18,4); v_batch_number text; v_client uuid; v_key uuid; v_number text; v_existing_id uuid; v_existing_fingerprint text; v_price bigint; v_discount bigint; v_taxable bigint; v_tax bigint; v_total bigint; v_invoice global.invoices%rowtype; v_serial global.inventory_serials%rowtype; v_product global.products%rowtype; v_warehouse global.warehouses%rowtype; v_batch global.inventory_batches%rowtype; v_stock numeric(18,4); v_serial_count numeric(18,4); v_delta numeric(18,4); v_barcode text; v_serial_number text; v_new_status text; v_movement_id uuid; v_expiry date; v_received numeric(18,4); v_fingerprint text; v_subtotal numeric(20,0);
 begin
  if p_user_id is null or p_workspace_id is null or jsonb_typeof(p_values)<>'object' then return jsonb_build_object('ok',false,'reason','invalid_request'); end if;
  select role into v_role from global.workspace_members where workspace_id=p_workspace_id and user_id=p_user_id and status='active' limit 1;
@@ -172,14 +172,14 @@ begin
      on conflict(workspace_id,product_id) do update set quantity=global.stock_levels.quantity+excluded.quantity,updated_at=now();
      insert into global.stock_movements(workspace_id,product_id,movement_type,quantity_delta,notes,created_by,idempotency_key)
      values(p_workspace_id,v_po_item.product_id,'receipt',v_qty,'Purchase receipt',p_user_id,gen_random_uuid());
-     v_batch := nullif(trim(v_item->>'batch_number'),''); v_expiry := nullif(v_item->>'expires_on','')::date;
-     if v_batch is not null then
+     v_batch_number := nullif(trim(v_item->>'batch_number'),''); v_expiry := nullif(v_item->>'expires_on','')::date;
+     if v_batch_number is not null then
        insert into global.inventory_batches(workspace_id,warehouse_id,product_id,batch_number,quantity,unit_cost_minor,expires_on)
        values(p_workspace_id,v_receipt.warehouse_id,v_po_item.product_id,v_batch,v_qty,v_po_item.unit_cost_minor,v_expiry)
        on conflict(workspace_id,warehouse_id,product_id,batch_number) do update set quantity=global.inventory_batches.quantity+excluded.quantity;
      end if;
      insert into global.purchase_receipt_items(workspace_id,receipt_id,purchase_order_item_id,product_id,quantity,batch_number,expires_on)
-     values(p_workspace_id,v_receipt.id,v_po_item.id,v_po_item.product_id,v_qty,v_batch,v_expiry);
+     values(p_workspace_id,v_receipt.id,v_po_item.id,v_po_item.product_id,v_qty,v_batch_number,v_expiry);
      insert into global.warehouse_stock_movements(workspace_id,warehouse_id,product_id,movement_type,quantity_delta,reference_type,reference_id,idempotency_key,notes,created_by)
      values(p_workspace_id,v_receipt.warehouse_id,v_po_item.product_id,'receipt',v_qty,'purchase_receipt',v_receipt.id,gen_random_uuid(),nullif(trim(v_order.notes),''),p_user_id);
    end loop;
