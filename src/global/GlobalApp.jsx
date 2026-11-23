@@ -19,6 +19,7 @@ const NAV = [
   { id: "expenses", label: "Expenses" },
   { id: "crm", label: "CRM" },
   { id: "sales_docs", label: "Sales Documents" },
+  { id: "suppliers", label: "Suppliers" },
   { id: "inventory", label: "Inventory & Warehouse" },
   { id: "invoices", label: "Invoices" },
   { id: "quotations", label: "Quotations" },
@@ -33,6 +34,7 @@ const TAB_PATHS = {
   expenses: "/expenses",
   crm: "/crm",
   sales_docs: "/sales-documents",
+  suppliers: "/suppliers",
   inventory: "/inventory-procurement",
   invoices: "/invoice-history",
   quotations: "/quotations",
@@ -82,14 +84,14 @@ export default function GlobalApp({ section = "overview" }) {
   }, [account?.workspace_id]);
 
   const loadRecords = useCallback(async (activeTab = tab) => {
-    if (!account?.workspace_id || ["crm", "inventory", "quotations"].includes(activeTab)) return;
+    if (!account?.workspace_id || ["crm", "inventory", "quotations", "suppliers"].includes(activeTab)) return;
     const tables = activeTab === "overview" ? ["clients", "products", "expenses", "invoices", "stock_levels"] : [TABLES[activeTab]];
     const results = await Promise.all(tables.map(async (table) => [table, await invoke(table)]));
     setRecords((current) => ({ ...current, ...Object.fromEntries(results.map(([table, result]) => [table, result.records || []])) }));
   }, [account?.workspace_id, invoke, tab]);
 
   useEffect(() => {
-    if (!account?.workspace_id || ["accounting", "quotations"].includes(tab)) return;
+    if (!account?.workspace_id || ["accounting", "quotations", "suppliers"].includes(tab)) return;
     loadRecords(tab).catch((loadError) => setError(loadError.message));
   }, [account?.workspace_id, tab, loadRecords]);
 
@@ -192,8 +194,8 @@ export default function GlobalApp({ section = "overview" }) {
           <GlobalAccountingPanel account={account} invoke={invoke} />
         ) : tab === "enterprise" ? (
           <GlobalEnterprisePanel workspaceId={account.workspace_id} />
-        ) : ["crm", "inventory", "sales_docs"].includes(tab) ? (
-          <GlobalPart4Panel account={account} initialSection={tab === "crm" ? "crm" : tab === "sales_docs" ? "sales_docs" : "warehouses"} />
+        ) : ["crm", "inventory", "sales_docs", "suppliers"].includes(tab) ? (
+          <GlobalPart4Panel account={account} initialSection={tab === "crm" ? "crm" : tab === "sales_docs" ? "sales_docs" : tab === "suppliers" ? "suppliers" : "warehouses"} />
         ) : (
           <section className="mt-6">
             <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold">{NAV.find((item) => item.id === tab)?.label}</h1><p className="mt-1 text-sm text-slate-500">{tab === "inventory" || tab === "invoices" ? "Read-only until audited transaction workflows are enabled." : "Records are scoped to your active Global workspace."}</p></div><button onClick={() => loadRecords(tab).catch((loadError) => setError(loadError.message))} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Refresh</button></div>
