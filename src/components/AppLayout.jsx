@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { APP_EDITION } from "@/api/backendClient";
 import { getCountryByCode, getCountryFlag } from "@/global/countries/country-registry.js";
 import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
-import { LayoutDashboard, Users, Package, FileText, Handshake, Warehouse, Calculator, ShoppingCart, MoreHorizontal, ChevronDown, Moon, Sun } from "lucide-react";
+import { LayoutDashboard, Users, Package, FileText, Handshake, Warehouse, Calculator, ShoppingCart, MoreHorizontal, ChevronDown, Moon, Sun, ShieldCheck } from "lucide-react";
 
 const GLOBAL_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -61,6 +61,14 @@ export default function AppLayout({ children }) {
   const moreItems = MORE_NAV_ITEMS.filter((item) =>
     (!item.roles || item.roles.includes(role)) && isFeatureAvailable(item.to)
   );
+
+  const mobilePrimaryItems = [
+    { to: "/workspace/dashboard", label: "Home", icon: LayoutDashboard, visible: true },
+    { to: "/workspace/sales", label: "Sales", icon: FileText, visible: true },
+    { to: "/workspace/crm", label: "CRM", icon: Handshake, visible: workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads") },
+    { to: "/workspace/stock", label: "Stock", icon: Package, visible: user?.workspace_type === "business" || workspaceFeatures.includes("stock") },
+    { to: "/platform", label: "Tools", icon: ShieldCheck, visible: ["admin", "manager"].includes(role) },
+  ].filter((item) => item.visible);
 
   const globalItems = GLOBAL_NAV.filter((item) => {
     if (item.to === "/inventory-procurement") return workspaceFeatures.includes("inventoryWorkspace");
@@ -154,7 +162,12 @@ export default function AppLayout({ children }) {
           </div>
         </nav>
       </header>
-      <main className={`mx-auto max-w-6xl px-4 py-6 ${isGlobal ? "min-h-[calc(100vh-120px)] bg-[#F8F7FC]" : ""}`}>{children ?? <Outlet />}</main>
+      <main className={`mx-auto max-w-6xl px-4 py-6 pb-24 md:pb-6 ${isGlobal ? "min-h-[calc(100vh-120px)] bg-[#F8F7FC]" : ""}`}>{children ?? <Outlet />}</main>
+      {!isGlobal && <nav aria-label="Main workspace navigation" className="fixed inset-x-0 bottom-0 z-40 grid border-t border-[#E8E7EF] bg-white/95 shadow-[0_-8px_28px_rgba(24,24,40,.08)] backdrop-blur-xl md:hidden" style={{ gridTemplateColumns: "repeat(" + mobilePrimaryItems.length + ", minmax(0, 1fr))", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+        {mobilePrimaryItems.map((item) => <NavLink key={item.to} to={item.to} className={({ isActive }) => "flex min-h-[62px] flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-semibold transition-colors " + (isActive ? "text-violet-700" : "text-slate-500 hover:text-slate-900")}>
+          <item.icon className="h-5 w-5" /><span className="max-w-full truncate">{item.label}</span>
+        </NavLink>)}
+      </nav>}
       {!isGlobal && <PresenceBeacon />}
     </div>
   );
