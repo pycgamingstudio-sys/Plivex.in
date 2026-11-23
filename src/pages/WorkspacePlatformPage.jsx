@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/api/backendClient";
-import { Copy, FileSignature, KeyRound, MessageCircle, ScanText, RefreshCw, ShieldCheck, Search, Landmark, Boxes, Workflow, Users, ArrowRight } from "lucide-react";
+import { Copy, FileSignature, KeyRound, MessageCircle, ScanText, RefreshCw, ShieldCheck, Search, Landmark, Boxes, Workflow, Users, ArrowRight, BarChart3, Truck, CalendarClock, FileText, Activity } from "lucide-react";
 import WorkspaceEnterpriseControls from "@/components/workspace/WorkspaceEnterpriseControls";
 import WorkspaceRecurringInvoices from "@/components/workspace/WorkspaceRecurringInvoices";
 import WorkspaceSalesDocuments from "@/components/workspace/WorkspaceSalesDocuments";
@@ -118,14 +118,21 @@ export default function WorkspacePlatformPage() {
   const scopes=["workspace.read","invoices.read","clients.read","expenses.read","leads.read","inventory.read","suppliers.read","mcp.read"];
   const isAdmin = ["admin","manager"].includes(user?.role);
   const toolDirectory = {
-    integrations: [{ slug: "signature-audit", title: "Electronic signatures", description: "Create and manage secure, expiring signature requests." }, { slug: "document-ocr", title: "Document OCR & AI", description: "Extract review-ready information from business documents." }, { slug: "whatsapp-cloud", title: "WhatsApp Cloud", description: "Manage customer messaging with consent and delivery tracking." }, { slug: "public-api", title: "Public API & MCP", description: "Create scoped API keys and connect approved integrations." }],
-    finance: [{ slug: "gst-compliance", title: "GST compliance", description: "Work with tax compliance and return preparation tools." }, { slug: "bank-accounting", title: "Bank & accounting", description: "Reconcile bank activity and manage accounting workflows." }, { slug: "analytics", title: "Business analytics", description: "Explore business performance and financial insights." }],
-    inventory: [{ slug: "serial-traceability", title: "Serial traceability", description: "Track serialised items and their movement history." }],
-    operations: [{ slug: "supplier-portal", title: "Supplier portal", description: "Coordinate supplier onboarding and collaboration." }, { slug: "sales-documents", title: "Sales documents", description: "Prepare sales orders and supporting business documents." }, { slug: "recurring-invoices", title: "Recurring invoices", description: "Manage repeat billing schedules and invoice runs." }],
-    security: [{ slug: "enterprise-controls", title: "Team & approvals", description: "Manage workspace controls, approvals and delegated access." }],
+    integrations: [{ slug: "signature-audit", title: "Electronic signatures", description: "Create and manage secure, expiring signature requests.", Icon: FileSignature }, { slug: "document-ocr", title: "Document OCR & AI", description: "Extract review-ready information from business documents.", Icon: ScanText }, { slug: "whatsapp-cloud", title: "WhatsApp Cloud", description: "Manage customer messaging with consent and delivery tracking.", Icon: MessageCircle }, { slug: "public-api", title: "Public API & MCP", description: "Create scoped API keys and connect approved integrations.", Icon: KeyRound }],
+    finance: [{ slug: "gst-compliance", title: "GST compliance", description: "Work with tax compliance and return preparation tools.", Icon: Landmark }, { slug: "bank-accounting", title: "Bank & accounting", description: "Reconcile bank activity and manage accounting workflows.", Icon: RefreshCw }, { slug: "analytics", title: "Business analytics", description: "Explore business performance and financial insights.", Icon: BarChart3 }],
+    inventory: [{ slug: "serial-traceability", title: "Serial traceability", description: "Track serialised items and their movement history.", Icon: Boxes }],
+    operations: [{ slug: "supplier-portal", title: "Supplier portal", description: "Coordinate supplier onboarding and collaboration.", Icon: Truck }, { slug: "sales-documents", title: "Sales documents", description: "Prepare sales orders and supporting business documents.", Icon: FileText }, { slug: "recurring-invoices", title: "Recurring invoices", description: "Manage repeat billing schedules and invoice runs.", Icon: CalendarClock }],
+    security: [{ slug: "enterprise-controls", title: "Team & approvals", description: "Manage workspace controls, approvals and delegated access.", Icon: Activity }],
   };
   const selectedTool = (toolDirectory[activeGroup] || []).find((item) => item.slug === toolParam);
   const selectedGroupTitle = { integrations: "Connected apps", finance: "Finance & tax", inventory: "Inventory traceability", operations: "Sales & suppliers", security: "Team & approvals" }[activeGroup];
+  const groupToneClasses = {
+    integrations: { icon: "bg-violet-50 text-violet-700", active: "bg-violet-700 text-white", selected: "border-violet-300 bg-violet-50/70" },
+    finance: { icon: "bg-emerald-50 text-emerald-700", active: "bg-emerald-700 text-white", selected: "border-emerald-300 bg-emerald-50/70" },
+    inventory: { icon: "bg-sky-50 text-sky-700", active: "bg-sky-700 text-white", selected: "border-sky-300 bg-sky-50/70" },
+    operations: { icon: "bg-amber-50 text-amber-700", active: "bg-amber-600 text-white", selected: "border-amber-300 bg-amber-50/70" },
+    security: { icon: "bg-rose-50 text-rose-700", active: "bg-rose-700 text-white", selected: "border-rose-300 bg-rose-50/70" },
+  };
   const toolFilterCss = groupParam && !toolParam ? "[data-tool]{display:none!important}" : (selectedTool ? '[data-tool]:not([data-tool="' + selectedTool.slug + '"]){display:none!important}' : "");
   const mcpUrl = useMemo(()=>((import.meta.env.VITE_SUPABASE_URL||"").replace(/\/$/,"")+"/functions/v1/workspace-platform"),[]);
 
@@ -160,8 +167,8 @@ export default function WorkspacePlatformPage() {
          {id:"security",title:"Team & approvals",description:"Approval policies, approval requests and time-bound delegated permissions.",detail:"Access controls",Icon:Users},
        ].filter(group=>(group.title+" "+group.description).toLowerCase().includes(search.trim().toLowerCase())).map(group=>{
          const selected=activeGroup===group.id;
-         return <button key={group.id} type="button" aria-pressed={selected} onClick={()=>navigate("/platform/"+group.id)} className={`group flex min-h-[142px] items-start gap-3 rounded-2xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 sm:p-5 ${selected?"border-violet-300 bg-violet-50/70 shadow-[0_8px_24px_rgba(109,40,217,.10)]":"border-slate-200 bg-white hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-[0_8px_24px_rgba(30,20,60,.07)]"}`}>
-           <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${selected?"bg-violet-700 text-white":"bg-violet-50 text-violet-700"}`}><group.Icon className="h-5 w-5"/></span>
+         return <button key={group.id} type="button" aria-pressed={selected} onClick={()=>navigate("/platform/"+group.id)} className={`group flex min-h-[142px] items-start gap-3 rounded-2xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 sm:p-5 ${selected?groupToneClasses[group.id].selected+" shadow-[0_8px_24px_rgba(30,20,60,.07)]":"border-slate-200 bg-white hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_8px_24px_rgba(30,20,60,.07)]"}`}>
+           <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${selected?groupToneClasses[group.id].active:groupToneClasses[group.id].icon}`}><group.Icon className="h-5 w-5"/></span>
            <span className="min-w-0 flex-1">
              <span className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-900">{group.title}{selected&&<span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-800">Selected</span>}</span>
              <span className="mt-1.5 block text-xs leading-5 text-slate-600">{group.description}</span>
@@ -177,7 +184,7 @@ export default function WorkspacePlatformPage() {
        "Sales & suppliers Sales orders, delivery challans, credit/debit notes, recurring invoices and supplier onboarding.",
        "Team & approvals Approval policies, approval requests and time-bound delegated permissions."
      ].some(label=>label.toLowerCase().includes(search.trim().toLowerCase()))&&<p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">No matching category. Try a shorter search.</p>}
-     {groupParam && !toolParam && <section aria-label="Tools in this category" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{(toolDirectory[activeGroup] || []).map((tool) => <Link key={tool.slug} to={"/platform/"+groupParam+"/"+tool.slug} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 group-hover:bg-violet-100 group-hover:text-violet-800"><ArrowRight className="h-5 w-5"/></span><h2 className="mt-4 text-sm font-bold text-slate-900">{tool.title}</h2><p className="mt-1 text-xs leading-5 text-slate-600">{tool.description}</p><span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-violet-700">Open workspace <ArrowRight className="h-3.5 w-3.5"/></span></Link>)}</section>}
+     {groupParam && !toolParam && <section aria-label="Tools in this category" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{(toolDirectory[activeGroup] || []).map((tool) => <Link key={tool.slug} to={"/platform/"+groupParam+"/"+tool.slug} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"><span className={"flex h-10 w-10 items-center justify-center rounded-xl "+groupToneClasses[activeGroup].icon}><tool.Icon className="h-5 w-5"/></span><h2 className="mt-4 text-sm font-bold text-slate-900">{tool.title}</h2><p className="mt-1 text-xs leading-5 text-slate-600">{tool.description}</p><span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-violet-700">Open workspace <ArrowRight className="h-3.5 w-3.5"/></span></Link>)}</section>}
      <style>{toolFilterCss}</style>
      <section className="space-y-4">
        <div className="flex flex-wrap items-end justify-between gap-2">
