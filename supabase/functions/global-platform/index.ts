@@ -364,7 +364,7 @@ Deno.serve(async (req: Request) => {
     if (isObject(body) && body.action === "signature.complete") return globalJson(await signDocument(admin, req, body), 200, origin);
     if (isObject(body) && body.action === "signature.preview") return globalJson(await signPreview(admin, clean(body.token, 256)), 200, origin);
     if ("error" in auth) return globalJson({ error: auth.error }, auth.status, origin);
-    if (!isObject(body) || !["signature.request", "signature.list", "ocr.process", "whatsapp.send", "api-key.create", "api-key.list", "api-key.revoke"].includes(body.action)) return globalJson({ error: "Invalid action" }, 400, origin);
+    if (!isObject(body) || !["signature.request", "signature.list", "ocr.process", "whatsapp.send", "whatsapp.list", "api-key.create", "api-key.list", "api-key.revoke"].includes(body.action)) return globalJson({ error: "Invalid action" }, 400, origin);
     const user = auth.user;
     const { data: userLimit, error: userLimitError } = await admin.rpc("global_consume_enterprise_rate_limit", { p_key: user.id + ":platform", p_limit: 30, p_window_seconds: 60 });
     if (userLimitError || userLimit !== true) return globalJson({ error: "Platform rate limit exceeded" }, 429, origin);
@@ -377,6 +377,14 @@ Deno.serve(async (req: Request) => {
     }
     if (body.action === "ocr.process") return globalJson(await processOcr(admin, user, body), 200, origin);
     if (body.action === "whatsapp.send") return globalJson(await sendWhatsApp(admin, user, body), 200, origin);
+    if (body.action === "whatsapp.list") {
+      if (!UUID.test(body.workspaceId || "") || !await member(admin, user.id, body.workspaceId, ["owner", "admin", "manager", "accountant"])) throw new Error("ACCESS_DENIED");
+      const { data, error } = await admin.schema("global").from("whatsapp_delivery_logs")
+        .select("id,recipient_phone,message_type,template_name,status,error_code,created_at,provider_message_id")
+        .eq("workspace_id", body.workspaceId).order("created_at", { ascending: false }).limit(50);
+      if (error) throw new Error("WHATSAPP_LOG_LIST_FAILED");
+      return globalJson({ ok: true, messages: data }, 200, origin);
+    }
     if (body.action === "api-key.create") {
       if (!UUID.test(body.workspaceId || "") || !await member(admin, user.id, body.workspaceId, ["owner", "admin"])) throw new Error("ACCESS_DENIED");
       const label = clean(body.label, 80);
