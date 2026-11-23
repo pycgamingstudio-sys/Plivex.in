@@ -58,6 +58,7 @@ const PublicInvoicePage = lazy(() => import("./pages/PublicInvoicePage"));
 const SupplierPortalPage = lazy(() => import("./pages/SupplierPortalPage"));
 const WorkspacePlatformPage = lazy(() => import("./pages/WorkspacePlatformPage"));
 const PublicSignaturePage = lazy(() => import("./pages/PublicSignaturePage"));
+const PublicSupplierOnboardingPage = lazy(() => import("./pages/PublicSupplierOnboardingPage"));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, isAuthenticated, user, logout } = useAuth();
@@ -132,6 +133,7 @@ const AuthenticatedApp = () => {
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/i/:token" element={<PublicInvoicePage />} />
       <Route path="/sign/:token" element={<PublicSignaturePage />} />
+      <Route path="/supplier-onboarding/:token" element={<PublicSupplierOnboardingPage />} />
       <Route path="/" element={isGlobalWorkspace && isAuthenticated ? <Navigate to="/dashboard" replace /> : <HomeGate />} />
       <Route path="/dashboard" element={<HomeGate />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/" replace />} />}>
