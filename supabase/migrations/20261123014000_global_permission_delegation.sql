@@ -445,7 +445,7 @@ begin
   end if;
   return jsonb_build_object('ok',false,'code','UNSUPPORTED_ACTION');
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.global_approval_request_v2(p_user_id uuid, p_workspace_id uuid, p_payload jsonb)
  RETURNS jsonb
@@ -496,7 +496,7 @@ begin
   values(p_workspace_id,v_branch_id,p_user_id,'approval.requested','approval_request',v_request_id::text,
     jsonb_build_object('action_type',v_action,'resource_type',v_resource,'current_level',v_current,'total_levels',v_total),now());
   return jsonb_build_object('ok',true,'requestId',v_request_id,'status','pending','currentLevel',v_current,'totalLevels',v_total);
-end $function$
+end $function$;
 
 CREATE OR REPLACE FUNCTION public.global_approval_decide_v2(p_user_id uuid, p_workspace_id uuid, p_payload jsonb)
  RETURNS jsonb
@@ -572,7 +572,7 @@ begin
     'status',case when v_decision='rejected' then 'rejected' when v_next.id is not null then 'pending' else 'approved' end,
     'currentLevel',case when v_decision='rejected' then v_request.current_level when v_next.id is not null then v_next.level else v_request.total_levels end,
     'totalLevels',v_request.total_levels);
-end $function$
+end $function$;
 
 CREATE OR REPLACE FUNCTION public.global_approval_list_v2(p_user_id uuid, p_workspace_id uuid)
  RETURNS jsonb
@@ -620,7 +620,7 @@ begin
     from global.approval_requests r where r.workspace_id=p_workspace_id and r.status='pending';
   end if;
   return jsonb_build_object('ok',true,'requests',v_rows);
-end $function$
+end $function$;
 
 
 revoke all on function global.has_active_permission_delegation(uuid,uuid,text) from public,anon,authenticated;
