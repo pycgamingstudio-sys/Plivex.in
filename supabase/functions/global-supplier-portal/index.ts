@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
       const { data, error } = await auth.admin.rpc("global_supplier_portal_list", {
         p_user_id: auth.user.id, p_workspace_id: body.workspace_id, p_limit: 200,
       });
-      if (error || !data?.ok) return globalJson({ error: data?.reason === "forbidden" ? "Your role cannot manage supplier onboarding." : "Supplier onboarding records could not be loaded." }, data?.reason === "forbidden" ? 403 : 400, origin);
+      if (error || !data?.ok) return globalJson({ error: data?.reason === "forbidden" ? "Your role cannot manage supplier onboarding." : "Supplier onboarding records could not be loaded." }, ["forbidden","access_denied"].includes(data?.reason) ? 403 : 400, origin);
       return globalJson({ records: data.records || [] }, 200, origin);
     }
 
@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
         p_user_id: auth.user.id, p_workspace_id: body.workspace_id, p_supplier_id: body.supplier_id,
         p_decision: body.decision, p_note: body.review_note ?? null,
       });
-      if (error || !data?.ok) return globalJson({ error: data?.reason === "forbidden" ? "Your role cannot review suppliers." : "Supplier review could not be saved." }, data?.reason === "forbidden" ? 403 : 400, origin);
+      if (error || !data?.ok) return globalJson({ error: data?.reason === "forbidden" ? "Your role cannot review suppliers." : "Supplier review could not be saved." }, ["forbidden","access_denied"].includes(data?.reason) ? 403 : 400, origin);
       return globalJson(data, 200, origin);
     }
 
@@ -111,7 +111,7 @@ Deno.serve(async (req: Request) => {
       p_token_hash: tokenHash, p_expires_at: expiresAt,
     });
     if (error || !data?.ok) {
-      const status = data?.reason === "forbidden" ? 403 : data?.reason === "supplier_not_found" ? 404 : 400;
+      const status = ["forbidden","access_denied"].includes(data?.reason) ? 403 : data?.reason === "supplier_not_found" ? 404 : 400;
       return globalJson({ error: data?.reason === "forbidden" ? "Your role cannot invite suppliers." : "Supplier invitation could not be created." }, status, origin);
     }
     const inviteUrl = "https://plivex.in/supplier-portal?token=" + encodeURIComponent(token);
