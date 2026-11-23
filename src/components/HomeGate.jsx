@@ -75,7 +75,7 @@ export default function HomeGate({ initialTab: routeInitialTab }) {
   });
   return <TrialGate><div className="plivex-route-shell">{dashboard}
     <style>{".plivex-route-shell .plivex-bottom-nav{display:none!important}"}</style>
-    <nav aria-label="Main workspace navigation" className={"fixed inset-x-0 bottom-0 z-[45] grid grid-cols-"+visibleMobileItems.length+" border-t border-slate-200 bg-white/95 shadow-[0_-8px_28px_rgba(24,24,40,.08)] backdrop-blur-xl md:hidden"} style={{paddingBottom:"env(safe-area-inset-bottom, 0px)"}}>
+    <nav aria-label="Main workspace navigation" className="fixed inset-x-0 bottom-0 z-[45] grid border-t border-slate-200 bg-white/95 shadow-[0_-8px_28px_rgba(24,24,40,.08)] backdrop-blur-xl md:hidden" style={{gridTemplateColumns:"repeat("+visibleMobileItems.length+", minmax(0, 1fr))",paddingBottom:"env(safe-area-inset-bottom, 0px)"}}>
       {visibleMobileItems.map(({to,label,Icon,active})=><Link key={to} to={to} aria-current={active?"page":undefined} className={"flex min-h-[62px] flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-semibold transition-colors "+(active?"text-violet-700":"text-slate-500 hover:text-slate-900")}>
         <Icon className="h-5 w-5" strokeWidth={active?2.4:1.8}/><span className="max-w-full truncate">{label}</span>
       </Link>)}
