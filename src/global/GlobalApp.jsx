@@ -197,6 +197,8 @@ export default function GlobalApp({ section = "overview" }) {
           <GlobalAccountingPanel account={account} invoke={invoke} />
         ) : tab === "enterprise" ? (
           <GlobalEnterprisePanel workspaceId={account.workspace_id} />
+        ) : tab === "platform" ? (
+          <GlobalPlatformPanel workspaceId={account.workspace_id} />
         ) : ["crm", "inventory", "sales_docs", "suppliers"].includes(tab) ? (
           <GlobalPart4Panel account={account} initialSection={tab === "crm" ? "crm" : tab === "sales_docs" ? "sales_docs" : tab === "suppliers" ? "suppliers" : "warehouses"} />
         ) : (
