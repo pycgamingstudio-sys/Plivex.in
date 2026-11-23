@@ -58,6 +58,8 @@ test("Public API keys are hashed, scoped, expiring and revocable with MCP read t
   assert.match(platform,/x-plivex-key/);
   assert.match(platform,/key_hash:keyHash/);
   assert.match(platform,/api-key\.revoke/);
+  assert.match(platform,/consume_main_workspace_api_rate_limit/);
+  assert.match(platform,/signature\.revoke/);
   assert.match(platform,/mcp\.tools\/list/);
   assert.match(platform,/business_insights/);
   assert.match(page,/Public API & MCP access/);
