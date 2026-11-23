@@ -3,57 +3,33 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [app, auth, backend, onboarding, worker, vite, layout, globalApp, roleGuard] = await Promise.all([
-  read("../../App.jsx"),
-  read("../../lib/AuthContext.jsx"),
-  read("../../api/backendClient.js"),
-  read("../../components/global/GlobalCountryOnboarding.jsx"),
-  read("../../../wrangler.jsonc"),
-  read("../../../vite.config.js"),
-  read("../../components/AppLayout.jsx"),
-  read("../GlobalApp.jsx"),
-  read("../../components/RoleGuard.jsx"),
-]);
 
-test("India and Global use the same origin, authentication provider and responsive workspace shell", async () => {
-  assert.ok(app.includes('import GlobalApp from "@/global/GlobalApp";'));
-  assert.doesNotMatch(app, /const GlobalApp = lazy/);
-  assert.match(app, /const isGlobalWorkspace = !isUnifiedBuild && APP_EDITION === "global"/);
-  assert.ok(app.includes('<Route path="/dashboard" element={<HomeGate />} />'));
-  assert.ok((await read("../../components/HomeGate.jsx")).includes("<TrialGate><AppLayout><GlobalApp section=\"overview\" /></AppLayout></TrialGate>"));
-  assert.ok(app.includes('<Route path="/invoice-history" element={isGlobalWorkspace ? <GlobalApp section="invoices" /> : <InvoiceHistory />} />'));
-  assert.match(app, /isUnifiedBuild/);
-  assert.doesNotMatch(app, /window\.location\.hostname/);
+test("all seven country workspaces use one authenticated Main Workspace shell", async () => {
+  const app = await read("../../App.jsx");
+  const auth = await read("../../lib/AuthContext.jsx");
+  const layout = await read("../../components/AppLayout.jsx");
   assert.match(app, /<AuthProvider>/);
-  assert.match(app, /element={<AppLayout \/>}/);
+  assert.match(app, /<AppLayout \/>/);
+  assert.match(app, /All supported countries use the same Main Workspace routes/);
+  assert.doesNotMatch(app, /GlobalApp|isGlobalWorkspace/);
+  assert.match(auth, /if \(isUnifiedBuild\)/);
+  assert.match(auth, /setRuntimeEdition\("india"\)/);
+  assert.doesNotMatch(auth, /global-auth-context/);
   assert.match(layout, /Workspace/);
-  assert.doesNotMatch(layout, /Global Workspace/);
-  assert.match(layout, /GLOBAL_NAV/);
-  assert.ok(layout.includes('<NavLink key={item.to} to={item.to}'));
-  assert.doesNotMatch(layout, /useSearchParams|setSearchParams/);
-  assert.doesNotMatch(globalApp, /useSearchParams|setSearchParams/);
-  assert.match(roleGuard, /APP_EDITION === "global"/);
-  assert.match(roleGuard, /Global role checks are enforced by workspace-scoped Edge Functions and RLS/);
 });
 
-test("shared authentication resolves Global workspace membership without reading India profiles for Global", () => {
-  assert.match(auth, /resolveSignedInEdition\(currentUser\)/);
-  assert.match(auth, /global-auth-context/);
-  assert.ok(auth.includes("global:"));
-  assert.match(backend, /global-business-records/);
-  assert.match(backend, /global-ensure-owner/);
-  assert.match(onboarding, /globalEnsureOwner/);
+test("country onboarding provisions a canonical workspace and does not invoke legacy Global provisioning", async () => {
+  const onboarding = await read("../../components/global/UnifiedWorkspaceOnboarding.jsx");
+  const app = await read("../../App.jsx");
+  assert.match(onboarding, /ensureOwnerRole/);
+  assert.doesNotMatch(onboarding, /globalEnsureOwner/);
+  assert.match(app, /UnifiedWorkspaceOnboarding/);
+  assert.doesNotMatch(app, /GlobalApp/);
 });
 
-test("Global signup cannot accidentally provision an India workspace through Global onboarding", () => {
-  assert.match(onboarding, /country\.code === "IN"/);
-  assert.match(onboarding, /entry\.code !== "IN"/);
-  assert.match(auth, /signup_country_code/);
-});
-
-test("unified build uses the existing Plivex Worker config rather than a second Global Worker", () => {
-  const config = JSON.parse(worker);
-  assert.equal(config.name, "plivex-in");
-  assert.match(vite, /edition === 'global' \? '\.\/wrangler\.global\.jsonc' : '\.\/wrangler\.jsonc'/);
-  assert.match(vite, /VITE_APP_EDITION: edition/);
+test("the single-domain build uses the existing Plivex Worker configuration", async () => {
+  const worker = JSON.parse(await read("../../../wrangler.jsonc"));
+  const vite = await read("../../../vite.config.js");
+  assert.equal(worker.name, "plivex-in");
+  assert.doesNotMatch(vite, /wrangler\.global\.jsonc/);
 });
