@@ -57,40 +57,42 @@ Deno.serve(async (req: Request) => {
 
     if (body.action === "approval.cancel" && !UUID.test(body.requestId || "")) return globalJson({ error: "Invalid approval request." }, 400, origin);
     if (body.action === "approval.decide" && (!UUID.test(body.requestId || "") || !["approve", "approved", "reject", "rejected"].includes(body.decision))) return globalJson({ error: "Invalid approval decision." }, 400, origin);
-    const rpcName = body.action === "permission.delegation.create" ? "global_permission_delegation_create"
-      : body.action === "permission.delegation.list" ? "global_permission_delegation_list"
-        : body.action === "permission.delegation.revoke" ? "global_permission_delegation_revoke"
-          : body.action === "approval.cancel" ? "global_approval_cancel_v2"
-      : body.action === "approval.request" ? "global_approval_request_v2"
-        : body.action === "approval.decide" ? "global_approval_decide_v2"
-          : body.action === "approval.list" ? "global_approval_list_v2"
-            : body.action === "approval.policy.set" ? "global_set_approval_policy_v2"
-              : body.action === "approval.policy.list" ? "global_list_approval_policies_v2" : "global_enterprise_action";
-    const rpcArgs = body.action === "permission.delegation.create"
-      ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_delegate_member_id: body.delegateMemberId, p_permission_keys: body.permissionKeys, p_expires_at: new Date(body.expiresAt).toISOString() }
-      : body.action === "permission.delegation.list"
-        ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId }
-        : body.action === "permission.delegation.revoke"
-          ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_delegation_id: body.delegationId }
-          : body.action === "approval.cancel"
-            ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_request_id: body.requestId }
-      : body.action === "approval.request" || body.action === "approval.decide"
-        ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_payload: body }
-        : body.action === "approval.list" || body.action === "approval.policy.list"
-          ? { p_user_id: auth.user.id, p_workspace_id: body.workspaceId }
-          : body.action === "approval.policy.set"
-            ? {
-              p_user_id: auth.user.id,
-              p_workspace_id: body.workspaceId,
-              p_action_type: body.actionType,
-              p_enabled: body.enabled,
-              p_minimum_amount_minor: body.minimumAmountMinor,
-              p_approval_levels: body.approvalLevels,
-              p_escalation_after_hours: body.escalationAfterHours,
-              p_escalation_role: body.escalationRole,
-              p_prevent_self_approval: body.preventSelfApproval,
-            }
-            : { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_action: body.action, p_payload: body };
+    let rpcName = "global_enterprise_action";
+    let rpcArgs: Record<string, unknown> = {
+      p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_action: body.action, p_payload: body,
+    };
+    if (body.action === "permission.delegation.create") {
+      rpcName = "global_permission_delegation_create";
+      rpcArgs = {
+        p_user_id: auth.user.id, p_workspace_id: body.workspaceId,
+        p_delegate_member_id: body.delegateMemberId, p_permission_keys: body.permissionKeys,
+        p_expires_at: new Date(body.expiresAt).toISOString(),
+      };
+    } else if (body.action === "permission.delegation.list") {
+      rpcName = "global_permission_delegation_list";
+      rpcArgs = { p_user_id: auth.user.id, p_workspace_id: body.workspaceId };
+    } else if (body.action === "permission.delegation.revoke") {
+      rpcName = "global_permission_delegation_revoke";
+      rpcArgs = { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_delegation_id: body.delegationId };
+    } else if (body.action === "approval.cancel") {
+      rpcName = "global_approval_cancel_v2";
+      rpcArgs = { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_request_id: body.requestId };
+    } else if (body.action === "approval.request" || body.action === "approval.decide") {
+      rpcName = body.action === "approval.request" ? "global_approval_request_v2" : "global_approval_decide_v2";
+      rpcArgs = { p_user_id: auth.user.id, p_workspace_id: body.workspaceId, p_payload: body };
+    } else if (body.action === "approval.list" || body.action === "approval.policy.list") {
+      rpcName = body.action === "approval.list" ? "global_approval_list_v2" : "global_list_approval_policies_v2";
+      rpcArgs = { p_user_id: auth.user.id, p_workspace_id: body.workspaceId };
+    } else if (body.action === "approval.policy.set") {
+      rpcName = "global_set_approval_policy_v2";
+      rpcArgs = {
+        p_user_id: auth.user.id, p_workspace_id: body.workspaceId,
+        p_action_type: body.actionType, p_enabled: body.enabled,
+        p_minimum_amount_minor: body.minimumAmountMinor, p_approval_levels: body.approvalLevels,
+        p_escalation_after_hours: body.escalationAfterHours, p_escalation_role: body.escalationRole,
+        p_prevent_self_approval: body.preventSelfApproval,
+      };
+    }
     const { data, error } = await auth.admin.rpc(rpcName, rpcArgs);
     if (error || !data) return globalJson({ error: "Enterprise operation failed" }, 503, origin);
     if (data.ok !== true) {
