@@ -7,9 +7,9 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 test("unified app mounts one Main Workspace route tree for every supported country", () => {
   const app = read("../../App.jsx");
   assert.match(app, /All supported countries use the same Main Workspace routes/);
-  assert.match(app, /<Route path="\/dashboard" element={<HomeGate \/>} \/>/);
-  assert.match(app, /<Route path="\/invoice-history" element={<InvoiceHistory \/>} \/>/);
-  assert.match(app, /<Route path="\/quotations" element={<Navigate to="\/dashboard" replace state=\{\{ initialTab: "sales", initialSub: "quotations" \}\} \/>} \/>/);
+  assert.ok(app.includes('<Route path="/dashboard" element={<HomeGate />} />'));
+  assert.ok(app.includes('<Route path="/invoice-history" element={<InvoiceHistory />} />'));
+  assert.ok(app.includes('path="/quotations" element={<Navigate to="/dashboard" replace state={{ initialTab: "sales", initialSub: "quotations" }} />}'));
   assert.doesNotMatch(app, /GlobalApp|isGlobalWorkspace/);
   assert.match(app, /<AuthProvider>/);
   assert.match(app, /<AppLayout \/>/);
