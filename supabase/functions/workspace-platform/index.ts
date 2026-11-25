@@ -43,7 +43,10 @@ async function setup(req: Request) {
   if (profileError || !profile?.workspace_id) throw new Error("WORKSPACE_NOT_FOUND");
   const { data: settings, error: settingsError } = await admin.from("workspace_settings").select("workspace_id,country_code,currency_code,locale_code").eq("workspace_id", profile.workspace_id).maybeSingle();
   if (settingsError || !settings) throw new Error("WORKSPACE_NOT_READY");
-  const { data: membership, error: membershipError } = await admin.from("workspace_members").select("role,status").eq("workspace_id", profile.workspace_id).eq("user_id", user.id).eq("status
+  const { data: membership, error: membershipError } = await admin.from("workspace_members").select("role,status").eq("workspace_id", profile.workspace_id).eq("user_id", user.id).eq("status", "active").maybeSingle();
+  if (membershipError) throw new Error("WORKSPACE_MEMBERSHIP_CHECK_FAILED");
+  if (!membership) throw new Error("WORKSPACE_MEMBERSHIP_REQUIRED");
+  const role = String(membership.role || "");
   return { admin, user, workspaceId: String(profile.workspace_id), settings, role };
 }
 const canManage = (role: string) => ["admin", "manager"].includes(role);
