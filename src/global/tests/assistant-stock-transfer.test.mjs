@@ -32,7 +32,8 @@ test("stock transfer is an allow-listed, user-confirmed Nova write tool", () => 
   assert.match(registry, /stock_transfer: \{ module: "stock_transfers", approval: "user_confirmation"/);
   assert.match(registry, /stock_transfers: \{ readContext: true, writeTools: \["stock_transfer"\], planned: false \}/);
   assert.match(chat, /validateStockTransferAction/);
-  assert.match(chat, /Transfer .*units of/);
+  assert.match(chat, /summary: "Transfer "/);
+  assert.match(chat, /" units of "/);
 });
 
 test("Nova confirms stock transfer through the existing atomic RPC and verifies both ledger movements", () => {
