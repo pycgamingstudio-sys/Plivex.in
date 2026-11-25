@@ -248,7 +248,7 @@ const functions = {
     const migratedFunctions = new Set([
       "add-client", "ensure-owner-role", "send-team-invite", "verify-invite-code",
       "get-workspace-team", "manage-workspace-member", "ping-presence",
-      "track-staff-action", "get-team-presence", "get-access-status", "create-payu-order",
+      "track-staff-action", "get-team-presence", "get-access-status",
       "global-ensure-owner", "global-business-records", "global-invoices", "global-stock-movements", "reset-workspace-country", "update-workspace-locale", "workspace-records", "manage-cashfree-subscription", "list-invoices", "save-invoice", "set-invoice-status", "send-payment-reminder", "set-invoice-reminder", "confirm-payment-reminder", "update-invoice-client-email",
     ]);
     const adapter = adapters[name] || {};
