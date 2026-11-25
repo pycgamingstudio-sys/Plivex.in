@@ -336,6 +336,18 @@
       "name": "assistant_invoice_profile_snapshot",
       "path": "supabase/recovered_remote_migrations/20261112071603_assistant_invoice_profile_snapshot.sql",
       "blob_sha": "fa5d83ff5f290beda3e63b06514f98141c077064"
+    },
+    {
+      "version": "20261122065537",
+      "name": "quotation_workspace_tax_snapshots",
+      "path": "supabase/recovered_remote_migrations/20261122065537_quotation_workspace_tax_snapshots.sql",
+      "blob_sha": "924cb68886414f508f6a035f30d18b8d537fd980"
+    },
+    {
+      "version": "20261122070000",
+      "name": "carry_quotation_tax_to_invoice",
+      "path": "supabase/recovered_remote_migrations/20261122070000_carry_quotation_tax_to_invoice.sql",
+      "blob_sha": "1ff26eb6a535e27a947797db05332763e52baa17"
     }
   ],
   "local_only_files": [
@@ -402,7 +414,8 @@
     "202611160001_global_enterprise_controls.sql adds the Global tax-rule/FX snapshot registry and enterprise controls; candidate replay only.",
     "Combined 90 Percent Blueprint replay includes Parts 4–6, Global accounting, and Parts 7–8 using unique ordered migration versions. All 51 local migration files are replayed only in disposable PostgreSQL validation; no production migration is applied by this branch.",
     "The disposable candidate replay includes the previously omitted country-request/reset migrations and Global invoice issuance/refund ledger migration. The duplicate local file 20261115072000_global_workspace_country_change.sql is intentionally not replayed because its SQL blob is byte-identical to the recorded 20261115131630_global_workspace_country_change_part7.sql source; the latter is replayed once under its recorded version.",
-    "20261117170000_global_quotations_workflow.sql is a new Global-only forward migration added after the 2026-11-14 reconciliation snapshot; it is included in candidate replay, not historical remote replay."
+    "20261117170000_global_quotations_workflow.sql is a new Global-only forward migration added after the 2026-11-14 reconciliation snapshot; it is included in candidate replay, not historical remote replay.",
+    "Recovered the exact production migration statements for 20261122065537 quotation_workspace_tax_snapshots and 20261122070000 carry_quotation_tax_to_invoice from supabase_migrations.schema_migrations; these are required for clean tax-aware quotation replay."
   ],
   "recovered_historical_sources": [
     {
@@ -644,7 +657,7 @@
       "reason": "remote ledger source differs from same-basename local file"
     }
   ],
-  "recovered_missing_sources_count": 35,
+  "recovered_missing_sources_count": 37,
   "recovered_drift_variants_count": 4,
   "recovered_historical_sources_count": 39
 }
