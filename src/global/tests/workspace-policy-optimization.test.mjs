@@ -20,3 +20,8 @@ test("workspace policy writes remain role-scoped for insert, update and delete",
   assert.match(migration, /global\.is_workspace_admin\(workspace_id\)/);
   assert.match(migration, /has_ws_role\(workspace_id, array\['admin'::app_role, 'manager'::app_role\]\)/);
 });
+
+test("auth uid policy checks are evaluated as statement initplans",()=>{
+  assert.match(migration,/requested_by = \(select auth\.uid\(\)\)/);
+  assert.match(migration,/created_by = \(select auth\.uid\(\)\)/);
+});
