@@ -4,6 +4,14 @@ const esc = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (char) =
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 }[char]!));
 const validEmail = (value: string) => value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value);
+const safeEqual = (left: string, right: string) => {
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return difference === 0;
+};
 const localeForCurrency = (currency: string) => ({ INR: "en-IN", USD: "en-US", GBP: "en-GB", AED: "en-AE", CAD: "en-CA", AUD: "en-AU", SGD: "en-SG" } as Record<string, string>)[currency] || "en";
 const dateLabel = (value: string, locale: string) => value
   ? new Date(value + "T00:00:00.000Z").toLocaleDateString(locale, { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })
@@ -28,7 +36,7 @@ Deno.serve(async (req: Request) => {
     const supplied = req.headers.get("x-cron-secret") || "";
     const { data: config, error: configError } = await admin.from("invoice_reminder_cron_config")
       .select("secret").eq("singleton", true).maybeSingle();
-    if (configError || !config?.secret || supplied.length < 32 || supplied !== config.secret) {
+    if (configError || !config?.secret || supplied.length < 32 || !safeEqual(supplied, config.secret)) {
       return Response.json({ error: "Unauthorized scheduler request." }, { status: 401 });
     }
 
