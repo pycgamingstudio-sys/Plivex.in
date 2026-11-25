@@ -1,3 +1,4 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowed } from "../_shared/global.ts";
 import { resolveSupabaseTaxRule } from "../_shared/tax/supabase-tax-rule-resolver.ts";
 
@@ -18,6 +19,18 @@ Deno.serve(async (req: Request) => {
 
   const auth = await authenticateGlobal(req);
   if ("error" in auth) return globalJson({ error: auth.error }, auth.status, origin);
+
+  // Preserve the caller JWT for SECURITY DEFINER RPC authorization checks.
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const authorization = req.headers.get("Authorization") || "";
+  if (!supabaseUrl || !supabaseAnonKey || !authorization.startsWith("Bearer ")) {
+    return globalJson({ error: "Authenticated quotation context is unavailable." }, 503, origin);
+  }
+  const caller = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authorization } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
   try {
     const declaredLength = Number(req.headers.get("content-length") || 0);
@@ -124,7 +137,7 @@ Deno.serve(async (req: Request) => {
       };
     }
 
-    const { data, error } = await auth.admin.rpc("global_manage_quotation", {
+    const { data, error } = await caller.rpc("global_manage_quotation", {
       p_user_id: auth.user.id,
       p_workspace_id: body.workspace_id,
       p_action: action,
