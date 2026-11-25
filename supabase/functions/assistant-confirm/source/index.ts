@@ -7,6 +7,7 @@ import { validateGlobalProductAction } from "../_shared/assistant-global-product
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
 import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
 import { validateWarehouseAction, validateStockTransferAction } from "../_shared/assistant-warehouse-validation.mjs";
+import { validateSupplierInviteAction } from "../_shared/assistant-supplier-validation.mjs";
 import { isGlobalOnlyAssistantAction } from "../_shared/assistant-workspace-action-guard.mjs";
 
 const ALLOWED_ORIGINS = new Set([
@@ -62,6 +63,9 @@ function validateAction(action: unknown) {
   }
   if (type === "stock_transfer") {
     return validateStockTransferAction(action);
+  }
+  if (type === "invite_supplier") {
+    return validateSupplierInviteAction(action);
   }
   if (type === "create_purchase_order") {
     return validatePurchaseOrderAction(action);
@@ -433,6 +437,35 @@ Deno.serve(async (req: Request) => {
         verification: [{ type: "create_warehouse", id: warehouse.warehouse_id, verified }],
         duplicate: Boolean(warehouse.duplicate),
         warehouse: verifiedWarehouse ? { code: verifiedWarehouse.code, name: verifiedWarehouse.name } : null,
+      }, 200, origin);
+    }
+    if (actions.some((action: any) => action.type === "invite_supplier")) {
+      if (actions.length !== 1) return json({ error: "Supplier invitations must be confirmed separately so each invitation is auditable." }, 400, origin);
+      const payload = actions[0].payload;
+      const { data: invitation, error: inviteError } = await supabase.functions.invoke("workspace-supplier-portal", {
+        body: { action: "invite.create", supplierName: payload.supplier_name, email: payload.email },
+      });
+      if (inviteError || !invitation?.ok || !invitation?.supplierId) {
+        const reason = String(invitation?.error || inviteError?.message || "");
+        const message = reason.includes("SUPPLIER_ALREADY_EXISTS")
+          ? "This supplier is already approved or archived in this workspace."
+          : "The supplier invitation could not be created. Check the supplier email and workspace permissions.";
+        return json({ error: message }, reason.includes("SUPPLIER_ALREADY_EXISTS") ? 409 : 400, origin);
+      }
+      const { data: supplierRow, error: supplierVerifyError } = await supabase.from("suppliers")
+        .select("id,supplier_name,contact_email,status")
+        .eq("workspace_id", profile.workspace_id).eq("id", invitation.supplierId).maybeSingle();
+      const verified = !supplierVerifyError && supplierRow?.status === "invited"
+        && String(supplierRow?.contact_email || "").toLowerCase() === payload.email;
+      return json({
+        ok: true,
+        verified,
+        reply: verified ? "Supplier invitation created and verified. The secure onboarding link expires in 7 days."
+          : "The supplier invitation was accepted, but Plivex could not verify the supplier record. Check the Supplier Portal before retrying.",
+        created: [{ type: "invite_supplier", id: invitation.supplierId }],
+        verification: [{ type: "invite_supplier", id: invitation.supplierId, verified }],
+        supplier: verified ? { name: supplierRow.supplier_name, email: supplierRow.contact_email, status: supplierRow.status } : null,
+        invitation: verified ? { url: invitation.inviteUrl, email_provider: invitation.emailProvider, expires_at: invitation.expiresAt } : null,
       }, 200, origin);
     }
     if (actions.some((action: any) => action.type === "stock_transfer")) {
