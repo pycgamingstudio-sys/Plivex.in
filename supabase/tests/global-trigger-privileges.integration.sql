@@ -7,6 +7,12 @@ BEGIN
   IF has_function_privilege('authenticated', 'global.set_updated_at()', 'EXECUTE') THEN
     RAISE EXCEPTION 'authenticated can execute the internal Global timestamp trigger helper';
   END IF;
+  IF has_function_privilege('anon', 'global.guard_issued_invoice_items()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'anon can execute the internal issued-invoice immutability trigger helper';
+  END IF;
+  IF has_function_privilege('authenticated', 'global.guard_issued_invoice_items()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'authenticated can execute the internal issued-invoice immutability trigger helper';
+  END IF;
 END
 $global_trigger_privileges$;
 
