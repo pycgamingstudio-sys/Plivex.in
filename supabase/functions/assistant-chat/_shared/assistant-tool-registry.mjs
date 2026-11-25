@@ -22,6 +22,7 @@ export const ASSISTANT_WRITE_TOOLS = Object.freeze({
   invite_supplier: { module: "suppliers", approval: "user_confirmation", required: ["supplier_name", "email"] },
   invite_staff: { module: "staff", approval: "user_confirmation", required: ["email", "role"] },
   create_branch: { module: "branches", approval: "user_confirmation", required: ["name", "branch_code"] },
+  schedule_lead_follow_up: { module: "automation", approval: "user_confirmation", required: ["lead_id", "due_at", "body"] },
   stock_transfer: { module: "stock_transfers", approval: "user_confirmation", required: ["stock_id", "to_warehouse_id", "quantity"] },
   record_global_invoice_payment: { module: "payments", approval: "user_confirmation", required: ["invoice_id", "amount", "currency_code", "payment_date"] },
 });
