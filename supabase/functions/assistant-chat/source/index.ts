@@ -78,8 +78,9 @@ async function loadLiveContext(supabase: any, workspaceId: string, userText = ""
     wantsAccounting ? supabase.from("accounting_accounts").select("id,code,name,account_type,normal_balance,is_system,is_active").eq("workspace_id", workspaceId).eq("is_active", true).limit(300) : Promise.resolve({ data: [], error: null }),
     wantsWorkspaceSettings ? supabase.from("workspace_settings").select("country_code,locale_code,currency_code,workspace_type,optional_features,settings_version,onboarding_version,onboarding_completed_at,legacy_review_required").eq("workspace_id", workspaceId).maybeSingle() : Promise.resolve({ data: null, error: null }),
     wantsMembers ? supabase.from("workspace_members").select("id,name,role,status,invited_at,accepted_at,activated_at,removed_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(200) : Promise.resolve({ data: [], error: null }),
+    supabase.schema("global").from("workspace_branches").select("id,branch_code,name,address,status,created_at").eq("workspace_id", workspaceId).eq("status", "active").order("created_at", { ascending: false }).limit(100),
   ]);
-  const names = ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile", "warehouses", "purchase_orders", "purchase_order_items", "purchase_receipts", "stock_movements", "inventory_batches", "stock_transfers", "stock_transfer_items", "lead_activities", "purchase_receipt_items", "invoice_reminder_events", "invoice_stock_allocations", "accounting_accounts", "workspace_settings", "workspace_members"];
+  const names = ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile", "warehouses", "purchase_orders", "purchase_order_items", "purchase_receipts", "stock_movements", "inventory_batches", "stock_transfers", "stock_transfer_items", "lead_activities", "purchase_receipt_items", "invoice_reminder_events", "invoice_stock_allocations", "accounting_accounts", "workspace_settings", "workspace_members", "workspace_branches"];
   const rows: Record<string, any> = Object.fromEntries(names.map((name, i) => [name, results[i].data ?? (name === "business_profile" ? null : [])]));
   const errors = names.filter((name, i) => results[i].error).map((name) => name);
   const invoices = rows.invoices || [];
@@ -108,6 +109,7 @@ async function loadLiveContext(supabase: any, workspaceId: string, userText = ""
   const accountingAccounts = rows.accounting_accounts || [];
   const workspaceSettings = rows.workspace_settings || null;
   const workspaceMembers = rows.workspace_members || [];
+  const workspaceBranches = rows.workspace_branches || [];
   const stockById = new Map<string, any>(stock.map((item: any) => [item.id, item]));
   const warehouseById = new Map<string, any>(warehouses.map((item: any) => [item.id, item]));
   const batchesWithNames = inventoryBatches.map((batch: any) => ({ ...batch, stock_name: stockById.get(batch.stock_id)?.name || null, warehouse_name: warehouseById.get(batch.warehouse_id)?.name || null }));
@@ -168,6 +170,7 @@ async function loadLiveContext(supabase: any, workspaceId: string, userText = ""
       accountingAccounts: { activeCount: accountingAccounts.length, byType: accountingAccounts.reduce((counts: Record<string, number>, item: any) => { const key = String(item.account_type || "other"); counts[key] = (counts[key] || 0) + 1; return counts; }, {}) },
       workspaceSettings: workspaceSettings ? { country_code: workspaceSettings.country_code, locale_code: workspaceSettings.locale_code, currency_code: workspaceSettings.currency_code, workspace_type: workspaceSettings.workspace_type, optional_features: workspaceSettings.optional_features, onboarding_completed_at: workspaceSettings.onboarding_completed_at, legacy_review_required: workspaceSettings.legacy_review_required } : null,
       workspaceMembers: { visibleToCurrentUser: workspaceMembers.length },
+      branches: { activeCount: workspaceBranches.length },
       warehouses: { activeCount: warehouses.length, defaultWarehouse: warehouses.find((item: any) => item.is_default)?.name || null },
       purchasing: {
         loadedOrders: purchaseOrders.length,
@@ -203,6 +206,7 @@ async function loadLiveContext(supabase: any, workspaceId: string, userText = ""
       accounting_accounts: accountingAccounts.slice(0, 100),
       workspace_settings: workspaceSettings,
       workspace_members_visible_to_current_user: workspaceMembers.slice(0, 100),
+      workspace_branches: workspaceBranches.slice(0, 100),
     },
     limitNote: "Workspace data is read through the signed-in user's existing Row Level Security and role permissions. Per-module records are capped and lists are recent samples; invoice items are scoped only to invoices already loaded from this workspace. Workspace members are limited by the current user's membership policy. Subscription, payment gateway, authentication secrets, invite codes and private system configuration are intentionally excluded.",
   };
