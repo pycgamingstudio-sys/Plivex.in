@@ -17,5 +17,5 @@ test("tax-aware quotation wrapper preserves the restricted legacy overload", () 
   assert.ok(migration.includes("revoke all on function public.global_manage_quotation("));
   assert.ok(migration.includes(") to authenticated;"));
   assert.ok(migration.includes("uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid,bigint,jsonb"));
-  assert.match(migration, /revoke all on function global\\.guard_issued_invoice_items\\(\\) from public, anon, authenticated/);
+  assert.match(migration, /revoke all on function global\.guard_issued_invoice_items\(\) from public, anon, authenticated/);
 });
