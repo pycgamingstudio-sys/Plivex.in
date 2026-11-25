@@ -1,0 +1,1 @@
+Deno.serve((req: Request) => new Response(JSON.stringify({error:"PayU checkout has been retired. Please use PhonePe."}),{status:410,headers:{"Content-Type":"application/json","Cache-Control":"no-store"}}));
