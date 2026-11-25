@@ -60,8 +60,8 @@ function validateMutation(operation: string, values: Record<string, unknown>): s
       ||!Array.isArray(values.items)||values.items.length<1||values.items.length>100) return "Sales order details are invalid.";
     if(values.items.some(item=>!object(item)||typeof item.description!=="string"||!item.description.trim()||item.description.length>500
       ||typeof item.quantity!=="number"||!Number.isFinite(item.quantity)||item.quantity<=0||Math.round(item.quantity*10000)!==item.quantity*10000
-      ||!Number.isSafeInteger(item.unit_price_minor)||item.unit_price_minor<0
-      ||!Number.isSafeInteger(item.discount_minor??0)||(item.discount_minor??0)<0
+      ||!validMinor(item.unit_price_minor)
+      ||!validMinor(item.discount_minor??0)
       ||(item.product_id!==null&&item.product_id!==undefined&&(typeof item.product_id!=="string"||!UUID.test(item.product_id))))) return "Sales order lines are invalid.";
   } else if (operation === "update_sales_order_status") {
     if(typeof values.sales_order_id!=="string"||!UUID.test(values.sales_order_id)||!["confirmed","fulfilled","cancelled"].includes(String(values.status||""))) return "Sales order status update is invalid.";
@@ -81,9 +81,9 @@ function validateMutation(operation: string, values: Record<string, unknown>): s
       ||typeof values.reason!=="string"||!values.reason.trim()||values.reason.length>500
       ||typeof values.idempotency_key!=="string"||!UUID.test(values.idempotency_key)
       ||(values.note_date!==undefined&&!validDate(values.note_date))
-      ||!Number.isSafeInteger(values.taxable_minor)||values.taxable_minor<=0
-      ||!Number.isSafeInteger(values.tax_minor)||values.tax_minor<0
-      ||!Number.isSafeInteger(values.total_minor)||values.total_minor!==values.taxable_minor+values.tax_minor) return "Credit/debit note details are invalid.";
+      ||!validMinor(values.taxable_minor,false)
+      ||!validMinor(values.tax_minor)
+      ||!validMinor(values.total_minor)||values.total_minor!==values.taxable_minor+values.tax_minor) return "Credit/debit note details are invalid.";
   } else if (operation === "update_credit_debit_note_status") {
     if(typeof values.note_id!=="string"||!UUID.test(values.note_id)||!["issued","void"].includes(String(values.status||""))) return "Credit/debit note status update is invalid.";
   } else if (operation === "receive_purchase_order") {
