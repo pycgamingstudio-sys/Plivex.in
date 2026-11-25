@@ -6,7 +6,7 @@ import { validateGlobalExpenseAction } from "../_shared/assistant-global-expense
 import { validateGlobalProductAction } from "../_shared/assistant-global-product-validation.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
 import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
-import { validateWarehouseAction } from "../_shared/assistant-warehouse-validation.mjs";
+import { validateWarehouseAction, validateStockTransferAction } from "../_shared/assistant-warehouse-validation.mjs";
 import { isGlobalOnlyAssistantAction } from "../_shared/assistant-workspace-action-guard.mjs";
 
 const ALLOWED_ORIGINS = new Set([
@@ -59,6 +59,9 @@ function validateAction(action: unknown) {
   }
   if (type === "create_warehouse") {
     return validateWarehouseAction(action);
+  }
+  if (type === "stock_transfer") {
+    return validateStockTransferAction(action);
   }
   if (type === "create_purchase_order") {
     return validatePurchaseOrderAction(action);
@@ -430,6 +433,58 @@ Deno.serve(async (req: Request) => {
         verification: [{ type: "create_warehouse", id: warehouse.warehouse_id, verified }],
         duplicate: Boolean(warehouse.duplicate),
         warehouse: verifiedWarehouse ? { code: verifiedWarehouse.code, name: verifiedWarehouse.name } : null,
+      }, 200, origin);
+    }
+    if (actions.some((action: any) => action.type === "stock_transfer")) {
+      if (actions.length !== 1) return json({ error: "Stock transfers must be confirmed separately so inventory movements remain atomic." }, 400, origin);
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) return json({ error: "The stock transfer confirmation key is invalid. Please prepare the action again." }, 400, origin);
+      const payload = actions[0].payload;
+      const { data: transfer, error: transferError } = await supabase.rpc("india_part4_transfer_stock", {
+        p_stock_id: payload.stock_id,
+        p_to_warehouse_id: payload.to_warehouse_id,
+        p_quantity: payload.quantity,
+        p_idempotency_key: idempotencyKey,
+      });
+      if (transferError) {
+        console.error("Assistant stock transfer rejected", { code: transferError.code, userId: user.id });
+        return json({ error: "The stock transfer could not be completed. Check source stock, destination warehouse and your inventory permissions." }, 400, origin);
+      }
+      if (!transfer?.ok || !transfer?.transfer_id) {
+        const reason = String(transfer?.reason || "");
+        const message = reason === "forbidden" ? "Only a workspace admin, manager or storekeeper can transfer stock."
+          : reason === "insufficient_stock" ? "There is not enough stock at the source warehouse for this transfer."
+          : reason === "warehouse_not_found" ? "The destination warehouse is unavailable or inactive."
+          : reason === "idempotency_conflict" ? "This confirmation key was already used for a different stock transfer. Prepare the action again."
+          : reason === "stock_item_not_found" ? "The source stock item was not found, or it is already in the destination warehouse."
+          : "The stock transfer details were rejected. No stock was moved.";
+        return json({ error: message }, reason === "forbidden" ? 403 : reason === "insufficient_stock" || reason === "idempotency_conflict" ? 409 : 400, origin);
+      }
+      const [transferCheck, itemCheck, movementCheck] = await Promise.all([
+        supabase.from("stock_transfers").select("id,from_warehouse_id,to_warehouse_id")
+          .eq("workspace_id", profile.workspace_id).eq("id", transfer.transfer_id).maybeSingle(),
+        supabase.from("stock_transfer_items").select("id,source_stock_id,destination_stock_id,quantity")
+          .eq("workspace_id", profile.workspace_id).eq("transfer_id", transfer.transfer_id).maybeSingle(),
+        supabase.from("stock_movements").select("movement_type,quantity_delta")
+          .eq("workspace_id", profile.workspace_id).eq("reference_type", "stock_transfer").eq("reference_id", transfer.transfer_id),
+      ]);
+      const movements = movementCheck.data || [];
+      const verified = !transferCheck.error && Boolean(transferCheck.data?.id)
+        && transferCheck.data.to_warehouse_id === payload.to_warehouse_id
+        && !itemCheck.error && itemCheck.data?.source_stock_id === payload.stock_id
+        && itemCheck.data?.destination_stock_id === transfer.destination_stock_id
+        && Number(itemCheck.data?.quantity) === Number(payload.quantity)
+        && !movementCheck.error && movements.length === 2
+        && movements.some((item: any) => item.movement_type === "transfer_out" && Number(item.quantity_delta) === -Number(payload.quantity))
+        && movements.some((item: any) => item.movement_type === "transfer_in" && Number(item.quantity_delta) === Number(payload.quantity));
+      return json({
+        ok: true,
+        verified,
+        duplicate: Boolean(transfer.duplicate),
+        reply: verified ? "Stock transfer completed and verified. Both warehouse movements are recorded."
+          : "The transfer was accepted, but Plivex could not verify both stock movements. Check the transfer register and stock ledger before retrying.",
+        created: [{ type: "stock_transfer", id: transfer.transfer_id }],
+        verification: [{ type: "stock_transfer", id: transfer.transfer_id, verified }],
+        transfer: verified ? { quantity: payload.quantity, stock_name: payload.stock_name || null, destination_name: payload.destination_name || null } : null,
       }, 200, origin);
     }
     if (actions.some((action: any) => action.type === "create_purchase_order")) {
