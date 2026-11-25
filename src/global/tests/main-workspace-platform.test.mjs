@@ -260,3 +260,18 @@ test("Main Workspace CRM persists clients, leads, stages and follow-up activity 
   assert.match(app,/WorkspaceCRMPanel initialTab="clients"/);
   assert.doesNotMatch(app,/CrmTab/);
 });
+
+test("Main Workspace platform fails closed when active workspace membership cannot be verified",()=>{
+  assert.match(platform,/WORKSPACE_MEMBERSHIP_CHECK_FAILED/);
+  assert.match(platform,/WORKSPACE_MEMBERSHIP_REQUIRED/);
+  assert.doesNotMatch(platform,/membership\?\.role \|\| profile\.role/);
+  assert.match(platform,/const role = String\(membership\.role \|\| ""\)/);
+});
+
+test("Main Workspace API scopes are runtime-filtered and digest inputs use an owned ArrayBuffer",()=>{
+  assert.match(platform,/scopes\.filter\(\(scope: unknown\): scope is string/);
+  assert.match(platform,/input\.buffer as ArrayBuffer/);
+  assert.match(platform,/async function publicApi\([\s\S]*?Promise<any>/);
+  assert.match(platform,/error: keyError/);
+  assert.match(platform,/error: readError/);
+});
