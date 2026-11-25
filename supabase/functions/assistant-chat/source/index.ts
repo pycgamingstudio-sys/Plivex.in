@@ -15,6 +15,7 @@ import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order
 import { validateWarehouseAction, validateStockTransferAction } from "../_shared/assistant-warehouse-validation.mjs";
 import { validateSupplierInviteAction } from "../_shared/assistant-supplier-validation.mjs";
 import { validateStaffInviteAction } from "../_shared/assistant-staff-validation.mjs";
+import { validateCreateBranchAction } from "../_shared/assistant-branch-validation.mjs";
 import { detectPurchasingWriteIntent } from "../_shared/assistant-purchasing-write-intent.mjs";
 import { validatePurchaseOrderAgainstContext } from "../_shared/assistant-purchase-order-context.mjs";
 import { validateGoodsReceiptAgainstContext } from "../_shared/assistant-goods-receipt-context.mjs";
@@ -434,6 +435,14 @@ function validateAction(action: any) {
     return {
       ...validated,
       summary: "Invite " + (validated.payload.name || validated.payload.email) + " (" + validated.payload.email + ") to this workspace as " + validated.payload.role + ". The workspace plan, team quota and admin permissions will be checked before an invitation code is created.",
+    };
+  }
+  if (type === "create_branch") {
+    const validated = validateCreateBranchAction(action);
+    if (!validated) return null;
+    return {
+      ...validated,
+      summary: "Create the active workspace branch " + validated.payload.name + " with code " + validated.payload.branch_code + ". Only workspace administrators can create branches; the branch will start with no transactions or stock until assigned.",
     };
   }
   if (type === "create_purchase_order") {
