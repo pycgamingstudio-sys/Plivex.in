@@ -190,9 +190,8 @@ async function apiManagement(ctx: any, body: any) {
     return { ok:true };
   }
   const label = clean(body.label,80);
-  const scopes: string[] = Array.isArray(body.scopes)
-    ? [...new Set(body.scopes.filter((scope: unknown): scope is string => typeof scope === "string"))]
-    : [];
+  const scopeValues: unknown[] = Array.isArray(body.scopes) ? body.scopes as unknown[] : [];
+  const scopes: string[] = [...new Set<string>(scopeValues.filter((scope): scope is string => typeof scope === "string"))];
   const allowedScopes = ["workspace.read","invoices.read","clients.read","expenses.read","leads.read","inventory.read","suppliers.read","mcp.read"];
   if (label.length < 2 || !scopes.length || scopes.length > 8 || scopes.some((s:string)=>!allowedScopes.includes(s)) || (scopes.includes("mcp.read") && !scopes.includes("workspace.read"))) throw new Error("INVALID_API_KEY");
   const prefix = "plx_" + crypto.randomUUID().replaceAll("-","").slice(0,6); const secret = prefix + "_" + token(32), keyHash = await sha256(secret);
