@@ -269,7 +269,8 @@ test("Main Workspace platform fails closed when active workspace membership cann
 });
 
 test("Main Workspace API scopes are runtime-filtered and digest inputs use an owned ArrayBuffer",()=>{
-  assert.match(platform,/scopes\.filter\(\(scope: unknown\): scope is string/);
+  assert.match(platform,/scopeValues: unknown\[\]/);
+  assert.match(platform,/new Set<string>/);
   assert.match(platform,/input\.buffer as ArrayBuffer/);
   assert.match(platform,/async function publicApi\([\s\S]*?Promise<any>/);
   assert.match(platform,/error: keyError/);
