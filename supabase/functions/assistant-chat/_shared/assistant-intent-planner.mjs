@@ -49,7 +49,7 @@ const RULES = [
   { type: "payment_outgoing", pattern: /\b(paid|payment made|paid to|sent payment|money sent|amount paid|i paid|we paid|paise diye|payment kiya|debit paid)\b|भुगतान\s*(?:किया|दिया)|पैसे\s*(?:दिए|भेजे)/iu },
   { type: "invite_supplier", pattern: /\b(invite|add|create|save|register|new)\b.{0,45}\b(supplier|vendor)\b|\b(supplier|vendor)\b.{0,45}\b(invite|add|create|save|register|new)\b|नया\s*(?:सप्लायर|विक्रेता)\s*(?:जोड़|आमंत्रित)/iu },
   { type: "invite_staff", pattern: /\b(invite|add|create|register|hire|onboard)\b.{0,45}\b(staff|employee|worker|team member)\b|\b(staff|employee|worker)\b.{0,45}\b(invite|add|create|register|hire|onboard)\b|कर्मचारी\s*(?:जोड़|रख)|स्टाफ\s*जोड़/iu },
-  { type: "branch", pattern: /\b(add|create|open|register)\b.{0,45}\b(branch|outlet|location)\b|\b(branch|outlet)\b.{0,45}\b(add|create|open|register)\b|नई\s*(?:ब्रांच|शाखा)/iu },
+  { type: "create_branch", pattern: /\b(add|create|open|register)\b.{0,45}\b(branch|outlet|location)\b|\b(branch|outlet)\b.{0,45}\b(add|create|open|register)\b|नई\s*(?:ब्रांच|शाखा)/iu },
   { type: "automation", pattern: /\b(automate|schedule|set up|create)\b.{0,45}\b(reminder|recurring|workflow|automation|follow.?up)\b|\b(reminder|workflow|automation)\b.{0,45}\b(automate|schedule|set up|create)\b|ऑटोमेट|रिमाइंडर\s*लग/iu },
 ];
 
