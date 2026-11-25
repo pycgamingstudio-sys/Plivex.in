@@ -13,6 +13,7 @@ import { buildConversationRoutingText } from "../_shared/assistant-conversation-
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
 import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
 import { validateWarehouseAction, validateStockTransferAction } from "../_shared/assistant-warehouse-validation.mjs";
+import { validateSupplierInviteAction } from "../_shared/assistant-supplier-validation.mjs";
 import { detectPurchasingWriteIntent } from "../_shared/assistant-purchasing-write-intent.mjs";
 import { validatePurchaseOrderAgainstContext } from "../_shared/assistant-purchase-order-context.mjs";
 import { validateGoodsReceiptAgainstContext } from "../_shared/assistant-goods-receipt-context.mjs";
@@ -412,6 +413,14 @@ function validateAction(action: any) {
     return {
       ...validated,
       summary: "Transfer " + payload.quantity + " units of " + (payload.stock_name || payload.stock_id) + " to " + (payload.destination_name || payload.to_warehouse_id) + ". This will decrease the source stock and increase destination stock, with both movements recorded. Workspace inventory permissions apply.",
+    };
+  }
+  if (type === "invite_supplier") {
+    const validated = validateSupplierInviteAction(action);
+    if (!validated) return null;
+    return {
+      ...validated,
+      summary: "Invite supplier " + validated.payload.supplier_name + " at " + validated.payload.email + " to complete the secure Plivex supplier onboarding form. The invitation expires in 7 days; Brevo is tried first, then Resend, with a copyable link if email delivery is unavailable.",
     };
   }
   if (type === "create_purchase_order") {
