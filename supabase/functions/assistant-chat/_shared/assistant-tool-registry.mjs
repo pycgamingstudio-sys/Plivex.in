@@ -47,7 +47,7 @@ export const BUSINESS_MODULE_CATALOG = Object.freeze({
   staff: { readContext: false, writeTools: ["invite_staff"], planned: false },
   branches: { readContext: true, writeTools: ["create_branch"], planned: false },
   analytics: { readContext: "summaries_only", writeTools: [] },
-  automation: { readContext: false, writeTools: [], planned: true },
+  automation: { readContext: true, writeTools: ["schedule_lead_follow_up"], planned: false },
 });
 
 const stableJson = (value) => {
