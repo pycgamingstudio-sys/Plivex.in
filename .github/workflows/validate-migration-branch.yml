@@ -49,3 +49,9 @@ jobs:
         run: npm run test:membership
       - name: Production build
         run: npm run build
+      - name: Install Playwright and Chromium for browser smoke tests
+        run: |
+          npm install --no-save --no-package-lock @playwright/test@1.57.0
+          npx playwright install --with-deps chromium
+      - name: Run desktop and mobile browser smoke tests
+        run: npx playwright test --config=playwright.config.mjs
