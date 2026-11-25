@@ -56,3 +56,7 @@ verify_jwt = false
 # Plivex Nova uses a verified Supabase JWT before the handler resolves workspace access.
 [functions.assistant-chat]
 verify_jwt = true
+
+# Nova action confirmation requires a verified Supabase JWT.
+[functions.assistant-confirm]
+verify_jwt = true
