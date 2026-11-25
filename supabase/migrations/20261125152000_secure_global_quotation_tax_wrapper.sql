@@ -94,4 +94,8 @@ grant execute on function public.global_manage_quotation(
   uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid,bigint,jsonb
 ) to authenticated;
 
+-- Trigger functions are invoked by their owning trigger and must not be callable
+-- as an exposed RPC by anon/authenticated clients.
+revoke all on function global.guard_issued_invoice_items() from public, anon, authenticated;
+
 commit;
