@@ -10,6 +10,7 @@ import { validateWarehouseAction, validateStockTransferAction } from "../_shared
 import { validateSupplierInviteAction } from "../_shared/assistant-supplier-validation.mjs";
 import { validateStaffInviteAction } from "../_shared/assistant-staff-validation.mjs";
 import { validateCreateBranchAction } from "../_shared/assistant-branch-validation.mjs";
+import { validateLeadFollowUpAction } from "../_shared/assistant-follow-up-validation.mjs";
 import { isGlobalOnlyAssistantAction } from "../_shared/assistant-workspace-action-guard.mjs";
 
 const ALLOWED_ORIGINS = new Set([
@@ -74,6 +75,9 @@ function validateAction(action: unknown) {
   }
   if (type === "create_branch") {
     return validateCreateBranchAction(action);
+  }
+  if (type === "schedule_lead_follow_up") {
+    return validateLeadFollowUpAction(action);
   }
   if (type === "create_purchase_order") {
     return validatePurchaseOrderAction(action);
@@ -445,6 +449,41 @@ Deno.serve(async (req: Request) => {
         verification: [{ type: "create_warehouse", id: warehouse.warehouse_id, verified }],
         duplicate: Boolean(warehouse.duplicate),
         warehouse: verifiedWarehouse ? { code: verifiedWarehouse.code, name: verifiedWarehouse.name } : null,
+      }, 200, origin);
+    }
+    if (actions.some((action: any) => action.type === "schedule_lead_follow_up")) {
+      if (actions.length !== 1) return json({ error: "CRM follow-ups must be scheduled one at a time so the lead and due date are verified." }, 400, origin);
+      const payload = actions[0].payload;
+      const { data: lead, error: leadError } = await supabase.from("leads")
+        .select("id,name,company_name").eq("workspace_id", profile.workspace_id).eq("id", payload.lead_id).maybeSingle();
+      if (leadError || !lead?.id) return json({ error: "The selected CRM lead was not found in this workspace." }, 404, origin);
+      const { data: activity, error: activityError } = await supabase.from("lead_activities").insert({
+        workspace_id: profile.workspace_id,
+        lead_id: payload.lead_id,
+        activity_type: "follow_up",
+        body: payload.body,
+        due_at: payload.due_at,
+        created_by: user.id,
+      }).select("id,lead_id,activity_type,body,due_at,completed_at").single();
+      if (activityError || !activity?.id) {
+        console.error("Assistant lead follow-up rejected", { code: activityError?.code, userId: user.id });
+        return json({ error: activityError?.code === "42501" ? "Only workspace admins and managers can schedule CRM follow-ups." : "The CRM follow-up could not be saved. Check lead permissions and the due date." }, activityError?.code === "42501" ? 403 : 400, origin);
+      }
+      const { data: verifiedActivity, error: verifyError } = await supabase.from("lead_activities")
+        .select("id,lead_id,activity_type,body,due_at,completed_at")
+        .eq("workspace_id", profile.workspace_id).eq("id", activity.id).maybeSingle();
+      const verified = !verifyError && verifiedActivity?.lead_id === lead.id
+        && verifiedActivity?.activity_type === "follow_up"
+        && new Date(verifiedActivity?.due_at || "").getTime() === new Date(payload.due_at).getTime()
+        && !verifiedActivity?.completed_at;
+      return json({
+        ok: true,
+        verified,
+        reply: verified ? "CRM follow-up scheduled and verified for " + (lead.name || lead.company_name || "the selected lead") + ". It will appear in the CRM follow-up list; no customer message was sent."
+          : "The follow-up was saved, but Plivex could not verify the final CRM activity. Check the lead timeline before retrying.",
+        created: [{ type: "schedule_lead_follow_up", id: activity.id }],
+        verification: [{ type: "schedule_lead_follow_up", id: activity.id, verified }],
+        follow_up: verified ? { lead_name: lead.name || lead.company_name || null, due_at: verifiedActivity.due_at, body: verifiedActivity.body } : null,
       }, 200, origin);
     }
     if (actions.some((action: any) => action.type === "create_branch")) {
