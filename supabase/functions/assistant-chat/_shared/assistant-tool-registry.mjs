@@ -19,6 +19,7 @@ export const ASSISTANT_WRITE_TOOLS = Object.freeze({
   receive_purchase_order: { module: "purchase_receipts", approval: "user_confirmation", required: ["purchase_order_id", "warehouse_id", "items"] },
   create_purchase_order: { module: "purchase_orders", approval: "user_confirmation", required: ["supplier_name", "items"] },
   create_warehouse: { module: "warehouses", approval: "user_confirmation", required: ["name"] },
+  invite_supplier: { module: "suppliers", approval: "user_confirmation", required: ["supplier_name", "email"] },
   stock_transfer: { module: "stock_transfers", approval: "user_confirmation", required: ["stock_id", "to_warehouse_id", "quantity"] },
   record_global_invoice_payment: { module: "payments", approval: "user_confirmation", required: ["invoice_id", "amount", "currency_code", "payment_date"] },
 });
@@ -34,7 +35,7 @@ export const BUSINESS_MODULE_CATALOG = Object.freeze({
   quotations: { readContext: true, writeTools: ["create_quotation"] },
   leads: { readContext: true, writeTools: ["create_lead"] },
   services: { readContext: true, writeTools: [] },
-  suppliers: { readContext: false, writeTools: [], planned: true },
+  suppliers: { readContext: false, writeTools: ["invite_supplier"], planned: false },
   purchase_orders: { readContext: true, writeTools: ["create_purchase_order"], planned: false },
   purchase_receipts: { readContext: true, writeTools: ["receive_purchase_order"], planned: false },
   warehouses: { readContext: true, writeTools: ["create_warehouse"], planned: false },
