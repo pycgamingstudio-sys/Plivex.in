@@ -20,6 +20,7 @@ export const ASSISTANT_WRITE_TOOLS = Object.freeze({
   create_purchase_order: { module: "purchase_orders", approval: "user_confirmation", required: ["supplier_name", "items"] },
   create_warehouse: { module: "warehouses", approval: "user_confirmation", required: ["name"] },
   invite_supplier: { module: "suppliers", approval: "user_confirmation", required: ["supplier_name", "email"] },
+  invite_staff: { module: "staff", approval: "user_confirmation", required: ["email", "role"] },
   stock_transfer: { module: "stock_transfers", approval: "user_confirmation", required: ["stock_id", "to_warehouse_id", "quantity"] },
   record_global_invoice_payment: { module: "payments", approval: "user_confirmation", required: ["invoice_id", "amount", "currency_code", "payment_date"] },
 });
@@ -41,7 +42,7 @@ export const BUSINESS_MODULE_CATALOG = Object.freeze({
   warehouses: { readContext: true, writeTools: ["create_warehouse"], planned: false },
   stock_transfers: { readContext: true, writeTools: ["stock_transfer"], planned: false },
   payments: { readContext: "summaries_only", writeTools: ["record_global_invoice_payment"], planned: false },
-  staff: { readContext: false, writeTools: [], planned: true },
+  staff: { readContext: false, writeTools: ["invite_staff"], planned: false },
   branches: { readContext: false, writeTools: [], planned: true },
   analytics: { readContext: "summaries_only", writeTools: [] },
   automation: { readContext: false, writeTools: [], planned: true },
