@@ -14,6 +14,7 @@ import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-v
 import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
 import { validateWarehouseAction, validateStockTransferAction } from "../_shared/assistant-warehouse-validation.mjs";
 import { validateSupplierInviteAction } from "../_shared/assistant-supplier-validation.mjs";
+import { validateStaffInviteAction } from "../_shared/assistant-staff-validation.mjs";
 import { detectPurchasingWriteIntent } from "../_shared/assistant-purchasing-write-intent.mjs";
 import { validatePurchaseOrderAgainstContext } from "../_shared/assistant-purchase-order-context.mjs";
 import { validateGoodsReceiptAgainstContext } from "../_shared/assistant-goods-receipt-context.mjs";
@@ -421,6 +422,14 @@ function validateAction(action: any) {
     return {
       ...validated,
       summary: "Invite supplier " + validated.payload.supplier_name + " at " + validated.payload.email + " to complete the secure Plivex supplier onboarding form. The invitation expires in 7 days; Brevo is tried first, then Resend, with a copyable link if email delivery is unavailable.",
+    };
+  }
+  if (type === "invite_staff") {
+    const validated = validateStaffInviteAction(action);
+    if (!validated) return null;
+    return {
+      ...validated,
+      summary: "Invite " + (validated.payload.name || validated.payload.email) + " (" + validated.payload.email + ") to this workspace as " + validated.payload.role + ". The workspace plan, team quota and admin permissions will be checked before an invitation code is created.",
     };
   }
   if (type === "create_purchase_order") {
