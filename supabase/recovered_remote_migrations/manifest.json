@@ -3,7 +3,7 @@
   "captured_at": "2026-11-14",
   "source": "read-only SELECT from supabase_migrations.schema_migrations (version,name,statements)",
   "remote_ledger_entries": 52,
-  "local_migration_files": 57,
+  "local_migration_files": 59,
   "exact_version_matches": 0,
   "basename_matches": [
     {
@@ -378,7 +378,9 @@
     "20261116170000_part9_expense_approval_gates.sql",
     "202611170002_part9_manager_expense_accounting.sql",
     "202611170003_ready_plivex_global_invoice_and_sharing.sql",
-    "20261117170000_global_quotations_workflow.sql"
+    "20261117170000_global_quotations_workflow.sql",
+    "20261125152000_secure_global_quotation_tax_wrapper.sql",
+    "20261125154500_split_workspace_write_policies.sql"
   ],
   "notes": [
     "Recovered SQL is copied from the production migration ledger statements column.",
