@@ -47,6 +47,12 @@ Deno.serve(async (req: Request) => {
     if (typeof body.workspace_id !== "string" || !UUID.test(body.workspace_id)) {
       return globalJson({ error: "A valid Global workspace is required." }, 400, origin);
     }
+
+    const { data: membership, error: membershipError } = await auth.admin.schema("global").from("workspace_members")
+      .select("role").eq("workspace_id", body.workspace_id).eq("user_id", auth.user.id)
+      .eq("status", "active").maybeSingle();
+    if (membershipError) return globalJson({ error: "Workspace membership could not be verified." }, 503, origin);
+    if (!membership) return globalJson({ error: "You do not have access to this workspace." }, 403, origin);
     if (action === "create") {
       if (typeof body.idempotency_key !== "string" || !UUID.test(body.idempotency_key)
         || typeof body.currency_code !== "string" || !/^[A-Z]{3}$/.test(body.currency_code)
