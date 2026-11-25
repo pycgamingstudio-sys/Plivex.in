@@ -4,11 +4,12 @@ import { readFileSync } from "node:fs";
 
 const migration = readFileSync(new URL("../../../supabase/migrations/20261125154500_split_workspace_write_policies.sql", import.meta.url), "utf8");
 
-test("workspace policy optimization preserves SELECT policies and removes overlapping ALL policies", () => {
-  assert.match(migration, /global_approval_policies_admin_read/);
-  assert.match(migration, /global_branches_member_read/);
-  assert.match(migration, /purchase orders read/);
-  assert.match(migration, /warehouses read/);
+test("workspace policy optimization removes overlapping ALL policies without dropping SELECT policies", () => {
+  assert.match(migration, /drop policy if exists global_approval_policies_admin_write/);
+  assert.match(migration, /drop policy if exists global_branches_admin_write/);
+  assert.match(migration, /drop policy if exists "purchase orders write"/);
+  assert.match(migration, /drop policy if exists "warehouses write"/);
+  assert.doesNotMatch(migration, /drop policy if exists[^;]*(?:admin_read|member_read|orders read|warehouses read)/i);
   assert.doesNotMatch(migration, /create policy[^;]*for all/i);
 });
 
