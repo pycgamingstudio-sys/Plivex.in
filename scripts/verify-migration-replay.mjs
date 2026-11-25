@@ -26,6 +26,14 @@ for (const entry of history) {
   const sha = createHash("sha1").update(Buffer.from("blob " + content.length + "\0")).update(content).digest("hex");
   if (sha !== entry.blob_sha) fail("Archived SQL Git blob hash mismatch: " + entry.path);
 }
+if (manifest.recovered_missing_sources_count !== missing.length) fail("Recovered missing-source count does not match the manifest");
+for (const entry of missing) {
+  const path = resolve(root, entry.path);
+  if (!existsSync(path)) fail("Missing recovered remote SQL: " + entry.path);
+  const content = readFileSync(path);
+  const sha = createHash("sha1").update(Buffer.from("blob " + content.length + "\0")).update(content).digest("hex");
+  if (sha !== entry.blob_sha) fail("Recovered remote SQL Git blob hash mismatch: " + entry.path);
+}
 for (const entry of pairs) if (!existsSync(resolve(root, entry.local_path))) fail("Missing local migration: " + entry.local_path);
 for (const name of localOnly) if (!existsSync(resolve(root, "supabase/migrations", name))) fail("Missing local-only migration: " + name);
 
