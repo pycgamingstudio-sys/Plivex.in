@@ -193,6 +193,10 @@ BEGIN
     RAISE EXCEPTION 'Member-scoped purchase listing failed: %',v_result;
   END IF;
   BEGIN
+    PERFORM public.global_list_purchase_bills('77777777-7777-4777-8777-777777777777','77777777-7777-4777-8777-777777777777',20);
+    RAISE EXCEPTION 'Purchase list accepted a spoofed user id';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  BEGIN
     PERFORM public.global_list_purchase_bills('66666666-6666-4666-8666-666666666666','dddddddd-dddd-4ddd-8ddd-dddddddddddd',20);
     RAISE EXCEPTION 'Cross-workspace purchase list was allowed';
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
