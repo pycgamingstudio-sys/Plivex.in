@@ -449,10 +449,9 @@ function validateAction(action: any) {
   if (type === "schedule_lead_follow_up") {
     const validated = validateLeadFollowUpAction(action);
     if (!validated) return null;
-    const lead = (context.records?.leads || []).find((item: any) => item.id === validated.payload.lead_id);
     return {
       ...validated,
-      summary: "Schedule a CRM follow-up for " + (lead?.name || lead?.company_name || validated.payload.lead_id) + " at " + validated.payload.due_at + ". It will appear in the workspace CRM follow-up list; no customer message is sent automatically.",
+      summary: "Schedule a CRM follow-up for " + (validated.payload.lead_name || validated.payload.lead_id) + " at " + validated.payload.due_at + ". It will appear in the workspace CRM follow-up list; no customer message is sent automatically.",
     };
   }
   if (type === "create_purchase_order") {
