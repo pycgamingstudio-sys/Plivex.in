@@ -9,6 +9,7 @@ import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order
 import { validateWarehouseAction, validateStockTransferAction } from "../_shared/assistant-warehouse-validation.mjs";
 import { validateSupplierInviteAction } from "../_shared/assistant-supplier-validation.mjs";
 import { validateStaffInviteAction } from "../_shared/assistant-staff-validation.mjs";
+import { validateCreateBranchAction } from "../_shared/assistant-branch-validation.mjs";
 import { isGlobalOnlyAssistantAction } from "../_shared/assistant-workspace-action-guard.mjs";
 
 const ALLOWED_ORIGINS = new Set([
@@ -70,6 +71,9 @@ function validateAction(action: unknown) {
   }
   if (type === "invite_staff") {
     return validateStaffInviteAction(action);
+  }
+  if (type === "create_branch") {
+    return validateCreateBranchAction(action);
   }
   if (type === "create_purchase_order") {
     return validatePurchaseOrderAction(action);
@@ -441,6 +445,37 @@ Deno.serve(async (req: Request) => {
         verification: [{ type: "create_warehouse", id: warehouse.warehouse_id, verified }],
         duplicate: Boolean(warehouse.duplicate),
         warehouse: verifiedWarehouse ? { code: verifiedWarehouse.code, name: verifiedWarehouse.name } : null,
+      }, 200, origin);
+    }
+    if (actions.some((action: any) => action.type === "create_branch")) {
+      if (actions.length !== 1) return json({ error: "Branch creation must be confirmed separately so the workspace structure is auditable." }, 400, origin);
+      const payload = actions[0].payload;
+      const globalDb = supabase.schema("global");
+      const { data: branch, error: branchError } = await globalDb.from("workspace_branches").insert({
+        workspace_id: profile.workspace_id,
+        branch_code: payload.branch_code,
+        name: payload.name,
+        address: payload.address || {},
+        status: "active",
+        created_by: user.id,
+      }).select("id,branch_code,name,address,status").single();
+      if (branchError || !branch?.id) {
+        const duplicate = branchError?.code === "23505";
+        console.error("Assistant branch creation rejected", { code: branchError?.code, userId: user.id });
+        return json({ error: duplicate ? "That branch code is already used in this workspace. Choose a different code." : "The branch could not be created. Check administrator permissions and branch details." }, duplicate ? 409 : branchError?.code === "42501" ? 403 : 400, origin);
+      }
+      const { data: verifiedBranch, error: verifyError } = await globalDb.from("workspace_branches")
+        .select("id,branch_code,name,status").eq("workspace_id", profile.workspace_id).eq("id", branch.id).maybeSingle();
+      const verified = !verifyError && verifiedBranch?.status === "active"
+        && verifiedBranch?.branch_code === payload.branch_code && verifiedBranch?.name === payload.name;
+      return json({
+        ok: true,
+        verified,
+        reply: verified ? "Workspace branch created and verified. It is active and ready for branch-specific operations."
+          : "The branch was created, but Plivex could not verify its final record. Check workspace branch settings before retrying.",
+        created: [{ type: "create_branch", id: branch.id }],
+        verification: [{ type: "create_branch", id: branch.id, verified }],
+        branch: verified ? verifiedBranch : null,
       }, 200, origin);
     }
     if (actions.some((action: any) => action.type === "invite_staff")) {
