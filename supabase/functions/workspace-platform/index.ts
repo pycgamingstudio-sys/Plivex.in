@@ -9,7 +9,9 @@ const MAX_FILE_BYTES = 4 * 1024 * 1024;
 const HEX = /^[a-f0-9]{64}$/;
 const clean = (value: unknown, max = 200) => String(value ?? "").trim().slice(0, max);
 const sha256 = async (value: string | Uint8Array) => {
-  const digest = await crypto.subtle.digest("SHA-256", typeof value === "string" ? encoder.encode(value) : value);
+  const input = typeof value === "string" ? encoder.encode(value) : new Uint8Array(value.byteLength);
+  if (typeof value !== "string") input.set(value);
+  const digest = await crypto.subtle.digest("SHA-256", input.buffer as ArrayBuffer);
   return [...new Uint8Array(digest)].map((v) => v.toString(16).padStart(2, "0")).join("");
 };
 const token = (bytes = 32) => {
@@ -41,8 +43,7 @@ async function setup(req: Request) {
   if (profileError || !profile?.workspace_id) throw new Error("WORKSPACE_NOT_FOUND");
   const { data: settings, error: settingsError } = await admin.from("workspace_settings").select("workspace_id,country_code,currency_code,locale_code").eq("workspace_id", profile.workspace_id).maybeSingle();
   if (settingsError || !settings) throw new Error("WORKSPACE_NOT_READY");
-  const { data: membership } = await admin.from("workspace_members").select("role,status").eq("workspace_id", profile.workspace_id).eq("user_id", user.id).eq("status", "active").maybeSingle();
-  const role = String(membership?.role || profile.role || "");
+  const { data: membership, error: membershipError } = await admin.from("workspace_members").select("role,status").eq("workspace_id", profile.workspace_id).eq("user_id", user.id).eq("status
   return { admin, user, workspaceId: String(profile.workspace_id), settings, role };
 }
 const canManage = (role: string) => ["admin", "manager"].includes(role);
@@ -185,7 +186,10 @@ async function apiManagement(ctx: any, body: any) {
     if (error || !data) throw new Error("API_KEY_REVOKE_FAILED");
     return { ok:true };
   }
-  const label = clean(body.label,80), scopes = Array.isArray(body.scopes) ? [...new Set(body.scopes)] : [];
+  const label = clean(body.label,80);
+  const scopes: string[] = Array.isArray(body.scopes)
+    ? [...new Set(body.scopes.filter((scope: unknown): scope is string => typeof scope === "string"))]
+    : [];
   const allowedScopes = ["workspace.read","invoices.read","clients.read","expenses.read","leads.read","inventory.read","suppliers.read","mcp.read"];
   if (label.length < 2 || !scopes.length || scopes.length > 8 || scopes.some((s:string)=>!allowedScopes.includes(s)) || (scopes.includes("mcp.read") && !scopes.includes("workspace.read"))) throw new Error("INVALID_API_KEY");
   const prefix = "plx_" + crypto.randomUUID().replaceAll("-","").slice(0,6); const secret = prefix + "_" + token(32), keyHash = await sha256(secret);
@@ -195,12 +199,12 @@ async function apiManagement(ctx: any, body: any) {
   await ctx.admin.from("workspace_audit_events").insert({ workspace_id:ctx.workspaceId,actor_id:ctx.user.id,action:"api_key.created",entity_type:"api_key",entity_id:data.id,metadata:{scopes,expires_at:data.expires_at} });
   return { ok:true,key:data,secret };
 }
-async function publicApi(req: Request, admin: any, body: any) {
+async function publicApi(req: Request, admin: any, body: any): Promise<any> {
   const secret = clean(req.headers.get("x-plivex-key"),256);
   if (!secret) throw new Error("API_KEY_REQUIRED");
   const hash = await sha256(secret);
-  const { data: key, error } = await admin.from("public_api_keys").select("id,workspace_id,scopes,expires_at,revoked_at").eq("key_hash",hash).maybeSingle();
-  if (error || !key || key.revoked_at || new Date(key.expires_at).getTime() <= Date.now()) throw new Error("API_KEY_INVALID");
+  const { data: key, error: keyError } = await admin.from("public_api_keys").select("id,workspace_id,scopes,expires_at,revoked_at").eq("key_hash",hash).maybeSingle();
+  if (keyError || !key || key.revoked_at || new Date(key.expires_at).getTime() <= Date.now()) throw new Error("API_KEY_INVALID");
   const {data:withinLimit,error:rateError}=await admin.rpc("consume_main_workspace_api_rate_limit",{p_key_hash:hash,p_limit:60,p_window_seconds:60});
   if(rateError||withinLimit!==true) throw new Error("API_RATE_LIMITED");
   const scope = (s:string) => key.scopes.includes(s);
@@ -257,8 +261,8 @@ async function publicApi(req: Request, admin: any, body: any) {
   };
   const target = listMap[action];
   if (!target || !scope(target.scope)) throw new Error("API_SCOPE_DENIED");
-  const {data,error}=await admin.from(target.table).select(target.fields).eq("workspace_id",key.workspace_id).limit(Math.min(100,Math.max(1,Number(body.limit)||100)));
-  if(error) throw new Error("API_READ_FAILED");
+  const {data,error: readError}=await admin.from(target.table).select(target.fields).eq("workspace_id",key.workspace_id).limit(Math.min(100,Math.max(1,Number(body.limit)||100)));
+  if(readError) throw new Error("API_READ_FAILED");
   const records = action === "inventory.low_stock" ? (data||[]).filter((x:any)=>Number(x.quantity)<=Number(x.low_stock)) : (data||[]);
   await admin.from("public_api_keys").update({last_used_at:new Date().toISOString()}).eq("id",key.id);
   return {ok:true,records};
