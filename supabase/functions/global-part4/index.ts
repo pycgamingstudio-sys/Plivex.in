@@ -4,6 +4,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const MAX_BODY = 32 * 1024;
 const RESOURCES = new Set(["warehouses","warehouse_stock_levels","inventory_batches","warehouse_stock_movements","stock_transfers","purchase_orders","purchase_order_items","crm_leads","crm_activities","suppliers","sales_orders","delivery_challans","credit_debit_notes","inventory_serials"]);
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
+const validMinor = (value: unknown, allowZero = true): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && (allowZero ? value >= 0 : value > 0);
 
 const validDate = (value: unknown) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
   && Number.isFinite(Date.parse(value)) && new Date(value + "T00:00:00.000Z").toISOString().slice(0,10) === value;
@@ -35,7 +37,7 @@ function validateMutation(operation: string, values: Record<string, unknown>): s
     if (values.items.some(item => !object(item) || typeof item.product_id !== "string" || !UUID.test(item.product_id)
       || typeof item.quantity_ordered !== "number" || !Number.isFinite(item.quantity_ordered) || item.quantity_ordered <= 0
       || Math.round(item.quantity_ordered * 10000) !== item.quantity_ordered * 10000
-      || !Number.isSafeInteger(item.unit_cost_minor) || Number(item.unit_cost_minor) < 0)) return "Purchase order lines are invalid.";
+      || !validMinor(item.unit_cost_minor))) return "Purchase order lines are invalid.";
     if (values.order_date !== undefined && !validDate(values.order_date)) return "Order date is invalid.";
     if (values.expected_date !== undefined && values.expected_date !== null && !validDate(values.expected_date)) return "Expected date is invalid.";
   } else if (operation === "set_product_barcode") {
@@ -58,8 +60,8 @@ function validateMutation(operation: string, values: Record<string, unknown>): s
       ||!Array.isArray(values.items)||values.items.length<1||values.items.length>100) return "Sales order details are invalid.";
     if(values.items.some(item=>!object(item)||typeof item.description!=="string"||!item.description.trim()||item.description.length>500
       ||typeof item.quantity!=="number"||!Number.isFinite(item.quantity)||item.quantity<=0||Math.round(item.quantity*10000)!==item.quantity*10000
-      ||!Number.isSafeInteger(item.unit_price_minor)||item.unit_price_minor<0
-      ||!Number.isSafeInteger(item.discount_minor??0)||(item.discount_minor??0)<0
+      ||!validMinor(item.unit_price_minor)
+      ||!validMinor(item.discount_minor??0)
       ||(item.product_id!==null&&item.product_id!==undefined&&(typeof item.product_id!=="string"||!UUID.test(item.product_id))))) return "Sales order lines are invalid.";
   } else if (operation === "update_sales_order_status") {
     if(typeof values.sales_order_id!=="string"||!UUID.test(values.sales_order_id)||!["confirmed","fulfilled","cancelled"].includes(String(values.status||""))) return "Sales order status update is invalid.";
@@ -79,9 +81,9 @@ function validateMutation(operation: string, values: Record<string, unknown>): s
       ||typeof values.reason!=="string"||!values.reason.trim()||values.reason.length>500
       ||typeof values.idempotency_key!=="string"||!UUID.test(values.idempotency_key)
       ||(values.note_date!==undefined&&!validDate(values.note_date))
-      ||!Number.isSafeInteger(values.taxable_minor)||values.taxable_minor<=0
-      ||!Number.isSafeInteger(values.tax_minor)||values.tax_minor<0
-      ||!Number.isSafeInteger(values.total_minor)||values.total_minor!==values.taxable_minor+values.tax_minor) return "Credit/debit note details are invalid.";
+      ||!validMinor(values.taxable_minor,false)
+      ||!validMinor(values.tax_minor)
+      ||!validMinor(values.total_minor)||values.total_minor!==values.taxable_minor+values.tax_minor) return "Credit/debit note details are invalid.";
   } else if (operation === "update_credit_debit_note_status") {
     if(typeof values.note_id!=="string"||!UUID.test(values.note_id)||!["issued","void"].includes(String(values.status||""))) return "Credit/debit note status update is invalid.";
   } else if (operation === "receive_purchase_order") {
@@ -195,9 +197,8 @@ Deno.serve(async (req: Request) => {
           purchase_order_not_found: "Purchase order not found.",
           warehouse_not_found: "Choose an active warehouse.",
           lead_not_found: "Lead not found.",
-          invalid_lead: "Lead update details are invalid.",
+          invalid_lead: "Lead details are invalid.",
           receipt_quantity_exceeded: "Received quantity cannot exceed the outstanding purchase quantity.",
-          invalid_lead: "Lead name is required and must be 200 characters or fewer.",
           invalid_warehouse: "Warehouse code and name are required.",
           invalid_sales_order: "Sales order details are invalid.",
           invalid_sales_order_item: "A sales order line has invalid quantity, price or discount.",

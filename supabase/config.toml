@@ -52,3 +52,11 @@ verify_jwt = false
 # Public supplier onboarding uses single-use hashed invite tokens; management actions authenticate in-handler.
 [functions.workspace-supplier-portal]
 verify_jwt = false
+
+# Plivex Nova uses a verified Supabase JWT before the handler resolves workspace access.
+[functions.assistant-chat]
+verify_jwt = true
+
+# Nova action confirmation requires a verified Supabase JWT.
+[functions.assistant-confirm]
+verify_jwt = true

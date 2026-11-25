@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -30,19 +30,17 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Check Supabase Edge Functions
+      - name: Type-check every Edge Function entrypoint
+        shell: bash
         run: |
-          deno check supabase/functions/_shared/team.ts supabase/functions/_shared/email.ts
-          deno check supabase/functions/_shared/cashfree.ts supabase/functions/create-cashfree-order/index.ts supabase/functions/cashfree-webhook/index.ts supabase/functions/cashfree-webhook/refund.ts supabase/functions/cashfree-return/index.ts
-          deno check supabase/functions/ensure-owner-role/index.ts supabase/functions/send-team-invite/index.ts supabase/functions/send-payment-reminder/index.ts supabase/functions/verify-invite-code/index.ts
-          deno check supabase/functions/update-workspace-locale/index.ts
-          deno check supabase/functions/manage-workspace-member/index.ts supabase/functions/get-workspace-team/index.ts
-          deno check supabase/functions/ping-presence/index.ts supabase/functions/track-staff-action/index.ts supabase/functions/get-team-presence/index.ts
-          deno check supabase/functions/get-access-status/index.ts
-          deno check supabase/functions/workspace-records/index.ts supabase/functions/list-invoices/index.ts
-          deno check supabase/functions/save-invoice/index.ts supabase/functions/set-invoice-status/index.ts
-          deno check supabase/functions/global-invoices/index.ts supabase/functions/global-accounting/index.ts supabase/functions/global-enterprise/index.ts supabase/functions/global-export/index.ts
-          deno check supabase/functions/_shared/paddle.ts supabase/functions/create-paddle-transaction/index.ts supabase/functions/paddle-webhook/index.ts
+          set -euo pipefail
+          mapfile -t edge_entrypoints < <(find supabase/functions -type f -name index.ts -print | sort)
+          if [ "${#edge_entrypoints[@]}" -lt 54 ]; then
+            printf 'Expected at least 54 versioned Edge Function entrypoints, found %s\\n' "${#edge_entrypoints[@]}"
+            exit 1
+          fi
+          printf 'Type-checking %s Edge Function entrypoints\\n' "${#edge_entrypoints[@]}"
+          deno check --node-modules-dir=auto "${edge_entrypoints[@]}"
       - name: Cashfree refund handler regression tests
         run: deno test supabase/functions/cashfree-webhook/refund.test.ts
       - name: Lint
@@ -51,3 +49,9 @@ jobs:
         run: npm run test:membership
       - name: Production build
         run: npm run build
+      - name: Install Playwright and Chromium for browser smoke tests
+        run: |
+          npm install --no-save --no-package-lock @playwright/test@1.57.0
+          npx playwright install --with-deps chromium
+      - name: Run desktop and mobile browser smoke tests
+        run: npx playwright test --config=playwright.config.mjs

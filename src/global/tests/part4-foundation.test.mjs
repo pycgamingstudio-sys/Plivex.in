@@ -185,3 +185,11 @@ test("Global inventory serial and barcode workflow is workspace-scoped and wired
   assert.match(globalUi, /update_inventory_serial_status/);
   assert.match(globalUi, /set_product_barcode/);
 });
+
+test("Global Part 4 amount validation narrows untrusted JSON numbers before arithmetic",()=>{
+  assert.match(endpoint,/const validMinor = \(value: unknown/);
+  assert.match(endpoint,/!validMinor\(item\.unit_price_minor\)/);
+  assert.match(endpoint,/!validMinor\(values\.taxable_minor,false\)/);
+  assert.match(endpoint,/!validMinor\(values\.total_minor\)/);
+  assert.equal((endpoint.match(/invalid_lead:/g)||[]).length,1);
+});

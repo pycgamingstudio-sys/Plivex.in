@@ -1,0 +1,101 @@
+begin;
+
+-- The tax-aware overload is callable by authenticated clients. Its legacy
+-- overload is intentionally service-role-only and validates membership using
+-- the supplied user id. Bind that id to the JWT subject before delegating.
+create or replace function public.global_manage_quotation(
+  p_user_id uuid,
+  p_workspace_id uuid,
+  p_action text,
+  p_quotation_id uuid,
+  p_client_id uuid,
+  p_currency_code text,
+  p_issue_date date,
+  p_valid_until date,
+  p_notes text,
+  p_items jsonb,
+  p_status text,
+  p_idempotency_key uuid,
+  p_tax_minor bigint,
+  p_tax_snapshot jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog, global, public
+as $function$
+declare
+  v_result jsonb;
+  v_quote_id uuid;
+  v_quote global.quotations%rowtype;
+  v_invoice global.invoices%rowtype;
+begin
+  if auth.uid() is null or p_user_id is distinct from auth.uid() then
+    return jsonb_build_object('ok',false,'reason','access_denied');
+  end if;
+
+  if p_tax_minor is not null and (p_tax_minor < 0 or p_tax_minor > 9000000000000000) then
+    return jsonb_build_object('ok',false,'reason','invalid_tax_amount');
+  end if;
+  if p_tax_snapshot is not null and jsonb_typeof(p_tax_snapshot) <> 'object' then
+    return jsonb_build_object('ok',false,'reason','invalid_tax_snapshot');
+  end if;
+
+  v_result := public.global_manage_quotation(
+    p_user_id,p_workspace_id,p_action,p_quotation_id,p_client_id,p_currency_code,
+    p_issue_date,p_valid_until,p_notes,p_items,p_status,p_idempotency_key
+  );
+  if coalesce((v_result->>'ok')::boolean,false) is not true then
+    return v_result;
+  end if;
+
+  if p_action = 'create' and p_tax_minor is not null then
+    v_quote_id := nullif(v_result->'quotation'->>'id','')::uuid;
+    if v_quote_id is null then
+      return jsonb_build_object('ok',false,'reason','quotation_save_failed');
+    end if;
+    update global.quotations
+      set tax_minor=p_tax_minor,
+          total_including_tax_minor=total_minor+p_tax_minor,
+          tax_snapshot=p_tax_snapshot,
+          updated_at=now()
+      where id=v_quote_id and workspace_id=p_workspace_id
+      returning * into v_quote;
+    if v_quote.id is null then
+      return jsonb_build_object('ok',false,'reason','quotation_not_found');
+    end if;
+    v_result := jsonb_set(v_result,'{quotation}',to_jsonb(v_quote),true);
+  elsif p_action = 'convert' then
+    select * into v_quote from global.quotations
+      where id=p_quotation_id and workspace_id=p_workspace_id;
+    if v_quote.converted_invoice_id is not null and v_quote.tax_snapshot is not null then
+      update global.invoices
+        set tax_minor=v_quote.tax_minor,
+            total_minor=coalesce(v_quote.total_including_tax_minor,v_quote.total_minor),
+            invoice_snapshot=coalesce(invoice_snapshot,'{}'::jsonb)
+              || jsonb_build_object('global_tax_snapshot',v_quote.tax_snapshot),
+            updated_at=now()
+        where id=v_quote.converted_invoice_id and workspace_id=p_workspace_id
+        returning * into v_invoice;
+      if v_invoice.id is not null then
+        v_result := jsonb_set(v_result,'{invoice}',to_jsonb(v_invoice),true);
+      end if;
+    end if;
+  end if;
+
+  return v_result;
+end;
+$function$;
+
+revoke all on function public.global_manage_quotation(
+  uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid,bigint,jsonb
+) from public, anon;
+grant execute on function public.global_manage_quotation(
+  uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid,bigint,jsonb
+) to authenticated;
+
+-- Trigger functions are invoked by their owning trigger and must not be callable
+-- as an exposed RPC by anon/authenticated clients.
+revoke all on function global.guard_issued_invoice_items() from public, anon, authenticated;
+
+commit;

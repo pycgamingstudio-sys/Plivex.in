@@ -24,6 +24,10 @@ test("Global quotation API requires an authenticated workspace and validates lin
   assert.match(edge, /p_user_id: auth\.user\.id/);
   assert.match(edge, /p_workspace_id: body\.workspace_id/);
   assert.match(edge, /global_manage_quotation/);
+  assert.match(edge, /const caller = createClient\(supabaseUrl, supabaseAnonKey/);
+  assert.match(edge, /caller\.rpc\("global_manage_quotation"/);
+  assert.match(edge, /from\("workspace_members"\)[\s\S]*?eq\("user_id", auth\.user\.id\)[\s\S]*?eq\("status", "active"\)/);
+  assert.doesNotMatch(edge, /auth\.admin\.rpc\("global_manage_quotation"/);
   assert.match(edge, /Number\.isSafeInteger\(item\.unit_price_minor\)/);
   assert.match(edge, /quotation_id/);
 });
