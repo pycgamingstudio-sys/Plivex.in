@@ -8,6 +8,7 @@ import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-v
 import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
 import { validateWarehouseAction, validateStockTransferAction } from "../_shared/assistant-warehouse-validation.mjs";
 import { validateSupplierInviteAction } from "../_shared/assistant-supplier-validation.mjs";
+import { validateStaffInviteAction } from "../_shared/assistant-staff-validation.mjs";
 import { isGlobalOnlyAssistantAction } from "../_shared/assistant-workspace-action-guard.mjs";
 
 const ALLOWED_ORIGINS = new Set([
@@ -66,6 +67,9 @@ function validateAction(action: unknown) {
   }
   if (type === "invite_supplier") {
     return validateSupplierInviteAction(action);
+  }
+  if (type === "invite_staff") {
+    return validateStaffInviteAction(action);
   }
   if (type === "create_purchase_order") {
     return validatePurchaseOrderAction(action);
@@ -437,6 +441,36 @@ Deno.serve(async (req: Request) => {
         verification: [{ type: "create_warehouse", id: warehouse.warehouse_id, verified }],
         duplicate: Boolean(warehouse.duplicate),
         warehouse: verifiedWarehouse ? { code: verifiedWarehouse.code, name: verifiedWarehouse.name } : null,
+      }, 200, origin);
+    }
+    if (actions.some((action: any) => action.type === "invite_staff")) {
+      if (actions.length !== 1) return json({ error: "Staff invitations must be confirmed separately so each role and quota check is auditable." }, 400, origin);
+      const payload = actions[0].payload;
+      const { data: invitation, error: inviteError } = await supabase.functions.invoke("send-team-invite", {
+        body: { to: payload.email, role: payload.role, name: payload.name },
+      });
+      if (inviteError || !invitation?.ok || !invitation?.membershipId || !invitation?.code) {
+        const reason = String(invitation?.error || inviteError?.message || "");
+        const message = reason.includes("PLAN_FEATURE_LOCKED") ? "Staff invitations are locked on the current workspace plan."
+          : reason.includes("PLAN_LIMIT_REACHED") ? "The workspace has reached its current staff-member limit."
+          : reason.includes("Admin only") ? "Only the workspace owner or an authorized administrator can invite staff."
+          : reason.includes("Already an active member") ? "This email already belongs to an active workspace member."
+          : "The staff invitation could not be created. Check the email, role, workspace plan and team permissions.";
+        return json({ error: message }, reason.includes("PLAN_LIMIT_REACHED") ? 409 : reason.includes("Admin only") ? 403 : 400, origin);
+      }
+      const { data: member, error: memberVerifyError } = await supabase.from("workspace_members")
+        .select("id,email,role,status").eq("workspace_id", profile.workspace_id).eq("id", invitation.membershipId).maybeSingle();
+      const verified = !memberVerifyError && member?.status === "invited"
+        && member?.role === payload.role && String(member?.email || "").toLowerCase() === payload.email;
+      const inviteUrl = "https://plivex.in/register?invite_token=" + encodeURIComponent(invitation.code);
+      return json({
+        ok: true,
+        verified,
+        reply: verified ? (invitation.emailSent ? "Staff invitation created and email delivery confirmed." : "Staff invitation created. Email delivery was not confirmed; share the invite code manually.")
+          : "The invite was created, but Plivex could not verify the workspace membership record. Check Team Management before retrying.",
+        created: [{ type: "invite_staff", id: invitation.membershipId }],
+        verification: [{ type: "invite_staff", id: invitation.membershipId, verified }],
+        staff_invitation: verified ? { email: member.email, role: member.role, invite_code: invitation.code, invite_url: inviteUrl, email_sent: Boolean(invitation.emailSent), warning: invitation.warning || null } : null,
       }, 200, origin);
     }
     if (actions.some((action: any) => action.type === "invite_supplier")) {
