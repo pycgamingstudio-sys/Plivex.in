@@ -16,6 +16,7 @@ import { validateWarehouseAction, validateStockTransferAction } from "../_shared
 import { validateSupplierInviteAction } from "../_shared/assistant-supplier-validation.mjs";
 import { validateStaffInviteAction } from "../_shared/assistant-staff-validation.mjs";
 import { validateCreateBranchAction } from "../_shared/assistant-branch-validation.mjs";
+import { validateLeadFollowUpAction } from "../_shared/assistant-follow-up-validation.mjs";
 import { detectPurchasingWriteIntent } from "../_shared/assistant-purchasing-write-intent.mjs";
 import { validatePurchaseOrderAgainstContext } from "../_shared/assistant-purchase-order-context.mjs";
 import { validateGoodsReceiptAgainstContext } from "../_shared/assistant-goods-receipt-context.mjs";
@@ -443,6 +444,15 @@ function validateAction(action: any) {
     return {
       ...validated,
       summary: "Create the active workspace branch " + validated.payload.name + " with code " + validated.payload.branch_code + ". Only workspace administrators can create branches; the branch will start with no transactions or stock until assigned.",
+    };
+  }
+  if (type === "schedule_lead_follow_up") {
+    const validated = validateLeadFollowUpAction(action);
+    if (!validated) return null;
+    const lead = (context.records?.leads || []).find((item: any) => item.id === validated.payload.lead_id);
+    return {
+      ...validated,
+      summary: "Schedule a CRM follow-up for " + (lead?.name || lead?.company_name || validated.payload.lead_id) + " at " + validated.payload.due_at + ". It will appear in the workspace CRM follow-up list; no customer message is sent automatically.",
     };
   }
   if (type === "create_purchase_order") {
