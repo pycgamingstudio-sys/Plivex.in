@@ -610,7 +610,7 @@ Deno.serve(async (req: Request) => {
       ]);
       const movements = movementCheck.data || [];
       const verified = !transferCheck.error && Boolean(transferCheck.data?.id)
-        && transferCheck.data.to_warehouse_id === payload.to_warehouse_id
+        && transferCheck.data?.to_warehouse_id === payload.to_warehouse_id
         && !itemCheck.error && itemCheck.data?.source_stock_id === payload.stock_id
         && itemCheck.data?.destination_stock_id === transfer.destination_stock_id
         && Number(itemCheck.data?.quantity) === Number(payload.quantity)
