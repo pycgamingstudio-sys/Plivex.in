@@ -61,7 +61,7 @@ test("public invoice and supplier links use hashed, expiring tokens while manage
 test("non-JWT workspace platform and payment return handlers perform their own verification", () => {
   assert.match(platform, /authClient\.auth\.getUser\(\)/);
   assert.match(phonepeReturn, /checkout\/v2\/order/);
-  assert.match(phonepeReturn, /status\?\.state === "COMPLETED"/);
+  assert.match(phonepeReturn, /status\?\.state==="COMPLETED"/);
   assert.match(cashfreeReturn, /activatePaidOrder/);
   assert.match(payuReturn, /reverseHash/);
   assert.match(payuReturn, /safeEqualHex/);
