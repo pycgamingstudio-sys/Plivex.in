@@ -94,6 +94,57 @@ grant execute on function public.global_manage_quotation(
   uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid,bigint,jsonb
 ) to authenticated;
 
+-- Purchase-bill listing is a read-only authenticated workspace RPC.
+-- Keep it invoker-security so table RLS remains in force, and bind the supplied
+-- user id to auth.uid() for browser callers. Trusted service-role callers remain
+-- available for server-side jobs.
+create or replace function public.global_list_purchase_bills(
+  p_user_id uuid,
+  p_workspace_id uuid,
+  p_limit integer default 100
+)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path to pg_catalog, global, public
+as $function$
+declare
+  v_role text;
+  v_rows jsonb;
+begin
+  if p_user_id is null or p_workspace_id is null then
+    raise exception using errcode='42501', message='Workspace access denied';
+  end if;
+  if current_user <> 'service_role' and p_user_id is distinct from auth.uid() then
+    raise exception using errcode='42501', message='Workspace access denied';
+  end if;
+
+  select role into v_role
+  from global.workspace_members
+  where workspace_id=p_workspace_id and user_id=p_user_id and status='active';
+  if v_role is null then
+    raise exception using errcode='42501', message='Workspace access denied';
+  end if;
+
+  select coalesce(jsonb_agg(to_jsonb(t) order by t.purchase_date desc,t.created_at desc),'[]'::jsonb)
+  into v_rows
+  from (
+    select b.*,s.name as supplier_name,s.tax_registration_number as supplier_tax_id
+    from global.purchase_bills b
+    join global.suppliers s on s.workspace_id=b.workspace_id and s.id=b.supplier_id
+    where b.workspace_id=p_workspace_id
+    order by b.purchase_date desc,b.created_at desc
+    limit greatest(1,least(coalesce(p_limit,100),200))
+  ) t;
+
+  return jsonb_build_object('ok',true,'purchase_bills',v_rows);
+end;
+$function$;
+
+revoke all on function public.global_list_purchase_bills(uuid,uuid,integer) from public, anon, authenticated;
+grant execute on function public.global_list_purchase_bills(uuid,uuid,integer) to authenticated, service_role;
+
 -- Trigger functions are invoked by their owning trigger and must not be callable
 -- as an exposed RPC by anon/authenticated clients.
 revoke all on function global.guard_issued_invoice_items() from public, anon, authenticated;
