@@ -451,7 +451,7 @@ function validateAction(action: any) {
     if (!validated) return null;
     return {
       ...validated,
-      summary: "Schedule a CRM follow-up for " + (validated.payload.lead_name || validated.payload.lead_id) + " at " + validated.payload.due_at + ". It will appear in the workspace CRM follow-up list; no customer message is sent automatically.",
+      summary: "Schedule a CRM follow-up for " + validated.payload.lead_id + " at " + validated.payload.due_at + ". It will appear in the workspace CRM follow-up list; no customer message is sent automatically.",
     };
   }
   if (type === "create_purchase_order") {
