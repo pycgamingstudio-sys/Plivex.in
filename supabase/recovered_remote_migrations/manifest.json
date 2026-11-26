@@ -441,10 +441,11 @@
     "20261123034430_main_workspace_sales_analytics_exclude_void_invoices.sql",
     "20261123074843_main_workspace_permission_delegation_enforcement.sql",
     "20261123080000_main_workspace_permission_list_override_enforcement.sql",
-    "20261125152000_secure_global_quotation_tax_wrapper.sql",
+    "20261126001219_secure_global_quotation_tax_wrapper.sql",
     "20261125154500_split_workspace_write_policies.sql"
   ],
   "notes": [
+    "Quotation security migration applied to production as version 20261126001219; the local filename is aligned to that applied version.",
     "Recovered SQL is copied from the production migration ledger statements column.",
     "No production writes or migration operations were performed.",
     "Recovered archive is outside supabase/migrations and is not auto-applied by Supabase CLI.",
