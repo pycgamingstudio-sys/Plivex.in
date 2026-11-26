@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { APP_EDITION } from "@/api/backendClient";
 import {
   Receipt, Users, Wallet, BarChart3, ShieldCheck, Plug, Check, Sparkles, Zap, Rocket,
 } from "lucide-react";
@@ -65,7 +66,9 @@ export default function AboutSection({ showFounderPhotos = true } = {}) {
           <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /><p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">About Plivex</p></div>
           <h2 className="mt-2 text-[22px] font-bold leading-tight sm:text-[28px]">Smart invoicing with your built-in AI Business Assistant.</h2>
           <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-white/85">
-            Plivex brings invoicing, quotations, customer records, expenses, inventory and business reports together in one web workspace. It is designed for Indian retailers, wholesalers, distributors, freelancers, service providers and small teams that want their everyday billing work organised in one place.
+            {APP_EDITION === "global"
+              ? "Plivex brings invoicing, quotations, customer records, expenses, inventory and business reports together in one workspace for retailers, wholesalers, distributors, freelancers, service providers and small teams around the world."
+              : "Plivex brings invoicing, quotations, customer records, expenses, inventory and business reports together in one web workspace. It is designed for Indian retailers, wholesalers, distributors, freelancers, service providers and small teams that want their everyday billing work organised in one place."}
           </p>
           <div className="mt-5 flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 p-3">
             {showFounderPhotos && <img src="/images/yashvant-sharma.webp" alt="Yashvant Sharma, Founder & Developer of Plivex" width="56" height="56" loading="lazy" decoding="async" className="h-14 w-14 shrink-0 rounded-full border-2 border-white/70 object-cover object-center" />}
