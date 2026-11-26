@@ -40,3 +40,14 @@ test("Cashfree return repository implementation is safer than deployed v11 drift
   assert.doesNotMatch(deployed, /PLXCF-\[A-Z0-9\]\{20,30\}/);
   assert.notEqual(source, deployed);
 });
+
+test("Cashfree webhook repository implementation handles refunds and out-of-order status safely", () => {
+  const source = read("../../../supabase/functions/cashfree-webhook/index.ts");
+  const deployed = read("../../../supabase/functions/cashfree-webhook/deployed-v11.ts");
+  assert.match(source, /handleCashfreeRefundEvent/);
+  assert.match(source, /cashfreePaymentStatusUpdateFilter/);
+  assert.match(source, /activatePaidOrder/);
+  assert.match(deployed, /PAYMENT_SUCCESS_WEBHOOK/);
+  assert.doesNotMatch(deployed, /handleCashfreeRefundEvent/);
+  assert.notEqual(source, deployed);
+});
