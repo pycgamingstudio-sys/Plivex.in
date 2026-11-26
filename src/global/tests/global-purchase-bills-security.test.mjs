@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const migration = readFileSync(new URL("../../../supabase/migrations/20261125152000_secure_global_quotation_tax_wrapper.sql", import.meta.url), "utf8");
+const migration = readFileSync(new URL("../../../supabase/migrations/20261126001219_secure_global_quotation_tax_wrapper.sql", import.meta.url), "utf8");
 const integration = readFileSync(new URL("../../../supabase/tests/global-accounting-part3b.integration.sql", import.meta.url), "utf8");
 
 test("purchase bill list RPC is available to authenticated users but bound to their own identity", () => {
