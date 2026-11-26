@@ -4,18 +4,15 @@ import { readFileSync } from "node:fs";
 
 const migration = readFileSync(new URL("../../../supabase/migrations/20261126001219_secure_global_quotation_tax_wrapper.sql", import.meta.url), "utf8");
 
-test("tax-aware quotation wrapper binds caller identity to the authenticated JWT", () => {
-  assert.match(migration, /auth\.uid\(\)\s+is\s+null/);
-  assert.match(migration, /p_user_id\s+is\s+distinct\s+from\s+auth\.uid\(\)/);
+test("tax-aware quotation wrapper is restricted to the trusted service role", () => {
+  assert.match(migration, /coalesce\(auth\.role\(\),'\'\)\s*<>\s*'service_role'/);
   assert.match(migration, /reason','access_denied'/);
 });
 
-test("tax-aware quotation wrapper preserves the restricted legacy overload", () => {
-  assert.ok(migration.includes("p_idempotency_key uuid"));
+test("tax-aware quotation RPC cannot be executed directly by browser roles", () => {
   assert.ok(migration.includes("p_tax_minor bigint"));
   assert.ok(migration.includes("p_tax_snapshot jsonb"));
-  assert.ok(migration.includes("revoke all on function public.global_manage_quotation("));
-  assert.ok(migration.includes(") to authenticated;"));
-  assert.ok(migration.includes("uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid,bigint,jsonb"));
+  assert.match(migration, /revoke all on function public\.global_manage_quotation\([\s\S]*?\) from public, anon, authenticated/);
+  assert.match(migration, /grant execute on function public\.global_manage_quotation\([\s\S]*?\) to service_role/);
   assert.match(migration, /revoke all on function global\.guard_issued_invoice_items\(\) from public, anon, authenticated/);
 });
