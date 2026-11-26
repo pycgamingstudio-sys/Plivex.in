@@ -84,7 +84,7 @@ Deno.serve(async (req: Request) => {
       .eq("id", membershipId).eq("workspace_id", scope.workspaceId).eq("owner_id", scope.ownerId);
     const { error: logError } = await auth.admin.from("activity_logs").insert({
       event_key: crypto.randomUUID(), workspace_id: scope.workspaceId, owner_id: scope.ownerId, member_id: membershipId,
-      actor_id: auth.user.id, action: "invite_sent", outcome: emailSent ? "applied" : "failed", source: "send-team-invite",
+      actor_id: auth.user.id, action: "invite_sent", outcome: emailSent ? "applied" : "pending", source: "send-team-invite",
       metadata: { to, role, membershipId, workspaceName, emailSent },
     });
     if (logError) console.error("invite activity log failed", { code: logError.code });
