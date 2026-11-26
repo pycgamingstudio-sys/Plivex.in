@@ -51,3 +51,12 @@ test("Cashfree webhook repository implementation handles refunds and out-of-orde
   assert.doesNotMatch(deployed, /handleCashfreeRefundEvent/);
   assert.notEqual(source, deployed);
 });
+
+test("invoice reminder scheduler uses constant-time cron secret comparison", () => {
+  const source = read("../../../supabase/functions/sweep-invoice-reminders/index.ts");
+  const deployed = read("../../../supabase/functions/sweep-invoice-reminders/deployed-v12.ts");
+  assert.match(source, /const safeEqual = \(left: string, right: string\)/);
+  assert.match(source, /!safeEqual\(supplied, config\.secret\)/);
+  assert.match(deployed, /supplied !== config\.secret/);
+  assert.doesNotMatch(deployed, /const safeEqual/);
+});
