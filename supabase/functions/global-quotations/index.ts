@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowed } from "../_shared/global.ts";
 import { resolveSupabaseTaxRule } from "../_shared/tax/supabase-tax-rule-resolver.ts";
+import { isDraftTaxRulesAllowed } from "../_shared/tax/draft-tax-policy.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -103,7 +104,7 @@ Deno.serve(async (req: Request) => {
       const resolved = await resolveSupabaseTaxRule(auth.admin, {
         countryCode, jurisdictionId, invoiceDate:String(body.issue_date),
         treatment:String(body.tax_treatment || (taxCode === "GST_0" ? "zero-rated" : taxCode === "GST_5" ? "reduced" : "standard")), taxCode:taxCode || null,
-      }, Deno.env.get("ALLOW_DRAFT_TAX_RULES") !== "false");
+      }, isDraftTaxRulesAllowed(Deno.env.get("ALLOW_DRAFT_TAX_RULES")));
       if (!resolved.ok) return globalJson({ error:resolved.message || "No effective workspace tax rule is available.", code:resolved.code },422,origin);
 
       let components = resolved.rule.components;
