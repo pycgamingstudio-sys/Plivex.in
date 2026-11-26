@@ -1,9 +1,27 @@
 \set ON_ERROR_STOP on
 BEGIN;
+
+-- Browser roles must not be able to call the tax-aware RPC directly with a
+-- caller-supplied amount or snapshot.
 SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.role','authenticated',true);
 SELECT set_config('request.jwt.claim.sub','66666666-6666-4666-8666-666666666666',true);
 
-DO $quotation_wrapper_auth$
+DO $quotation_wrapper_browser_acl$
+BEGIN
+  IF has_function_privilege('authenticated',
+    'public.global_manage_quotation(uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid,bigint,jsonb)',
+    'EXECUTE') THEN
+    RAISE EXCEPTION 'Authenticated role can execute the tax-aware quotation RPC directly';
+  END IF;
+END
+$quotation_wrapper_browser_acl$;
+
+RESET ROLE;
+SET LOCAL ROLE service_role;
+SELECT set_config('request.jwt.claim.role','service_role',true);
+
+DO $quotation_wrapper_service_role$
 DECLARE
   v_spoofed jsonb;
   v_valid jsonb;
@@ -14,12 +32,14 @@ DECLARE
   v_tax_quote_id uuid;
   v_tax_snapshot jsonb := '{"country_code":"GB","tax_type":"VAT","components":[{"code":"VAT_STANDARD","rate_bps":2000,"amount_minor":1900}]}'::jsonb;
 BEGIN
+  -- The service-only RPC still delegates membership enforcement to the
+  -- legacy overload, which rejects a user id that is not an active member.
   v_spoofed := public.global_manage_quotation(
     '77777777-7777-4777-8777-777777777777','cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     'list',NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,NULL,NULL
   );
   IF v_spoofed->>'ok' <> 'false' OR v_spoofed->>'reason' <> 'access_denied' THEN
-    RAISE EXCEPTION 'Quotation wrapper accepted a spoofed user id: %',v_spoofed;
+    RAISE EXCEPTION 'Quotation wrapper accepted a non-member user id: %',v_spoofed;
   END IF;
 
   v_valid := public.global_manage_quotation(
@@ -27,7 +47,7 @@ BEGIN
     'list',NULL,NULL,NULL,NULL,NULL,NULL,'[]'::jsonb,NULL,NULL,NULL,NULL
   );
   IF v_valid->>'ok' <> 'true' THEN
-    RAISE EXCEPTION 'Quotation wrapper rejected the authenticated workspace member: %',v_valid;
+    RAISE EXCEPTION 'Quotation wrapper rejected the active workspace member: %',v_valid;
   END IF;
 
   v_tax_created := public.global_manage_quotation(
@@ -67,7 +87,7 @@ BEGIN
     RAISE EXCEPTION 'Quotation-to-invoice conversion did not carry the tax snapshot: %',v_tax_converted;
   END IF;
 END
-$quotation_wrapper_auth$;
+$quotation_wrapper_service_role$;
 
 RESET ROLE;
 ROLLBACK;
