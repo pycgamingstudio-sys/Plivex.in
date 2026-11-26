@@ -60,3 +60,12 @@ test("invoice reminder scheduler uses constant-time cron secret comparison", () 
   assert.match(deployed, /supplied !== config\.secret/);
   assert.doesNotMatch(deployed, /const safeEqual/);
 });
+
+test("Global business records repository includes barcode, variants and FX expense fields missing from deployed v11", () => {
+  const source = read("../../../supabase/functions/global-business-records/index.ts");
+  const deployed = read("../../../supabase/functions/global-business-records/deployed-v11.ts");
+  for (const field of ["barcode", "variant_of", "variant_label", "transaction_amount_minor", "fx_rate_numerator", "fx_effective_at"]) {
+    assert.match(source, new RegExp(field));
+    assert.doesNotMatch(deployed, new RegExp(field));
+  }
+});
