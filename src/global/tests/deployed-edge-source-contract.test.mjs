@@ -29,3 +29,14 @@ test("retired PayU order endpoint fails closed with HTTP 410", () => {
   assert.match(source, /PayU checkout has been retired/);
   assert.match(source, /status:410/);
 });
+
+test("Cashfree return repository implementation is safer than deployed v11 drift snapshot", () => {
+  const source = read("../../../supabase/functions/cashfree-return/index.ts");
+  const deployed = read("../../../supabase/functions/cashfree-return/deployed-v11.ts");
+  assert.match(source, /PLXCF-\[A-Z0-9\]\{20,30\}/);
+  assert.match(source, /safePath\(row\.return_path\)/);
+  assert.match(source, /activatePaidOrder\(db,row,providerOrder,payment/);
+  assert.match(deployed, /Number\(cash\.order_amount\)\*100!==Number\(row\.amount_paise\)/);
+  assert.doesNotMatch(deployed, /PLXCF-\[A-Z0-9\]\{20,30\}/);
+  assert.notEqual(source, deployed);
+});
