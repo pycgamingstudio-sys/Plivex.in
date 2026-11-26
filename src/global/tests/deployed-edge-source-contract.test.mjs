@@ -92,6 +92,6 @@ test("Global Part 4 repository validates integer minor-unit amounts consistently
   const source = read("../../../supabase/functions/global-part4/index.ts");
   const deployed = read("../../../supabase/functions/global-part4/deployed-v8.ts");
   assert.match(source, /const validMinor/);
-  assert.match(source, /validMinor\(values\.unit_cost_minor\)/);
+  assert.match(source, /validMinor\(item\.unit_cost_minor\)/);
   assert.doesNotMatch(deployed, /const validMinor/);
 });
