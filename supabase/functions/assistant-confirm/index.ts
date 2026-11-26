@@ -1,5 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
+import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
+import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
+import { validateWarehouseAction } from "../_shared/assistant-warehouse-validation.mjs";
 
 const ALLOWED_ORIGINS = new Set([
   "https://plivex.in",
@@ -36,6 +39,15 @@ function validateAction(action: unknown) {
   const candidate = action as Record<string, unknown>;
   const type = text(candidate.type, 40);
   const raw = candidate.payload && typeof candidate.payload === "object" ? candidate.payload as Record<string, unknown> : {};
+  if (type === "create_warehouse") {
+    return validateWarehouseAction(action);
+  }
+  if (type === "create_purchase_order") {
+    return validatePurchaseOrderAction(action);
+  }
+  if (type === "receive_purchase_order") {
+    return validateGoodsReceiptAction(action);
+  }
   if (type === "create_invoice") {
     return validateInvoiceAction(action);
   }
@@ -102,6 +114,138 @@ Deno.serve(async (req: Request) => {
     if (actions.some((action: unknown) => !action)) return json({ error: "Some action details are missing or invalid. Nothing was saved." }, 400, origin);
     const idempotencyKey = text(body?.idempotencyKey,160);
     if (idempotencyKey.length < 16) return json({ error: "Confirmation key is missing. Please refresh the pending action and try again." }, 400, origin);
+    if (actions.some((action: any) => action.type === "create_warehouse")) {
+      if (actions.length !== 1) return json({ error: "Warehouse creation must be confirmed separately from other actions." }, 400, origin);
+      const payload = actions[0].payload;
+      const canonical = JSON.stringify(actions);
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+      const requestHash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const { data: warehouse, error: warehouseError } = await supabase.rpc("assistant_create_warehouse_idempotent", {
+        p_idempotency_key: idempotencyKey,
+        p_request_hash: requestHash,
+        p_name: payload.name,
+        p_code: payload.code || null,
+        p_address: payload.address || null,
+      });
+      if (warehouseError) {
+        console.error("Warehouse creation rejected", { code: warehouseError.code, userId: user.id });
+        const message = String(warehouseError.message || "");
+        if (message.includes("PERMISSION_DENIED")) return json({ error: "Only a workspace admin or manager can create a warehouse." }, 403, origin);
+        if (message.includes("IDEMPOTENCY_PAYLOAD_MISMATCH")) return json({ error: "This confirmation key was already used for different warehouse details. Prepare the action again." }, 409, origin);
+        return json({ error: "The warehouse could not be created. Check the name and code, then try again." }, 400, origin);
+      }
+      if (!warehouse?.ok || !warehouse?.warehouse_id) {
+        const reason = String(warehouse?.reason || "");
+        const message = reason === "warehouse_code_conflict"
+          ? "That warehouse code is already used in this workspace. Please provide a different code."
+          : "The warehouse details were rejected. Nothing was saved.";
+        return json({ error: message }, 400, origin);
+      }
+      const { data: warehouseRow, error: verifyError } = await supabase.from("warehouses")
+        .select("id,code,name,is_active").eq("workspace_id", profile.workspace_id)
+        .eq("id", warehouse.warehouse_id).maybeSingle();
+      const verifiedWarehouse = !verifyError && warehouseRow?.id && warehouseRow.is_active === true ? warehouseRow : null;
+      const verified = Boolean(verifiedWarehouse);
+      return json({
+        ok: true,
+        verified,
+        reply: verified ? "Warehouse created and verified in Plivex. It is active and ready for future stock operations." : "The warehouse was accepted, but Plivex could not verify it. Check Warehouses before retrying.",
+        created: [{ type: "create_warehouse", id: warehouse.warehouse_id }],
+        verification: [{ type: "create_warehouse", id: warehouse.warehouse_id, verified }],
+        duplicate: Boolean(warehouse.duplicate),
+        warehouse: verifiedWarehouse ? { code: verifiedWarehouse.code, name: verifiedWarehouse.name } : null,
+      }, 200, origin);
+    }
+    if (actions.some((action: any) => action.type === "create_purchase_order")) {
+      if (actions.length !== 1) return json({ error: "Purchase-order creation must be confirmed separately from other actions." }, 400, origin);
+      const payload = actions[0].payload;
+      const canonical = JSON.stringify(actions);
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+      const requestHash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const { data: order, error: orderError } = await supabase.rpc("assistant_create_purchase_order_idempotent", {
+        p_idempotency_key: idempotencyKey,
+        p_request_hash: requestHash,
+        p_supplier_name: payload.supplier_name,
+        p_items: payload.items,
+        p_supplier_reference: payload.supplier_reference || null,
+        p_expected_date: payload.expected_date || null,
+        p_notes: payload.notes || null,
+      });
+      if (orderError) {
+        console.error("Purchase order creation rejected", { code: orderError.code, userId: user.id });
+        const message = String(orderError.message || "");
+        if (message.includes("PERMISSION_DENIED")) return json({ error: "Only a workspace admin or manager can create a purchase order." }, 403, origin);
+        if (message.includes("IDEMPOTENCY_PAYLOAD_MISMATCH")) return json({ error: "This confirmation key was already used for different purchase-order details. Prepare the order again." }, 409, origin);
+        return json({ error: "The purchase order could not be created. Check supplier, stock items and workspace currency, then try again." }, 400, origin);
+      }
+      if (!order?.ok || !order?.purchase_order_id) {
+        const reason = String(order?.reason || "");
+        const message = reason === "forbidden" ? "Only a workspace admin or manager can create a purchase order."
+          : reason === "workspace_currency_unconfigured" ? "Set the workspace currency before creating a purchase order."
+          : reason === "stock_item_not_found" ? "One of the selected stock items no longer exists in this workspace."
+          : "The purchase-order details were rejected. Nothing was saved.";
+        return json({ error: message }, reason === "forbidden" ? 403 : 400, origin);
+      }
+      const [orderCheck, linesCheck] = await Promise.all([
+        supabase.from("purchase_orders").select("id").eq("workspace_id", profile.workspace_id).eq("id", order.purchase_order_id).maybeSingle(),
+        supabase.from("purchase_order_items").select("id").eq("workspace_id", profile.workspace_id).eq("purchase_order_id", order.purchase_order_id),
+      ]);
+      const verified = !orderCheck.error && Boolean(orderCheck.data?.id)
+        && !linesCheck.error && linesCheck.data?.length === payload.items.length;
+      return json({
+        ok: true,
+        verified,
+        reply: verified ? "Purchase order created and verified. It is saved as an order in your Plivex workspace." : "The purchase order was accepted, but Plivex could not verify every line. Check Purchase Orders before retrying.",
+        created: [{ type: "create_purchase_order", id: order.purchase_order_id }],
+        verification: [{ type: "create_purchase_order", id: order.purchase_order_id, verified }],
+        duplicate: Boolean(order.duplicate),
+        currency: order.currency_code || null,
+      }, 200, origin);
+    }
+    if (actions.some((action: any) => action.type === "receive_purchase_order")) {
+      if (actions.length !== 1) return json({ error: "Goods receipt must be confirmed separately from other actions so inventory changes remain atomic." }, 400, origin);
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) return json({ error: "The goods receipt confirmation key is invalid. Please prepare the action again." }, 400, origin);
+      const payload = actions[0].payload;
+      const { data: receipt, error: receiptError } = await supabase.rpc("india_part4_receive_purchase_order", {
+        p_purchase_order_id: payload.purchase_order_id,
+        p_warehouse_id: payload.warehouse_id,
+        p_idempotency_key: idempotencyKey,
+        p_items: payload.items,
+      });
+      if (receiptError) {
+        console.error("Goods receipt rejected", { code: receiptError.code, userId: user.id });
+        return json({ error: "The goods receipt could not be completed. Check the purchase order and warehouse, then try again." }, 400, origin);
+      }
+      if (!receipt?.ok || !receipt?.receipt_id) {
+        const reason = String(receipt?.reason || "");
+        const message = reason === "forbidden" ? "Your role cannot receive stock into this workspace."
+          : reason === "purchase_order_not_found" ? "That purchase order was not found in this workspace."
+          : reason === "warehouse_not_found" ? "That warehouse is unavailable or inactive."
+          : reason === "receipt_quantity_exceeded" ? "The received quantity exceeds the outstanding purchase-order quantity."
+          : reason === "stock_item_not_found" ? "A stock item linked to this purchase order no longer exists."
+          : "The goods receipt details were rejected. Nothing was saved.";
+        return json({ error: message }, reason === "forbidden" ? 403 : 400, origin);
+      }
+      const [receiptCheck, receiptItemsCheck, movementCheck] = await Promise.all([
+        supabase.from("purchase_receipts").select("id")
+          .eq("workspace_id", profile.workspace_id).eq("id", receipt.receipt_id).maybeSingle(),
+        supabase.from("purchase_receipt_items").select("stock_id,quantity")
+          .eq("workspace_id", profile.workspace_id).eq("receipt_id", receipt.receipt_id),
+        supabase.from("stock_movements").select("id")
+          .eq("workspace_id", profile.workspace_id).eq("reference_type", "purchase_receipt").eq("reference_id", receipt.receipt_id),
+      ]);
+      const verified = !receiptCheck.error && Boolean(receiptCheck.data?.id)
+        && !receiptItemsCheck.error && receiptItemsCheck.data?.length === payload.items.length
+        && !movementCheck.error && movementCheck.data?.length === payload.items.length;
+      return json({
+        ok: true,
+        verified,
+        reply: verified ? "Goods receipt saved and verified. Plivex updated the stock ledger." : "The receipt was accepted, but Plivex could not verify it. Check purchase receipts and stock before retrying.",
+        created: [{ type: "receive_purchase_order", id: receipt.receipt_id }],
+        verification: [{ type: "receive_purchase_order", id: receipt.receipt_id, verified }],
+        duplicate: Boolean(receipt.duplicate),
+      }, 200, origin);
+    }
     const canonical = JSON.stringify(actions);
     const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
     const requestHash = [...new Uint8Array(digest)].map((b)=>b.toString(16).padStart(2,"0")).join("");
@@ -118,7 +262,41 @@ Deno.serve(async (req: Request) => {
       if (message.includes("AUTH_REQUIRED") || message.includes("WORKSPACE_NOT_FOUND")) return json({ error: "Your workspace session could not be verified." }, 403, origin);
       return json({ error: "The action batch could not be completed. No partial records were saved." }, 400, origin);
     }
-    return json({ ok: true, reply: actions.length === 1 ? "The record was saved to your Plivex workspace." : "All requested records were saved together to your Plivex workspace.", created: data?.created || [], duplicate: Boolean(data?.duplicate), batchId: data?.batch_id }, 200, origin);
+    const created = Array.isArray(data?.created) ? data.created : [];
+    const tableByAction: Record<string, string> = {
+      create_client: "clients",
+      create_expense: "expenses",
+      create_lead: "leads",
+      create_stock: "stock",
+      create_quotation: "quotations",
+      create_invoice: "invoices",
+    };
+    const verification = await Promise.all(created.map(async (record: any) => {
+      const table = tableByAction[text(record?.type, 40)];
+      const id = text(record?.id, 80);
+      if (!table || !id) return { type: text(record?.type, 40), id: id || null, verified: false };
+      const { data: row, error: verifyError } = await supabase
+        .from(table)
+        .select("id")
+        .eq("workspace_id", profile.workspace_id)
+        .eq("id", id)
+        .maybeSingle();
+      return { type: text(record?.type, 40), id, verified: !verifyError && Boolean(row?.id) };
+    }));
+    const allVerified = actions.length === created.length
+      && verification.length === actions.length
+      && verification.every((item: any) => item.verified);
+    return json({
+      ok: true,
+      verified: allVerified,
+      reply: allVerified
+        ? (actions.length === 1 ? "The record was saved and verified in your Plivex workspace." : "All requested records were saved together and verified in your Plivex workspace.")
+        : "The save operation was accepted, but Plivex could not verify every created record. Please check the relevant module before retrying.",
+      created,
+      verification,
+      duplicate: Boolean(data?.duplicate),
+      batchId: data?.batch_id,
+    }, 200, origin);
   } catch (error) {
     console.error("Assistant confirmation failed", error);
     return json({ error: "Something went wrong while confirming the action." }, 500, origin);
