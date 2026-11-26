@@ -69,3 +69,29 @@ test("Global business records repository includes barcode, variants and FX expen
     assert.doesNotMatch(deployed, new RegExp(field));
   }
 });
+
+test("Global quotations repository binds the tax-aware RPC to the caller JWT", () => {
+  const source = read("../../../supabase/functions/global-quotations/index.ts");
+  const deployed = read("../../../supabase/functions/global-quotations/deployed-v8.ts");
+  assert.match(source, /caller\.rpc\("global_manage_quotation"/);
+  assert.match(source, /membershipError/);
+  assert.match(source, /membership\)/);
+  assert.match(deployed, /auth\.admin\.rpc\("global_manage_quotation"/);
+  assert.doesNotMatch(deployed, /caller\.rpc\("global_manage_quotation"/);
+});
+
+test("Workspace Platform repository fails closed when active membership cannot be verified", () => {
+  const source = read("../../../supabase/functions/workspace-platform/index.ts");
+  const deployed = read("../../../supabase/functions/workspace-platform/deployed-v3.ts");
+  assert.match(source, /WORKSPACE_MEMBERSHIP_CHECK_FAILED/);
+  assert.match(source, /WORKSPACE_MEMBERSHIP_REQUIRED/);
+  assert.doesNotMatch(deployed, /WORKSPACE_MEMBERSHIP_REQUIRED/);
+});
+
+test("Global Part 4 repository validates integer minor-unit amounts consistently", () => {
+  const source = read("../../../supabase/functions/global-part4/index.ts");
+  const deployed = read("../../../supabase/functions/global-part4/deployed-v8.ts");
+  assert.match(source, /const validMinor/);
+  assert.match(source, /validMinor\(values\.unit_cost_minor\)/);
+  assert.doesNotMatch(deployed, /const validMinor/);
+});
