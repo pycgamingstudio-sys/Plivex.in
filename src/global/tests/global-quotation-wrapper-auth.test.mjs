@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 const migration = readFileSync(new URL("../../../supabase/migrations/20261126001219_secure_global_quotation_tax_wrapper.sql", import.meta.url), "utf8");
 
 test("tax-aware quotation wrapper is restricted to the trusted service role", () => {
-  assert.match(migration, /coalesce\(auth\.role\(\),'\'\)\s*<>\s*'service_role'/);
+  assert.ok(migration.includes("coalesce(auth.role(),'') <> 'service_role'"));
   assert.match(migration, /reason','access_denied'/);
 });
 
