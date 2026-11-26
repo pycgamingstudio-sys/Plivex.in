@@ -70,10 +70,11 @@ test("Global business records repository includes barcode, variants and FX expen
   }
 });
 
-test("Global quotations repository binds the tax-aware RPC to the caller JWT", () => {
+test("Global quotations repository calls the tax-aware RPC only through the trusted server client", () => {
   const source = read("../../../supabase/functions/global-quotations/index.ts");
   const deployed = read("../../../supabase/functions/global-quotations/deployed-v8.ts");
-  assert.match(source, /caller\.rpc\("global_manage_quotation"/);
+  assert.match(source, /auth\.admin\.rpc\("global_manage_quotation"/);
+  assert.doesNotMatch(source, /caller\.rpc\("global_manage_quotation"/);
   assert.match(source, /membershipError/);
   assert.match(source, /membership\)/);
   assert.match(deployed, /auth\.admin\.rpc\("global_manage_quotation"/);
