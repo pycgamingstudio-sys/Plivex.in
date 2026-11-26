@@ -1,8 +1,9 @@
 begin;
 
--- The tax-aware overload is callable by authenticated clients. Its legacy
--- overload is intentionally service-role-only and validates membership using
--- the supplied user id. Bind that id to the JWT subject before delegating.
+-- Tax amounts and snapshots are computed by the authenticated Edge Function.
+-- Keep this privileged overload service-role-only so browser clients cannot
+-- bypass the server-side tax-rule resolver with caller-supplied amounts.
+-- The legacy overload independently validates active workspace membership.
 create or replace function public.global_manage_quotation(
   p_user_id uuid,
   p_workspace_id uuid,
@@ -30,7 +31,7 @@ declare
   v_quote global.quotations%rowtype;
   v_invoice global.invoices%rowtype;
 begin
-  if auth.uid() is null or p_user_id is distinct from auth.uid() then
+  if coalesce(auth.role(),'') <> 'service_role' then
     return jsonb_build_object('ok',false,'reason','access_denied');
   end if;
 
@@ -89,10 +90,10 @@ $function$;
 
 revoke all on function public.global_manage_quotation(
   uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid,bigint,jsonb
-) from public, anon;
+) from public, anon, authenticated;
 grant execute on function public.global_manage_quotation(
   uuid,uuid,text,uuid,uuid,text,date,date,text,jsonb,text,uuid,bigint,jsonb
-) to authenticated;
+) to service_role;
 
 -- Purchase-bill listing is a read-only authenticated workspace RPC.
 -- Keep it invoker-security so table RLS remains in force, and bind the supplied
