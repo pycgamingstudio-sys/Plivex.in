@@ -16,7 +16,7 @@ test("CRM and warehouse endpoints authenticate users and bind every operation to
   assert.match(endpoint, /p_user_id: auth\.user\.id/);
   assert.match(endpoint, /p_workspace_id: body\.workspace_id/);
   assert.match(rpcMigration, /from global\.workspace_members/);
-  assert.match(rpcMigration, /wm\.status = 'active'/);
+  assert.match(rpcMigration, /status='active'/);
   assert.match(rpcMigration, /reason', 'access_denied'/);
 });
 
