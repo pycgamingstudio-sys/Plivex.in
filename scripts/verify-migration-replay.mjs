@@ -162,6 +162,7 @@ function assertGlobalFoundation(port) {
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-invoice-approval-gates.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-quotations.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-quotation-wrapper-auth.integration.sql")]);
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/document-ocr-worker.integration.sql")]);
 }
 function applyForcedMigrationRollback(port, db, migrationPath) {
   const migration = readFileSync(migrationPath, "utf8")
