@@ -84,7 +84,8 @@ begin
 
   -- JSONB canonicalizes object key order; the fingerprint binds the key to the
   -- complete submitted request, including the ordered journal lines.
-  select md5(jsonb_build_object(
+  begin
+    select md5(jsonb_build_object(
     'entry_date',p_entry_date,
     'description',btrim(p_description),
     'currency_code',p_currency_code,
@@ -97,8 +98,11 @@ begin
       coalesce((line.value->>'debit')::numeric,0),
       coalesce((line.value->>'credit')::numeric,0),
       left(coalesce(line.value->>'memo',''),300)),'[]'::jsonb)
-  )::text) into v_fingerprint
-  from jsonb_array_elements(p_lines) as line(value);
+    )::text) into v_fingerprint
+    from jsonb_array_elements(p_lines) as line(value);
+  exception when others then
+    return jsonb_build_object('ok',false,'reason','invalid_journal_entry');
+  end;
 
   -- Serialize same-key requests before checking or inserting the journal.
   perform pg_advisory_xact_lock(hashtextextended(
