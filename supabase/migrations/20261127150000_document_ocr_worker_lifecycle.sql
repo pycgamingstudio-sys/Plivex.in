@@ -42,6 +42,16 @@ begin
     raise exception 'invalid batch size' using errcode = '22023';
   end if;
 
+  update public.document_ocr_jobs
+  set status = 'failed',
+      error_code = 'worker_lease_expired',
+      last_error = 'worker_lease_expired',
+      locked_at = null,
+      completed_at = now()
+  where status = 'processing'
+    and locked_at < now() - interval '15 minutes'
+    and attempt_count >= max_attempts;
+
   return query
   with candidates as (
     select j.id
