@@ -240,7 +240,7 @@ async function publicApi(req: Request, admin: any, body: any): Promise<any> {
       const limit = Math.min(100, Math.max(1, Number(args.limit) || 50));
       const {data,error} = await admin.from(listTool.table).select(listTool.fields).eq("workspace_id",key.workspace_id).limit(limit);
       if (error) throw new Error("API_READ_FAILED");
-      const records = name === "list_low_stock" ? (data||[]).filter((x:any)=>Number(x.quantity)<=Number(x.low_stock)) : (data||[]);
+      const records = name === "list_low_stock" ? (data||[]).filter((x:any)=>x.low_stock !== null && x.low_stock !== undefined && Number(x.quantity)<=Number(x.low_stock)) : (data||[]);
       return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify({ok:true,records})}]}};
     }
     if (name === "business_insights") {
