@@ -17,6 +17,7 @@ test("main-workspace journal idempotency binds a key to its payload", () => {
   assert.match(migration, /order by \(line\.value->>'account_id'\)::uuid/i);
   assert.match(migration, /update public\.journal_entries j[\s\S]*?where j\.request_fingerprint is null/i);
   assert.match(migration, /pg_advisory_xact_lock\(hashtextextended\(/i);
+  assert.match(migration, /exception when others then\s+return jsonb_build_object\('ok',false,'reason','invalid_journal_entry'\)/i);
   assert.match(migration, /request_fingerprint is distinct from v_fingerprint/i);
   assert.match(migration, /'idempotency_conflict'/);
   assert.match(migration, /idempotency_key,request_fingerprint,created_by/i);
