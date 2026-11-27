@@ -121,7 +121,7 @@ export default function AssistantWidget() {
         if (!accessToken) throw new Error("Your session expired. Please sign in again.");
         if (!supabaseUrl || !anonKey) throw new Error("AI assistant is not configured. Please contact support.");
         data = await streamAssistantChat({
-          url: supabaseUrl.replace(/\\/+$/, "") + "/functions/v1/assistant-chat",
+          url: supabaseUrl.replace(/\/+$/, "") + "/functions/v1/assistant-chat",
           anonKey,
           accessToken,
           body: {
