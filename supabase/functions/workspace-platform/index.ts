@@ -120,6 +120,8 @@ async function processOcr(ctx: any, body: any) {
   if (!valid) throw new Error("FILE_TYPE_MISMATCH");
   const jobId = crypto.randomUUID(), path = ctx.workspaceId + "/" + jobId;
   const docType = ["invoice","receipt","purchase_order","identity","other"].includes(body.documentType) ? body.documentType : "other";
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
+  if (!apiKey) throw new Error("OCR_PROVIDER_NOT_CONFIGURED");
   await ensureBucket(ctx.admin, "main-workspace-ocr", ["image/jpeg","image/png","image/webp","application/pdf"]);
   const { error: uploadError } = await ctx.admin.storage.from("main-workspace-ocr").upload(path, new Blob([bytes], { type: mime }), { contentType: mime, upsert: false });
   if (uploadError) throw new Error("OCR_UPLOAD_FAILED");
@@ -130,8 +132,6 @@ async function processOcr(ctx: any, body: any) {
     await ctx.admin.from("document_ocr_jobs").update({ status: "failed", error_code: "OCR_JOB_CLAIM_FAILED" }).eq("id", jobId).eq("workspace_id", ctx.workspaceId);
     throw new Error("OCR_JOB_CLAIM_FAILED");
   }
-  const apiKey = Deno.env.get("GEMINI_API_KEY");
-  if (!apiKey) { await ctx.admin.rpc("fail_document_ocr_job", { p_job_id: jobId, p_error_code: "OCR_PROVIDER_NOT_CONFIGURED" }); throw new Error("OCR_PROVIDER_NOT_CONFIGURED"); }
   const model = Deno.env.get("GEMINI_OCR_MODEL") || "gemini-3.8-flash";
   const prompt = "Extract this business document as JSON with document_type, supplier_name, supplier_tax_id, document_number, document_date, due_date, currency, subtotal, tax_total, total, line_items (description, quantity, unit_price, tax_rate, line_total), payment_reference, confidence (0..1), review_notes. Use null for unknown values; never invent unreadable values. This is a review-only draft.";
   const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(apiKey), {
