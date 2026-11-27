@@ -125,8 +125,8 @@ async function processOcr(ctx: any, body: any) {
   if (uploadError) throw new Error("OCR_UPLOAD_FAILED");
   const { error: insertError } = await ctx.admin.from("document_ocr_jobs").insert({ id: jobId, workspace_id: ctx.workspaceId, created_by: ctx.user.id, document_type: docType, storage_path: path, mime_type: mime, status: "queued" });
   if (insertError) { await ctx.admin.storage.from("main-workspace-ocr").remove([path]); throw new Error("OCR_JOB_CREATE_FAILED"); }
-  const { data: claimed, error: claimError } = await ctx.admin.rpc("claim_document_ocr_jobs", { p_batch_size: 1 });
-  if (claimError || !(claimed || []).some((job: any) => job.id === jobId)) {
+  const { data: claimed, error: claimError } = await ctx.admin.rpc("claim_document_ocr_job", { p_job_id: jobId });
+  if (claimError || claimed?.id !== jobId) {
     await ctx.admin.from("document_ocr_jobs").update({ status: "failed", error_code: "OCR_JOB_CLAIM_FAILED" }).eq("id", jobId).eq("workspace_id", ctx.workspaceId);
     throw new Error("OCR_JOB_CLAIM_FAILED");
   }
