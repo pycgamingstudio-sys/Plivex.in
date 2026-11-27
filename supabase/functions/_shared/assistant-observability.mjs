@@ -3,7 +3,7 @@ const clean = (value, fallback = "unknown") => {
   return /^[a-z0-9._-]{1,80}$/i.test(text) ? text : fallback;
 };
 
-export function createAssistantRequestMetric({ requestId, startedAt, finishedAt, status, requestClass, provider, model }) {
+export function createAssistantRequestMetric({ requestId, startedAt, finishedAt, status, requestClass, provider, model, ttftMs }) {
   const end = Number.isFinite(finishedAt) ? finishedAt : Date.now();
   const start = Number.isFinite(startedAt) ? startedAt : end;
   return {
@@ -13,6 +13,7 @@ export function createAssistantRequestMetric({ requestId, startedAt, finishedAt,
     provider: clean(provider),
     model: clean(model),
     duration_ms: Math.max(0, Math.round(end - start)),
+    ttft_ms: Number.isFinite(ttftMs) ? Math.max(0, Math.round(ttftMs)) : null,
     status: Number.isInteger(status) ? status : 500,
     timestamp: new Date(end).toISOString(),
   };
