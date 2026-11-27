@@ -11,7 +11,7 @@ test("Gemini SSE stream yields model chunks and a generateContent-compatible res
   const result = await streamGeminiResponse({
     requestOptions, geminiKey: "test", model: DEFAULT_GEMINI_MODELS[0],
     fetchImpl: async (url, options) => {
-      assert.match(url, /:streamGenerateContent\\?alt=sse$/);
+      assert.equal(url.includes(":streamGenerateContent?alt=sse"), true);
       assert.equal(options.headers["x-goog-api-key"], "test");
       return new Response(sse('{"reply":"Hello ', 'world","actions":[]} '), { headers: { "Content-Type": "text/event-stream" } });
     },
