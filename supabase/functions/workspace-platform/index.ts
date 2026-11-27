@@ -199,8 +199,8 @@ async function publicApi(req: Request, admin: any, body: any) {
   const secret = clean(req.headers.get("x-plivex-key"),256);
   if (!secret) throw new Error("API_KEY_REQUIRED");
   const hash = await sha256(secret);
-  const { data: key, error } = await admin.from("public_api_keys").select("id,workspace_id,scopes,expires_at,revoked_at").eq("key_hash",hash).maybeSingle();
-  if (error || !key || key.revoked_at || new Date(key.expires_at).getTime() <= Date.now()) throw new Error("API_KEY_INVALID");
+  const { data: key, error: keyLookupError } = await admin.from("public_api_keys").select("id,workspace_id,scopes,expires_at,revoked_at").eq("key_hash",hash).maybeSingle();
+  if (keyLookupError || !key || key.revoked_at || new Date(key.expires_at).getTime() <= Date.now()) throw new Error("API_KEY_INVALID");
   const {data:withinLimit,error:rateError}=await admin.rpc("consume_main_workspace_api_rate_limit",{p_key_hash:hash,p_limit:60,p_window_seconds:60});
   if(rateError||withinLimit!==true) throw new Error("API_RATE_LIMITED");
   const scope = (s:string) => key.scopes.includes(s);
@@ -257,8 +257,8 @@ async function publicApi(req: Request, admin: any, body: any) {
   };
   const target = listMap[action];
   if (!target || !scope(target.scope)) throw new Error("API_SCOPE_DENIED");
-  const {data,error}=await admin.from(target.table).select(target.fields).eq("workspace_id",key.workspace_id).limit(Math.min(100,Math.max(1,Number(body.limit)||100)));
-  if(error) throw new Error("API_READ_FAILED");
+  const {data,error: readError}=await admin.from(target.table).select(target.fields).eq("workspace_id",key.workspace_id).limit(Math.min(100,Math.max(1,Number(body.limit)||100)));
+  if(readError) throw new Error("API_READ_FAILED");
   const records = action === "inventory.low_stock" ? (data||[]).filter((x:any)=>Number(x.quantity)<=Number(x.low_stock)) : (data||[]);
   await admin.from("public_api_keys").update({last_used_at:new Date().toISOString()}).eq("id",key.id);
   return {ok:true,records};
