@@ -10,6 +10,7 @@ import { buildBusinessIntentHints } from "../_shared/assistant-intent-planner.mj
 import { buildAssistantBusinessAnalytics, groupNumericTotals } from "../_shared/assistant-business-analytics.mjs";
 import { detectSupplementaryContextNeeds } from "../_shared/assistant-context-intent.mjs";
 import { buildConversationRoutingText } from "../_shared/assistant-conversation-context.mjs";
+import { getLiveContextQueryPlan } from "../_shared/assistant-context-query-plan.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
 import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
 import { validateWarehouseAction } from "../_shared/assistant-warehouse-validation.mjs";
@@ -52,30 +53,36 @@ async function loadLiveContext(supabase: any, workspaceId: string, userText = ""
     wantsWorkspaceSettings,
     wantsMembers,
   } = detectSupplementaryContextNeeds(userText);
+  const plan = getLiveContextQueryPlan(userText);
+  const emptyRows = () => Promise.resolve({ data: [], error: null });
+  const emptySingle = () => Promise.resolve({ data: null, error: null });
+  const query = (enabled: boolean, builder: () => any) => enabled ? builder() : emptyRows();
   const results = await Promise.all([
-    supabase.from("invoices").select("id,number,client_name,issue_date,due_date,status,subtotal,tax_value,total,currency,is_draft,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
-    supabase.from("clients").select("name,company,email,phone,gstin,address,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
-    supabase.from("stock").select("id,name,sku,quantity,unit,price,low_stock,warehouse_id,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
-    supabase.from("expenses").select("vendor,category,amount,date,status,method,notes,created_at").eq("workspace_id", workspaceId).order("date", { ascending: false }).limit(500),
-    supabase.from("quotations").select("number,client_name,date,total,status,tax_rate,items,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
-    supabase.from("leads").select("id,name,phone,requirement,value,stage,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
-    supabase.from("services").select("name,rate,gst_rate,description").eq("workspace_id", workspaceId).limit(500),
-    supabase.from("business_profile").select("name,email,phone,gstin,address,upi_id,logo_url,country_code,tax_registration_number,tax_registration_type,tax_registration_status,tax_registration_effective_from,tax_jurisdiction_code").eq("workspace_id", workspaceId).maybeSingle(),
-    supabase.from("warehouses").select("id,name,code,address,is_default,is_active,created_at").eq("workspace_id", workspaceId).eq("is_active", true).order("created_at", { ascending: false }).limit(200),
-    supabase.from("purchase_orders").select("id,supplier_name,supplier_reference,status,order_date,expected_date,currency_code,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(200),
-    supabase.from("purchase_order_items").select("id,purchase_order_id,stock_id,quantity_ordered,quantity_received,unit_cost,currency_code").eq("workspace_id", workspaceId).limit(1000),
-    supabase.from("purchase_receipts").select("id,purchase_order_id,warehouse_id,received_at").eq("workspace_id", workspaceId).order("received_at", { ascending: false }).limit(200),
-    supabase.from("stock_movements").select("stock_id,warehouse_id,movement_type,quantity_delta,reference_type,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
-    supabase.from("inventory_batches").select("id,warehouse_id,stock_id,batch_number,quantity,expires_on,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500),
-    supabase.from("stock_transfers").select("id,from_warehouse_id,to_warehouse_id,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(200),
-    supabase.from("stock_transfer_items").select("transfer_id,source_stock_id,destination_stock_id,quantity").eq("workspace_id", workspaceId).limit(1000),
-    wantsLeadActivities ? supabase.from("lead_activities").select("id,lead_id,activity_type,body,due_at,completed_at,created_by,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(300) : Promise.resolve({ data: [], error: null }),
-    wantsReceiptItems ? supabase.from("purchase_receipt_items").select("id,receipt_id,purchase_order_item_id,stock_id,quantity,batch_number,expires_on").eq("workspace_id", workspaceId).limit(500) : Promise.resolve({ data: [], error: null }),
-    wantsReminders ? supabase.from("invoice_reminder_events").select("id,invoice_id,stage,scheduled_for,status,sent_at,attempt_count,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(300) : Promise.resolve({ data: [], error: null }),
-    wantsStockAllocations ? supabase.from("invoice_stock_allocations").select("id,invoice_id,invoice_item_id,stock_id,batch_id,quantity,reversed_at,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(500) : Promise.resolve({ data: [], error: null }),
-    wantsAccounting ? supabase.from("accounting_accounts").select("id,code,name,account_type,normal_balance,is_system,is_active").eq("workspace_id", workspaceId).eq("is_active", true).limit(300) : Promise.resolve({ data: [], error: null }),
-    wantsWorkspaceSettings ? supabase.from("workspace_settings").select("country_code,locale_code,currency_code,workspace_type,optional_features,settings_version,onboarding_version,onboarding_completed_at,legacy_review_required").eq("workspace_id", workspaceId).maybeSingle() : Promise.resolve({ data: null, error: null }),
-    wantsMembers ? supabase.from("workspace_members").select("id,name,role,status,invited_at,accepted_at,activated_at,removed_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(200) : Promise.resolve({ data: [], error: null }),
+    query(plan.invoices, () => supabase.from("invoices").select("id,number,client_name,issue_date,due_date,status,subtotal,tax_value,total,currency,is_draft,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(250)),
+    query(plan.clients, () => supabase.from("clients").select("name,company,email,phone,gstin,address,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(250)),
+    query(plan.stock, () => supabase.from("stock").select("id,name,sku,quantity,unit,price,low_stock,warehouse_id,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(250)),
+    query(plan.expenses, () => supabase.from("expenses").select("vendor,category,amount,date,status,method,notes,created_at").eq("workspace_id", workspaceId).order("date", { ascending: false }).limit(250)),
+    query(plan.quotations, () => supabase.from("quotations").select("number,client_name,date,total,status,tax_rate,items,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(100)),
+    query(plan.leads, () => supabase.from("leads").select("id,name,phone,requirement,value,stage,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(150)),
+    query(plan.services, () => supabase.from("services").select("name,rate,gst_rate,description").eq("workspace_id", workspaceId).limit(150)),
+    plan.businessProfile
+      ? supabase.from("business_profile").select("name,email,phone,gstin,address,upi_id,logo_url,country_code,tax_registration_number,tax_registration_type,tax_registration_status,tax_registration_effective_from,tax_jurisdiction_code").eq("workspace_id", workspaceId).maybeSingle()
+      : emptySingle(),
+    query(plan.inventory || plan.purchasing, () => supabase.from("warehouses").select("id,name,code,address,is_default,is_active,created_at").eq("workspace_id", workspaceId).eq("is_active", true).order("created_at", { ascending: false }).limit(100)),
+    query(plan.purchasing, () => supabase.from("purchase_orders").select("id,supplier_name,supplier_reference,status,order_date,expected_date,currency_code,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(100)),
+    query(plan.purchasing, () => supabase.from("purchase_order_items").select("id,purchase_order_id,stock_id,quantity_ordered,quantity_received,unit_cost,currency_code").eq("workspace_id", workspaceId).limit(500)),
+    query(plan.purchasing, () => supabase.from("purchase_receipts").select("id,purchase_order_id,warehouse_id,received_at").eq("workspace_id", workspaceId).order("received_at", { ascending: false }).limit(100)),
+    query(plan.inventory, () => supabase.from("stock_movements").select("stock_id,warehouse_id,movement_type,quantity_delta,reference_type,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(250)),
+    query(plan.inventory, () => supabase.from("inventory_batches").select("id,warehouse_id,stock_id,batch_number,quantity,expires_on,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(250)),
+    query(plan.inventory, () => supabase.from("stock_transfers").select("id,from_warehouse_id,to_warehouse_id,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(100)),
+    query(plan.inventory, () => supabase.from("stock_transfer_items").select("transfer_id,source_stock_id,destination_stock_id,quantity").eq("workspace_id", workspaceId).limit(500)),
+    wantsLeadActivities ? supabase.from("lead_activities").select("id,lead_id,activity_type,body,due_at,completed_at,created_by,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(150) : emptyRows(),
+    wantsReceiptItems ? supabase.from("purchase_receipt_items").select("id,receipt_id,purchase_order_item_id,stock_id,quantity,batch_number,expires_on").eq("workspace_id", workspaceId).limit(250) : emptyRows(),
+    wantsReminders ? supabase.from("invoice_reminder_events").select("id,invoice_id,stage,scheduled_for,status,sent_at,attempt_count,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(150) : emptyRows(),
+    wantsStockAllocations ? supabase.from("invoice_stock_allocations").select("id,invoice_id,invoice_item_id,stock_id,batch_id,quantity,reversed_at,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(250) : emptyRows(),
+    wantsAccounting ? supabase.from("accounting_accounts").select("id,code,name,account_type,normal_balance,is_system,is_active").eq("workspace_id", workspaceId).eq("is_active", true).limit(150) : emptyRows(),
+    wantsWorkspaceSettings ? supabase.from("workspace_settings").select("country_code,locale_code,currency_code,workspace_type,optional_features,settings_version,onboarding_version,onboarding_completed_at,legacy_review_required").eq("workspace_id", workspaceId).maybeSingle() : emptySingle(),
+    wantsMembers ? supabase.from("workspace_members").select("id,name,role,status,invited_at,accepted_at,activated_at,removed_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(100) : emptyRows(),
   ]);
   const names = ["invoices", "clients", "stock", "expenses", "quotations", "leads", "services", "business_profile", "warehouses", "purchase_orders", "purchase_order_items", "purchase_receipts", "stock_movements", "inventory_batches", "stock_transfers", "stock_transfer_items", "lead_activities", "purchase_receipt_items", "invoice_reminder_events", "invoice_stock_allocations", "accounting_accounts", "workspace_settings", "workspace_members"];
   const rows: Record<string, any> = Object.fromEntries(names.map((name, i) => [name, results[i].data ?? (name === "business_profile" ? null : [])]));
