@@ -123,23 +123,28 @@ async function processOcr(ctx: any, body: any) {
   await ensureBucket(ctx.admin, "main-workspace-ocr", ["image/jpeg","image/png","image/webp","application/pdf"]);
   const { error: uploadError } = await ctx.admin.storage.from("main-workspace-ocr").upload(path, new Blob([bytes], { type: mime }), { contentType: mime, upsert: false });
   if (uploadError) throw new Error("OCR_UPLOAD_FAILED");
-  const { error: insertError } = await ctx.admin.from("document_ocr_jobs").insert({ id: jobId, workspace_id: ctx.workspaceId, created_by: ctx.user.id, document_type: docType, storage_path: path, mime_type: mime, status: "processing" });
+  const { error: insertError } = await ctx.admin.from("document_ocr_jobs").insert({ id: jobId, workspace_id: ctx.workspaceId, created_by: ctx.user.id, document_type: docType, storage_path: path, mime_type: mime, status: "queued" });
   if (insertError) { await ctx.admin.storage.from("main-workspace-ocr").remove([path]); throw new Error("OCR_JOB_CREATE_FAILED"); }
+  const { data: claimed, error: claimError } = await ctx.admin.rpc("claim_document_ocr_jobs", { p_batch_size: 1 });
+  if (claimError || !(claimed || []).some((job: any) => job.id === jobId)) {
+    await ctx.admin.from("document_ocr_jobs").update({ status: "failed", error_code: "OCR_JOB_CLAIM_FAILED" }).eq("id", jobId).eq("workspace_id", ctx.workspaceId);
+    throw new Error("OCR_JOB_CLAIM_FAILED");
+  }
   const apiKey = Deno.env.get("GEMINI_API_KEY");
-  if (!apiKey) { await ctx.admin.from("document_ocr_jobs").update({ status: "failed", error_code: "OCR_PROVIDER_NOT_CONFIGURED" }).eq("id", jobId); throw new Error("OCR_PROVIDER_NOT_CONFIGURED"); }
+  if (!apiKey) { await ctx.admin.rpc("fail_document_ocr_job", { p_job_id: jobId, p_error_code: "OCR_PROVIDER_NOT_CONFIGURED" }); throw new Error("OCR_PROVIDER_NOT_CONFIGURED"); }
   const model = Deno.env.get("GEMINI_OCR_MODEL") || "gemini-3.8-flash";
   const prompt = "Extract this business document as JSON with document_type, supplier_name, supplier_tax_id, document_number, document_date, due_date, currency, subtotal, tax_total, total, line_items (description, quantity, unit_price, tax_rate, line_total), payment_reference, confidence (0..1), review_notes. Use null for unknown values; never invent unreadable values. This is a review-only draft.";
   const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(apiKey), {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }, { inline_data: { mime_type: mime, data: toBase64(bytes) } }] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } }),
   });
-  if (!response.ok) { await ctx.admin.from("document_ocr_jobs").update({ status: "failed", error_code: "OCR_PROVIDER_ERROR" }).eq("id", jobId); throw new Error("OCR_PROVIDER_ERROR"); }
+  if (!response.ok) { await ctx.admin.rpc("fail_document_ocr_job", { p_job_id: jobId, p_error_code: "OCR_PROVIDER_ERROR" }); throw new Error("OCR_PROVIDER_ERROR"); }
   const payload = await response.json();
   const raw = payload?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("") || "";
   let extracted: Record<string, unknown>;
-  try { extracted = JSON.parse(raw); } catch { await ctx.admin.from("document_ocr_jobs").update({status:"failed",error_code:"OCR_INVALID_RESPONSE"}).eq("id",jobId); throw new Error("OCR_INVALID_RESPONSE"); }
-  const { error: updateError } = await ctx.admin.from("document_ocr_jobs").update({ status: "completed", extracted_data: extracted, model_name: model, completed_at: new Date().toISOString() }).eq("id", jobId).eq("workspace_id", ctx.workspaceId);
-  if (updateError) throw new Error("OCR_SAVE_FAILED");
+  try { extracted = JSON.parse(raw); } catch { await ctx.admin.rpc("fail_document_ocr_job", { p_job_id: jobId, p_error_code: "OCR_INVALID_RESPONSE" }); throw new Error("OCR_INVALID_RESPONSE"); }
+  const { data: completed, error: updateError } = await ctx.admin.rpc("complete_document_ocr_job", { p_job_id: jobId, p_extracted_data: extracted, p_model_name: model });
+  if (updateError || completed?.id !== jobId) throw new Error("OCR_SAVE_FAILED");
   return { ok: true, jobId, extracted, requiresHumanReview: true };
 }
 async function whatsappSend(ctx: any, body: any) {
