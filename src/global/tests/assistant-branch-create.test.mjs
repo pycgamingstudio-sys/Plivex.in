@@ -25,7 +25,8 @@ test("branch creation is an allow-listed, user-confirmed Nova action with worksp
   assert.match(registry, /branches: \{ readContext: true, writeTools: \["create_branch"\], planned: false \}/);
   assert.match(planner, /type: "create_branch"/);
   assert.match(chat, /validateCreateBranchAction/);
-  assert.match(chat, /workspace_branches/);
+  assert.match(chat, /type === "create_branch"/);
+  assert.doesNotMatch(chat, /workspace_branches/); // Chat only validates/plans; the confirmation endpoint performs the database write.
 });
 
 test("branch creation uses the active workspace, current user and RLS-backed global schema", () => {
