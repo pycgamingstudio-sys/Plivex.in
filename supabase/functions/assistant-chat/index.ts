@@ -11,6 +11,7 @@ import { buildAssistantBusinessAnalytics, groupNumericTotals } from "../_shared/
 import { detectSupplementaryContextNeeds } from "../_shared/assistant-context-intent.mjs";
 import { buildConversationRoutingText } from "../_shared/assistant-conversation-context.mjs";
 import { getLiveContextQueryPlan } from "../_shared/assistant-context-query-plan.mjs";
+import { getAssistantRequestPolicy } from "../_shared/assistant-request-policy.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
 import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
 import { validateWarehouseAction } from "../_shared/assistant-warehouse-validation.mjs";
@@ -612,7 +613,17 @@ async function handleRequest(req: Request) {
     const needsGlobalClientContext = /\b(client|customer|grahak)\b|ग्राहक|कस्टमर/i.test(String(conversationRoutingText));
     const needsGlobalProductContext = /\b(product|products|item|items|stock|inventory|maal|saman)\b|उत्पाद|सामान|माल|स्टॉक/i.test(String(conversationRoutingText));
     const needsGlobalExpenseContext = /\b(expense|expenses|kharcha|kharch|spend|spent|spending|business cost|cost|costs|outgoing|debit|business performance|performance review|profit|loss|cash flow|growth)\b|खर्च|व्यय|लाभ|नुकसान|मुनाफा/i.test(String(conversationRoutingText));
-    const globalContextPromise = isGlobalWorkspace || needsGlobalFinanceContext || needsGlobalClientContext || needsGlobalExpenseContext || needsGlobalProductContext
+    const requestPolicy = getAssistantRequestPolicy({
+      isGlobalWorkspace,
+      needsWorkspaceContext,
+      needsPurchasingContext,
+      needsGlobalFinanceContext,
+      needsGlobalClientContext,
+      needsGlobalExpenseContext,
+      needsGlobalProductContext,
+      hasImage: Boolean(image),
+    });
+    const globalContextPromise = requestPolicy.loadGlobalContext
       ? (async () => {
           let timeoutId: ReturnType<typeof setTimeout> | undefined;
           try {
@@ -745,8 +756,8 @@ async function handleRequest(req: Request) {
         system_instruction: { parts: [{ text: systemInstruction }] },
         contents: messages,
         generationConfig: {
-          maxOutputTokens: 2200,
-          thinkingConfig: { thinkingLevel: "medium" },
+          maxOutputTokens: requestPolicy.maxOutputTokens,
+          thinkingConfig: { thinkingLevel: requestPolicy.thinkingLevel },
           responseMimeType: "application/json",
           responseSchema: {
             type: "OBJECT",
