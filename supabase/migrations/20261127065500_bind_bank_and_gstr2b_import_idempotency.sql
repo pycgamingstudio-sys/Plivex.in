@@ -45,6 +45,7 @@ begin
  if not found then return jsonb_build_object('ok',false,'reason','bank_account_not_found'); end if;
 
  -- Canonicalize transaction order so equivalent CSV row ordering hashes equally.
+ begin
  select md5(jsonb_build_object(
   'bank_account_id',p_bank_account_id,'opening_balance',p_opening_balance,
   'closing_balance',p_closing_balance,'start',p_start,'end',p_end,
@@ -62,6 +63,9 @@ begin
     coalesce(nullif(btrim(x.value->>'description'),''),'')),'[]'::jsonb)
  )::text) into v_fingerprint
  from jsonb_array_elements(p_rows) x(value);
+ exception when others then
+  return jsonb_build_object('ok',false,'reason','invalid_statement');
+ end;
 
  perform pg_advisory_xact_lock(hashtextextended(p_workspace_id||':'||p_idempotency_key::text,0));
  select * into v_import from public.bank_statement_imports
@@ -152,6 +156,7 @@ begin
   return jsonb_build_object('ok',false,'reason','invalid_gstr2b_import');
  end if;
 
+ begin
  select md5(jsonb_build_object(
   'period_start',p_period_start,'period_end',p_period_end,
   'rows',coalesce(jsonb_agg(jsonb_build_object(
@@ -170,6 +175,9 @@ begin
     coalesce((x.value->>'igst')::numeric,0)),'[]'::jsonb)
  )::text) into v_fingerprint
  from jsonb_array_elements(p_rows) x(value);
+ exception when others then
+  return jsonb_build_object('ok',false,'reason','invalid_gstr2b_import');
+ end;
 
  perform pg_advisory_xact_lock(hashtextextended(p_workspace_id||':'||p_import_key::text,0));
  select * into v_import from public.workspace_gstr2b_imports
