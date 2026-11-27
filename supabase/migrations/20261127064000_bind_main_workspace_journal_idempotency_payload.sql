@@ -19,6 +19,26 @@ begin
 end;
 $constraint$;
 
+-- Reconstruct fingerprints for existing entries from their persisted lines.
+-- Line order is intentionally canonicalized because journal line order is not semantic.
+update public.journal_entries j
+set request_fingerprint=md5(jsonb_build_object(
+  'entry_date',j.entry_date,
+  'description',btrim(j.description),
+  'currency_code',j.currency_code,
+  'lines',(
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'account_id',l.account_id,'debit',l.debit,'credit',l.credit,
+      'memo',left(coalesce(l.memo,''),300)
+    ) order by l.account_id,l.debit,l.credit,l.memo),'[]'::jsonb)
+    from public.journal_entry_lines l
+    where l.workspace_id=j.workspace_id and l.entry_id=j.id
+  )
+)::text)
+where j.request_fingerprint is null
+  and exists(select 1 from public.journal_entry_lines l
+    where l.workspace_id=j.workspace_id and l.entry_id=j.id);
+
 create or replace function public.main_workspace_create_journal_entry(
   p_workspace_id text,
   p_entry_date date,
@@ -64,12 +84,21 @@ begin
 
   -- JSONB canonicalizes object key order; the fingerprint binds the key to the
   -- complete submitted request, including the ordered journal lines.
-  v_fingerprint:=md5(jsonb_build_object(
+  select md5(jsonb_build_object(
     'entry_date',p_entry_date,
     'description',btrim(p_description),
     'currency_code',p_currency_code,
-    'lines',p_lines
-  )::text);
+    'lines',coalesce(jsonb_agg(jsonb_build_object(
+      'account_id',(e->>'account_id')::uuid,
+      'debit',coalesce((e->>'debit')::numeric,0),
+      'credit',coalesce((e->>'credit')::numeric,0),
+      'memo',left(coalesce(e->>'memo',''),300)
+    ) order by (e->>'account_id')::uuid,
+      coalesce((e->>'debit')::numeric,0),
+      coalesce((e->>'credit')::numeric,0),
+      left(coalesce(e->>'memo',''),300)),'[]'::jsonb)
+  )::text) into v_fingerprint
+  from jsonb_array_elements(p_lines) e;
 
   -- Serialize same-key requests before checking or inserting the journal.
   perform pg_advisory_xact_lock(hashtextextended(
