@@ -42,7 +42,7 @@ test("stock transfer rejects invalid quantities and maps insufficient stock and 
   assert.match(endpoint, /Math\.round\(item\.quantity \* 10000\)/);
   assert.match(endpoint, /insufficient_stock/);
   assert.match(endpoint, /idempotency_conflict/);
-  assert.match(transactionMigration, /insufficient_stock/);
+  assert.match(rpcMigration, /insufficient_stock/);
 });
 
 test("warehouse and CRM resource reads are explicitly allowlisted", () => {
