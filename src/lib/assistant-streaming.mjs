@@ -26,8 +26,8 @@ export function extractPartialJsonStringField(source, field = "reply") {
     if (char !== "\\") { value += char; index += 1; continue; }
     if (index + 1 >= raw.length) break;
     const escaped = raw[index + 1];
-    const simple = { "\"": "\"", "\\\\": "\\", "/": "/", b: "\b", f: "\f", n: "\n", r: "\r", t: "\t" };
-    if (Object.prototype.hasOwnProperty.call(simple, escaped)) { value += simple[escaped]; index += 2; continue; }
+    const simple = new Map([[String.fromCharCode(34), String.fromCharCode(34)], [String.fromCharCode(92), String.fromCharCode(92)], ["/", "/"], ["b", "\b"], ["f", "\f"], ["n", "\n"], ["r", "\r"], ["t", "\t"]]);
+    if (simple.has(escaped)) { value += simple.get(escaped); index += 2; continue; }
     if (escaped === "u") {
       if (index + 5 >= raw.length) break;
       const hex = raw.slice(index + 2, index + 6);
