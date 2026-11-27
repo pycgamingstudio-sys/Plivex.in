@@ -12,7 +12,7 @@ export function getLiveContextQueryPlan(userText = "") {
   const serviceIntent = matches(text, /\b(service|services|rate card)\b|सेवा/);
   const purchasingIntent = matches(text, /\b(purchase order|purchase orders|purchasing|supplier|suppliers|receipt|receiving|goods received|procurement)\b|खरीद आदेश|सप्लायर|माल आया/);
   const profileIntent = matches(text, /\b(business profile|company profile|business details|gstin|tax registration|my business|workspace settings|country|currency)\b|व्यवसाय प्रोफाइल|जीएसटीआईएन/);
-  const invoiceCreateIntent = matches(text, /\b(create|make|new|draft|prepare|banao|banana)\b.*\b(invoice|bill|quotation|quote)\b|\b(invoice|bill|quotation|quote)\b.*\b(create|make|new|draft|prepare)\b/);
+  const invoiceCreateIntent = matches(text, /\b(create|make|new|draft|prepare|bana|banao|banana)\b.*\b(invoice|bill|quotation|quote)\b|\b(invoice|bill|quotation|quote)\b.*\b(create|make|new|draft|prepare)\b/);
 
   const inventory = inventoryIntent || purchasingIntent;
   return {
