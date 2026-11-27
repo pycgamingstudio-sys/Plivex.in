@@ -1144,7 +1144,7 @@ Deno.serve(async (req: Request) => {
     requestId, startedAt, finishedAt, status: response.status,
     requestClass: metricContext.requestClass, provider: metricContext.provider, model: metricContext.model,
   });
-  console.info(JSON.stringify(metric));
+  if (req.method === "POST") console.info(JSON.stringify(metric));
   const headers = new Headers(response.headers);
   headers.set("X-Request-ID", requestId);
   headers.set("Server-Timing", "app;dur=" + metric.duration_ms);
