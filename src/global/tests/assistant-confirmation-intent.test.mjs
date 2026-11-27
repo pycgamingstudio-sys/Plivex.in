@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isAffirmativeConfirmation } from "./assistant-confirmation-intent.mjs";
+import { isAffirmativeConfirmation } from "../../lib/assistant-confirmation-intent.mjs";
 
 test("recognizes clear English and Hinglish confirmations", () => {
   for (const value of ["Yes", "yes please", "Yeah!", "haan", "Han", "ji haan", "bilkul", "confirm and save", "kar do", "ठीक है", "हाँ"]) {
