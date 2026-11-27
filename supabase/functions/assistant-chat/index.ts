@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { createAssistantRequestMetric } from "../_shared/assistant-observability.mjs";
 import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
 import { generateWithFallback } from "../_shared/assistant-model-router.mjs";
 import { validateGlobalInvoicePaymentAction } from "../_shared/assistant-global-payment-validation.mjs";
@@ -517,7 +518,7 @@ function validateAction(action: any) {
   return null;
 }
 
-async function handleRequest(req: Request) {
+async function handleRequest(req: Request, metricContext: Record<string, unknown> = {}) {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const authorization = req.headers.get("Authorization");
@@ -624,6 +625,7 @@ async function handleRequest(req: Request) {
       needsGlobalProductContext,
       hasImage: Boolean(image),
     });
+    metricContext.requestClass = requestPolicy.simpleConversationalTurn ? "simple" : "business";
     const globalContextPromise = requestPolicy.loadGlobalContext
       ? (async () => {
           let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -812,6 +814,7 @@ async function handleRequest(req: Request) {
       openRouterKey,
       enableGroq,
     });
+    if (routed.ok) { metricContext.provider = routed.provider; metricContext.model = routed.model; }
     if (!routed.ok) {
       const message = routed.failureCode === "MIXED_PROVIDER_FAILURES"
         ? "Gemini is temporarily timing out, and the free backup provider is currently rate-limited. Please try again shortly."
@@ -1125,6 +1128,9 @@ async function handleRequest(req: Request) {
 }
 
 Deno.serve(async (req: Request) => {
+  const startedAt = Date.now();
+  const requestId = crypto.randomUUID();
+  const metricContext: Record<string, unknown> = {};
   const origin = req.headers.get("origin");
   if (origin && !ALLOWED_ORIGINS.has(origin)) {
     return new Response("Origin not allowed", {
@@ -1132,8 +1138,16 @@ Deno.serve(async (req: Request) => {
       headers: { "Vary": "Origin", "Content-Type": "text/plain" },
     });
   }
-  const response = await handleRequest(req);
+  const response = await handleRequest(req, metricContext);
+  const finishedAt = Date.now();
+  const metric = createAssistantRequestMetric({
+    requestId, startedAt, finishedAt, status: response.status,
+    requestClass: metricContext.requestClass, provider: metricContext.provider, model: metricContext.model,
+  });
+  console.info(JSON.stringify(metric));
   const headers = new Headers(response.headers);
+  headers.set("X-Request-ID", requestId);
+  headers.set("Server-Timing", "app;dur=" + metric.duration_ms);
   headers.set("Access-Control-Allow-Origin", origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://plivex.in");
   headers.set("Vary", "Origin");
   headers.set("Access-Control-Allow-Headers", "authorization, x-client-info, apikey, content-type, x-supabase-api-version, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version");
