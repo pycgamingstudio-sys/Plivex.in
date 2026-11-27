@@ -21,6 +21,8 @@ test("OCR worker RPCs are service-role-only and validate state transitions", () 
     assert.match(migration, new RegExp("revoke all on function public\\." + fn + "\\("));
     assert.match(migration, new RegExp("grant execute on function public\\." + fn + "\\("));
   }
+  assert.equal((migration.match(/auth\.jwt\(\) ->> 'role'/g) || []).length, 4);
+  assert.doesNotMatch(migration, /auth\.role\(\)/);
   assert.match(migration, /status = 'processing'/);
   assert.match(migration, /status = 'completed'/);
   assert.match(migration, /status = case when attempt_count >= max_attempts then 'failed' else 'queued' end/);
