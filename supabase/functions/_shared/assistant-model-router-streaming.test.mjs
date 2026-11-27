@@ -43,7 +43,7 @@ test("Gemini stream interruption after visible output does not switch providers"
   const firstEvent = "data: " + JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"reply":"Part' }] } }] }) + "\n\n";
   const fetchImpl = async (url) => {
     calls.push(url);
-    const body = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(firstEvent)); controller.error(new Error("connection reset")); } });
+    const body = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(firstEvent)); }, pull(controller) { controller.error(new Error("connection reset")); } });
     return new Response(body, { headers: { "Content-Type": "text/event-stream" } });
   };
   const result = await generateWithFallback({ requestOptions, geminiKey: "test", openRouterKey: "backup", fetchImpl, onTextChunk: (chunk) => chunks.push(chunk), totalTimeoutMs: 10000 });
