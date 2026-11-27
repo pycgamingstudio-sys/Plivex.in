@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { createAssistantRequestMetric, summarizeAssistantLatency } from "./assistant-observability.mjs";
 
 test("request metric records timing and safe routing metadata only", () => {
-  const metric = createAssistantRequestMetric({ requestId: "req-123", startedAt: 100, finishedAt: 185, status: 200, requestClass: "simple", provider: "gemini", model: "gemini-3.8-flash" });
+  const metric = createAssistantRequestMetric({ requestId: "req-123", startedAt: 100, finishedAt: 185, status: 200, requestClass: "simple", provider: "gemini", model: "gemini-3.8-flash", ttftMs: 24 });
   assert.equal(metric.event, "nova_request_metric");
   assert.equal(metric.duration_ms, 85);
+  assert.equal(metric.ttft_ms, 24);
   assert.equal(metric.status, 200);
   assert.equal(metric.request_class, "simple");
   assert.equal("prompt" in metric, false);
@@ -17,6 +18,7 @@ test("request metric clamps negative duration and sanitizes labels", () => {
   assert.equal(metric.request_id, "unknown");
   assert.equal(metric.request_class, "unknown");
   assert.equal(metric.duration_ms, 0);
+  assert.equal(metric.ttft_ms, null);
 });
 
 test("latency summary calculates nearest-rank p50 and p95", () => {
