@@ -131,9 +131,9 @@ begin
   ) returning id into v_id;
 
   for v_line in select value from jsonb_array_elements(p_lines) loop
-    v_account:=(v_linline.value->>'account_id')::uuid;
-    v_debit:=coalesce((v_linline.value->>'debit')::numeric,0);
-    v_credit:=coalesce((v_linline.value->>'credit')::numeric,0);
+    v_account:=(v_line.value->>'account_id')::uuid;
+    v_debit:=coalesce((v_line.value->>'debit')::numeric,0);
+    v_credit:=coalesce((v_line.value->>'credit')::numeric,0);
 
     if v_debit<0 or v_credit<0 or ((v_debit>0)=(v_credit>0))
       or not exists(
@@ -147,7 +147,7 @@ begin
       workspace_id,entry_id,account_id,debit,credit,memo
     ) values (
       p_workspace_id,v_id,v_account,v_debit,v_credit,
-      left(coalesce(v_linline.value->>'memo',''),300)
+      left(coalesce(v_line.value->>'memo',''),300)
     );
 
     v_debits:=v_debits+v_debit;
