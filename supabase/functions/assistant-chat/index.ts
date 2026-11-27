@@ -4,6 +4,7 @@ import { generateWithFallback } from "../_shared/assistant-model-router.mjs";
 import { validateGlobalInvoicePaymentAction } from "../_shared/assistant-global-payment-validation.mjs";
 import { validateGlobalClientAction } from "../_shared/assistant-global-client-validation.mjs";
 import { validateGlobalExpenseAction } from "../_shared/assistant-global-expense-validation.mjs";
+import { routeExpenseActionForWorkspace } from "../_shared/assistant-expense-workspace-routing.mjs";
 import { validateGlobalProductAction } from "../_shared/assistant-global-product-validation.mjs";
 import { normalizeAssistantActionBatch } from "../_shared/assistant-tool-registry.mjs";
 import { buildBusinessIntentHints } from "../_shared/assistant-intent-planner.mjs";
@@ -881,7 +882,7 @@ async function handleRequest(req: Request) {
     let deterministicDraftsPending = false;
     if (deterministicDrafts.length) {
       const pendingDrafts = deterministicDrafts.filter((draft: any) => draft.pending);
-      const deterministicTypes = new Set(["create_client", "create_invoice", "create_expense"]);
+      const deterministicTypes = new Set(["create_client", "create_invoice", "create_expense", "create_global_expense"]);
       const existingActions = Array.isArray(parsed.actions) ? parsed.actions
         : (parsed.action && parsed.action.type !== "none" ? [parsed.action] : []);
       parsed.actions = existingActions.filter((item: any) => !deterministicTypes.has(String(item?.type || "")));
@@ -891,7 +892,7 @@ async function handleRequest(req: Request) {
         parsed.action = { type: "none", payload: {} };
         parsed.reply = pendingDrafts.map((draft: any) => draft.reply).filter(Boolean).join(" ");
       } else {
-        const readyActions = deterministicDrafts.map((draft: any) => draft.action).filter(Boolean);
+        const readyActions = deterministicDrafts.map((draft: any) => draft.action).filter(Boolean).map((action: any) => routeExpenseActionForWorkspace(action, { isGlobalWorkspace, currencyCode: profile.currency_code })).filter(Boolean);
         parsed.actions = [...parsed.actions, ...readyActions];
         parsed.action = readyActions.length === 1 ? readyActions[0] : { type: "none", payload: {} };
         parsed.reply = deterministicDrafts.map((draft: any) => draft.reply).filter(Boolean).join(" ");
@@ -918,13 +919,16 @@ async function handleRequest(req: Request) {
       const typedAmount = Number(String(amountMatch[1] || amountMatch[2]).replace(/,/g, ""));
       if (Number.isFinite(typedAmount) && typedAmount > 0) {
         const actions = Array.isArray(parsed.actions) ? parsed.actions : [];
-        const existing = actions.find((item: any) => item?.type === "create_expense") || (parsed.action?.type === "create_expense" ? parsed.action : null);
+        const expenseTypes = new Set(["create_expense", "create_global_expense"]);
+        const existing = actions.find((item: any) => expenseTypes.has(String(item?.type || ""))) || (expenseTypes.has(String(parsed.action?.type || "")) ? parsed.action : null);
         const previousPayload = existing?.payload && typeof existing.payload === "object" ? existing.payload : {};
-        const updated = { type: "create_expense", payload: {
+        const updated = routeExpenseActionForWorkspace({ type: "create_expense", payload: {
           ...previousPayload, amount: typedAmount,
           category: allowedCategories.includes(text(previousPayload.category, 40)) ? text(previousPayload.category, 40) : "Other",
-        }};
-        parsed.actions = [...actions.filter((item: any) => item?.type !== "create_expense"), updated];
+          date: previousPayload.date || previousPayload.expense_date || undefined,
+        }}, { isGlobalWorkspace, currencyCode: profile.currency_code });
+        if (!updated) return json({ reply: "Workspace currency is unavailable, so I could not prepare this expense. Please retry after refreshing the workspace." }, 503);
+        parsed.actions = [...actions.filter((item: any) => !expenseTypes.has(String(item?.type || ""))), updated];
         parsed.action = updated;
         parsed.reply = "Expense details are ready. Please review and confirm before saving.";
       }
