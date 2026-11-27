@@ -164,7 +164,7 @@ async function callOpenAiProvider({ provider, model, key, body, fetchImpl, deadl
     method: "POST",
     headers,
     body: JSON.stringify(toOpenAiChatPayload(body, model)),
-    signal: AbortSignal.timeout(Math.min(6000, remaining)),
+    signal: AbortSignal.timeout(Math.min(7500, remaining)),
   });
   const retryAfterSeconds = parseRetryAfterSeconds(response.headers);
   const result = await response.json().catch(() => ({}));
@@ -195,7 +195,7 @@ export async function generateWithFallback({
   const attempts = [];
   if (geminiKey) {
     for (const [index, model] of DEFAULT_GEMINI_MODELS.entries()) {
-      attempts.push({ provider: "gemini", model, timeoutMs: index === 0 ? 6000 : 4500 });
+      attempts.push({ provider: "gemini", model, timeoutMs: index === 0 ? 12000 : 8000 });
     }
   }
   // Groq's current GPT-OSS endpoints are metered. Keep them off unless the
