@@ -4,6 +4,8 @@ import { extractPartialJsonStringField, parseAssistantSseBlock, streamAssistantC
 
 test("extracts partial JSON reply text and decodes escapes", () => {
   assert.equal(extractPartialJsonStringField('{"reply":"Hello\\nworld\\\"!'), "Hello\nworld\"!");
+  const escapedPath = JSON.stringify({ reply: "folder\\file" });
+  assert.equal(extractPartialJsonStringField(escapedPath), "folder\\file");
   assert.equal(extractPartialJsonStringField('{"reply":"Hello\\nwo'), "Hello\nwo");
 });
 
