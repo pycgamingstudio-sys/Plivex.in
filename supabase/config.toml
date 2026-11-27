@@ -45,10 +45,6 @@ verify_jwt = true
 [functions.workspace-platform]
 verify_jwt = false
 
-# Public API endpoints authenticate using hashed, scoped Plivex API keys in-handler.
-[functions.dynamic-api]
-verify_jwt = false
-
 # Meta calls this endpoint directly; the handler verifies the Meta HMAC signature.
 [functions.workspace-whatsapp-webhook]
 verify_jwt = false
