@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  DEFAULT_GEMINI_MODELS,
   DEFAULT_GROQ_MODELS,
   DEFAULT_OPENROUTER_MODELS,
   generateWithFallback,
@@ -18,6 +19,7 @@ const requestOptions = { method: "POST", headers: { "Content-Type": "application
 const response = (status, payload) => ({ ok: status >= 200 && status < 300, status, json: async () => payload });
 
 test("free fallback list is explicit and Groq remains opt-in", () => {
+  assert.deepEqual(DEFAULT_GEMINI_MODELS, ["gemini-3.8-flash", "gemini-3.5-flash-lite"]);
   assert.deepEqual(DEFAULT_OPENROUTER_MODELS, ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free"]);
   assert.equal(DEFAULT_GROQ_MODELS.length, 2);
 });
@@ -67,7 +69,7 @@ test("fallback advances from Gemini 429 through OpenRouter and returns normalize
   assert.equal(normalized.reply, "Helpful fallback answer");
   assert.deepEqual(normalized.actions, []);
   assert.equal(normalized.action.type, "none");
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
 });
 
 test("Groq is never called unless explicitly enabled", async () => {
@@ -87,7 +89,7 @@ test("Retry-After and reset headers are parsed safely", async () => {
 test("OpenRouter free-tier 429 stops before trying another shared-cap model", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {
-    calls.push(url.includes("openrouter") ? JSON.parse(options.body).model : "gemini");
+    calls.push(url.includes("openrouter") ? JSON.parse(options.body).model : (url.match(/models\/([^:]+):/)?.[1] || "gemini"));
     if (url.includes("generativelanguage.googleapis.com")) return response(429, { error: { message: "quota" } });
     return {
       ...response(429, { error: { message: "free account daily limit" } }),
@@ -98,7 +100,7 @@ test("OpenRouter free-tier 429 stops before trying another shared-cap model", as
   assert.equal(result.ok, false);
   assert.equal(result.status, 429);
   assert.equal(result.retryAfterSeconds, 86400);
-  assert.deepEqual(calls, ["gemini", DEFAULT_OPENROUTER_MODELS[0]]);
+  assert.deepEqual(calls, ["gemini-3.8-flash", "gemini-3.5-flash-lite", DEFAULT_OPENROUTER_MODELS[0]]);
 });
 
 test("provider status classification includes throttling and upstream outages", () => {
@@ -107,7 +109,7 @@ test("provider status classification includes throttling and upstream outages", 
 });
 
 
-test("Gemini timeout fails over immediately without a second long wait", async () => {
+test("Gemini timeout moves to the alternate model before using the backup", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {
     calls.push(url);
@@ -117,10 +119,12 @@ test("Gemini timeout fails over immediately without a second long wait", async (
   const result = await generateWithFallback({ requestOptions, geminiKey: "test", openRouterKey: "test", fetchImpl, totalTimeoutMs: 10000 });
   assert.equal(result.ok, true);
   assert.equal(result.provider, "openrouter");
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
+  assert.match(calls[0], /gemini-3\.8-flash/);
+  assert.match(calls[1], /gemini-3\.5-flash-lite/);
 });
 
-test("Gemini retries one fast 503 response before accepting a recovery", async () => {
+test("Gemini 503 advances to the alternate model before accepting a recovery", async () => {
   let geminiCalls = 0;
   const fetchImpl = async (url) => {
     if (url.includes("generativelanguage.googleapis.com")) {
@@ -134,4 +138,32 @@ test("Gemini retries one fast 503 response before accepting a recovery", async (
   assert.equal(result.ok, true);
   assert.equal(result.provider, "gemini");
   assert.equal(geminiCalls, 2);
+});
+
+
+test("Gemini primary timeout tries the lightweight Gemini model before OpenRouter", async () => {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    if (url.includes("gemini-3.8-flash:")) return response(504, { error: { message: "primary timeout" } });
+    if (url.includes("gemini-3.5-flash-lite:")) return response(200, { candidates: [{ content: { parts: [{ text: JSON.stringify({ reply: "Lite recovered", actions: [] }) }] } }] });
+    throw new Error("OpenRouter should not be called after Gemini model recovery");
+  };
+  const result = await generateWithFallback({ requestOptions, geminiKey: "test", openRouterKey: "test", fetchImpl, totalTimeoutMs: 12000 });
+  assert.equal(result.ok, true);
+  assert.equal(result.provider, "gemini");
+  assert.equal(result.model, "gemini-3.5-flash-lite");
+  assert.equal(calls.length, 2);
+});
+
+test("mixed Gemini timeout and OpenRouter 429 are not mislabeled as Gemini quota exhaustion", async () => {
+  const fetchImpl = async (url) => {
+    if (url.includes("generativelanguage.googleapis.com")) return response(504, { error: { message: "upstream timeout" } });
+    return response(429, { error: { message: "free daily cap" } });
+  };
+  const result = await generateWithFallback({ requestOptions, geminiKey: "test", openRouterKey: "test", fetchImpl, totalTimeoutMs: 12000 });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 503);
+  assert.equal(result.failureCode, "MIXED_PROVIDER_FAILURES");
+  assert.deepEqual(result.providerFailures.map((failure) => failure.status), [504, 504, 429]);
 });

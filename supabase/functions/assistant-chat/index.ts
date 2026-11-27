@@ -794,11 +794,13 @@ async function handleRequest(req: Request) {
       enableGroq,
     });
     if (!routed.ok) {
-      const message = routed.status === 429
-        ? "AI providers are rate-limited right now. Please try again shortly."
-        : routed.status === 504
-          ? "AI providers took too long. Please retry; your request was not saved."
-          : "AI providers are temporarily unavailable. Please try again.";
+      const message = routed.failureCode === "MIXED_PROVIDER_FAILURES"
+        ? "Gemini is temporarily timing out, and the free backup provider is currently rate-limited. Please try again shortly."
+        : routed.status === 429
+          ? "All configured AI providers are rate-limited right now. Please try again after the quota reset."
+          : routed.status === 504
+            ? "AI providers took too long to respond. Please retry; your request was not saved."
+            : "AI providers are temporarily unavailable. Please try again.";
       const retryAfter = Number.isFinite(routed.retryAfterSeconds) && routed.retryAfterSeconds >= 0
         ? Math.ceil(routed.retryAfterSeconds)
         : null;
