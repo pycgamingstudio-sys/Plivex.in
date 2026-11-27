@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { calculateInvoiceGlobalTax } from "./_shared/tax/invoice-tax-integration.js";
 import { resolveSupabaseTaxRule } from "../_shared/tax/supabase-tax-rule-resolver.ts";
+import { isDraftTaxRulesAllowed } from "../_shared/tax/draft-tax-policy.mjs";
 const ORIGINS = new Set(["https://plivex.in", "https://www.plivex.in", "https://plivex.netlify.app"]);
 const allowed = (o: string | null) => !o || ORIGINS.has(o) || /^https:\/\/(?:[a-z0-9-]+\.)?[a-z0-9-]+\.(?:pages|workers)\.dev$/.test(o);
 const cors = (o: string | null) => ({ "Access-Control-Allow-Origin": o && allowed(o) ? o : "https://plivex.in", "Vary": "Origin", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" });
@@ -85,7 +86,7 @@ Deno.serve(async (req: Request) => {
         : countryCode === "US"
           ? String(taxConfig.destinationJurisdiction?.state || "").trim().toUpperCase()
           : countryCode;
-      const draftMode = Deno.env.get("ALLOW_DRAFT_TAX_RULES") !== "false";
+      const draftMode = isDraftTaxRulesAllowed(Deno.env.get("ALLOW_DRAFT_TAX_RULES"));
       const resolved = await resolveSupabaseTaxRule(taxDb, {
         countryCode, jurisdictionId: taxJurisdiction, invoiceDate: taxDate,
         treatment: String(taxConfig.taxTreatment || "standard").replace("standard-rated", "standard"),
@@ -162,7 +163,7 @@ Deno.serve(async (req: Request) => {
         const resolved = await resolveSupabaseTaxRule(taxDb, {
           countryCode:"IN", jurisdictionId:"IN", invoiceDate:String(body.issue_date || body.invoice_snapshot.issueDate || ""),
           treatment, taxCode,
-        }, Deno.env.get("ALLOW_DRAFT_TAX_RULES") !== "false");
+        }, isDraftTaxRulesAllowed(Deno.env.get("ALLOW_DRAFT_TAX_RULES")));
         if (!resolved.ok) return json({ error:"The selected India GST slab has no effective Supabase rule: " + taxCode },422,origin);
         const resolvedRateBps = resolved.rule.components.reduce((sum:number,component:any)=>sum+Number(component.rateBps),0);
         resolvedRateByPercent.set(rate, { rate:resolvedRateBps / 100, rule:resolved.rule, mode:resolved.mode });

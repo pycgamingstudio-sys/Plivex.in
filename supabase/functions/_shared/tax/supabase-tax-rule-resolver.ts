@@ -1,3 +1,4 @@
+import { isDraftTaxRulesAllowed } from "./draft-tax-policy.mjs";
 /**
  * Server-only resolver for global.tax_rule_versions.
  * Draft rows are usable only when ALLOW_DRAFT_TAX_RULES=true; results are
@@ -19,7 +20,7 @@ const COUNTRY_CURRENCY: Record<string,string> = { IN:"INR", US:"USD", GB:"GBP", 
 export async function resolveSupabaseTaxRule(
   db: any,
   input: { countryCode: string; jurisdictionId?: string | null; invoiceDate: string; treatment?: string; taxCode?: string | null },
-  allowDraft = Deno.env.get("ALLOW_DRAFT_TAX_RULES") !== "false",
+  allowDraft = isDraftTaxRulesAllowed(Deno.env.get("ALLOW_DRAFT_TAX_RULES")),
 ): Promise<TaxRuleResolution> {
   const countryCode = String(input.countryCode || "").toUpperCase();
   const invoiceDate = input.invoiceDate;

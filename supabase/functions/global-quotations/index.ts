@@ -1,5 +1,6 @@
 import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowed } from "../_shared/global.ts";
 import { resolveSupabaseTaxRule } from "../_shared/tax/supabase-tax-rule-resolver.ts";
+import { isDraftTaxRulesAllowed } from "../_shared/tax/draft-tax-policy.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -19,6 +20,11 @@ Deno.serve(async (req: Request) => {
   const auth = await authenticateGlobal(req);
   if ("error" in auth) return globalJson({ error: auth.error }, auth.status, origin);
 
+  // Tax computation and the RPC are server-side only. The authenticated
+  // user and active workspace membership are verified above; the database
+  // overload is service-role-only and rechecks the supplied member identity.
+
+
   try {
     const declaredLength = Number(req.headers.get("content-length") || 0);
     if (declaredLength > 64 * 1024) return globalJson({ error: "Request is too large." }, 413, origin);
@@ -34,6 +40,12 @@ Deno.serve(async (req: Request) => {
     if (typeof body.workspace_id !== "string" || !UUID.test(body.workspace_id)) {
       return globalJson({ error: "A valid Global workspace is required." }, 400, origin);
     }
+
+    const { data: membership, error: membershipError } = await auth.admin.schema("global").from("workspace_members")
+      .select("role").eq("workspace_id", body.workspace_id).eq("user_id", auth.user.id)
+      .eq("status", "active").maybeSingle();
+    if (membershipError) return globalJson({ error: "Workspace membership could not be verified." }, 503, origin);
+    if (!membership) return globalJson({ error: "You do not have access to this workspace." }, 403, origin);
     if (action === "create") {
       if (typeof body.idempotency_key !== "string" || !UUID.test(body.idempotency_key)
         || typeof body.currency_code !== "string" || !/^[A-Z]{3}$/.test(body.currency_code)
@@ -84,7 +96,7 @@ Deno.serve(async (req: Request) => {
       const resolved = await resolveSupabaseTaxRule(auth.admin, {
         countryCode, jurisdictionId, invoiceDate:String(body.issue_date),
         treatment:String(body.tax_treatment || (taxCode === "GST_0" ? "zero-rated" : taxCode === "GST_5" ? "reduced" : "standard")), taxCode:taxCode || null,
-      }, Deno.env.get("ALLOW_DRAFT_TAX_RULES") !== "false");
+      }, isDraftTaxRulesAllowed(Deno.env.get("ALLOW_DRAFT_TAX_RULES")));
       if (!resolved.ok) return globalJson({ error:resolved.message || "No effective workspace tax rule is available.", code:resolved.code },422,origin);
 
       let components = resolved.rule.components;

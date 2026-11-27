@@ -29,9 +29,11 @@ export const verifyWebhookAuthorization=async(auth:string|null)=>{
 export const safePath=(p:unknown)=>typeof p==="string"&&p.startsWith("/")&&!p.startsWith("//")&&!p.includes("\\")&&p.length<=200?p.split("?")[0]?.split("#")[0]||"/":"/";
 export async function activatePayment(admin:any,order:any,payload:any,source:string){
  const amount=Number(payload?.amount);if(payload?.state!=="COMPLETED"||!Number.isFinite(amount)||amount!==Number(order.amount_paise))return {ok:false,reason:"state_or_amount_mismatch"};
- if(order.status==="active")return {ok:true,alreadyApplied:true};if(order.status!=="created"||!isPlanId(order.plan_id))return {ok:false,reason:"order_not_eligible"};
+ if(order.status==="active")return {ok:true,alreadyApplied:true};
+ const planId = typeof order?.plan_id === "string" ? order.plan_id : "";
+ if(order.status!=="created"||!isPlanId(planId))return {ok:false,reason:"order_not_eligible"};
  const now=new Date(),paymentId=payload?.paymentDetails?.find((p:any)=>p?.state==="COMPLETED")?.transactionId||null;
- const {data,error}=await admin.from("subscriptions").update({status:"active",started_at:now.toISOString(),expires_at:addPeriod(now,PLANS[order.plan_id].period).toISOString(),provider_payment_id:paymentId,updated_at:now.toISOString()}).eq("id",order.id).eq("status","created").select("id");
+ const {data,error}=await admin.from("subscriptions").update({status:"active",started_at:now.toISOString(),expires_at:addPeriod(now,PLANS[planId].period).toISOString(),provider_payment_id:paymentId,updated_at:now.toISOString()}).eq("id",order.id).eq("status","created").select("id");
  if(error)throw new Error("Subscription update failed");
  if(!data?.length){const {data:latest}=await admin.from("subscriptions").select("status").eq("id",order.id).maybeSingle();return {ok:latest?.status==="active"};}
  const {error:logError}=await admin.from("payment_logs").insert({user_id:order.user_id,user_email:order.user_email,workspace_id:order.workspace_id,txnid:order.txnid,subscription_id:order.id,provider:"phonepe",gateway:"phonepe",currency:"INR",plan_id:order.plan_id,plan_name:order.plan_name,tier:order.tier,amount,status:"success",outcome:"applied",hash_verified:true,provider_status:payload.state,gateway_status:payload.state,provider_payment_id:paymentId,raw:payload,verified_at:now.toISOString(),reason:null,message:"PhonePe payment verified",source});

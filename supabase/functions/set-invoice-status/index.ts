@@ -42,6 +42,15 @@ Deno.serve(async (req: Request) => {
     }
     const { data: invoice, error: reloadError } = await db.from("invoices").select("*,invoice_items(*)").eq("id", id).maybeSingle();
     if (reloadError || !invoice) return json({ error: "Status updated but invoice could not be reloaded." }, 500, origin);
+    if (status === "Paid" || status === "Cancelled") {
+      const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (service) {
+        const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
+        await admin.from("invoices").update({ reminder_enabled: false, reminder_hold: false }).eq("id", id).eq("workspace_id", invoice.workspace_id);
+        await admin.from("invoice_reminder_events").update({ status: "cancelled", updated_at: new Date().toISOString() })
+          .eq("invoice_id", id).eq("workspace_id", invoice.workspace_id).in("status", ["scheduled", "on_hold", "failed"]);
+      }
+    }
     return json({ invoice }, 200, origin);
   } catch (error) {
     console.error("set-invoice-status failed", error);
