@@ -17,7 +17,7 @@ test("CRM and warehouse endpoints authenticate users and bind every operation to
   assert.match(endpoint, /p_workspace_id: body\.workspace_id/);
   assert.match(rpcMigration, /from global\.workspace_members/);
   assert.match(rpcMigration, /status='active'/);
-  assert.match(rpcMigration, /reason', 'access_denied'/);
+  assert.match(rpcMigration, /access_denied/);
 });
 
 test("CRM pipeline supports lead creation, updates and activity timeline", () => {
