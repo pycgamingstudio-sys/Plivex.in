@@ -3,6 +3,7 @@ import { Send, X, Sparkles, CheckCircle2, Loader2, PlusCircle, ImagePlus, Mic, M
 import { assistantEnabled, supabase } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
 import { refreshWorkspaceKey } from "@/lib/stores";
+import { isAffirmativeConfirmation } from "@/lib/assistant-confirmation-intent";
 
 const STARTERS = [
   "Mere business ki performance review karo",
@@ -85,6 +86,19 @@ export default function AssistantWidget() {
   async function send(raw = draft) {
     const content = String(raw || "").trim().slice(0, 1000);
     if ((!content && !attachment) || busy) return;
+    // A clear text-only affirmation confirms the most recent pending draft
+    // through the same idempotent endpoint as the visible Confirm & Save button.
+    const lastIndex = messages.length - 1;
+    const lastMessage = lastIndex >= 0 ? messages[lastIndex] : null;
+    const pendingActions = lastMessage?.pendingActions || (lastMessage?.pendingAction ? [lastMessage.pendingAction] : []);
+    const pendingKey = lastMessage?.idempotencyKey || lastMessage?.pendingAction?.idempotencyKey;
+    if (!attachment && isAffirmativeConfirmation(content) && lastMessage?.role === "assistant" &&
+        lastMessage?.actionStatus === "pending" && pendingActions.length && pendingKey) {
+      setDraft("");
+      setError("");
+      await confirmAction(pendingActions, pendingKey, lastIndex);
+      return;
+    }
     const sentAttachment = attachment;
     const next = [...messages, { role: "user", content: content || (sentAttachment ? "Please inspect this image, describe what it shows, and extract any relevant business details. Do not create a record unless I ask." : ""), imageDataUrl: sentAttachment || null }];
     setMessages(next);
@@ -154,8 +168,9 @@ export default function AssistantWidget() {
       if (!data?.ok) throw new Error(data?.error || data?.reply || "Plivex did not confirm that these records were saved. Check the module before retrying.");
       setRetryAction(null);
       const affectedKeys = [...new Set(actions.map((action) => ({
-        create_invoice: "history", create_expense: "expenses", create_stock: "stock",
-        create_client: "clients", create_lead: "leads", create_quotation: "quotations",
+        create_invoice: "history", create_expense: "expenses", create_global_expense: "expenses", create_stock: "stock",
+        create_global_product: "stock", create_client: "clients", create_global_client: "clients",
+        record_global_invoice_payment: "history", create_lead: "leads", create_quotation: "quotations",
         create_purchase_order: "stock",
         create_warehouse: "stock",
         receive_purchase_order: "stock",
