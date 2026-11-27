@@ -518,7 +518,7 @@ function validateAction(action: any) {
   return null;
 }
 
-async function handleRequest(req: Request, metricContext: Record<string, unknown> = {}) {
+async function handleRequest(req: Request, metricContext: Record<string, unknown> = {}, onTextChunk: ((chunk: string) => void) | null = null) {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const authorization = req.headers.get("Authorization");
@@ -813,12 +813,18 @@ async function handleRequest(req: Request, metricContext: Record<string, unknown
       groqKey,
       openRouterKey,
       enableGroq,
+      onTextChunk: requestPolicy.simpleConversationalTurn && onTextChunk ? (chunk) => {
+        if (typeof metricContext.ttftMs !== "number") metricContext.ttftMs = Math.max(0, Date.now() - Number(metricContext.startedAt || Date.now()));
+        onTextChunk(chunk);
+      } : null,
     });
     if (routed.ok) { metricContext.provider = routed.provider; metricContext.model = routed.model; }
     if (!routed.ok) {
-      const message = routed.failureCode === "MIXED_PROVIDER_FAILURES"
-        ? "Gemini is temporarily timing out, and the free backup provider is currently rate-limited. Please try again shortly."
-        : routed.status === 429
+      const message = routed.failureCode === "STREAM_INTERRUPTED"
+        ? "Nova response stream was interrupted. Please retry; your request was not saved."
+        : routed.failureCode === "MIXED_PROVIDER_FAILURES"
+          ? "Gemini is temporarily timing out, and the free backup provider is currently rate-limited. Please try again shortly."
+          : routed.status === 429
           ? "All configured AI providers are rate-limited right now. Please try again after the quota reset."
           : routed.status === 504
             ? "AI providers took too long to respond. Please retry; your request was not saved."
@@ -1130,7 +1136,7 @@ async function handleRequest(req: Request, metricContext: Record<string, unknown
 Deno.serve(async (req: Request) => {
   const startedAt = Date.now();
   const requestId = crypto.randomUUID();
-  const metricContext: Record<string, unknown> = {};
+  const metricContext: Record<string, unknown> = { startedAt };
   const origin = req.headers.get("origin");
   if (origin && !ALLOWED_ORIGINS.has(origin)) {
     return new Response("Origin not allowed", {
@@ -1138,10 +1144,52 @@ Deno.serve(async (req: Request) => {
       headers: { "Vary": "Origin", "Content-Type": "text/plain" },
     });
   }
+  const wantsStream = req.method === "POST" && (req.headers.get("accept") || "").includes("text/event-stream");
+  if (wantsStream) {
+    const encoder = new TextEncoder();
+    const streamHeaders = new Headers();
+    streamHeaders.set("Content-Type", "text/event-stream; charset=utf-8");
+    streamHeaders.set("Cache-Control", "no-cache, no-transform");
+    streamHeaders.set("Connection", "keep-alive");
+    streamHeaders.set("X-Accel-Buffering", "no");
+    streamHeaders.set("X-Request-ID", requestId);
+    streamHeaders.set("Access-Control-Allow-Origin", origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://plivex.in");
+    streamHeaders.set("Vary", "Origin");
+    streamHeaders.set("Access-Control-Allow-Headers", "authorization, x-client-info, apikey, content-type, accept, x-supabase-api-version, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version");
+    streamHeaders.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    const streamBody = new ReadableStream({
+      start(controller) {
+        const send = (event: string, payload: unknown) => {
+          try { controller.enqueue(encoder.encode("event: " + event + "\ndata: " + JSON.stringify(payload) + "\n\n")); } catch { /* client disconnected */ }
+        };
+        void (async () => {
+          let status = 500;
+          try {
+            const response = await handleRequest(req, metricContext, (chunk) => send("delta", { text: chunk }));
+            status = response.status;
+            const data = await response.json().catch(() => ({ error: "Invalid assistant response." }));
+            send("complete", data);
+          } catch (error) {
+            console.error("Assistant stream failed", error);
+            send("error", { error: "Assistant response stream failed. Please retry." });
+          } finally {
+            const finishedAt = Date.now();
+            const metric = createAssistantRequestMetric({
+              requestId, startedAt, finishedAt, status, ttftMs: metricContext.ttftMs,
+              requestClass: metricContext.requestClass, provider: metricContext.provider, model: metricContext.model,
+            });
+            if (req.method === "POST") console.info(JSON.stringify(metric));
+            try { controller.close(); } catch { /* already closed */ }
+          }
+        })();
+      },
+    });
+    return new Response(streamBody, { headers: streamHeaders });
+  }
   const response = await handleRequest(req, metricContext);
   const finishedAt = Date.now();
   const metric = createAssistantRequestMetric({
-    requestId, startedAt, finishedAt, status: response.status,
+    requestId, startedAt, finishedAt, status: response.status, ttftMs: metricContext.ttftMs,
     requestClass: metricContext.requestClass, provider: metricContext.provider, model: metricContext.model,
   });
   if (req.method === "POST") console.info(JSON.stringify(metric));
