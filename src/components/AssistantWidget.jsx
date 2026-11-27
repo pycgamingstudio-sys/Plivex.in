@@ -4,6 +4,7 @@ import { assistantEnabled, supabase } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
 import { refreshWorkspaceKey } from "@/lib/stores";
 import { isAffirmativeConfirmation } from "@/lib/assistant-confirmation-intent";
+import { streamAssistantChat } from "@/lib/assistant-streaming.mjs";
 
 const STARTERS = [
   "Mere business ki performance review karo",
@@ -101,7 +102,7 @@ export default function AssistantWidget() {
     }
     const sentAttachment = attachment;
     const next = [...messages, { role: "user", content: content || (sentAttachment ? "Please inspect this image, describe what it shows, and extract any relevant business details. Do not create a record unless I ask." : ""), imageDataUrl: sentAttachment || null }];
-    setMessages(next);
+    setMessages([...next, { role: "assistant", content: "", isStreaming: true }]);
     setAttachment(null);
     setDraft("");
     setError("");
@@ -110,28 +111,56 @@ export default function AssistantWidget() {
     try {
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 60000);
-      let response;
+      let data;
       try {
-        response = await supabase.functions.invoke("assistant-chat", {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        const accessToken = sessionData?.session?.access_token;
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        if (!accessToken) throw new Error("Your session expired. Please sign in again.");
+        if (!supabaseUrl || !anonKey) throw new Error("AI assistant is not configured. Please contact support.");
+        data = await streamAssistantChat({
+          url: supabaseUrl.replace(/\/+$/, "") + "/functions/v1/assistant-chat",
+          anonKey,
+          accessToken,
           body: {
             messages: next.slice(-16).map(({ role, content: text }) => ({ role, content: String(text || "").slice(0, 1200) })),
             image: sentAttachment ? { mimeType: sentAttachment.slice(5, sentAttachment.indexOf(";")), data: sentAttachment.split(",")[1] } : null,
           },
           signal: controller.signal,
+          onPartial: (partial) => setMessages((current) => {
+            const index = current.length - 1;
+            if (index < 0 || current[index]?.role !== "assistant" || !current[index]?.isStreaming) return current;
+            const updated = [...current];
+            updated[index] = { ...updated[index], content: partial };
+            return updated;
+          }),
         });
       } finally { window.clearTimeout(timeout); }
-      const { data, error: invokeError } = response;
-      if (invokeError) throw invokeError;
-      if (!data?.reply) throw new Error("AI returned an empty response. Please try again.");
-      setMessages((current) => [...current, {
-        role: "assistant",
-        content: data.reply,
-        pendingAction: data.pendingAction || null,
-        pendingActions: data.pendingActions || null,
-        idempotencyKey: data.idempotencyKey || data.pendingAction?.idempotencyKey || null,
-        actionStatus: (data.pendingAction || data.pendingActions?.length) ? "pending" : null,
-      }]);
+      setMessages((current) => {
+        const index = current.length - 1;
+        const completed = {
+          role: "assistant", content: data.reply,
+          pendingAction: data.pendingAction || null,
+          pendingActions: data.pendingActions || null,
+          idempotencyKey: data.idempotencyKey || data.pendingAction?.idempotencyKey || null,
+          actionStatus: (data.pendingAction || data.pendingActions?.length) ? "pending" : null,
+          isStreaming: false,
+        };
+        if (index >= 0 && current[index]?.role === "assistant" && current[index]?.isStreaming) {
+          const updated = [...current];
+          updated[index] = { ...current[index], ...completed };
+          return updated;
+        }
+        return [...current, completed];
+      });
     } catch (err) {
+      setMessages((current) => {
+        const index = current.length - 1;
+        if (index >= 0 && current[index]?.role === "assistant" && current[index]?.isStreaming) return current.slice(0, index);
+        return current;
+      });
       // Keep the user's request (and attachment) available after provider/network
       // failures so they can retry without reconstructing the business instruction.
       setDraft(content);
