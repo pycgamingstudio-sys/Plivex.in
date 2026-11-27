@@ -49,7 +49,7 @@ begin
       locked_at = null,
       completed_at = now()
   where status = 'processing'
-    and locked_at < now() - interval '15 minutes'
+    and (locked_at is null or locked_at < now() - interval '15 minutes')
     and attempt_count >= max_attempts;
 
   return query
@@ -59,7 +59,7 @@ begin
     where j.attempt_count < j.max_attempts
       and (
         j.status = 'queued'
-        or (j.status = 'processing' and j.locked_at < now() - interval '15 minutes')
+        or (j.status = 'processing' and (j.locked_at is null or j.locked_at < now() - interval '15 minutes'))
       )
     order by j.created_at, j.id
     for update skip locked
