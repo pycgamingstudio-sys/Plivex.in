@@ -31,7 +31,7 @@ test("multi-warehouse procurement and stock transfer operations use allowlisted 
   assert.match(endpoint, /global_part4_list/);
   assert.match(endpoint, /global_part4_mutate/);
   assert.match(endpoint, /global_part4_transfer_stock/);
-  assert.match(endpoint, /for update/i);
+  assert.match(transactionMigration, /for update/i);
   assert.match(transactionMigration, /idempotency_key/);
   assert.match(warehouseUi, /New transfer/);
   assert.match(warehouseUi, /New purchase order/);
