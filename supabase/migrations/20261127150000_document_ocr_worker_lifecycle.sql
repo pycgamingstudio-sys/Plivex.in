@@ -148,6 +148,43 @@ begin
 end;
 $$;
 
+
+create or replace function public.claim_document_ocr_job(p_job_id uuid)
+returns public.document_ocr_jobs
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $
+declare
+  v_job public.document_ocr_jobs;
+begin
+  if coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+
+  update public.document_ocr_jobs
+  set status = 'processing',
+      attempt_count = attempt_count + 1,
+      locked_at = now(),
+      last_error = null
+  where id = p_job_id
+    and attempt_count < max_attempts
+    and (
+      status = 'queued'
+      or (status = 'processing' and (locked_at is null or locked_at < now() - interval '15 minutes'))
+    )
+  returning * into v_job;
+
+  if v_job.id is null then
+    raise exception 'job not claimable' using errcode = 'P0002';
+  end if;
+  return v_job;
+end;
+$;
+
+revoke all on function public.claim_document_ocr_job(uuid) from public, anon, authenticated;
+grant execute on function public.claim_document_ocr_job(uuid) to service_role;
+
 revoke all on function public.claim_document_ocr_jobs(integer) from public, anon, authenticated;
 revoke all on function public.complete_document_ocr_job(uuid, jsonb, text) from public, anon, authenticated;
 revoke all on function public.fail_document_ocr_job(uuid, text) from public, anon, authenticated;
