@@ -277,8 +277,10 @@ export async function generateWithFallback({
             });
           }
         } catch (error) {
-          lastStatus = error?.name === "TimeoutError" || error?.name === "AbortError" ? 504 : 503;
+          lastStatus = Number(error?.status) || (error?.name === "TimeoutError" || error?.name === "AbortError" ? 504 : 503);
+          retryAfterSeconds = Number.isFinite(error?.retryAfterSeconds) ? error.retryAfterSeconds : retryAfterSeconds;
           providerFailures.push({ provider: "gemini", model: attempt.model, status: lastStatus, reason: String(error?.message || "network_error").slice(0, 160) });
+          if (streamedAny) return { ok: false, status: lastStatus === 429 ? 429 : 503, failureCode: "STREAM_INTERRUPTED", providerFailures, retryAfterSeconds };
           console.warn("Nova Gemini request failed; switching provider", {
             provider: "gemini", model: attempt.model, status: lastStatus,
             reason: error?.message || "network_error",
