@@ -36,6 +36,8 @@ test("the deployed assistant-chat source retains all supported tool modules", ()
     "assistant-tool-registry.mjs",
     "assistant-intent-planner.mjs",
     "assistant-business-analytics.mjs",
+    "assistant-context-query-plan.mjs",
+    "assistant-request-policy.mjs",
     "assistant-goods-receipt-validation.mjs",
     "assistant-purchase-order-validation.mjs",
     "assistant-warehouse-validation.mjs",
