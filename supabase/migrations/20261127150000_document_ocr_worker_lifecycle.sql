@@ -154,7 +154,7 @@ returns public.document_ocr_jobs
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $
+as $$
 declare
   v_job public.document_ocr_jobs;
 begin
@@ -180,7 +180,7 @@ begin
   end if;
   return v_job;
 end;
-$;
+$$;
 
 revoke all on function public.claim_document_ocr_job(uuid) from public, anon, authenticated;
 grant execute on function public.claim_document_ocr_job(uuid) to service_role;
