@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const ORIGINS = new Set(["https://plivex.in", "https://www.plivex.in", "https://plivex.netlify.app"]);
 const allowed = (origin: string | null) => !origin || ORIGINS.has(origin) || /^https:\/\/(?:[a-z0-9-]+\.)?[a-z0-9-]+\.(?:pages|workers)\.dev$/.test(origin);
-const cors = (origin: string | null) => ({ "Access-Control-Allow-Origin": origin && allowed(origin) ? origin : "https://plivex.in", "Vary": "Origin", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-plivex-key, x-hub-signature-256", "Access-Control-Allow-Methods": "POST, OPTIONS" });
+const cors = (origin: string | null) => ({ "Access-Control-Allow-Origin": origin && allowed(origin) ? origin : "https://plivex.in", "Vary": "Origin", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, x-plivex-key, x-hub-signature-256", "Access-Control-Allow-Methods": "POST, OPTIONS" });
 const json = (body: unknown, status = 200, origin: string | null = null) => new Response(JSON.stringify(body), { status, headers: { ...cors(origin), "Content-Type": "application/json", "Cache-Control": "no-store" } });
 const encoder = new TextEncoder();
 const MAX_FILE_BYTES = 4 * 1024 * 1024;

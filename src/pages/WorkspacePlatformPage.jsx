@@ -100,12 +100,36 @@ export default function WorkspacePlatformPage() {
     e.preventDefault();
     return run(async()=>{const result=await invoke({action:"signature.create",invoiceId,signerName,signerEmail,expiryDays:14});setSignatureLink(result.signUrl);setSignatureRequestId(result.request?.id||"");return result;},"Secure signing link created. Share it with the named signer.");
   };
+  const handleFilesSelected = async (event) => {
+    const selected = Array.from(event.target.files || []);
+    event.target.value = "";
+    setFiles([]);
+    setOcrResults([]);
+    setError("");
+    if (!selected.length) return;
+    if (selected.length > 10) { setError("Choose up to 10 documents at a time."); return; }
+    try {
+      const prepared = await Promise.all(selected.map(async (file) => {
+        if (file.size > 4 * 1024 * 1024) throw new Error(file.name + " exceeds the 4 MB file limit.");
+        if (!["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(file.type)) {
+          throw new Error(file.name + " is not a supported JPEG, PNG, WebP or PDF file.");
+        }
+        return { name: file.name, size: file.size, type: file.type, fileBase64: await toBase64(file) };
+      }));
+      setFiles(prepared);
+    } catch (readError) {
+      setFiles([]);
+      setError(readError?.name === "NotReadableError"
+        ? "This file could not be read from its current location. Save it to your device and select it again."
+        : (readError?.message || "The selected document could not be read. Please select it again."));
+    }
+  };
   const runOcr = () => run(async()=>{
     if(!files.length||files.length>10) throw new Error("Choose between 1 and 10 documents.");
     const results=[];
     for(const file of files){
       if(file.size>4*1024*1024) throw new Error(file.name+" exceeds the 4 MB file limit.");
-      const data=await invoke({action:"ocr.process",documentType:"other",mimeType:file.type,fileBase64:await toBase64(file)});
+      const data=await invoke({action:"ocr.process",documentType:"other",mimeType:file.type,fileBase64:file.fileBase64});
       results.push({name:file.name,...data});
     }
     setOcrResults(results);return results;
@@ -222,7 +246,7 @@ export default function WorkspacePlatformPage() {
     {toolParam==="document-ocr"&&<section className="rounded-2xl border bg-white p-4 sm:p-5">
       <div className="flex items-center gap-2"><ScanText className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">Document OCR & AI extraction · Plivex Nova</h2></div>
       <p className="mt-1 text-xs text-slate-500">Upload up to 10 JPEG, PNG, WebP or PDF files (4 MB each). Plivex Nova extracts review-only draft data for your team to verify; no accounting records are posted automatically.</p>
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row"><input className={field} type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e=>{setFiles(Array.from(e.target.files||[]));setOcrResults([]);}}/><button type="button" className={primary} disabled={busy||!files.length||files.length>10} onClick={runOcr}>Extract {files.length||""} document(s)</button></div>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row"><input className={field} type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" onChange={handleFilesSelected}/><button type="button" className={primary} disabled={busy||!files.length||files.length>10} onClick={runOcr}>Extract {files.length||""} document(s)</button></div>
       {ocrResults.map(r=><article key={r.jobId} className="mt-3 rounded-lg border p-3"><p className="text-sm font-semibold">{r.name}</p><pre className="mt-2 max-h-72 overflow-auto rounded bg-slate-50 p-3 text-xs">{JSON.stringify(r.extracted,null,2)}</pre></article>)}
     </section>}
     {toolParam==="whatsapp-cloud"&&<section className="rounded-2xl border bg-white p-4 sm:p-5">
