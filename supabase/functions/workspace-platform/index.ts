@@ -134,15 +134,34 @@ async function processOcr(ctx: any, body: any) {
   }
   const model = Deno.env.get("GEMINI_OCR_MODEL") || "gemini-3.8-flash";
   const prompt = "Extract this business document as JSON with document_type, supplier_name, supplier_tax_id, document_number, document_date, due_date, currency, subtotal, tax_total, total, line_items (description, quantity, unit_price, tax_rate, line_total), payment_reference, confidence (0..1), review_notes. Use null for unknown values; never invent unreadable values. This is a review-only draft.";
-  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(apiKey), {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }, { inline_data: { mime_type: mime, data: toBase64(bytes) } }] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } }),
-  });
-  if (!response.ok) { await ctx.admin.rpc("fail_document_ocr_job", { p_job_id: jobId, p_error_code: "OCR_PROVIDER_ERROR" }); throw new Error("OCR_PROVIDER_ERROR"); }
-  const payload = await response.json();
-  const raw = payload?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("") || "";
-  let extracted: Record<string, unknown>;
-  try { extracted = JSON.parse(raw); } catch { await ctx.admin.rpc("fail_document_ocr_job", { p_job_id: jobId, p_error_code: "OCR_INVALID_RESPONSE" }); throw new Error("OCR_INVALID_RESPONSE"); }
+  let extracted: Record<string, unknown> | null = null;
+  let lastError = "OCR_PROVIDER_ERROR";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) {
+      const { data: retryClaim, error: retryClaimError } = await ctx.admin.rpc("claim_document_ocr_job", { p_job_id: jobId });
+      if (retryClaimError || retryClaim?.id !== jobId) throw new Error("OCR_RETRY_CLAIM_FAILED");
+    }
+    try {
+      const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(apiKey), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }, { inline_data: { mime_type: mime, data: toBase64(bytes) } }] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } }),
+        signal: AbortSignal.timeout(45000),
+      });
+      if (!response.ok) throw new Error("OCR_PROVIDER_ERROR");
+      const payload = await response.json();
+      const raw = payload?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("") || "";
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("OCR_INVALID_RESPONSE");
+      extracted = parsed as Record<string, unknown>;
+      break;
+    } catch (error) {
+      lastError = error instanceof SyntaxError ? "OCR_INVALID_RESPONSE" : error instanceof Error && error.message === "OCR_INVALID_RESPONSE" ? "OCR_INVALID_RESPONSE" : "OCR_PROVIDER_ERROR";
+      const { error: failError } = await ctx.admin.rpc("fail_document_ocr_job", { p_job_id: jobId, p_error_code: lastError });
+      if (failError) throw new Error("OCR_JOB_FAILURE_UPDATE_FAILED");
+      if (attempt === 2) throw new Error(lastError);
+    }
+  }
+  if (!extracted) throw new Error(lastError);
   const { data: completed, error: updateError } = await ctx.admin.rpc("complete_document_ocr_job", { p_job_id: jobId, p_extracted_data: extracted, p_model_name: model });
   if (updateError || completed?.id !== jobId) throw new Error("OCR_SAVE_FAILED");
   return { ok: true, jobId, extracted, requiresHumanReview: true };
