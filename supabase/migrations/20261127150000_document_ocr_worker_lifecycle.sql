@@ -35,7 +35,7 @@ security definer
 set search_path = public, pg_temp
 as $$
 begin
-  if coalesce(auth.role(), '') <> 'service_role' then
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
     raise exception 'forbidden' using errcode = '42501';
   end if;
   if p_batch_size is null or p_batch_size < 1 or p_batch_size > 20 then
@@ -89,7 +89,7 @@ as $$
 declare
   v_job public.document_ocr_jobs;
 begin
-  if coalesce(auth.role(), '') <> 'service_role' then
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
     raise exception 'forbidden' using errcode = '42501';
   end if;
   if p_extracted_data is null or jsonb_typeof(p_extracted_data) <> 'object' then
@@ -125,7 +125,7 @@ as $$
 declare
   v_job public.document_ocr_jobs;
 begin
-  if coalesce(auth.role(), '') <> 'service_role' then
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
     raise exception 'forbidden' using errcode = '42501';
   end if;
   if p_error_code is null or length(btrim(p_error_code)) not between 1 and 80 then
@@ -158,7 +158,7 @@ as $$
 declare
   v_job public.document_ocr_jobs;
 begin
-  if coalesce(auth.role(), '') <> 'service_role' then
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
     raise exception 'forbidden' using errcode = '42501';
   end if;
 
