@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [migration, endpoint, webhook] = await Promise.all([
+const [migration, rateLimitMigration, endpoint, webhook] = await Promise.all([
   read("../../../supabase/migrations/20261123025844_main_workspace_platform_capabilities.sql"),
+  read("../../../supabase/migrations/20261123030605_main_workspace_public_api_rate_limits.sql"),
   read("../../../supabase/functions/workspace-platform/index.ts"),
   read("../../../supabase/functions/workspace-whatsapp-webhook/index.ts"),
 ]);
@@ -62,6 +63,6 @@ test("public API and MCP keys are hashed, revocable, rate-limited and scope cons
   assert.match(fn, /api_key\.created/);
   assert.match(fn, /api-key\.revoke/);
   assert.match(migration, /key_hash text not null unique/);
-  assert.match(migration, /consume_main_workspace_api_rate_limit/);
+  assert.match(rateLimitMigration, /consume_main_workspace_api_rate_limit/);
   assert.match(migration, /mcp\.read/);
 });
