@@ -217,6 +217,9 @@ async function publicApi(req: Request, admin: any, body: any): Promise<any> {
     {name:"workspace_summary",description:"Read aggregate workspace settings and counts",inputSchema:{type:"object",properties:{},additionalProperties:false}},
     ...(key.scopes.includes("invoices.read") ? [{name:"list_invoices",description:"List recent workspace invoices",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
     ...(key.scopes.includes("clients.read") ? [{name:"list_clients",description:"List workspace clients",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
+    ...(key.scopes.includes("expenses.read") ? [{name:"list_expenses",description:"List recent workspace expenses",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
+    ...(key.scopes.includes("leads.read") ? [{name:"list_leads",description:"List workspace CRM leads",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
+    ...(key.scopes.includes("inventory.read") ? [{name:"list_low_stock",description:"List workspace low-stock inventory items",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
     {name:"business_insights",description:"Generate aggregate AI business insights without customer PII",inputSchema:{type:"object",properties:{},additionalProperties:false}}
   ] } };
   if (action === "mcp.tools/call") {
@@ -226,6 +229,20 @@ async function publicApi(req: Request, admin: any, body: any): Promise<any> {
     if (name === "workspace_summary") return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify(await publicApi(req,admin,{action:"workspace.summary",_workspaceId:key.workspace_id}))}]}};
     if (name === "list_invoices") return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify(await publicApi(req,admin,{action:"invoices.list",_workspaceId:key.workspace_id,limit:args.limit}))}]}};
     if (name === "list_clients") return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify(await publicApi(req,admin,{action:"clients.list",_workspaceId:key.workspace_id,limit:args.limit}))}]}};
+    const mcpLists: Record<string,{action:string;table:string;scope:string;fields:string}> = {
+      list_expenses: {action:"expenses.list",table:"expenses",scope:"expenses.read",fields:"id,vendor,category,amount,date,currency_code,status"},
+      list_leads: {action:"leads.list",table:"leads",scope:"leads.read",fields:"id,name,company,stage,value,score,next_follow_up_at,currency_code"},
+      list_low_stock: {action:"inventory.low_stock",table:"stock",scope:"inventory.read",fields:"id,name,sku,quantity,low_stock,unit,warehouse_id"}
+    };
+    const listTool = mcpLists[name];
+    if (listTool) {
+      if (!key.scopes.includes(listTool.scope)) throw new Error("API_SCOPE_DENIED");
+      const limit = Math.min(100, Math.max(1, Number(args.limit) || 50));
+      const {data,error} = await admin.from(listTool.table).select(listTool.fields).eq("workspace_id",key.workspace_id).limit(limit);
+      if (error) throw new Error("API_READ_FAILED");
+      const records = name === "list_low_stock" ? (data||[]).filter((x:any)=>Number(x.quantity)<=Number(x.low_stock)) : (data||[]);
+      return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify({ok:true,records})}]}};
+    }
     if (name === "business_insights") {
       const [{data:inv},{data:exp},{data:leads},{data:stock}] = await Promise.all([
         admin.from("invoices").select("status,total,currency").eq("workspace_id",key.workspace_id).limit(500),
