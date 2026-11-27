@@ -89,16 +89,16 @@ begin
     'description',btrim(p_description),
     'currency_code',p_currency_code,
     'lines',coalesce(jsonb_agg(jsonb_build_object(
-      'account_id',(e->>'account_id')::uuid,
-      'debit',coalesce((e->>'debit')::numeric,0),
-      'credit',coalesce((e->>'credit')::numeric,0),
-      'memo',left(coalesce(e->>'memo',''),300)
-    ) order by (e->>'account_id')::uuid,
-      coalesce((e->>'debit')::numeric,0),
-      coalesce((e->>'credit')::numeric,0),
-      left(coalesce(e->>'memo',''),300)),'[]'::jsonb)
+      'account_id',(line.value->>'account_id')::uuid,
+      'debit',coalesce((line.value->>'debit')::numeric,0),
+      'credit',coalesce((line.value->>'credit')::numeric,0),
+      'memo',left(coalesce(line.value->>'memo',''),300)
+    ) order by (line.value->>'account_id')::uuid,
+      coalesce((line.value->>'debit')::numeric,0),
+      coalesce((line.value->>'credit')::numeric,0),
+      left(coalesce(line.value->>'memo',''),300)),'[]'::jsonb)
   )::text) into v_fingerprint
-  from jsonb_array_elements(p_lines) e;
+  from jsonb_array_elements(p_lines) as line(value);
 
   -- Serialize same-key requests before checking or inserting the journal.
   perform pg_advisory_xact_lock(hashtextextended(
@@ -131,9 +131,9 @@ begin
   ) returning id into v_id;
 
   for v_line in select value from jsonb_array_elements(p_lines) loop
-    v_account:=(v_line->>'account_id')::uuid;
-    v_debit:=coalesce((v_line->>'debit')::numeric,0);
-    v_credit:=coalesce((v_line->>'credit')::numeric,0);
+    v_account:=(v_linline.value->>'account_id')::uuid;
+    v_debit:=coalesce((v_linline.value->>'debit')::numeric,0);
+    v_credit:=coalesce((v_linline.value->>'credit')::numeric,0);
 
     if v_debit<0 or v_credit<0 or ((v_debit>0)=(v_credit>0))
       or not exists(
@@ -147,7 +147,7 @@ begin
       workspace_id,entry_id,account_id,debit,credit,memo
     ) values (
       p_workspace_id,v_id,v_account,v_debit,v_credit,
-      left(coalesce(v_line->>'memo',''),300)
+      left(coalesce(v_linline.value->>'memo',''),300)
     );
 
     v_debits:=v_debits+v_debit;
