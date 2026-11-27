@@ -4,6 +4,7 @@
 
 ## Fields
 - `duration_ms`: end-to-end Edge Function time, including context reads and model response.
+- `ttft_ms`: time to the first upstream model chunk for eligible streamed simple-chat turns; `null` for non-streamed requests.
 - `request_class`: `simple` or `business`, derived from the existing request policy.
 - `provider` / `model`: selected model route when generation succeeds.
 - `status`: final HTTP status.
