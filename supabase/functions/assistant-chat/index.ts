@@ -68,7 +68,7 @@ async function loadLiveContext(supabase: any, workspaceId: string, userText = ""
     plan.businessProfile
       ? supabase.from("business_profile").select("name,email,phone,gstin,address,upi_id,logo_url,country_code,tax_registration_number,tax_registration_type,tax_registration_status,tax_registration_effective_from,tax_jurisdiction_code").eq("workspace_id", workspaceId).maybeSingle()
       : emptySingle(),
-    query(plan.purchasing, () => supabase.from("warehouses").select("id,name,code,address,is_default,is_active,created_at").eq("workspace_id", workspaceId).eq("is_active", true).order("created_at", { ascending: false }).limit(100)),
+    query(plan.inventory || plan.purchasing, () => supabase.from("warehouses").select("id,name,code,address,is_default,is_active,created_at").eq("workspace_id", workspaceId).eq("is_active", true).order("created_at", { ascending: false }).limit(100)),
     query(plan.purchasing, () => supabase.from("purchase_orders").select("id,supplier_name,supplier_reference,status,order_date,expected_date,currency_code,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(100)),
     query(plan.purchasing, () => supabase.from("purchase_order_items").select("id,purchase_order_id,stock_id,quantity_ordered,quantity_received,unit_cost,currency_code").eq("workspace_id", workspaceId).limit(500)),
     query(plan.purchasing, () => supabase.from("purchase_receipts").select("id,purchase_order_id,warehouse_id,received_at").eq("workspace_id", workspaceId).order("received_at", { ascending: false }).limit(100)),
