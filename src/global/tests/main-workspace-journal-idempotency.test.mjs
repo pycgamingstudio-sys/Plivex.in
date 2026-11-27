@@ -12,7 +12,10 @@ const migration = readFileSync(
 
 test("main-workspace journal idempotency binds a key to its payload", () => {
   assert.match(migration, /add column if not exists request_fingerprint text/i);
-  assert.match(migration, /md5\(jsonb_build_object\([\s\S]*?'lines',\s*p_lines/i);
+  assert.match(migration, /jsonb_array_elements\(p_lines\) as line\(value\)/i);
+  assert.match(migration, /line\.value->>'account_id'/i);
+  assert.match(migration, /order by \(line\.value->>'account_id'\)::uuid/i);
+  assert.match(migration, /update public\.journal_entries j[\s\S]*?where j\.request_fingerprint is null/i);
   assert.match(migration, /pg_advisory_xact_lock\(hashtextextended\(/i);
   assert.match(migration, /request_fingerprint is distinct from v_fingerprint/i);
   assert.match(migration, /'idempotency_conflict'/);
