@@ -38,7 +38,8 @@ test("TDS records use server-calculated minor-unit amounts and immutable idempot
 test("E-invoice preparation validates GSTIN, invoice lines, HSN/SAC and UQC before marking ready",()=>{
   assert.match(edge,/prepare_einvoice/);
   assert.match(edge,/gstin\(seller\.tax_registration_number\)/);
-  assert.match(edge,/gstin\(buyer\?\.gstin\)/);
+  assert.match(edge,/buyerDetails=buyer\|\|invoice\.invoice_snapshot\?\.client/);
+  assert.match(edge,/gstin\(buyerDetails\?\.gstin\)/);
   assert.match(edge,/hsn_sac_code/);
   assert.match(edge,/unit_code/);
   assert.match(edge,/status:errors\.length\?"draft":"ready"/);
