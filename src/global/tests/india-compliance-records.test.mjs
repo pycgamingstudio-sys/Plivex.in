@@ -41,7 +41,7 @@ test("E-invoice preparation validates GSTIN, invoice lines, HSN/SAC and UQC befo
 test("E-way bill preparation requires transport evidence and prevents duplicate active bills",()=>{
   assert.match(edge,/prepare_eway_bill/);
   assert.match(edge,/distance<1\|\|distance>4000/);
-  assert.match(edge,/vehicle\|\|!transporter/);
+  assert.match(edge,/!vehicle\s*&&\s*!transporter/);
   assert.match(edge,/An active e-way bill already exists/);
 });
 
