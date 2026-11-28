@@ -9,6 +9,7 @@ test("classifies every Global-only write as Global-only", () => {
     "create_global_product",
     "create_global_supplier",
     "record_global_invoice_payment",
+    "transfer_global_stock",
   ]);
   for (const type of GLOBAL_ONLY_ASSISTANT_ACTIONS) {
     assert.equal(isGlobalOnlyAssistantAction(type), true, type);

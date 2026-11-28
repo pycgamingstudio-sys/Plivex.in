@@ -46,3 +46,9 @@ test("supplier-only Global queries load the authenticated supplier context", () 
   assert.equal(result.loadGlobalContext, true);
   assert.equal(result.simpleConversationalTurn, false);
 });
+
+test("stock transfer requests load authenticated warehouse and inventory context", () => {
+  const result = getAssistantRequestPolicy({ isGlobalWorkspace: true, needsGlobalTransferContext: true });
+  assert.equal(result.loadGlobalContext, true);
+  assert.equal(result.simpleConversationalTurn, false);
+});
