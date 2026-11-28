@@ -3,11 +3,13 @@ import { Send, X, Sparkles, CheckCircle2, Loader2, PlusCircle, ImagePlus, Mic, M
 import { assistantEnabled, supabase } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
 import { refreshWorkspaceKey } from "@/lib/stores";
+import { isAffirmativeConfirmation } from "@/lib/assistant-confirmation-intent";
+import { streamAssistantChat } from "@/lib/assistant-streaming.mjs";
 
 const STARTERS = [
-  "Mere pending invoices aur total pending amount batao",
-  "Low stock items kaun se hain?",
-  "Mere total clients aur recent expenses batao",
+  "Mere business ki performance review karo",
+  "Sales aur expenses compare karke samjhao",
+  "Profit aur cash flow improve karne ke ideas do",
 ];
 
 async function readableError(error) {
@@ -85,9 +87,22 @@ export default function AssistantWidget() {
   async function send(raw = draft) {
     const content = String(raw || "").trim().slice(0, 1000);
     if ((!content && !attachment) || busy) return;
+    // A clear text-only affirmation confirms the most recent pending draft
+    // through the same idempotent endpoint as the visible Confirm & Save button.
+    const lastIndex = messages.length - 1;
+    const lastMessage = lastIndex >= 0 ? messages[lastIndex] : null;
+    const pendingActions = lastMessage?.pendingActions || (lastMessage?.pendingAction ? [lastMessage.pendingAction] : []);
+    const pendingKey = lastMessage?.idempotencyKey || lastMessage?.pendingAction?.idempotencyKey;
+    if (!attachment && isAffirmativeConfirmation(content) && lastMessage?.role === "assistant" &&
+        lastMessage?.actionStatus === "pending" && pendingActions.length && pendingKey) {
+      setDraft("");
+      setError("");
+      await confirmAction(pendingActions, pendingKey, lastIndex);
+      return;
+    }
     const sentAttachment = attachment;
-    const next = [...messages, { role: "user", content: content || (sentAttachment ? "Please add this receipt as an expense and prepare the extracted details for confirmation." : ""), imageDataUrl: sentAttachment || null }];
-    setMessages(next);
+    const next = [...messages, { role: "user", content: content || (sentAttachment ? "Please inspect this image, describe what it shows, and extract any relevant business details. Do not create a record unless I ask." : ""), imageDataUrl: sentAttachment || null }];
+    setMessages([...next, { role: "assistant", content: "", isStreaming: true }]);
     setAttachment(null);
     setDraft("");
     setError("");
@@ -96,28 +111,60 @@ export default function AssistantWidget() {
     try {
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 60000);
-      let response;
+      let data;
       try {
-        response = await supabase.functions.invoke("assistant-chat", {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        const accessToken = sessionData?.session?.access_token;
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        if (!accessToken) throw new Error("Your session expired. Please sign in again.");
+        if (!supabaseUrl || !anonKey) throw new Error("AI assistant is not configured. Please contact support.");
+        data = await streamAssistantChat({
+          url: supabaseUrl.replace(/\/+$/, "") + "/functions/v1/assistant-chat",
+          anonKey,
+          accessToken,
           body: {
             messages: next.slice(-16).map(({ role, content: text }) => ({ role, content: String(text || "").slice(0, 1200) })),
             image: sentAttachment ? { mimeType: sentAttachment.slice(5, sentAttachment.indexOf(";")), data: sentAttachment.split(",")[1] } : null,
           },
           signal: controller.signal,
+          onPartial: (partial) => setMessages((current) => {
+            const index = current.length - 1;
+            if (index < 0 || current[index]?.role !== "assistant" || !current[index]?.isStreaming) return current;
+            const updated = [...current];
+            updated[index] = { ...updated[index], content: partial };
+            return updated;
+          }),
         });
       } finally { window.clearTimeout(timeout); }
-      const { data, error: invokeError } = response;
-      if (invokeError) throw invokeError;
-      if (!data?.reply) throw new Error("AI returned an empty response. Please try again.");
-      setMessages((current) => [...current, {
-        role: "assistant",
-        content: data.reply,
-        pendingAction: data.pendingAction || null,
-        pendingActions: data.pendingActions || null,
-        idempotencyKey: data.idempotencyKey || data.pendingAction?.idempotencyKey || null,
-        actionStatus: (data.pendingAction || data.pendingActions?.length) ? "pending" : null,
-      }]);
+      setMessages((current) => {
+        const index = current.length - 1;
+        const completed = {
+          role: "assistant", content: data.reply,
+          pendingAction: data.pendingAction || null,
+          pendingActions: data.pendingActions || null,
+          idempotencyKey: data.idempotencyKey || data.pendingAction?.idempotencyKey || null,
+          actionStatus: (data.pendingAction || data.pendingActions?.length) ? "pending" : null,
+          isStreaming: false,
+        };
+        if (index >= 0 && current[index]?.role === "assistant" && current[index]?.isStreaming) {
+          const updated = [...current];
+          updated[index] = { ...current[index], ...completed };
+          return updated;
+        }
+        return [...current, completed];
+      });
     } catch (err) {
+      setMessages((current) => {
+        const index = current.length - 1;
+        if (index >= 0 && current[index]?.role === "assistant" && current[index]?.isStreaming) return current.slice(0, index);
+        return current;
+      });
+      // Keep the user's request (and attachment) available after provider/network
+      // failures so they can retry without reconstructing the business instruction.
+      setDraft(content);
+      if (sentAttachment) setAttachment(sentAttachment);
       setRetryAction(null);
       setError(await readableError(err));
     } finally {
@@ -131,22 +178,42 @@ export default function AssistantWidget() {
     setRetryAction(null);
     setBusy(true);
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke("assistant-confirm", {
-        body: { actions, idempotencyKey },
-      });
+      // Bound confirmation latency in the browser. If the request is aborted after
+      // the server has started, retryAction retains the same idempotency key so a
+      // retry cannot create a second record.
+      const controller = new AbortController();
+      const confirmationTimeout = window.setTimeout(() => controller.abort(), 45000);
+      let confirmation;
+      try {
+        confirmation = await supabase.functions.invoke("assistant-confirm", {
+          body: { actions, idempotencyKey },
+          signal: controller.signal,
+        });
+      } finally {
+        window.clearTimeout(confirmationTimeout);
+      }
+      const { data, error: invokeError } = confirmation;
       if (invokeError) throw invokeError;
+      if (!data?.ok) throw new Error(data?.error || data?.reply || "Plivex did not confirm that these records were saved. Check the module before retrying.");
       setRetryAction(null);
       const affectedKeys = [...new Set(actions.map((action) => ({
-        create_invoice: "history", create_expense: "expenses", create_stock: "stock",
-        create_client: "clients", create_lead: "leads", create_quotation: "quotations",
+        create_invoice: "history", create_expense: "expenses", create_global_expense: "expenses", create_stock: "stock",
+        create_global_product: "stock", create_client: "clients", create_global_client: "clients",
+        record_global_invoice_payment: "history", create_lead: "leads", create_quotation: "quotations",
+        create_purchase_order: "stock",
+        create_warehouse: "stock",
+        receive_purchase_order: "stock",
       }[action?.type])).filter(Boolean))];
       await Promise.all(affectedKeys.map((key) => refreshWorkspaceKey(key)));
       window.dispatchEvent(new CustomEvent("plivex-workspace-data-updated", { detail: { keys: affectedKeys } }));
       setMessages((current) => {
         const updated = current.map((message, index) => index === messageIndex
-          ? { ...message, pendingAction: null, pendingActions: null, actionStatus: "done" }
+          ? { ...message, pendingAction: null, pendingActions: null, actionStatus: data?.verified ? "done" : "unverified" }
           : message);
-        return [...updated, { role: "assistant", content: actions.some((action) => action?.type === "create_invoice") ? "Invoice draft saved. Open Invoice History → Drafts to find and download it." : (data?.reply || "The record was saved.") }];
+        const successMessage = data?.verified && actions.some((action) => action?.type === "create_invoice")
+          ? "Invoice draft saved and verified. Open Invoice History → Drafts to find and download it."
+          : (data?.reply || "The save operation status is unclear. Check the relevant module before retrying.");
+        return [...updated, { role: "assistant", content: successMessage }];
       });
     } catch (err) {
       setRetryAction({ actions, idempotencyKey, messageIndex });
@@ -175,7 +242,9 @@ export default function AssistantWidget() {
       return;
     }
     const recognition = new SpeechRecognition();
-    recognition.lang = /[\u0900-\u097F]/.test(draft) ? "hi-IN" : "hi-IN";
+    const browserLanguage = String(navigator.language || "en-IN").toLowerCase();
+    const scriptHint = /[\u0900-\u097F]/.test(draft);
+    recognition.lang = scriptHint ? "hi-IN" : (browserLanguage.startsWith("hi") ? "hi-IN" : browserLanguage.startsWith("en") ? "en-IN" : browserLanguage);
     recognition.interimResults = true;
     recognition.continuous = false;
     recognition.onresult = (event) => {
@@ -196,19 +265,19 @@ export default function AssistantWidget() {
   return (
     <div className="notranslate">
       {!open ? (
-        <button onClick={() => { if (suppressFabClickRef.current) { suppressFabClickRef.current = false; return; } setOpen(true); }} onPointerDown={startFabDrag} onPointerMove={moveFabDrag} onPointerUp={endFabDrag} onPointerCancel={endFabDrag} aria-label="Drag or open Plivex AI assistant" title="Drag to move; tap to open" style={fabPosition ? { left: fabPosition.left, top: fabPosition.top, right: "auto", bottom: "auto", touchAction: "none" } : { touchAction: "none" }} className={`fixed ${fabPosition ? "" : "bottom-20 right-4 md:bottom-5"} z-[60] flex h-14 w-14 cursor-grab items-center justify-center rounded-full bg-[#6D28D9] text-white shadow-xl hover:bg-[#5B21B6] active:cursor-grabbing`}>
+        <button onClick={() => { if (suppressFabClickRef.current) { suppressFabClickRef.current = false; return; } setOpen(true); }} onPointerDown={startFabDrag} onPointerMove={moveFabDrag} onPointerUp={endFabDrag} onPointerCancel={endFabDrag} aria-label="Drag or open Plivex Nova assistant" title="Drag to move; tap to open" style={fabPosition ? { left: fabPosition.left, top: fabPosition.top, right: "auto", bottom: "auto", touchAction: "none" } : { touchAction: "none" }} className={`fixed ${fabPosition ? "" : "bottom-20 right-4 md:bottom-5"} z-[60] flex h-14 w-14 cursor-grab items-center justify-center rounded-full bg-[#6D28D9] text-white shadow-xl hover:bg-[#5B21B6] active:cursor-grabbing`}>
           <Sparkles className="h-6 w-6" />
         </button>
       ) : (
-        <section role="dialog" aria-label="Plivex AI assistant" className="fixed bottom-20 left-3 right-3 z-[70] flex h-[70vh] max-h-[680px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:left-auto sm:right-4 sm:w-[390px] md:bottom-4">
+        <section role="dialog" aria-label="Plivex Nova assistant" className="fixed bottom-20 left-3 right-3 z-[70] flex h-[70vh] max-h-[680px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:left-auto sm:right-4 sm:w-[390px] md:bottom-4">
           <header className="flex items-center justify-between bg-[#6D28D9] px-4 py-3 text-white">
-            <div className="flex items-center gap-2"><Sparkles className="h-5 w-5" /><div><p className="text-sm font-bold">Plivex AI Assistant</p><p className="text-[11px] opacity-80">Live workspace · Gemini</p></div></div>
+            <div className="flex items-center gap-2"><Sparkles className="h-5 w-5" /><div><p className="text-sm font-bold">Plivex Nova</p><p className="text-[11px] opacity-80">Your AI Business Manager</p></div></div>
             <button onClick={() => setOpen(false)} aria-label="Close assistant" className="rounded-lg p-2 hover:bg-white/10"><X className="h-4 w-4" /></button>
           </header>
           <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 px-3 py-4">
             {messages.length === 0 && <div className="rounded-xl bg-white p-3 text-sm text-slate-600 shadow-sm">
-              <p className="font-semibold text-slate-800">Namaste! I can check live data in your Plivex workspace.</p>
-              <p className="mt-1 text-xs">I can read invoices, clients, stock, expenses, quotations, leads and services. I can prepare invoice drafts, clients, expenses, leads, stock items and quotations for your confirmation. I won't save anything until you tap Confirm & Add.</p>
+              <p className="font-semibold text-slate-800">Namaste! Apne business ke baare mein freely baat karein — Nova aapki madad ke liye hai.</p>
+              <p className="mt-1 text-xs">Ask questions, discuss business strategy, understand reports, explore ideas, and ask follow-up questions in Hindi, Hinglish or English. Nova can also prepare supported business actions for your review. Nothing is saved until you confirm; unsupported actions are clearly identified.</p>
               <div className="mt-3 flex flex-wrap gap-2">{STARTERS.map((q) => <button key={q} onClick={() => send(q)} className="rounded-full border border-purple-200 bg-purple-50 px-3 py-2 text-left text-xs text-purple-800">{q}</button>)}</div>
             </div>}
             {messages.map((m, i) => <div key={m.id || i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
@@ -216,19 +285,20 @@ export default function AssistantWidget() {
                 {m.content}
                 {m.imageDataUrl && <img src={m.imageDataUrl} alt="Attached business document" className="mt-2 max-h-40 max-w-full rounded-lg border border-slate-200 object-contain" />}
                 {(m.pendingAction || m.pendingActions?.length) && <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50 p-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-purple-900"><PlusCircle className="h-4 w-4" /> {m.pendingActions?.length > 1 ? "Ready to complete " + m.pendingActions.length + " actions" : "Ready to add"}</div>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-purple-900"><PlusCircle className="h-4 w-4" /> {m.pendingActions?.length > 1 ? "Ready to complete " + m.pendingActions.length + " actions" : "Ready for confirmation"}</div>
                   <div className="mt-2 space-y-2">{(m.pendingActions || [m.pendingAction]).map((action, actionIndex) => <p key={actionIndex} className="text-sm font-medium text-slate-800">{actionIndex + 1}. {action.summary}</p>)}</div>
-                  <p className="mt-2 text-[11px] text-slate-600">Nothing is saved until you confirm. All actions are validated together; if one fails, the batch is rolled back.</p>
+                  <p className="mt-2 text-[11px] text-slate-600">Nothing is saved until you confirm. Purchase orders and goods receipts are confirmed separately; other supported action batches are validated and executed atomically.</p>
                   <div className="mt-3 flex gap-2">
-                    <button disabled={busy} onClick={() => confirmAction(m.pendingActions || [m.pendingAction], m.idempotencyKey || m.pendingAction?.idempotencyKey, i)} className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#6D28D9] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</> : <><CheckCircle2 className="h-3.5 w-3.5" /> Confirm & Add</>}</button>
+                    <button disabled={busy} onClick={() => confirmAction(m.pendingActions || [m.pendingAction], m.idempotencyKey || m.pendingAction?.idempotencyKey, i)} className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#6D28D9] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</> : <><CheckCircle2 className="h-3.5 w-3.5" /> Confirm & Save</>}</button>
                     <button disabled={busy} onClick={() => cancelAction(i)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 disabled:opacity-50">Cancel</button>
                   </div>
                 </div>}
-                {m.actionStatus === "done" && <p className="mt-2 flex items-center gap-1 text-[11px] text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" /> Saved to Plivex</p>}
+                {m.actionStatus === "done" && <p className="mt-2 flex items-center gap-1 text-[11px] text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" /> Saved and verified in Plivex</p>}
+                {m.actionStatus === "unverified" && <p role="status" className="mt-2 text-[11px] text-amber-700">Save was accepted, but verification is incomplete. Check the relevant Plivex module before retrying.</p>}
                 {m.actionStatus === "cancelled" && <p className="mt-2 text-[11px] text-slate-500">Addition cancelled; nothing was saved.</p>}
               </div>
             </div>)}
-            {busy && <p className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Plivex AI is reading your request…</p>}
+            {busy && <p className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Nova is reading your request…</p>}
             {error && <div className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{error} <button onClick={() => retryAction ? confirmAction(retryAction.actions, retryAction.idempotencyKey, retryAction.messageIndex) : send(messages[messages.length - 1]?.content)} className="ml-1 font-bold underline">Retry</button></div>}
             <div ref={bottomRef} />
           </div>
@@ -237,8 +307,8 @@ export default function AssistantWidget() {
             <div className="flex items-center gap-2">
               <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; if (file.size > 12 * 1024 * 1024) { setError("Image must be smaller than 12 MB."); e.target.value = ""; return; } const reader = new FileReader(); reader.onload = () => { const source = typeof reader.result === "string" ? reader.result : ""; const img = new Image(); img.onload = () => { const max = 1800; const ratio = Math.min(1, max / Math.max(img.width, img.height)); const canvas = document.createElement("canvas"); canvas.width = Math.max(1, Math.round(img.width * ratio)); canvas.height = Math.max(1, Math.round(img.height * ratio)); const ctx = canvas.getContext("2d"); if (!ctx) { setError("Image processing unavailable."); return; } ctx.drawImage(img, 0, 0, canvas.width, canvas.height); setAttachment(canvas.toDataURL("image/jpeg", 0.9)); }; img.onerror = () => setError("Could not read this image. Please choose another photo."); img.src = source; }; reader.readAsDataURL(file); e.target.value = ""; }} />
               <button type="button" onClick={() => imageInputRef.current?.click()} disabled={busy} aria-label="Attach receipt or image" title="Attach receipt or image" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-[#6D28D9] disabled:opacity-50"><ImagePlus className="h-5 w-5" /></button>
-              <button type="button" onClick={toggleVoiceInput} disabled={busy} aria-label={listening ? "Stop voice input" : "Start voice input"} title={listening ? "Stop voice input" : "Speak to Plivex AI"} className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border disabled:opacity-50 ${listening ? "border-red-300 bg-red-50 text-red-600" : "border-slate-200 text-[#6D28D9]"}`}>{listening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button>
-              <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={1000} placeholder="Ask Plivex AI or add a receipt…" className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-purple-500" />
+              <button type="button" onClick={toggleVoiceInput} disabled={busy} aria-label={listening ? "Stop voice input" : "Start voice input"} title={listening ? "Stop voice input" : "Speak to Nova"} className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border disabled:opacity-50 ${listening ? "border-red-300 bg-red-50 text-red-600" : "border-slate-200 text-[#6D28D9]"}`}>{listening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button>
+              <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={1000} placeholder="Ask Nova about your business…" className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-purple-500" />
               <button type="submit" disabled={busy || (!draft.trim() && !attachment)} aria-label="Send message" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#6D28D9] text-white disabled:opacity-50"><Send className="h-4 w-4" /></button>
             </div>
           </form>

@@ -16,6 +16,8 @@ jobs:
         run: bash -n scripts/verify-production-baseline-replay.sh
       - run: npm run test:membership
       - run: npm run test:global
+      - name: Test Plivex AI tool registry
+        run: npm run test:assistant
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build
