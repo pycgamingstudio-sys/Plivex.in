@@ -34,7 +34,7 @@ test("statement parser accepts one populated side in debit-credit bank exports",
 
 
 test("statement parser detects repeated bank references without dropping them silently", () => {
-  const result = parseBankStatementImport("Date,Description,Amount,Type,Reference\\n2026-11-01,Receipt,100,CR,UTR-1\\n2026-11-01,Receipt duplicate,100,CR,UTR-1\\n");
+  const result = parseBankStatementImport("Date,Description,Amount,Type,Reference\n2026-11-01,Receipt,100,CR,UTR-1\n2026-11-01,Receipt duplicate,100,CR,UTR-1\n");
   assert.equal(result.rows.length, 1);
   assert.equal(result.errors.length, 1);
   assert.equal(result.errors[0].sourceRow, 3);
