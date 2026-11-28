@@ -50,6 +50,8 @@ create table if not exists public.workspace_event_outbox (
   entity_id text not null,
   payload jsonb not null default '{}'::jsonb check (jsonb_typeof(payload) = 'object'),
   occurred_at timestamptz not null default now(),
+  processed_at timestamptz,
+  processing_error_code text,
   created_at timestamptz not null default now()
 );
 create index if not exists workspace_event_outbox_workspace_idx
