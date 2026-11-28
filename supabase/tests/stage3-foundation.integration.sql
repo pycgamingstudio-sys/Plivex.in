@@ -157,6 +157,27 @@ begin
   insert into public.workspace_settings(workspace_id,country_code,locale_code,currency_code,created_by)
   values (v_workspace,'US','en-US','USD',v_user);
 
+  -- The lead creation path is guarded by the shared persisted-plan trigger.
+  -- Give this disposable workspace a deterministic Basic entitlement rather
+  -- than weakening or bypassing the production feature gate in the test.
+  insert into public.plan_features(plan,feature,allowed)
+  values ('basic','lead_pipeline',true)
+  on conflict (plan,feature) do update set allowed=excluded.allowed;
+  insert into public.plan_limits(plan,resource,max_count,period)
+  values ('basic','leads',200,'total')
+  on conflict (plan,resource) do update set max_count=excluded.max_count,period=excluded.period;
+  insert into public.subscriptions(
+    id,user_id,user_email,workspace_id,plan_id,plan_name,tier,status,
+    amount,currency,gateway,payu_txnid,payu_payment_id,started_at,expires_at,
+    amount_paise,txnid,provider
+  ) values (
+    '00000000-0000-4000-8000-000000000993',v_user,'stage3-api-test@example.test',
+    v_workspace,'basic_monthly','Basic Monthly','basic','active',
+    1,'USD','payu','STAGE3-API-PLAN-001','STAGE3-API-PAYMENT-001',
+    now()-interval '1 day',now()+interval '30 days',100,
+    'STAGE3-API-PLAN-001','payu'
+  ) on conflict (id) do nothing;
+
   insert into public.public_api_keys(workspace_id,created_by,label,key_hash,key_prefix,scopes,expires_at)
   values (v_workspace,v_user,'Stage 3 test key',repeat('a',64),'plx_test01',array['workspace.read','leads.write'],now()+interval '1 day')
   returning id into v_key;
