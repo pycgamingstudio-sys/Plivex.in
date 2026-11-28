@@ -1,8 +1,11 @@
 import { getCurrencyPrecision, assertMinorAmount } from "./currency-precision.js";
 
 const isDate = (value) => {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value)) return false;
-  return !Number.isNaN(Date.parse(value));
+  if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$/.test(value)) return false;
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return false;
+  const expected = value.replace(/(?:\\.(\\d{1,3}))?Z$/, (_, fraction) => `.${(fraction || "").padEnd(3, "0")}Z`);
+  return new Date(timestamp).toISOString() === expected;
 };
 const positiveIntegerString = (v) => typeof v === "string" && /^[1-9]\d{0,37}$/.test(v);
 const roundHalfUp = (n, d) => {
