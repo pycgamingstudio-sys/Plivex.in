@@ -56,7 +56,7 @@ export function parseBankStatementImport(csvText) {
   if (dateIndex < 0 || descriptionIndex < 0 || (amountIndex < 0 && debitIndex < 0 && creditIndex < 0)) {
     throw new Error("CSV needs Date, Description/Narration and Amount or Debit/Credit columns.");
   }
-  const valid = [], errors = [];
+  const valid = [], errors = [], seenReferences = new Map();
   rows.slice(1).forEach((cells, index) => {
     const sourceRow = index + 2;
     const rawRow = Object.fromEntries(headers.map((header, i) => [header || `column_${i + 1}`, cells[i] ?? ""]));
@@ -90,7 +90,7 @@ export function parseBankStatementImport(csvText) {
       else if (credit > 0) { amount = credit; direction = "credit"; }
       else { issue("Each row needs a positive Debit or Credit amount."); return; }
     }
-    valid.push({ date, description, reference: reference || null, amount, direction, sourceRow, rawRow });
+    if (reference) {\n      const referenceKey = `${date}|${direction}|${amount.toFixed(4)}|${reference.toLowerCase()}`;\n      if (seenReferences.has(referenceKey)) { issue(`Duplicate bank reference; first seen on row ${seenReferences.get(referenceKey)}.`); return; }\n      seenReferences.set(referenceKey, sourceRow);\n    }\n    valid.push({ date, description, reference: reference || null, amount, direction, sourceRow, rawRow });
   });
   return { rows: valid, errors, totalRows: rows.length - 1 };
 }
