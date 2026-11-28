@@ -9,6 +9,7 @@ test("classifies every Global-only write as Global-only", () => {
     "create_global_expense",
     "create_global_product",
     "create_global_supplier",
+    "decide_global_approval",
     "record_global_invoice_payment",
     "request_global_approval",
     "set_global_member_permission",

@@ -8,7 +8,7 @@ const validator = (action) => action && ASSISTANT_WRITE_TOOLS[action.type] && ac
 
 test("allows only the explicitly implemented confirmation actions", () => {
   assert.deepEqual(Object.keys(ASSISTANT_WRITE_TOOLS).sort(), [
-    "create_client", "create_expense", "create_global_branch", "create_global_client", "create_global_expense", "create_global_product", "create_global_supplier", "create_invoice", "create_lead", "create_purchase_order", "create_quotation", "create_stock", "create_warehouse", "receive_purchase_order", "record_global_invoice_payment", "request_global_approval", "set_global_member_permission", "transfer_global_stock"
+    "create_client", "create_expense", "create_global_branch", "create_global_client", "create_global_expense", "create_global_product", "create_global_supplier", "create_invoice", "create_lead", "create_purchase_order", "create_quotation", "create_stock", "create_warehouse", "decide_global_approval", "receive_purchase_order", "record_global_invoice_payment", "request_global_approval", "set_global_member_permission", "transfer_global_stock"
   ]);
 });
 
@@ -47,7 +47,7 @@ test("catalog distinguishes implemented actions from planned modules", () => {
   assert.equal(BUSINESS_MODULE_CATALOG.branches.planned, false);
   assert.deepEqual(BUSINESS_MODULE_CATALOG.member_permissions.writeTools, ["set_global_member_permission"]);
   assert.equal(BUSINESS_MODULE_CATALOG.member_permissions.planned, false);
-  assert.deepEqual(BUSINESS_MODULE_CATALOG.approvals.writeTools, ["request_global_approval"]);
+  assert.deepEqual(BUSINESS_MODULE_CATALOG.approvals.writeTools, ["request_global_approval", "decide_global_approval"]);
   assert.equal(BUSINESS_MODULE_CATALOG.approvals.planned, false);
   assert.equal(BUSINESS_MODULE_CATALOG.stock_transfers.planned, false);
   assert.deepEqual(BUSINESS_MODULE_CATALOG.global_expenses.writeTools, ["create_global_expense"]);
