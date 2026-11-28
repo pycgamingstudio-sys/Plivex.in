@@ -115,7 +115,7 @@ begin
   end if;
 end $$;
 
-do $
+do $$
 declare
   v_user uuid := '00000000-0000-4000-8000-000000000991';
   v_workspace text := 'stage3-api-idempotency-test';
@@ -168,10 +168,23 @@ begin
   if (select count(*) from public.workspace_audit_events where workspace_id=v_workspace and action='api.lead_created') <> 1 then
     raise exception 'Idempotent API write did not produce exactly one audit event';
   end if;
-end $;
+end $$;
 
 
-do $
+create or replace function public.test_stage3_fail_webhook_outbox()
+returns trigger language plpgsql as $test$
+begin
+  if new.entity_id = '00000000-0000-4000-8000-000000000995' then
+    raise exception 'TEST_WEBHOOK_OUTBOX_FAILURE';
+  end if;
+  return new;
+end;
+$test$;
+drop trigger if exists test_stage3_fail_webhook_outbox on public.workspace_event_outbox;
+create trigger test_stage3_fail_webhook_outbox before insert on public.workspace_event_outbox
+for each row execute function public.test_stage3_fail_webhook_outbox();
+
+do $$
 declare
   v_workspace text := 'stage3-api-idempotency-test';
   v_user uuid := '00000000-0000-4000-8000-000000000991';
@@ -218,19 +231,6 @@ begin
     raise exception 'Webhook event was not emitted to the outbox exactly once';
   end if;
 
-  create or replace function public.test_stage3_fail_webhook_outbox()
-  returns trigger language plpgsql as $test$
-  begin
-    if new.entity_id = '00000000-0000-4000-8000-000000000995' then
-      raise exception 'TEST_WEBHOOK_OUTBOX_FAILURE';
-    end if;
-    return new;
-  end;
-  $test$;
-  drop trigger if exists test_stage3_fail_webhook_outbox on public.workspace_event_outbox;
-  create trigger test_stage3_fail_webhook_outbox before insert on public.workspace_event_outbox
-  for each row execute function public.test_stage3_fail_webhook_outbox();
-
   insert into public.workspace_webhook_events(
     id,workspace_id,subscription_id,provider_key,provider_event_id,event_type,
     event_timestamp,payload,payload_sha256,signature_verified
@@ -255,9 +255,9 @@ begin
     raise exception 'Webhook retry budget did not dead-letter the event: %, %',v_state,v_attempts;
   end if;
 
-  drop trigger if exists test_stage3_fail_webhook_outbox on public.workspace_event_outbox;
-  drop function if exists public.test_stage3_fail_webhook_outbox();
-end $;
+end $$;
+drop trigger if exists test_stage3_fail_webhook_outbox on public.workspace_event_outbox;
+drop function if exists public.test_stage3_fail_webhook_outbox();
 
 select 'PASS: Stage 3 tables, RLS, least-privilege grants, event triggers, webhook replay/retry, API idempotency and indexes';
 
