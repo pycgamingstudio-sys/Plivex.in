@@ -28,3 +28,19 @@ test("conversion honors zero-decimal quote currency and signed amounts", () => {
   assert.equal(result.ok, true); assert.equal(result.quoteAmountMinor, 150);
   assert.equal(convertMinorAmount(-100, snapshot).quoteAmountMinor, -8350);
 });
+
+test("FX snapshot timestamps reject impossible calendar dates and invalid clock values", () => {
+  assert.equal(validateExchangeRateSnapshot({ ...snapshot, effectiveAt: "2026-02-30T00:00:00Z" }).code, "INVALID_TIMESTAMP");
+  assert.equal(validateExchangeRateSnapshot({ ...snapshot, capturedAt: "2026-11-16T25:00:00Z" }).code, "INVALID_TIMESTAMP");
+  assert.equal(validateExchangeRateSnapshot({ ...snapshot, effectiveAt: "2024-02-29T00:00:00.1Z" }).ok, true);
+});
+
+test("FX snapshots reject a capture timestamp later than the validation clock", () => {
+  const now = Date.parse("2026-11-28T00:00:00Z");
+  assert.equal(validateExchangeRateSnapshot({
+    ...snapshot,
+    capturedAt: "2026-11-29T00:00:00Z",
+    effectiveAt: "2026-11-28T23:00:00Z",
+  }, now).code, "FUTURE_CAPTURE_TIMESTAMP");
+  assert.equal(validateExchangeRateSnapshot(snapshot, Number.NaN).code, "INVALID_VALIDATION_TIME");
+});

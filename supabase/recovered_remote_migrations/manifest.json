@@ -3,7 +3,7 @@
   "captured_at": "2026-11-14",
   "source": "read-only SELECT from supabase_migrations.schema_migrations (version,name,statements)",
   "remote_ledger_entries": 52,
-  "local_migration_files": 111,
+  "local_migration_files": 114,
   "exact_version_matches": 0,
   "basename_matches": [
     {
@@ -441,10 +441,13 @@
     "20261123034430_main_workspace_sales_analytics_exclude_void_invoices.sql",
     "20261123074843_main_workspace_permission_delegation_enforcement.sql",
     "20261123080000_main_workspace_permission_list_override_enforcement.sql",
-    "20261126001219_secure_global_quotation_tax_wrapper.sql",
     "20261125154500_split_workspace_write_policies.sql",
+    "20261126001219_secure_global_quotation_tax_wrapper.sql",
     "20261128095056_document_ocr_worker_lifecycle.sql",
-    "20261128095059_global_part4_resource_list_completion.sql"
+    "20261128095059_global_part4_resource_list_completion.sql",
+    "20261128130000_stage3_integration_automation_vault_foundation.sql",
+    "20261128140000_stage3_public_api_v1_idempotency.sql",
+    "20261128150000_stage3_public_api_lead_write_scope.sql"
   ],
   "notes": [
     "Quotation security migration applied to production as version 20261126001219; the local filename is aligned to that applied version.",

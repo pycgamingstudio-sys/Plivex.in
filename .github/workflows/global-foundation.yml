@@ -43,7 +43,9 @@ jobs:
         run: npm run test:global
 
       - name: Type-check assistant Edge Functions with Deno
-        run: deno check supabase/functions/assistant-chat/source/index.ts supabase/functions/assistant-confirm/source/index.ts supabase/functions/assistant-chat/index.ts supabase/functions/assistant-confirm/index.ts supabase/functions/_shared/global.ts supabase/functions/global-auth-context/index.ts supabase/functions/global-ensure-owner/index.ts supabase/functions/global-update-profile/index.ts supabase/functions/global-business-records/index.ts supabase/functions/global-accounting/index.ts supabase/functions/global-enterprise/index.ts supabase/functions/global-export/index.ts supabase/functions/global-quotations/index.ts supabase/functions/reset-workspace-country/index.ts supabase/functions/update-workspace-locale/index.ts
+        run: deno check supabase/functions/assistant-chat/source/index.ts supabase/functions/assistant-confirm/source/index.ts supabase/functions/assistant-chat/index.ts supabase/functions/assistant-confirm/index.ts supabase/functions/_shared/global.ts supabase/functions/global-auth-context/index.ts supabase/functions/global-ensure-owner/index.ts supabase/functions/global-update-profile/index.ts supabase/functions/global-business-records/index.ts supabase/functions/global-accounting/index.ts supabase/functions/global-enterprise/index.ts supabase/functions/global-export/index.ts supabase/functions/workspace-stage3/index.ts supabase/functions/workspace-platform/index.ts supabase/functions/global-quotations/index.ts supabase/functions/reset-workspace-country/index.ts supabase/functions/update-workspace-locale/index.ts
+      - name: Test public API cursor, validation and error contracts
+        run: deno test supabase/functions/_shared/public-api-contract_test.ts supabase/functions/_shared/webhook-security_test.ts supabase/functions/_shared/document-security_test.ts
 
       - name: Run ESLint
         run: npm run lint
@@ -114,6 +116,14 @@ jobs:
         run: |
           psql -X -v ON_ERROR_STOP=1 -d plivex_migration_replay -f supabase/migrations/202611150006_global_trigger_function_privileges.sql
           psql -X -v ON_ERROR_STOP=1 -d plivex_migration_replay -f supabase/tests/global-trigger-privileges.integration.sql
+
+      - name: Verify Stage 3 RLS, event capture and service-role boundaries
+        env:
+          PGHOST: 127.0.0.1
+          PGUSER: supabase_admin
+          PGPASSWORD: postgres
+          PGPORT: "5434"
+        run: psql -X -v ON_ERROR_STOP=1 -d plivex_migration_replay -f supabase/tests/stage3-foundation.integration.sql
 
       - name: Always stop disposable databases
         if: always()

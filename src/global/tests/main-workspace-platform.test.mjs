@@ -274,5 +274,6 @@ test("Main Workspace API scopes are runtime-filtered and digest inputs use an ow
   assert.match(platform,/input\.buffer as ArrayBuffer/);
   assert.match(platform,/async function publicApi\([\s\S]*?Promise<any>/);
   assert.match(platform,/error: keyError/);
-  assert.match(platform,/error: readError/);
+  assert.match(platform,/API_READ_FAILED/);
+  assert.match(platform,/readPublicApiPage/);
 });

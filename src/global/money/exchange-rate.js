@@ -1,8 +1,11 @@
 import { getCurrencyPrecision, assertMinorAmount } from "./currency-precision.js";
 
 const isDate = (value) => {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value)) return false;
-  return !Number.isNaN(Date.parse(value));
+  if (typeof value !== "string" || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]{1,3})?Z$/.test(value)) return false;
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return false;
+  const expected = value.replace(/(?:[.]([0-9]{1,3}))?Z$/, (_, fraction) => `.${(fraction || "").padEnd(3, "0")}Z`);
+  return new Date(timestamp).toISOString() === expected;
 };
 const positiveIntegerString = (v) => typeof v === "string" && /^[1-9]\d{0,37}$/.test(v);
 const roundHalfUp = (n, d) => {
@@ -12,7 +15,7 @@ const roundHalfUp = (n, d) => {
 };
 
 /** Validate an immutable, source-attributed rational exchange-rate snapshot. */
-export function validateExchangeRateSnapshot(snapshot) {
+export function validateExchangeRateSnapshot(snapshot, nowMs = Date.now()) {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return { ok: false, code: "INVALID_SNAPSHOT" };
   const base = typeof snapshot.baseCurrency === "string" ? snapshot.baseCurrency.toUpperCase() : "";
   const quote = typeof snapshot.quoteCurrency === "string" ? snapshot.quoteCurrency.toUpperCase() : "";
@@ -20,6 +23,8 @@ export function validateExchangeRateSnapshot(snapshot) {
   if (base === quote) return { ok: false, code: "SAME_CURRENCY" };
   if (!positiveIntegerString(snapshot.rateNumerator) || !positiveIntegerString(snapshot.rateDenominator)) return { ok: false, code: "INVALID_RATE" };
   if (!isDate(snapshot.capturedAt) || !isDate(snapshot.effectiveAt)) return { ok: false, code: "INVALID_TIMESTAMP" };
+  if (!Number.isFinite(nowMs)) return { ok: false, code: "INVALID_VALIDATION_TIME" };
+  if (Date.parse(snapshot.capturedAt) > nowMs) return { ok: false, code: "FUTURE_CAPTURE_TIMESTAMP" };
   if (Date.parse(snapshot.effectiveAt) > Date.parse(snapshot.capturedAt)) return { ok: false, code: "FUTURE_EFFECTIVE_RATE" };
   let source;
   try { source = new URL(snapshot.source); } catch { return { ok: false, code: "INVALID_SOURCE" }; }

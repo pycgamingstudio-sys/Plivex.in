@@ -1,11 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { decodePublicApiCursor, encodePublicApiCursor, normalizePublicApiLead, parsePublicApiLimit, publicApiError } from "../_shared/public-api-contract.ts";
 
 const ORIGINS = new Set(["https://plivex.in", "https://www.plivex.in", "https://plivex.netlify.app"]);
 const allowed = (origin: string | null) => !origin || ORIGINS.has(origin) || /^https:\/\/(?:[a-z0-9-]+\.)?[a-z0-9-]+\.(?:pages|workers)\.dev$/.test(origin);
-const cors = (origin: string | null) => ({ "Access-Control-Allow-Origin": origin && allowed(origin) ? origin : "https://plivex.in", "Vary": "Origin", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, x-plivex-key, x-hub-signature-256", "Access-Control-Allow-Methods": "POST, OPTIONS" });
+const cors = (origin: string | null) => ({ "Access-Control-Allow-Origin": origin && allowed(origin) ? origin : "https://plivex.in", "Vary": "Origin", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, x-plivex-key, x-plivex-api-version, idempotency-key, x-correlation-id, x-hub-signature-256", "Access-Control-Allow-Methods": "POST, OPTIONS" });
 const json = (body: unknown, status = 200, origin: string | null = null) => new Response(JSON.stringify(body), { status, headers: { ...cors(origin), "Content-Type": "application/json", "Cache-Control": "no-store" } });
 const encoder = new TextEncoder();
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
+const MAX_REQUEST_BYTES = 6 * 1024 * 1024;
 const HEX = /^[a-f0-9]{64}$/;
 const clean = (value: unknown, max = 200) => String(value ?? "").trim().slice(0, max);
 const sha256 = async (value: string | Uint8Array) => {
@@ -216,8 +218,8 @@ async function apiManagement(ctx: any, body: any) {
   const label = clean(body.label,80);
   const scopeValues: unknown[] = Array.isArray(body.scopes) ? body.scopes as unknown[] : [];
   const scopes: string[] = [...new Set<string>(scopeValues.filter((scope): scope is string => typeof scope === "string"))];
-  const allowedScopes = ["workspace.read","invoices.read","clients.read","expenses.read","leads.read","inventory.read","suppliers.read","mcp.read"];
-  if (label.length < 2 || !scopes.length || scopes.length > 8 || scopes.some((s:string)=>!allowedScopes.includes(s)) || (scopes.includes("mcp.read") && !scopes.includes("workspace.read"))) throw new Error("INVALID_API_KEY");
+  const allowedScopes = ["workspace.read","invoices.read","clients.read","expenses.read","leads.read","leads.write","inventory.read","suppliers.read","mcp.read"];
+  if (label.length < 2 || !scopes.length || scopes.length > 9 || scopes.some((s:string)=>!allowedScopes.includes(s)) || (scopes.includes("mcp.read") && !scopes.includes("workspace.read"))) throw new Error("INVALID_API_KEY");
   const prefix = "plx_" + crypto.randomUUID().replaceAll("-","").slice(0,6); const secret = prefix + "_" + token(32), keyHash = await sha256(secret);
   const days = Math.min(365,Math.max(1,Number(body.expiryDays)||90));
   const { data, error } = await ctx.admin.from("public_api_keys").insert({ workspace_id:ctx.workspaceId,created_by:ctx.user.id,label,key_hash:keyHash,key_prefix:prefix,scopes,expires_at:new Date(Date.now()+days*86400000).toISOString() }).select("id,label,key_prefix,scopes,expires_at,created_at").single();
@@ -225,14 +227,53 @@ async function apiManagement(ctx: any, body: any) {
   await ctx.admin.from("workspace_audit_events").insert({ workspace_id:ctx.workspaceId,actor_id:ctx.user.id,action:"api_key.created",entity_type:"api_key",entity_id:data.id,metadata:{scopes,expires_at:data.expires_at} });
   return { ok:true,key:data,secret };
 }
-async function publicApi(req: Request, admin: any, body: any): Promise<any> {
+async function readPublicApiPage(admin: any, key: any, target: any, body: any) {
+  const limit = parsePublicApiLimit(body.limit);
+  if (limit === null) throw new Error("API_LIMIT_INVALID");
+  const cursor = body.cursor ? decodePublicApiCursor(body.cursor) : null;
+  if (body.cursor && !cursor) throw new Error("API_CURSOR_INVALID");
+  let query = admin.from(target.table).select(target.fields)
+    .eq("workspace_id", key.workspace_id)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(limit + 1);
+  if (cursor) {
+    query = query.or(`created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`);
+  }
+  const { data, error } = await query;
+  if (error) throw new Error("API_READ_FAILED");
+  const rows = data || [];
+  const hasMore = rows.length > limit;
+  const page = rows.slice(0, limit);
+  const records = target.lowStock
+    ? page.filter((item: any) => item.low_stock !== null && item.low_stock !== undefined && Number(item.quantity) <= Number(item.low_stock))
+    : page;
+  const last = page[page.length - 1];
+  return {
+    ok: true,
+    api_version: "v1",
+    records,
+    pagination: {
+      limit,
+      has_more: hasMore,
+      next_cursor: hasMore && last ? encodePublicApiCursor({ created_at: last.created_at, id: last.id }) : null,
+    },
+  };
+}
+
+async function publicApi(req: Request, admin: any, body: any, internal = false): Promise<any> {
   const secret = clean(req.headers.get("x-plivex-key"),256);
   if (!secret) throw new Error("API_KEY_REQUIRED");
+  const requestedVersion = clean(req.headers.get("x-plivex-api-version") || body.apiVersion || "v1", 10);
+  if (requestedVersion !== "v1") throw new Error("API_VERSION_UNSUPPORTED");
   const hash = await sha256(secret);
-  const { data: key, error: keyError } = await admin.from("public_api_keys").select("id,workspace_id,scopes,expires_at,revoked_at").eq("key_hash",hash).maybeSingle();
+  const { data: key, error: keyError } = await admin.from("public_api_keys").select("id,workspace_id,created_by,scopes,expires_at,revoked_at").eq("key_hash",hash).maybeSingle();
   if (keyError || !key || key.revoked_at || new Date(key.expires_at).getTime() <= Date.now()) throw new Error("API_KEY_INVALID");
-  const {data:withinLimit,error:rateError}=await admin.rpc("consume_main_workspace_api_rate_limit",{p_key_hash:hash,p_limit:60,p_window_seconds:60});
-  if(rateError||withinLimit!==true) throw new Error("API_RATE_LIMITED");
+  if (!internal) {
+    const {data:withinLimit,error:rateError}=await admin.rpc("consume_main_workspace_api_rate_limit",{p_key_hash:hash,p_limit:60,p_window_seconds:60});
+    if(rateError||withinLimit!==true) throw new Error("API_RATE_LIMITED");
+    await admin.from("public_api_keys").update({last_used_at:new Date().toISOString()}).eq("id",key.id);
+  }
   const scope = (s:string) => key.scopes.includes(s);
   const businessInsightScopes = ["invoices.read","expenses.read","leads.read","inventory.read"];
   const canReadBusinessInsights = businessInsightScopes.every((requiredScope) => scope(requiredScope));
@@ -241,7 +282,7 @@ async function publicApi(req: Request, admin: any, body: any): Promise<any> {
   if (action === "mcp.initialize") return { jsonrpc:"2.0", id:body.id ?? null, result:{ protocolVersion:"2025-03-26", capabilities:{tools:{}}, serverInfo:{name:"Plivex Main Workspace",version:"1.0.0"} } };
   if (action === "mcp.tools/list") return { jsonrpc:"2.0", id:body.id ?? null, result:{ tools:[
     {name:"workspace_summary",description:"Read aggregate workspace settings and counts",inputSchema:{type:"object",properties:{},additionalProperties:false}},
-    ...(key.scopes.includes("invoices.read") ? [{name:"list_invoices",description:"List recent workspace invoices",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
+    ...(key.scopes.includes("invoices.read") ? [{name:"list_invoices",description:"List recent workspace invoices",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100},cursor:{type:"string"}},additionalProperties:false}}] : []),
     ...(key.scopes.includes("clients.read") ? [{name:"list_clients",description:"List workspace clients",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
     ...(key.scopes.includes("expenses.read") ? [{name:"list_expenses",description:"List recent workspace expenses",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
     ...(key.scopes.includes("leads.read") ? [{name:"list_leads",description:"List workspace CRM leads",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
@@ -252,22 +293,19 @@ async function publicApi(req: Request, admin: any, body: any): Promise<any> {
     const name = clean(body.name || body.params?.name,80);
     const args = isObject(body.arguments) ? body.arguments : (isObject(body.params?.arguments) ? body.params.arguments : {});
     if (!key.scopes.includes("mcp.read") || !key.scopes.includes("workspace.read")) throw new Error("API_SCOPE_DENIED");
-    if (name === "workspace_summary") return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify(await publicApi(req,admin,{action:"workspace.summary",_workspaceId:key.workspace_id}))}]}};
-    if (name === "list_invoices") return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify(await publicApi(req,admin,{action:"invoices.list",_workspaceId:key.workspace_id,limit:args.limit}))}]}};
-    if (name === "list_clients") return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify(await publicApi(req,admin,{action:"clients.list",_workspaceId:key.workspace_id,limit:args.limit}))}]}};
-    const mcpLists: Record<string,{action:string;table:string;scope:string;fields:string}> = {
-      list_expenses: {action:"expenses.list",table:"expenses",scope:"expenses.read",fields:"id,vendor,category,amount,date,currency_code,status"},
-      list_leads: {action:"leads.list",table:"leads",scope:"leads.read",fields:"id,name,company,stage,value,score,next_follow_up_at,currency_code"},
-      list_low_stock: {action:"inventory.low_stock",table:"stock",scope:"inventory.read",fields:"id,name,sku,quantity,low_stock,unit,warehouse_id"}
+    if (name === "workspace_summary") return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify(await publicApi(req,admin,{action:"workspace.summary"},true))}]}};
+    if (name === "list_invoices") return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify(await publicApi(req,admin,{action:"invoices.list",limit:args.limit,cursor:args.cursor},true))}]}};
+    if (name === "list_clients") return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify(await publicApi(req,admin,{action:"clients.list",limit:args.limit,cursor:args.cursor},true))}]}};
+    const mcpLists: Record<string,{table:string;scope:string;fields:string;lowStock?:boolean}> = {
+      list_expenses: {table:"expenses",scope:"expenses.read",fields:"id,vendor,category,amount,date,currency_code,status,created_at"},
+      list_leads: {table:"leads",scope:"leads.read",fields:"id,name,company,stage,value,score,next_follow_up_at,currency_code,created_at"},
+      list_low_stock: {table:"stock",scope:"inventory.read",fields:"id,name,sku,quantity,low_stock,unit,warehouse_id,created_at",lowStock:true}
     };
     const listTool = mcpLists[name];
     if (listTool) {
       if (!key.scopes.includes(listTool.scope)) throw new Error("API_SCOPE_DENIED");
-      const limit = Math.min(100, Math.max(1, Number(args.limit) || 50));
-      const {data,error} = await admin.from(listTool.table).select(listTool.fields).eq("workspace_id",key.workspace_id).limit(limit);
-      if (error) throw new Error("API_READ_FAILED");
-      const records = name === "list_low_stock" ? (data||[]).filter((x:any)=>x.low_stock !== null && x.low_stock !== undefined && Number(x.quantity)<=Number(x.low_stock)) : (data||[]);
-      return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify({ok:true,records})}]}};
+      const page = await readPublicApiPage(admin,key,listTool,{limit:args.limit,cursor:args.cursor,lowStock:listTool.lowStock});
+      return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify(page)}]}};
     }
     if (name === "business_insights") {
       if (!canReadBusinessInsights) throw new Error("API_SCOPE_DENIED");
@@ -290,28 +328,50 @@ async function publicApi(req: Request, admin: any, body: any): Promise<any> {
     }
     throw new Error("MCP_TOOL_NOT_FOUND");
   }
+  if (action === "leads.create") {
+    if (!scope("leads.write")) throw new Error("API_SCOPE_DENIED");
+    const normalized = normalizePublicApiLead(body);
+    if (!normalized.ok) throw new Error(normalized.code);
+    const idempotencyKey = clean(req.headers.get("idempotency-key"), 128);
+    if (!idempotencyKey) throw new Error("API_IDEMPOTENCY_KEY_REQUIRED");
+    if (!/^[A-Za-z0-9._:-]{8,128}$/.test(idempotencyKey)) throw new Error("API_IDEMPOTENCY_KEY_INVALID");
+    const candidate = req.headers.get("x-correlation-id") || "";
+    const correlationId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate) ? candidate : crypto.randomUUID();
+    const requestHash = await sha256(JSON.stringify(normalized.value));
+    const { data, error } = await admin.rpc("main_workspace_api_create_lead", {
+      p_api_key_id: key.id,
+      p_idempotency_key: idempotencyKey,
+      p_request_hash: requestHash,
+      p_correlation_id: correlationId,
+      p_name: normalized.value.name,
+      p_company: normalized.value.company,
+      p_email: normalized.value.email,
+      p_phone: normalized.value.phone,
+      p_requirement: normalized.value.requirement,
+      p_value: normalized.value.value,
+    });
+    if (error || !data) throw new Error("API_WRITE_FAILED");
+    if (data.ok === false) throw new Error(data.error || "API_WRITE_FAILED");
+    return { ...data, api_version: "v1" };
+  }
   if (action === "workspace.summary" && scope("workspace.read")) {
     const [{data:settings},{count:invoices},{count:clients}] = await Promise.all([
       admin.from("workspace_settings").select("country_code,currency_code,locale_code").eq("workspace_id",key.workspace_id).maybeSingle(),
       admin.from("invoices").select("id",{count:"exact",head:true}).eq("workspace_id",key.workspace_id),
       admin.from("clients").select("id",{count:"exact",head:true}).eq("workspace_id",key.workspace_id),
     ]);
-    return {ok:true,workspace:settings,metrics:{invoices:invoices||0,clients:clients||0}};
+    return {ok:true,api_version:"v1",workspace:settings,metrics:{invoices:invoices||0,clients:clients||0}};
   }
-  const listMap: Record<string,{table:string;scope:string;fields:string}> = {
-    "invoices.list":{table:"invoices",scope:"invoices.read",fields:"id,number,client_name,issue_date,due_date,status,total,currency"},
+  const listMap: Record<string,{table:string;scope:string;fields:string;lowStock?:boolean}> = {
+    "invoices.list":{table:"invoices",scope:"invoices.read",fields:"id,number,client_name,issue_date,due_date,status,total,currency,created_at"},
     "clients.list":{table:"clients",scope:"clients.read",fields:"id,name,company,email,phone,created_at"},
-    "expenses.list":{table:"expenses",scope:"expenses.read",fields:"id,vendor,category,amount,date,currency_code,status"},
-    "leads.list":{table:"leads",scope:"leads.read",fields:"id,name,company,stage,value,score,next_follow_up_at,currency_code"},
-    "inventory.low_stock":{table:"stock",scope:"inventory.read",fields:"id,name,sku,quantity,low_stock,unit,warehouse_id"},
+    "expenses.list":{table:"expenses",scope:"expenses.read",fields:"id,vendor,category,amount,date,currency_code,status,created_at"},
+    "leads.list":{table:"leads",scope:"leads.read",fields:"id,name,company,stage,value,score,next_follow_up_at,currency_code,created_at"},
+    "inventory.low_stock":{table:"stock",scope:"inventory.read",fields:"id,name,sku,quantity,low_stock,unit,warehouse_id,created_at",lowStock:true},
   };
   const target = listMap[action];
   if (!target || !scope(target.scope)) throw new Error("API_SCOPE_DENIED");
-  const {data,error: readError}=await admin.from(target.table).select(target.fields).eq("workspace_id",key.workspace_id).limit(Math.min(100,Math.max(1,Number(body.limit)||100)));
-  if(readError) throw new Error("API_READ_FAILED");
-  const records = action === "inventory.low_stock" ? (data||[]).filter((x:any)=>Number(x.quantity)<=Number(x.low_stock)) : (data||[]);
-  await admin.from("public_api_keys").update({last_used_at:new Date().toISOString()}).eq("id",key.id);
-  return {ok:true,records};
+  return await readPublicApiPage(admin,key,target,body);
 }
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
@@ -319,7 +379,12 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok",{headers:cors(origin)});
   if (req.method !== "POST") return json({error:"Method not allowed"},405,origin);
   try {
-    const body = await req.json().catch(()=>({}));
+    const declaredLength = Number(req.headers.get("content-length") || 0);
+    if (declaredLength > MAX_REQUEST_BYTES) return json({ error: "REQUEST_TOO_LARGE" }, 413, origin);
+    const rawBody = await req.text();
+    if (encoder.encode(rawBody).byteLength > MAX_REQUEST_BYTES) return json({ error: "REQUEST_TOO_LARGE" }, 413, origin);
+    let body: any;
+    try { body = JSON.parse(rawBody); } catch { return json({ error: "INVALID_JSON" }, 400, origin); }
     if (!isObject(body)) return json({error:"Invalid request"},400,origin);
     if (body.method === "notifications/initialized") return new Response(null,{status:202,headers:cors(origin)});
     if (!body.action && typeof body.method === "string") body.action = body.method === "initialize" ? "mcp.initialize" : body.method === "tools/list" ? "mcp.tools/list" : body.method === "tools/call" ? "mcp.tools/call" : body.method;
@@ -328,7 +393,7 @@ Deno.serve(async (req: Request) => {
       const admin = createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
       return json(await signatureComplete(admin,req,body),200,origin);
     }
-    if (req.headers.get("x-plivex-key")) {
+    if (req.headers.get("x-plivex-key") || req.headers.get("x-plivex-api-version")) {
       const admin=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
       return json(await publicApi(req,admin,body),200,origin);
     }
@@ -353,7 +418,13 @@ Deno.serve(async (req: Request) => {
     return json(result,200,origin);
   } catch (error) {
     const code = error instanceof Error ? error.message : "REQUEST_FAILED";
-    const status = code === "AUTH_REQUIRED" ? 401 : code === "ACCESS_DENIED" ? 403 : code === "API_RATE_LIMITED" ? 429
+    if (req.headers.get("x-plivex-key") || req.headers.get("x-plivex-api-version")) {
+      const candidate = req.headers.get("x-correlation-id") || "";
+      const requestId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate) ? candidate : crypto.randomUUID();
+      const failure = publicApiError(code, requestId);
+      return json(failure.body, failure.status, origin);
+    }
+    const status = code === "AUTH_REQUIRED" ? 401 : code === "ACCESS_DENIED" ? 403
       : code.includes("NOT_FOUND") ? 404 : code.includes("INVALID") || code.includes("REQUIRED") ? 400
       : code.includes("NOT_CONFIGURED") || code.includes("UNAVAILABLE") ? 503 : 500;
     return json({ok:false,error:code},status,origin);
