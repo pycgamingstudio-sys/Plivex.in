@@ -66,3 +66,11 @@ test("public API and MCP keys are hashed, revocable, rate-limited and scope cons
   assert.match(rateLimitMigration, /consume_main_workspace_api_rate_limit/);
   assert.match(migration, /mcp\.read/);
 });
+
+
+test("MCP business insights require every underlying business-data read scope", () => {
+  assert.match(endpoint, /businessInsightScopes = \["invoices\.read","expenses\.read","leads\.read","inventory\.read"\]/);
+  assert.match(endpoint, /canReadBusinessInsights = businessInsightScopes\.every/);
+  assert.match(endpoint, /canReadBusinessInsights \? \[\{name:"business_insights"/);
+  assert.match(endpoint, /if \(!canReadBusinessInsights\) throw new Error\("API_SCOPE_DENIED"\)/);
+});
