@@ -173,7 +173,9 @@ export default function WorkspaceStage3Center({ section }) {
         <div className="mt-5 space-y-2">
           <h3 className="text-sm font-semibold">Subscriptions</h3>
           {webhookData.subscriptions.map((item) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-3">
-            <div><p className="text-sm font-semibold">{item.label} · {item.provider_key}</p><p className="text-xs text-slate-500">{item.event_types.join(", ")} · {item.is_active ? "Active" : "Paused"}</p>{item.last_received_at && <p className="text-xs text-slate-500">Last received {new Date(item.last_received_at).toLocaleString()}</p>}</div>
+            <div className="min-w-0 flex-1"><p className="text-sm font-semibold">{item.label} · {item.provider_key}</p><p className="text-xs text-slate-500">{item.event_types.join(", ")} · {item.is_active ? "Active" : "Paused"}</p>{item.last_received_at && <p className="text-xs text-slate-500">Last received {new Date(item.last_received_at).toLocaleString()}</p>}
+              {item.endpoint_url && <div className="mt-2 flex gap-2"><input readOnly className={field+" text-xs"} value={item.endpoint_url}/><button className={secondary} onClick={() => copyText(item.endpoint_url)} aria-label="Copy webhook endpoint"><Copy className="h-4 w-4"/></button></div>}
+            </div>
             <button className={secondary} disabled={busy} onClick={() => run(() => invoke({ action: "webhooks.pause", subscriptionId: item.id, isActive: !item.is_active }), item.is_active ? "Webhook paused." : "Webhook enabled.")}>{item.is_active ? <><Pause className="mr-1 inline h-3.5 w-3.5"/>Pause</> : <><Play className="mr-1 inline h-3.5 w-3.5"/>Enable</>}</button>
           </article>)}
           {!webhookData.subscriptions.length && <p className="py-2 text-xs text-slate-500">No webhook subscriptions configured.</p>}
