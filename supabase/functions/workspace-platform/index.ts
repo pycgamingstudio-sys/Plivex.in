@@ -387,7 +387,7 @@ Deno.serve(async (req: Request) => {
       const admin = createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
       return json(await signatureComplete(admin,req,body),200,origin);
     }
-    if (req.headers.get("x-plivex-key")) {
+    if (req.headers.get("x-plivex-key") || req.headers.get("x-plivex-api-version")) {
       const admin=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
       return json(await publicApi(req,admin,body),200,origin);
     }
@@ -412,7 +412,13 @@ Deno.serve(async (req: Request) => {
     return json(result,200,origin);
   } catch (error) {
     const code = error instanceof Error ? error.message : "REQUEST_FAILED";
-    const status = code === "AUTH_REQUIRED" ? 401 : code === "ACCESS_DENIED" ? 403 : code === "API_RATE_LIMITED" ? 429
+    if (req.headers.get("x-plivex-key") || req.headers.get("x-plivex-api-version")) {
+      const candidate = req.headers.get("x-correlation-id") || "";
+      const requestId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate) ? candidate : crypto.randomUUID();
+      const failure = publicApiError(code, requestId);
+      return json(failure.body, failure.status, origin);
+    }
+    const status = code === "AUTH_REQUIRED" ? 401 : code === "ACCESS_DENIED" ? 403
       : code.includes("NOT_FOUND") ? 404 : code.includes("INVALID") || code.includes("REQUIRED") ? 400
       : code.includes("NOT_CONFIGURED") || code.includes("UNAVAILABLE") ? 503 : 500;
     return json({ok:false,error:code},status,origin);
