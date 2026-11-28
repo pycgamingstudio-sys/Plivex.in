@@ -57,3 +57,23 @@ test("Journal and bank import UI reuse idempotency keys across retries",()=>{
   assert.match(bank,/p_idempotency_key:journalKey/);
   assert.match(bank,/p_idempotency_key:statementKey/);
 });
+
+test("Monthly close blocks journal creation and posting under the same advisory lock",()=>{
+  const close=readFileSync(new URL("../../../supabase/migrations/20261128160000_main_workspace_accounting_period_close.sql",import.meta.url),"utf8");
+  assert.match(close,/journal_entries_closed_period_guard/);
+  assert.match(close,/before insert or update of entry_date,status on public\.journal_entries/);
+  assert.match(close,/pg_advisory_xact_lock\(hashtextextended\(new\.workspace_id\|\|':'\|\|to_char\(v_period_start,'YYYY-MM'\),0\)\)/);
+  assert.match(close,/unposted_journals_exist/);
+  assert.match(close,/period_journal_totals_unbalanced/);
+  assert.match(close,/main_workspace_close_accounting_period/);
+  assert.match(close,/main_workspace_reopen_accounting_period/);
+  assert.match(close,/has_ws_role\(p_workspace_id,array\['admin'::app_role\]\)/);
+  assert.match(close,/accounting\.period\.reopened/);
+});
+
+test("Monthly close UI exposes administrator-only close and reopen actions",()=>{
+  assert.match(bank,/Monthly accounting close/);
+  assert.match(bank,/user\?\.role==="admin"&&/);
+  assert.match(bank,/main_workspace_close_accounting_period/);
+  assert.match(bank,/main_workspace_reopen_accounting_period/);
+});
