@@ -82,7 +82,7 @@ export default function WorkspaceStage3Center({ section }) {
 
   const createRule = (event) => {
     event.preventDefault();
-    const conditions = statusCondition ? { status_equals: statusCondition } : {};
+    const conditions = eventType === "invoice.status_changed" && statusCondition ? { status_equals: statusCondition } : {};
     return run(() => invoke({
       action: "automation.create", name, eventType, conditions, actionType: "create_task", timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       actionConfig: { title: taskTitle, description: taskDescription, due_in_hours: dueHours === "" ? null : Number(dueHours) },
@@ -101,7 +101,7 @@ export default function WorkspaceStage3Center({ section }) {
 
   const downloadDocument = (id) => run(async () => {
     const result = await invoke({ action: "vault.download", documentId: id });
-    window.open(result.signedUrl, "_blank", "noopener,noreferrer");
+    window.location.assign(result.signedUrl);
   });
   const removeDocument = (id) => run(() => invoke({ action: "vault.delete", documentId: id }), "Document deleted from the private vault.");
 
