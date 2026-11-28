@@ -24,9 +24,10 @@ async function readableError(error) {
   return error?.message || "Could not connect to the assistant. Please try again.";
 }
 
-export default function AssistantWidget() {
+export default function AssistantWidget({ openOnMount = false }) {
   const { isAuthenticated, isLoadingAuth } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(openOnMount);
+  useEffect(() => { if (openOnMount) setOpen(true); }, [openOnMount]);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [attachment, setAttachment] = useState(null);
