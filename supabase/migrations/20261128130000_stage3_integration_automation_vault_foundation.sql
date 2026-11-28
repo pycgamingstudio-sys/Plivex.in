@@ -508,6 +508,9 @@ declare
   v_matched boolean;
   v_due_hours integer;
   v_due_at timestamptz;
+  v_attempt integer;
+  v_delay integer;
+  v_status text;
   v_processed integer := 0;
 begin
   if p_limit is null or p_limit < 1 or p_limit > 200 then
@@ -515,72 +518,123 @@ begin
   end if;
 
   for v_event in
-    select id, workspace_id, event_type, entity_type, entity_id, payload, occurred_at
+    select id, workspace_id, event_type, entity_type, entity_id, payload, occurred_at, attempt_count
     from public.workspace_event_outbox
-    where processed_at is null
+    where processing_status in ('pending','retrying')
+      and next_attempt_at <= now()
     order by created_at, id
     limit p_limit
     for update skip locked
   loop
-    for v_rule in
-      select id, name, conditions, action_type, action_config
-      from public.workspace_automation_rules
-      where workspace_id = v_event.workspace_id
-        and event_type = v_event.event_type
-        and is_active = true
-      order by created_at, id
-    loop
-      v_conditions := coalesce(v_rule.conditions, '{}'::jsonb);
-      v_config := coalesce(v_rule.action_config, '{}'::jsonb);
-      v_matched := true;
+    v_attempt := v_event.attempt_count + 1;
+    begin
+      update public.workspace_event_outbox
+      set processing_status = 'processing', attempt_count = v_attempt
+      where id = v_event.id;
 
-      if v_conditions ? 'status_equals'
-        and (v_event.payload ->> 'status') is distinct from (v_conditions ->> 'status_equals') then
-        v_matched := false;
-      end if;
-      if v_conditions ? 'stage_equals'
-        and (v_event.payload ->> 'stage') is distinct from (v_conditions ->> 'stage_equals') then
-        v_matched := false;
-      end if;
+      for v_rule in
+        select id, name, conditions, action_type, action_config
+        from public.workspace_automation_rules
+        where workspace_id = v_event.workspace_id
+          and event_type = v_event.event_type
+          and trigger_type = 'event'
+          and is_active = true
+        order by created_at, id
+      loop
+        v_conditions := coalesce(v_rule.conditions, '{}'::jsonb);
+        v_config := coalesce(v_rule.action_config, '{}'::jsonb);
+        v_matched := true;
 
-      if v_matched and v_rule.action_type = 'create_task' then
-        v_due_hours := null;
-        if jsonb_typeof(v_config -> 'due_in_hours') = 'number' then
-          v_due_hours := (v_config ->> 'due_in_hours')::integer;
+        if v_conditions ? 'status_equals'
+          and (v_event.payload ->> 'status') is distinct from (v_conditions ->> 'status_equals') then
+          v_matched := false;
         end if;
-        v_due_at := case
-          when v_due_hours between 0 and 720 then v_event.occurred_at + make_interval(hours => v_due_hours)
-          else null
-        end;
+        if v_conditions ? 'stage_equals'
+          and (v_event.payload ->> 'stage') is distinct from (v_conditions ->> 'stage_equals') then
+          v_matched := false;
+        end if;
+        if v_conditions ? 'provider_key_equals'
+          and (v_event.payload ->> 'provider_key') is distinct from (v_conditions ->> 'provider_key_equals') then
+          v_matched := false;
+        end if;
+        if v_conditions ? 'webhook_event_type_equals'
+          and (v_event.payload ->> 'event_type') is distinct from (v_conditions ->> 'webhook_event_type_equals') then
+          v_matched := false;
+        end if;
 
-        insert into public.workspace_automation_tasks(
-          workspace_id, rule_id, source_event_id, title, description, due_at
+        if v_matched and v_rule.action_type = 'create_task' then
+          v_due_hours := null;
+          if jsonb_typeof(v_config -> 'due_in_hours') = 'number' then
+            v_due_hours := (v_config ->> 'due_in_hours')::integer;
+          end if;
+          v_due_at := case
+            when v_due_hours between 0 and 720 then v_event.occurred_at + make_interval(hours => v_due_hours)
+            else null
+          end;
+
+          insert into public.workspace_automation_tasks(
+            workspace_id, rule_id, source_event_id, title, description, due_at
+          ) values (
+            v_event.workspace_id,
+            v_rule.id,
+            v_event.id,
+            coalesce(nullif(btrim(v_config ->> 'title'), ''), v_rule.name),
+            left(coalesce(v_config ->> 'description', ''), 2000),
+            v_due_at
+          )
+          on conflict (workspace_id, rule_id, source_event_id) do nothing;
+        end if;
+
+        insert into public.workspace_automation_runs(
+          workspace_id, rule_id, event_id, status, attempt_no, error_code
         ) values (
-          v_event.workspace_id,
-          v_rule.id,
-          v_event.id,
-          coalesce(nullif(btrim(v_config ->> 'title'), ''), v_rule.name),
-          left(coalesce(v_config ->> 'description', ''), 2000),
-          v_due_at
+          v_event.workspace_id, v_rule.id, v_event.id,
+          case when v_matched then 'completed' else 'skipped' end,
+          v_attempt, null
         )
-        on conflict (workspace_id, rule_id, source_event_id) do nothing;
-      end if;
+        on conflict (rule_id, event_id) do update
+          set status = excluded.status,
+            attempt_no = excluded.attempt_no,
+            error_code = null,
+            completed_at = clock_timestamp();
+      end loop;
 
-      insert into public.workspace_automation_runs(
-        workspace_id, rule_id, event_id, status
-      ) values (
-        v_event.workspace_id,
-        v_rule.id,
-        v_event.id,
-        case when v_matched then 'completed' else 'skipped' end
-      )
-      on conflict (rule_id, event_id) do nothing;
-    end loop;
+      update public.workspace_event_outbox
+      set processed_at = clock_timestamp(),
+        processing_status = 'processed',
+        processing_error_code = null
+      where id = v_event.id;
+      v_processed := v_processed + 1;
+    exception when others then
+      v_status := case when v_attempt >= 12 then 'dead_letter' else 'retrying' end;
+      v_delay := least(21600, (30 * power(2::numeric, least(v_attempt,10)))::integer);
+      update public.workspace_event_outbox
+      set processing_status = v_status,
+        attempt_count = v_attempt,
+        next_attempt_at = clock_timestamp() + make_interval(secs => v_delay),
+        processing_error_code = 'AUTOMATION_EVENT_FAILED',
+        processed_at = case when v_status = 'dead_letter' then clock_timestamp() else null end
+      where id = v_event.id;
 
-    update public.workspace_event_outbox
-    set processed_at = clock_timestamp(), processing_error_code = null
-    where id = v_event.id and processed_at is null;
-    v_processed := v_processed + 1;
+      for v_rule in
+        select id from public.workspace_automation_rules
+        where workspace_id = v_event.workspace_id
+          and event_type = v_event.event_type
+          and trigger_type = 'event'
+          and is_active = true
+      loop
+        insert into public.workspace_automation_runs(
+          workspace_id, rule_id, event_id, status, attempt_no, error_code
+        ) values (
+          v_event.workspace_id, v_rule.id, v_event.id, 'failed', v_attempt, 'AUTOMATION_EVENT_FAILED'
+        )
+        on conflict (rule_id, event_id) do update
+          set status = 'failed',
+            attempt_no = excluded.attempt_no,
+            error_code = excluded.error_code,
+            completed_at = clock_timestamp();
+      end loop;
+    end;
   end loop;
 
   return v_processed;
