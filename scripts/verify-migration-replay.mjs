@@ -387,7 +387,7 @@ function summary(port, remote) {
 
 const remotePort = Number(process.env.REMOTE_PGPORT || 5433);
 const candidatePort = Number(process.env.CANDIDATE_PGPORT || 5434);
-console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 149 candidate replay entries including Stage 3 foundations.");
+console.log(`Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, ${candidatePlan.length} candidate replay entries including Stage 3 foundations.`);
 resetDb(remotePort);
 replay(remotePort, remotePlan, true);
 assertRls(remotePort, false);
