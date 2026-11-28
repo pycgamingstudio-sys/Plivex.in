@@ -204,12 +204,12 @@ alter table public.workspace_automation_rules
       and schedule_days_of_week is null and next_run_at is null)
     or
     (trigger_type = 'schedule' and event_type = 'automation.schedule_due'
-      and schedule_frequency in ('daily','weekly') and schedule_time_local is not null
+      and schedule_frequency is not null and schedule_frequency in ('daily','weekly') and schedule_time_local is not null
       and next_run_at is not null
       and ((schedule_frequency = 'daily' and schedule_days_of_week is null)
-        or (schedule_frequency = 'weekly' and cardinality(schedule_days_of_week) between 1 and 7
-          and schedule_days_of_week <@ array[1,2,3,4,5,6,7]::smallint[]
-          and cardinality(schedule_days_of_week) = (select count(distinct x) from unnest(schedule_days_of_week) x)))
+        or (schedule_frequency = 'weekly' and schedule_days_of_week is not null
+          and cardinality(schedule_days_of_week) between 1 and 7
+          and schedule_days_of_week <@ array[1,2,3,4,5,6,7]::smallint[]))
     )
   );
 create index if not exists workspace_automation_rules_schedule_idx
@@ -312,7 +312,7 @@ begin
   foreach t in array array[
     'workspace_integrations','workspace_webhook_subscriptions','workspace_event_outbox',
     'workspace_webhook_events','workspace_webhook_attempts','workspace_automation_rules','workspace_automation_runs',
-    'workspace_automation_tasks','workspace_documents','workspace_audit_events'
+    'workspace_automation_tasks','workspace_automation_preferences','workspace_automation_notifications','workspace_documents','workspace_audit_events'
   ] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from public, anon, authenticated', t);
