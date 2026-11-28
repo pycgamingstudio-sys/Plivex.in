@@ -129,6 +129,9 @@ const AuthenticatedApp = () => {
       <Route path="/dashboard" element={<HomeGate />} />
       <Route path="/workspace/dashboard" element={<HomeGate initialTab="dashboard" />} />
       <Route path="/workspace/sales" element={<HomeGate initialTab="sales" />} />
+      <Route path="/workspace/books" element={<HomeGate initialTab="books" />} />
+      <Route path="/workspace/ai" element={<HomeGate initialTab="ai" />} />
+      <Route path="/workspace/more" element={<HomeGate initialTab="more" />} />
       <Route path="/workspace/purchase" element={<HomeGate initialTab="purchase" />} />
       <Route path="/workspace/reports" element={<HomeGate initialTab="reports" />} />
       <Route path="/workspace/crm" element={<HomeGate initialTab="crm" />} />
@@ -142,7 +145,7 @@ const AuthenticatedApp = () => {
         <Route element={<AppLayout />}>
           <Route path="/products" element={<Navigate to="/dashboard" replace state={{ initialTab: "stock" }} />} />
           <Route path="/expenses" element={<Navigate to="/dashboard" replace state={{ initialTab: "purchase" }} />} />
-          <Route path="/accounting" element={<Navigate to="/dashboard" replace state={{ initialTab: "reconciliation" }} />} />
+          <Route path="/accounting" element={<Navigate to="/workspace/books" replace />} />
           <Route path="/enterprise" element={<Navigate to="/dashboard" replace state={{ initialTab: "team" }} />} />
           <Route path="/invoice-history" element={<InvoiceHistory />} />
           <Route path="/quotations" element={<Navigate to="/dashboard" replace state={{ initialTab: "sales", initialSub: "quotations" }} />} />
