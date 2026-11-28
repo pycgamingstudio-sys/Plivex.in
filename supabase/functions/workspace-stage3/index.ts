@@ -25,13 +25,6 @@ const fromBase64 = (value: string) => {
   if (raw.length > MAX_DOCUMENT_BYTES) throw new Error("DOCUMENT_TOO_LARGE");
   return Uint8Array.from(raw, (character) => character.charCodeAt(0));
 };
-const toBase64 = (value: Uint8Array) => {
-  let output = "";
-  for (let i = 0; i < value.length; i += 0x8000) output += String.fromCharCode(...value.subarray(i, i + 0x8000));
-  return btoa(output);
-};
-const safeFileName = (value: string) => clean(value, 255).replace(/[\/\\\\]/g, "_").replace(/[\\u0000-\\u001f]/g, "_").replace(/^\\.+$/, "document") || "document";
-
 async function setup(req: Request) {
   const url = Deno.env.get("SUPABASE_URL");
   const anon = Deno.env.get("SUPABASE_ANON_KEY");
@@ -249,7 +242,7 @@ Deno.serve(async (req: Request) => {
       const conditions = isObject(body.conditions) ? body.conditions : {};
       if (name.length < 2 || !EVENT_TYPES.has(eventType) || body.actionType !== "create_task") throw new Error("INVALID_AUTOMATION");
       if (Object.keys(conditions).some((key) => !["status_equals","stage_equals"].includes(key))
-        || (conditions.status_equals !== undefined && (typeof conditions.status_equals !== "string" || conditions.status_equals.length > 40))
+        || (conditions.status_equals !== const safeFileName = (value: string) => clean(value, 255).replace(/[\/\\]/g, "_").replace(/[\u0000-\u001f]/g, "_").replace(/^\.+$/, "document") || "document"; && (typeof conditions.status_equals !== "string" || conditions.status_equals.length > 40))
         || (conditions.stage_equals !== undefined && !["new","qualified","proposal","negotiation","won","lost"].includes(String(conditions.stage_equals)))) throw new Error("INVALID_AUTOMATION_CONDITIONS");
       const title = clean(config.title || name, 160), description = clean(config.description, 2000);
       const dueHours = config.due_in_hours === undefined || config.due_in_hours === null ? null : Number(config.due_in_hours);
