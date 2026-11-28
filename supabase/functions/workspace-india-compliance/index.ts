@@ -169,7 +169,7 @@ Deno.serve(async(req:Request)=>{
       const date=clean(body.document_date,10),distance=body.distance_km,mode=clean(body.transport_mode,10),vehicle=clean(body.vehicle_number,20).toUpperCase(),transporter=clean(body.transporter_id,20).toUpperCase();
       if(!isValidIsoDate(date)||!Number.isInteger(distance)||distance<1||distance>4000||!["road","rail","air","ship"].includes(mode)||(!vehicle&&!transporter)) return json({error:"Document date, distance, transport mode and vehicle or transporter details are required."},400,origin);
       const [{data:invoice,error:invoiceError},{data:seller,error:sellerError}]=await Promise.all([
-        admin.from("invoices").select("id,workspace_id,number,issue_date,status,is_draft,currency,total,client_id,client_name").eq("id",body.invoice_id).eq("workspace_id",workspaceId).maybeSingle(),
+        admin.from("invoices").select("id,workspace_id,number,issue_date,status,is_draft,currency,total,client_id,client_name,invoice_snapshot").eq("id",body.invoice_id).eq("workspace_id",workspaceId).maybeSingle(),
         admin.from("business_profile").select("name,address,tax_registration_number").eq("workspace_id",workspaceId).maybeSingle(),
       ]);
       if(invoiceError||sellerError||!invoice||!seller) return json({error:"Invoice or seller profile not found in this workspace."},404,origin);
