@@ -81,8 +81,10 @@ export function parseBankStatementImport(csvText) {
       if (signed < 0 && direction === "credit") { issue("Signed amount conflicts with the Credit direction."); return; }
       if (signed > 0 && direction === "debit" && rawDirection === "") { issue("A positive amount cannot be inferred as a debit without a direction."); return; }
     } else {
-      const debit = debitIndex >= 0 ? parseAmount(cells[debitIndex]) : 0;
-      const credit = creditIndex >= 0 ? parseAmount(cells[creditIndex]) : 0;
+      const debitRaw = debitIndex >= 0 ? String(cells[debitIndex] ?? "").trim() : "";
+      const creditRaw = creditIndex >= 0 ? String(cells[creditIndex] ?? "").trim() : "";
+      const debit = debitRaw ? parseAmount(debitRaw) : 0;
+      const credit = creditRaw ? parseAmount(creditRaw) : 0;
       if (debit === null || credit === null || (debit > 0 && credit > 0)) { issue("Debit and Credit must be valid, and only one may be positive."); return; }
       if (debit > 0) { amount = debit; direction = "debit"; }
       else if (credit > 0) { amount = credit; direction = "credit"; }
