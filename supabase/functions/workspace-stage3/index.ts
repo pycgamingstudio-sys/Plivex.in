@@ -9,7 +9,7 @@ const allowedOrigin = (origin: string | null) => !origin || ORIGINS.has(origin) 
 const headers = (origin: string | null) => ({
   "Access-Control-Allow-Origin": origin && allowedOrigin(origin) ? origin : "https://plivex.in",
   "Vary": "Origin",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, x-correlation-id",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 });
 const json = (body: unknown, status = 200, origin: string | null = null) =>
@@ -45,10 +45,26 @@ async function setup(req: Request) {
   const { data: membership, error: membershipError } = await admin.from("workspace_members").select("role,status").eq("workspace_id", profile.workspace_id).eq("user_id", user.id).eq("status", "active").maybeSingle();
   if (membershipError) throw new Error("WORKSPACE_MEMBERSHIP_CHECK_FAILED");
   if (!membership) throw new Error("WORKSPACE_MEMBERSHIP_REQUIRED");
-  return { admin, user, workspaceId: String(profile.workspace_id), role: String(membership.role || "") };
+  const candidateCorrelationId = req.headers.get("x-correlation-id") || "";
+  const correlationId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidateCorrelationId) ? candidateCorrelationId : crypto.randomUUID();
+  return { admin, user, workspaceId: String(profile.workspace_id), role: String(membership.role || ""), correlationId };
 }
 const canManage = (role: string) => ["admin","manager"].includes(role);
 const canUseVault = (role: string) => ["admin","manager","accountant"].includes(role);
+
+async function writeAudit(ctx: any, action: string, entityType: string, entityId: string | null, metadata: Record<string, unknown> = {}) {
+  const { error } = await ctx.admin.from("workspace_audit_events").insert({
+    workspace_id: ctx.workspaceId,
+    actor_id: ctx.user.id,
+    action,
+    entity_type: entityType,
+    entity_id: entityId,
+    correlation_id: ctx.correlationId,
+    outcome: "success",
+    metadata,
+  });
+  if (error) throw new Error("AUDIT_WRITE_FAILED");
+}
 
 async function ensureVaultBucket(admin: any) {
   const bucket = "plivex-workspace-vault";
@@ -129,10 +145,7 @@ async function handleVault(ctx: any, body: any) {
       await ctx.admin.storage.from(bucket).remove([path]);
       throw new Error("VAULT_METADATA_SAVE_FAILED");
     }
-    await ctx.admin.from("workspace_audit_events").insert({
-      workspace_id: ctx.workspaceId, actor_id: ctx.user.id, action: "document.vault_uploaded",
-      entity_type: "workspace_document", entity_id: data.id, metadata: { category, mime_type: mimeType, size_bytes: bytes.byteLength },
-    });
+    await writeAudit(ctx, "document.vault_uploaded", "workspace_document", data.id, { category, mime_type: mimeType, size_bytes: bytes.byteLength });
     return { ok: true, document: data };
   }
   if (body.action === "vault.download") {
@@ -142,6 +155,7 @@ async function handleVault(ctx: any, body: any) {
     if (error || !document) throw new Error("DOCUMENT_NOT_FOUND");
     const { data, error: signedError } = await ctx.admin.storage.from(bucket).createSignedUrl(document.storage_path, 60, { download: document.file_name });
     if (signedError || !data?.signedUrl) throw new Error("DOCUMENT_DOWNLOAD_FAILED");
+    await writeAudit(ctx, "document.vault_downloaded", "workspace_document", body.documentId, { expires_in_seconds: 60 });
     return { ok: true, signedUrl: data.signedUrl, expiresInSeconds: 60 };
   }
   if (body.action === "vault.delete") {
@@ -154,10 +168,7 @@ async function handleVault(ctx: any, body: any) {
     if (storageError) throw new Error("DOCUMENT_STORAGE_DELETE_FAILED");
     const { error: deleteError } = await ctx.admin.from("workspace_documents").delete().eq("workspace_id", ctx.workspaceId).eq("id", document.id);
     if (deleteError) throw new Error("DOCUMENT_METADATA_DELETE_FAILED");
-    await ctx.admin.from("workspace_audit_events").insert({
-      workspace_id: ctx.workspaceId, actor_id: ctx.user.id, action: "document.vault_deleted",
-      entity_type: "workspace_document", entity_id: document.id, metadata: {},
-    });
+    await writeAudit(ctx, "document.vault_deleted", "workspace_document", document.id);
     return { ok: true };
   }
   throw new Error("UNKNOWN_VAULT_ACTION");
@@ -209,10 +220,7 @@ Deno.serve(async (req: Request) => {
         timezone, created_by: ctx.user.id,
       }).select("id,name,event_type,conditions,action_type,action_config,timezone,is_active,created_at").single();
       if (error || !data) throw new Error("AUTOMATION_CREATE_FAILED");
-      await ctx.admin.from("workspace_audit_events").insert({
-        workspace_id: ctx.workspaceId, actor_id: ctx.user.id, action: "automation.rule_created",
-        entity_type: "automation_rule", entity_id: data.id, metadata: { event_type: eventType, action_type: "create_task" },
-      });
+      await writeAudit(ctx, "automation.rule_created", "automation_rule", data.id, { event_type: eventType, action_type: "create_task" });
       return json({ ok: true, rule: data }, 201, origin);
     }
     if (body.action === "automation.pause") {
@@ -221,10 +229,7 @@ Deno.serve(async (req: Request) => {
       const { data, error } = await ctx.admin.from("workspace_automation_rules").update({ is_active: body.isActive, updated_at: new Date().toISOString() })
         .eq("workspace_id", ctx.workspaceId).eq("id", body.ruleId).select("id,is_active").maybeSingle();
       if (error || !data) throw new Error("AUTOMATION_RULE_NOT_FOUND");
-      await ctx.admin.from("workspace_audit_events").insert({
-        workspace_id: ctx.workspaceId, actor_id: ctx.user.id, action: data.is_active ? "automation.rule_enabled" : "automation.rule_paused",
-        entity_type: "automation_rule", entity_id: data.id, metadata: {},
-      });
+      await writeAudit(ctx, data.is_active ? "automation.rule_enabled" : "automation.rule_paused", "automation_rule", data.id);
       return json({ ok: true, rule: data }, 200, origin);
     }
     if (body.action === "automation.task_status") {
@@ -234,6 +239,7 @@ Deno.serve(async (req: Request) => {
         status: body.status, completed_at: body.status === "completed" ? new Date().toISOString() : null,
       }).eq("workspace_id", ctx.workspaceId).eq("id", body.taskId).select("id,status").maybeSingle();
       if (error || !data) throw new Error("AUTOMATION_TASK_NOT_FOUND");
+      await writeAudit(ctx, "automation.task_status_changed", "automation_task", data.id, { status: data.status });
       return json({ ok: true, task: data }, 200, origin);
     }
     if (body.action.startsWith("vault.")) return json(await handleVault(ctx, body), 200, origin);
