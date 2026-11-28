@@ -307,6 +307,8 @@ export function calculateInvoiceGlobalTax(invoice, workspaceProfile) {
         placeOfSupplyVerified: true, placeOfSupply: String(config.placeOfSupply).trim(),
         taxCategoryVerified: true, taxCategory: lineCategory,
         treatment: lineTreatment,
+        ...(config.resolvedRuleSource === "supabase" && config.ruleMode === "verified" && config.resolvedRule
+          ? { rule: config.resolvedRule } : {}),
         ...(lineTreatment === "reverse-charge" ? { reverseChargeEvidence: config.reverseChargeEvidence || {} } : {}),
         ...(countryCode === "CA" ? {
           jurisdictionId: String(config.destinationJurisdiction.province).trim().toUpperCase(),

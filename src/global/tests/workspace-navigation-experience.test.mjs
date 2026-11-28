@@ -11,7 +11,7 @@ const nav = read("../../lib/nav.js");
 const tools = read("../../pages/WorkspacePlatformPage.jsx");
 
 test("primary workspace modules have stable direct URLs", () => {
-  for (const route of ["dashboard", "sales", "purchase", "reports", "crm", "stock", "warehouses", "reconciliation"]) {
+  for (const route of ["dashboard", "sales", "purchase", "books", "ai", "reports", "crm", "stock", "warehouses", "reconciliation", "more"]) {
     assert.match(app, new RegExp('path="/workspace/' + route + '"'));
   }
   assert.match(dashboard, /if \(initialTab\) setTab\(initialTab\)/);
@@ -31,7 +31,7 @@ test("workspace shell has responsive desktop sidebar and a dedicated mobile prim
   assert.match(dashboard, /fixed inset-y-0 left-0[\s\S]*md:flex/);
   assert.match(appLayout, /aria-label="Primary workspace navigation"/);
   assert.match(appLayout, /aria-label="Main workspace navigation"/);
-  assert.match(homeGate, /label: "Business Tools"/);
+  for (const label of ["Home", "Sales", "Books", "AI", "More"]) assert.match(homeGate, new RegExp('label: "' + label + '"'));
 });
 
 test("individual tool pages mount only their selected feature and load only its own data", () => {

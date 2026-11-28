@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateInvoiceGlobalTax, resolveInvoiceCurrencyForWorkspace } from "../tax/invoice-tax-integration.js";
+import { getTaxRuleSet } from "../tax/tax-rule-registry.js";
 
 const profile = (countryCode, currencyCode, overrides = {}) => ({
   countryCode, currencyCode,
@@ -34,6 +35,28 @@ test("UK standard VAT integrates with the invoice amount and retains rule proven
   assert.equal(result.taxSnapshot.immutable, true);
   assert.equal(result.taxSnapshot.rule.id, result.ruleSnapshot.id);
   assert.equal(result.eInvoiceReadiness.transmissionEnabled, false);
+});
+
+test("verified Supabase registry rules stay on the verified calculation path for non-US invoices", () => {
+  const gbRule = { ...getTaxRuleSet("GB", { asOfDate: "2026-11-20" }).rule, reviewedBy: "Plivex tax rule review" };
+  const gb = calculateInvoiceGlobalTax(invoice("GBP", {
+    mode: "automatic", resolvedRuleSource: "supabase", ruleMode: "verified",
+    resolvedRule: { ...gbRule, verified: true },
+  }), profile("GB", "GBP"));
+  assert.equal(gb.ok, true, gb.message || gb.code);
+  assert.equal(gb.status, "calculated");
+  assert.equal(gb.taxMinor, 2000);
+
+  const caRule = getTaxRuleSet("CA", { jurisdictionId: "ON", asOfDate: "2026-11-20" }).rule;
+  const ca = calculateInvoiceGlobalTax(invoice("CAD", {
+    mode: "automatic", resolvedRuleSource: "supabase", ruleMode: "verified",
+    resolvedRule: { ...caRule, verified: true },
+    destinationJurisdiction: { province: "ON" },
+    collectionObligationAttested: true,
+  }), profile("CA", "CAD", { registeredJurisdiction: "CA-ON" }));
+  assert.equal(ca.ok, true, ca.message || ca.code);
+  assert.equal(ca.status, "calculated");
+  assert.equal(ca.taxMinor, 1300);
 });
 
 test("UAE, Australia and Singapore use only their country standard baselines", () => {

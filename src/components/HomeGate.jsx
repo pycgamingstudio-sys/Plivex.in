@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, ReceiptText, UsersRound, Package, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, ReceiptText, BookOpen, Sparkles, MoreHorizontal } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import { APP_EDITION, isUnifiedBuild } from "@/api/backendClient";
-import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
 import AppLayout from "@/components/AppLayout";
 import Logo from "@/components/Logo";
 import { lazy } from "react";
@@ -18,7 +17,6 @@ import TrialGate from "@/components/TrialGate";
 export default function HomeGate({ initialTab: routeInitialTab }) {
   const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings, user } = useAuth();
   const location = useLocation();
-  const { features: workspaceFeatures } = useWorkspaceFeatures(user?.workspace_id);
   const [pending, setPending] = useState(null);
 
   useEffect(() => {
@@ -55,21 +53,20 @@ export default function HomeGate({ initialTab: routeInitialTab }) {
     : pending === "open-crm" ? <Dashboard initialTab="crm" />
       : pending === "export-gst" ? <Dashboard initialTab="sales" />
         : <Dashboard
-            initialTab={routeInitialTab || (typeof routeState.initialTab === "string" ? routeState.initialTab : undefined)}
+            initialTab={routeInitialTab === "more" ? "dashboard" : (routeInitialTab || (typeof routeState.initialTab === "string" ? routeState.initialTab : undefined))}
+            openMoreOnMount={routeInitialTab === "more"}
             initialSub={typeof routeState.initialSub === "string" ? routeState.initialSub : undefined}
             initialIntent={typeof routeState.initialIntent === "string" ? routeState.initialIntent : undefined}
           />;
   const mobileItems = [
     { to: "/workspace/dashboard", label: "Home", Icon: LayoutDashboard, active: ["/", "/dashboard", "/workspace/dashboard"].includes(location.pathname) },
     { to: "/workspace/sales", label: "Sales", Icon: ReceiptText, active: location.pathname === "/workspace/sales" },
-    { to: "/workspace/crm", label: "CRM", Icon: UsersRound, active: location.pathname === "/workspace/crm" },
-    { to: "/workspace/stock", label: "Stock", Icon: Package, active: location.pathname === "/workspace/stock" },
-    { to: "/platform", label: "Business Tools", Icon: ShieldCheck, active: location.pathname.startsWith("/platform") },
+    { to: "/workspace/books", label: "Books", Icon: BookOpen, active: location.pathname === "/workspace/books" },
+    { to: "/workspace/ai", label: "AI", Icon: Sparkles, active: location.pathname === "/workspace/ai" },
+    { to: "/workspace/more", label: "More", Icon: MoreHorizontal, active: location.pathname === "/workspace/more" },
   ];
   const visibleMobileItems = mobileItems.filter((item) => {
-    if (item.to === "/platform") return ["admin", "manager"].includes(user?.role);
-    if (item.to === "/workspace/crm") return workspaceFeatures.includes("crm") || workspaceFeatures.includes("leads");
-    if (item.to === "/workspace/stock") return user?.workspace_type === "business" || workspaceFeatures.includes("stock");
+    if (item.to === "/workspace/books") return ["admin", "manager", "accountant"].includes(user?.role);
     return true;
   });
   return <TrialGate><div className="plivex-route-shell">{dashboard}
