@@ -40,3 +40,9 @@ test("Sales document UI retains each idempotency key until a successful save",()
   assert.match(panel,/challanKeys/);
   assert.match(panel,/if\(ok\)setOrderKey\(crypto\.randomUUID\(\)\)/);
 });
+
+test("Sales RPCs validate JSON arrays safely and reject non-finite quantities",()=>{
+  assert.match(migration,/jsonb_array_length\(case when jsonb_typeof\(p_items\)='array' then p_items else '\[\]'::jsonb end\)/);
+  assert.match(migration,/v_qty::text in \('NaN','Infinity','-Infinity'\)/);
+  assert.match(migration,/sqlstate in \('22P02','22003'\)/);
+});
