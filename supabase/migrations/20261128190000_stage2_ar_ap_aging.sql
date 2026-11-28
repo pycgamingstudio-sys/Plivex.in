@@ -54,7 +54,9 @@ begin
     where i.workspace_id = p_workspace_id
       and lower(coalesce(i.status, '')) not in ('draft', 'void', 'cancelled', 'canceled')
       and greatest(i.total_minor - i.amount_paid_minor, 0) > 0
-    order by i.due_date nulls last, i.issue_date, i.created_at
+  ), limited as (
+    select * from outstanding
+    order by due_date nulls last, overdue_days desc, reference
     limit v_limit
   )
   select
@@ -81,7 +83,7 @@ begin
         when overdue_days <= 60 then '31_60'
         when overdue_days <= 90 then '61_90'
         else 'over_90' end as ageing_bucket
-    from outstanding
+    from limited
   ) x;
 
   with outstanding as (
@@ -96,7 +98,9 @@ begin
     where b.workspace_id = p_workspace_id
       and lower(coalesce(b.status, '')) not in ('draft', 'void', 'cancelled', 'canceled', 'paid')
       and greatest(b.total_minor - b.amount_paid_minor, 0) > 0
-    order by b.due_date nulls last, b.purchase_date, b.created_at
+  ), limited as (
+    select * from outstanding
+    order by due_date nulls last, overdue_days desc, reference
     limit v_limit
   )
   select
@@ -123,7 +127,7 @@ begin
         when overdue_days <= 60 then '31_60'
         when overdue_days <= 90 then '61_90'
         else 'over_90' end as ageing_bucket
-    from outstanding
+    from limited
   ) x;
 
   return jsonb_build_object(
