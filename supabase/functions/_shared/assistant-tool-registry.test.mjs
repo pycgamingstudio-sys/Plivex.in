@@ -8,7 +8,7 @@ const validator = (action) => action && ASSISTANT_WRITE_TOOLS[action.type] && ac
 
 test("allows only the explicitly implemented confirmation actions", () => {
   assert.deepEqual(Object.keys(ASSISTANT_WRITE_TOOLS).sort(), [
-    "create_client", "create_expense", "create_global_client", "create_global_expense", "create_global_product", "create_global_supplier", "create_invoice", "transfer_global_stock", "create_lead", "create_purchase_order", "create_quotation", "create_stock", "create_warehouse", "receive_purchase_order", "record_global_invoice_payment"
+    "create_client", "create_expense", "create_global_client", "create_global_expense", "create_global_product", "create_global_supplier", "create_invoice", "create_lead", "create_purchase_order", "create_quotation", "create_stock", "create_warehouse", "receive_purchase_order", "record_global_invoice_payment", "transfer_global_stock"
   ]);
 });
 
