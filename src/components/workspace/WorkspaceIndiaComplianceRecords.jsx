@@ -6,6 +6,7 @@ const primary="rounded-lg bg-violet-700 px-3 py-2 text-xs font-semibold text-whi
 const secondary="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50";
 const today=()=>new Date().toISOString().slice(0,10);
 const money=(minor)=>"₹"+(Number(minor||0)/100).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
+const downloadJson=(name,value)=>{const blob=new Blob([JSON.stringify(value,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);};
 
 export default function WorkspaceIndiaComplianceRecords({workspaceId}){
  const [records,setRecords]=useState({tds_entries:[],einvoices:[],eway_bills:[],providers:[]});
@@ -93,7 +94,7 @@ export default function WorkspaceIndiaComplianceRecords({workspaceId}){
     <p className="mt-1 text-xs text-slate-500">Requires an issued invoice, seller/buyer GSTIN, two-digit place-of-supply state, intra/inter-state supply type and HSN/SAC + UQC on every line.</p>
     <label className="mt-3 block text-xs text-slate-600">Issued invoice<select className={field+" mt-1"} value={einvoiceId} onChange={e=>setEinvoiceId(e.target.value)}><option value="">Choose invoice</option>{invoices.map(x=><option key={x.id} value={x.id}>{x.number} · {money(Math.round(Number(x.total||0)*100))}</option>)}</select></label>
     <button className={primary+" mt-3"} disabled={busy||!einvoiceId} onClick={prepareEinvoice}>Validate & prepare e-invoice</button>
-    <div className="mt-4 space-y-2">{records.einvoices.map(x=><div key={x.id} className="rounded-lg bg-slate-50 p-2 text-xs"><div className="flex justify-between gap-2"><strong>{x.invoice_number}</strong><span className={statusClass(x.status)}>{x.status}</span></div>{(x.validation_errors||[]).map((msg,i)=><p key={i} className="mt-1 text-red-700">{msg}</p>)}{x.irn&&<p className="mt-1 break-all">IRN: {x.irn}</p>}</div>)}{!records.einvoices.length&&<p className="text-xs text-slate-500">No e-invoice records yet.</p>}</div>
+    <div className="mt-4 space-y-2">{records.einvoices.map(x=><div key={x.id} className="rounded-lg bg-slate-50 p-2 text-xs"><div className="flex justify-between gap-2"><strong>{x.invoice_number}</strong><span className={statusClass(x.status)}>{x.status}</span></div>{(x.validation_errors||[]).map((msg,i)=><p key={i} className="mt-1 text-red-700">{msg}</p>)}{x.irn&&<p className="mt-1 break-all">IRN: {x.irn}</p>}<button className={secondary+" mt-2"} onClick={()=>downloadJson("Plivex-EInvoice-"+x.invoice_number+".json",x.request_payload)}>Download payload</button></div>)}{!records.einvoices.length&&<p className="text-xs text-slate-500">No e-invoice records yet.</p>}</div>
    </div>
 
    <form onSubmit={prepareEway} className="rounded-xl border p-3">
@@ -107,7 +108,7 @@ export default function WorkspaceIndiaComplianceRecords({workspaceId}){
      <label className="text-xs text-slate-600 sm:col-span-2">Transporter ID (if vehicle not available)<input className={field+" mt-1"} value={eway.transporter_id} onChange={e=>setEway(v=>({...v,transporter_id:e.target.value.toUpperCase()}))}/></label>
     </div>
     <button className={primary+" mt-3"} disabled={busy||!eway.invoice_id}>Validate & prepare e-way bill</button>
-    <div className="mt-4 space-y-2">{records.eway_bills.map(x=><div key={x.id} className="rounded-lg bg-slate-50 p-2 text-xs"><div className="flex justify-between gap-2"><strong>{x.invoice_number}</strong><span className={statusClass(x.status)}>{x.status}</span></div><p className="mt-1">{x.distance_km} km · {x.transport_mode} · {x.vehicle_number||x.transporter_id||"Transporter pending"}</p>{x.eway_bill_number&&<p>EWB: {x.eway_bill_number}</p>}{(x.validation_errors||[]).map((msg,i)=><p key={i} className="mt-1 text-red-700">{msg}</p>)}</div>)}{!records.eway_bills.length&&<p className="text-xs text-slate-500">No e-way bill records yet.</p>}</div>
+    <div className="mt-4 space-y-2">{records.eway_bills.map(x=><div key={x.id} className="rounded-lg bg-slate-50 p-2 text-xs"><div className="flex justify-between gap-2"><strong>{x.invoice_number}</strong><span className={statusClass(x.status)}>{x.status}</span></div><p className="mt-1">{x.distance_km} km · {x.transport_mode} · {x.vehicle_number||x.transporter_id||"Transporter pending"}</p>{x.eway_bill_number&&<p>EWB: {x.eway_bill_number}</p>}{(x.validation_errors||[]).map((msg,i)=><p key={i} className="mt-1 text-red-700">{msg}</p>)}<button className={secondary+" mt-2"} onClick={()=>downloadJson("Plivex-EWayBill-"+x.invoice_number+".json",x.request_payload)}>Download payload</button></div>)}{!records.eway_bills.length&&<p className="text-xs text-slate-500">No e-way bill records yet.</p>}</div>
    </form>
 
    <div className="rounded-xl border p-3">
