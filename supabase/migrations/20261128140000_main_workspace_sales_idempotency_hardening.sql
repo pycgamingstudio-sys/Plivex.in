@@ -60,11 +60,10 @@ begin
   select * into v_order_item from public.sales_order_items where workspace_id=p_workspace_id and id=(v_item->>'sales_order_item_id')::uuid and sales_order_id=v_order.id for update;
   if not found then raise exception 'sales_order_item_not_found'; end if;
   v_qty:=coalesce((v_item->>'quantity')::numeric,0);
-  select coalesce(sum(dci.quantity),0) into v_done from public.delivery_challan_items dci join public.delivery_challans dc on dc.id=dci.delivery_challan_id where dci.workspace_id=p_workspace_id and dci.sales_order_item_id=v_order_item.id and dc.status in ('dispatched','received');
+  select coalesce(sum(dci.quantity),0) into v_done from public.delivery_challan_items dci join public.delivery_challans dc on dc.id=dci.delivery_challan_id where dci.workspace_id=p_workspace_id and dci.sales_order_item_id=v_order_item.id and dc.status in ('draft','dispatched','received');
   if v_qty<=0 or v_qty+v_done>v_order_item.quantity then raise exception 'challan_quantity_exceeds_order'; end if;
   insert into public.delivery_challan_items(workspace_id,delivery_challan_id,sales_order_item_id,stock_id,description,quantity) values(p_workspace_id,v_challan.id,v_order_item.id,v_order_item.stock_id,v_order_item.description,v_qty);
  end loop;
- update public.sales_orders set status='partially_fulfilled',updated_at=now() where id=v_order.id;
  insert into public.workspace_audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata) values(p_workspace_id,v_user,'delivery_challan.created','delivery_challan',v_challan.id::text,jsonb_build_object('challan_number',v_number,'sales_order_id',v_order.id));
  return jsonb_build_object('ok',true,'delivery_challan_id',v_challan.id,'challan_number',v_number);
 exception when others then if sqlerrm in ('sales_order_item_not_found','challan_quantity_exceeds_order') then return jsonb_build_object('ok',false,'reason',sqlerrm); end if; raise;
@@ -94,7 +93,7 @@ end; $function$;
 
 create or replace function public.main_workspace_set_sales_document_status(p_workspace_id text,p_document_type text,p_document_id uuid,p_status text)
 returns jsonb language plpgsql security definer set search_path=pg_catalog,public as $function$
-declare v_user uuid:=auth.uid();v_found uuid;v_amount numeric;v_invoice uuid;v_credited numeric;
+declare v_user uuid:=auth.uid();v_found uuid;v_amount numeric;v_invoice uuid;v_credited numeric;v_sales_order uuid;
 begin
  if v_user is null or not public.has_ws_role(p_workspace_id,array['admin'::app_role,'manager'::app_role,'accountant'::app_role,'storekeeper'::app_role]) then return jsonb_build_object('ok',false,'reason','forbidden'); end if;
  if p_document_type='sales_order' and p_status='fulfilled' and exists(
@@ -107,7 +106,28 @@ begin
  if p_document_type='sales_order' and p_status in ('confirmed','cancelled','fulfilled') then
   update public.sales_orders set status=p_status,updated_at=now() where workspace_id=p_workspace_id and id=p_document_id and ((p_status='confirmed' and status='draft') or (p_status='cancelled' and status in ('draft','confirmed','partially_fulfilled')) or (p_status='fulfilled' and status='partially_fulfilled')) returning id into v_found;
  elsif p_document_type='delivery_challan' and p_status in ('dispatched','received','cancelled') then
-  update public.delivery_challans set status=p_status,updated_at=now() where workspace_id=p_workspace_id and id=p_document_id and ((p_status='dispatched' and status='draft') or (p_status='received' and status='dispatched') or (p_status='cancelled' and status in ('draft','dispatched'))) returning id into v_found;
+  update public.delivery_challans set status=p_status,updated_at=now()
+   where workspace_id=p_workspace_id and id=p_document_id
+    and ((p_status='dispatched' and status='draft') or (p_status='received' and status='dispatched') or (p_status='cancelled' and status in ('draft','dispatched')))
+   returning id,sales_order_id into v_found,v_sales_order;
+  if v_sales_order is not null then
+   update public.sales_orders so set status=case
+    when exists(select 1 from public.delivery_challans dc join public.delivery_challan_items dci
+      on dci.workspace_id=dc.workspace_id and dci.delivery_challan_id=dc.id
+      where dc.workspace_id=p_workspace_id and dc.sales_order_id=v_sales_order and dc.status in ('dispatched','received'))
+     and not exists(select 1 from public.sales_order_items soi
+      where soi.workspace_id=p_workspace_id and soi.sales_order_id=v_sales_order
+       and coalesce((select sum(dci.quantity) from public.delivery_challan_items dci
+        join public.delivery_challans dc on dc.workspace_id=dci.workspace_id and dc.id=dci.delivery_challan_id
+        where dci.workspace_id=p_workspace_id and dci.sales_order_item_id=soi.id and dc.status in ('dispatched','received')),0)<soi.quantity)
+     then 'fulfilled'
+    when exists(select 1 from public.delivery_challans dc join public.delivery_challan_items dci
+      on dci.workspace_id=dc.workspace_id and dci.delivery_challan_id=dc.id
+      where dc.workspace_id=p_workspace_id and dc.sales_order_id=v_sales_order and dc.status in ('dispatched','received'))
+     then 'partially_fulfilled'
+    else 'confirmed' end,updated_at=now()
+   where so.workspace_id=p_workspace_id and so.id=v_sales_order and so.status in ('confirmed','partially_fulfilled','fulfilled');
+  end if;
  elsif p_document_type='credit_debit_note' and p_status in ('issued','cancelled') then
   select invoice_id,amount into v_invoice,v_amount from public.credit_debit_notes where workspace_id=p_workspace_id and id=p_document_id and status='draft' and note_type='credit' for update;
   if v_invoice is not null and p_status='issued' then
