@@ -659,7 +659,8 @@ async function handleRequest(req: Request, metricContext: Record<string, unknown
     // functions, not the legacy public-table snapshot above. Reuse the user's
     // JWT through the Supabase client; the Global function re-checks membership.
     const needsGlobalApprovalContext = /\b(approval|approvals|approve|pending approval)\b|अनुमोदन/i.test(String(conversationRoutingText));
-    const needsGlobalFinanceContext = deterministicIntentHints.intents.includes("payment_incoming") || /invoice|bill|payment|paid|received|refund|reconcil|ledger|balance|outstanding|due|receivable|payable|paise|jama|bhugtan|पेमेंट|भुगतान|पैसे|रकम|overdue|last month|previous month|pichle|sales|revenue|business performance|performance review|profit|loss|cash flow|growth/i.test(String(conversationRoutingText)) || needsGlobalApprovalContext;
+    const needsGlobalApprovalSourceContext = /(?:request|create|submit|raise).{0,40}approval|approval.{0,40}(?:request|for invoice|for expense)/i.test(String(conversationRoutingText));
+    const needsGlobalFinanceContext = deterministicIntentHints.intents.includes("payment_incoming") || /invoice|bill|payment|paid|received|refund|reconcil|ledger|balance|outstanding|due|receivable|payable|paise|jama|bhugtan|पेमेंट|भुगतान|पैसे|रकम|overdue|last month|previous month|pichle|sales|revenue|business performance|performance review|profit|loss|cash flow|growth/i.test(String(conversationRoutingText)) || needsGlobalApprovalSourceContext;
     const needsGlobalClientContext = /\b(client|customer|grahak)\b|ग्राहक|कस्टमर/i.test(String(conversationRoutingText));
     const needsGlobalSupplierContext = /\b(supplier|suppliers|vendor|vendors)\b|आपूर्तिकर्ता/i.test(String(conversationRoutingText));
     const needsGlobalTransferContext = /(?:stock|inventory|product|warehouse|item).{0,80}(?:transfer|move)|(?:transfer|move).{0,80}(?:stock|inventory|product|warehouse|item)|स्टॉक ट्रांसफर/i.test(String(conversationRoutingText));
@@ -680,6 +681,7 @@ async function handleRequest(req: Request, metricContext: Record<string, unknown
       needsGlobalBranchContext,
       needsGlobalMemberContext,
       needsGlobalApprovalContext,
+      needsGlobalApprovalSourceContext,
       hasImage: Boolean(image),
     });
     metricContext.requestClass = requestPolicy.simpleConversationalTurn ? "simple" : "business";
