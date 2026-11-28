@@ -139,7 +139,7 @@ begin
  select count(*) into v_drafts from public.journal_entries
  where workspace_id=p_workspace_id and entry_date between v_start and v_end and status='draft';
  if v_drafts>0 then return jsonb_build_object('ok',false,'reason','unposted_journals_exist','draft_count',v_drafts); end if;
- select count(*),coalesce(sum(l.debit),0),coalesce(sum(l.credit),0)
+ select count(distinct j.id),coalesce(sum(l.debit),0),coalesce(sum(l.credit),0)
  into v_count,v_debits,v_credits
  from public.journal_entries j left join public.journal_entry_lines l
   on l.workspace_id=j.workspace_id and l.entry_id=j.id
