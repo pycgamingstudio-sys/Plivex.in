@@ -58,3 +58,9 @@ test("branch requests load authenticated Main Workspace branch context", () => {
   assert.equal(result.loadGlobalContext, true);
   assert.equal(result.simpleConversationalTurn, false);
 });
+
+test("member permission requests load the protected Main Workspace member context", () => {
+  const result = getAssistantRequestPolicy({ isGlobalWorkspace: true, needsGlobalMemberContext: true });
+  assert.equal(result.loadGlobalContext, true);
+  assert.equal(result.simpleConversationalTurn, false);
+});
