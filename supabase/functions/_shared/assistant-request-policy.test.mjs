@@ -76,3 +76,32 @@ test("approval request preparation loads the source invoice and expense context"
   assert.equal(result.loadGlobalContext, true);
   assert.equal(result.simpleConversationalTurn, false);
 });
+
+
+test("single business writes use the business profile, not lightweight chat", () => {
+  const policy = getAssistantRequestPolicy({ intentCount: 1, hasWriteIntent: true });
+  assert.equal(policy.requestClass, "business");
+  assert.equal(policy.thinkingLevel, "medium");
+  assert.equal(policy.maxOutputTokens, 1800);
+});
+
+test("compound intents are routed to the multi-step reasoning profile", () => {
+  const policy = getAssistantRequestPolicy({ intentCount: 2, hasWriteIntent: true });
+  assert.equal(policy.requestClass, "multi_step");
+  assert.equal(policy.multiStepTurn, true);
+  assert.equal(policy.thinkingLevel, "high");
+  assert.equal(policy.maxOutputTokens, 2600);
+});
+
+test("analytics requests receive business context reasoning even without write intents", () => {
+  const policy = getAssistantRequestPolicy({ needsAnalytics: true });
+  assert.equal(policy.requestClass, "business");
+  assert.equal(policy.simpleConversationalTurn, false);
+  assert.equal(policy.thinkingLevel, "medium");
+});
+
+test("multi-step purchasing workflows receive the expanded reasoning profile", () => {
+  const policy = getAssistantRequestPolicy({ needsPurchasingContext: true, hasWriteIntent: true, intentCount: 1 });
+  assert.equal(policy.requestClass, "multi_step");
+  assert.equal(policy.maxOutputTokens, 2600);
+});
