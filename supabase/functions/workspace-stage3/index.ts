@@ -115,8 +115,8 @@ async function handleWebhookRequest(req: Request) {
 
   const provider = String(subscription.provider_key);
   const eventType = clean(provider === "shopify" ? req.headers.get("x-shopify-topic") : req.headers.get("x-plivex-event-type"), 120);
-  const eventId = clean(provider === "shopify" ? req.headers.get("x-shopify-webhook-id") : req.headers.get("x-plivex-event-id"), 200);
-  if (!eventId || !isAllowedWebhookEvent(provider, eventType, subscription.event_types)) {
+  const eventId = String((provider === "shopify" ? req.headers.get("x-shopify-webhook-id") : req.headers.get("x-plivex-event-id")) || "").trim();
+  if (!/^[A-Za-z0-9._:-]{1,200}$/.test(eventId) || !isAllowedWebhookEvent(provider, eventType, subscription.event_types)) {
     return json({ ok: false, error: "WEBHOOK_EVENT_NOT_ALLOWED" }, 400);
   }
 
@@ -127,8 +127,8 @@ async function handleWebhookRequest(req: Request) {
     const triggeredAt = req.headers.get("x-shopify-triggered-at");
     if (triggeredAt && Number.isFinite(Date.parse(triggeredAt))) eventTimestamp = new Date(triggeredAt).toISOString();
   } else {
-    const timestamp = clean(req.headers.get("x-plivex-timestamp"), 10);
-    const signature = clean(req.headers.get("x-plivex-signature"), 80);
+    const timestamp = String(req.headers.get("x-plivex-timestamp") || "").trim();
+    const signature = String(req.headers.get("x-plivex-signature") || "").trim();
     const verified = await verifyCustomWebhookSignature(secret, timestamp, eventId, signature, rawBody);
     if (!verified.ok) return json({ ok: false, error: verified.code || "WEBHOOK_SIGNATURE_INVALID" }, 401);
     eventTimestamp = new Date(Number(timestamp) * 1000).toISOString();
