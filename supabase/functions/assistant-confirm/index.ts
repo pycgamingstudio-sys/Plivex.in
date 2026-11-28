@@ -157,7 +157,7 @@ Deno.serve(async (req: Request) => {
     const rawActions = Array.isArray(body?.actions) ? body.actions : [body?.action];
     if (!rawActions.length || rawActions.length > 10) return json({ error: "Please confirm between 1 and 10 valid actions." }, 400, origin);
     if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_client", "create_global_supplier", "create_global_expense", "create_global_product", "record_global_invoice_payment", "transfer_global_stock"].includes(String(action?.type || "")))) {
-      return json({ error: "This Global workspace action is not connected yet. No legacy India-table write was attempted." }, 403, origin);
+      return json({ error: "This Main Workspace action is not connected yet. No legacy India-table write was attempted." }, 403, origin);
     }
     if (!isGlobalWorkspace && rawActions.some((action: any) => isGlobalOnlyAssistantAction(action?.type))) {
       return json({ error: "This Global-only action is not available in the current workspace." }, 403, origin);
@@ -199,7 +199,7 @@ Deno.serve(async (req: Request) => {
         const reason = String(product?.reason || "");
         const message = reason === "duplicate_sku" ? "A product with this SKU already exists in the Global catalog. Use the existing product or choose a different SKU."
           : reason === "forbidden" ? "Your Global workspace role cannot create products."
-          : reason === "access_denied" ? "You do not have access to this Global workspace."
+          : reason === "access_denied" ? "You do not have access to this Main Workspace."
           : "The Global product details were rejected. Nothing was saved.";
         return json({ error: message }, reason === "forbidden" || reason === "access_denied" ? 403 : 409, origin);
       }
@@ -325,7 +325,7 @@ Deno.serve(async (req: Request) => {
       });
       if (supplierError) {
         const message = String(supplierError.message || "");
-        if (message.includes("PERMISSION_DENIED")) return json({ error: "Only a Global workspace owner, admin or manager can create suppliers." }, 403, origin);
+        if (message.includes("PERMISSION_DENIED")) return json({ error: "Only a Main Workspace owner, admin or manager can create suppliers." }, 403, origin);
         if (message.includes("IDEMPOTENCY_PAYLOAD_MISMATCH")) return json({ error: "This confirmation key was already used for different supplier details. Prepare the supplier again." }, 409, origin);
         console.error("Global supplier creation rejected", { code: supplierError.code, userId: user.id });
         return json({ error: "The Global supplier could not be created. Check the details and try again." }, 400, origin);
@@ -333,7 +333,7 @@ Deno.serve(async (req: Request) => {
       if (!supplier?.ok || !supplier?.supplier_id || !supplier?.record) {
         const reason = String(supplier?.reason || "");
         const message = reason === "duplicate_supplier" ? "A supplier with this name already exists in this workspace. Use the existing supplier instead."
-          : reason === "forbidden" ? "Your Global workspace role cannot create suppliers."
+          : reason === "forbidden" ? "Your Main Workspace role cannot create suppliers."
           : reason === "access_denied" ? "You do not have access to this Global workspace."
           : "The Global supplier details were rejected. Nothing was saved.";
         return json({ error: message }, reason === "forbidden" || reason === "access_denied" ? 403 : 409, origin);
