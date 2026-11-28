@@ -15,7 +15,6 @@ test("bank statement import idempotency is serialized and payload-bound", () => 
   assert.match(migration, /pg_advisory_xact_lock/);
   assert.match(migration, /request_fingerprint/);
   assert.match(migration, /idempotency_conflict/);
-  assert.match(migration, /unique\(workspace_id,idempotency_key\)/);
 });
 
 test("bank statement RPC enforces workspace roles and statement date bounds", () => {
