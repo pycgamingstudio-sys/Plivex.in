@@ -31,7 +31,7 @@ test("workspace shell has responsive desktop sidebar and a dedicated mobile prim
   assert.match(dashboard, /fixed inset-y-0 left-0[\s\S]*md:flex/);
   assert.match(appLayout, /aria-label="Primary workspace navigation"/);
   assert.match(appLayout, /aria-label="Main workspace navigation"/);
-  for (const label of ["Home", "Sales", "Books", "AI", "More"]) assert.match(homeGate, new RegExp('label: "' + label + '"`));
+  for (const label of ["Home", "Sales", "Books", "AI", "More"]) assert.match(homeGate, new RegExp('label: "' + label + '"'));
 });
 
 test("individual tool pages mount only their selected feature and load only its own data", () => {
