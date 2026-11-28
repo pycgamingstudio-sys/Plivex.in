@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, X, Sparkles, CheckCircle2, Loader2, PlusCircle, ImagePlus, Mic, MicOff } from "lucide-react";
+import { Send, X, Sparkles, CheckCircle2, Loader2, PlusCircle, ImagePlus, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import { assistantEnabled, supabase } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
 import { refreshWorkspaceKey } from "@/lib/stores";
 import { isAffirmativeConfirmation } from "@/lib/assistant-confirmation-intent";
 import { streamAssistantChat } from "@/lib/assistant-streaming.mjs";
+import { getAssistantSpeechLanguage, normalizeAssistantSpeechText } from "@/lib/assistant-speech.mjs";
 
 const STARTERS = [
   "Mere business ki performance review karo",
@@ -34,6 +35,7 @@ export default function AssistantWidget() {
   const [error, setError] = useState("");
   const [retryAction, setRetryAction] = useState(null);
   const [listening, setListening] = useState(false);
+  const [speakingMessageIndex, setSpeakingMessageIndex] = useState(null);
   const recognitionRef = useRef(null);
   const bottomRef = useRef(null);
   const dragRef = useRef(null);
@@ -44,6 +46,10 @@ export default function AssistantWidget() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, busy, open]);
+
+  useEffect(() => () => {
+    if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel();
+  }, []);
   // Chat is intentionally session-only: reload starts a fresh conversation.
   // Do not persist messages in localStorage, so stale tasks cannot reappear.
 
@@ -230,6 +236,35 @@ export default function AssistantWidget() {
       : message));
   }
 
+  function speakMessage(value, messageIndex) {
+    if (!("speechSynthesis" in window) || typeof window.SpeechSynthesisUtterance !== "function") {
+      setError("Voice playback is not supported in this browser. You can still read Nova's reply.");
+      return;
+    }
+    if (speakingMessageIndex === messageIndex) {
+      window.speechSynthesis.cancel();
+      setSpeakingMessageIndex(null);
+      return;
+    }
+    const spokenText = normalizeAssistantSpeechText(value);
+    if (!spokenText) return;
+    window.speechSynthesis.cancel();
+    const utterance = new window.SpeechSynthesisUtterance(spokenText);
+    utterance.lang = getAssistantSpeechLanguage(spokenText, navigator.language || "en-IN");
+    const languagePrefix = utterance.lang.toLowerCase().split("-")[0];
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find((voice) => voice.lang.toLowerCase().startsWith(languagePrefix));
+    if (preferredVoice) utterance.voice = preferredVoice;
+    utterance.onend = () => setSpeakingMessageIndex((current) => current === messageIndex ? null : current);
+    utterance.onerror = () => {
+      setSpeakingMessageIndex(null);
+      setError("Voice playback stopped. Please try again or use your device's accessibility voice options.");
+    };
+    setError("");
+    setSpeakingMessageIndex(messageIndex);
+    window.speechSynthesis.speak(utterance);
+  }
+
   function toggleVoiceInput() {
     if (listening) {
       recognitionRef.current?.stop();
@@ -283,6 +318,12 @@ export default function AssistantWidget() {
             {messages.map((m, i) => <div key={m.id || i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
               <div className={m.role === "user" ? "max-w-[90%] whitespace-pre-wrap rounded-2xl bg-[#6D28D9] px-3.5 py-2.5 text-sm text-white" : "max-w-[94%] whitespace-pre-wrap rounded-2xl bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-sm"}>
                 {m.content}
+                {m.role === "assistant" && m.content && !m.isStreaming && <div className="mt-2 flex justify-end">
+                  <button type="button" onClick={() => speakMessage(m.content, i)} aria-label={speakingMessageIndex === i ? "Stop reading reply aloud" : "Read reply aloud"} title={speakingMessageIndex === i ? "Stop voice playback" : "Read reply aloud"} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-50">
+                    {speakingMessageIndex === i ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                    {speakingMessageIndex === i ? "Stop" : "Listen"}
+                  </button>
+                </div>}
                 {m.imageDataUrl && <img src={m.imageDataUrl} alt="Attached business document" className="mt-2 max-h-40 max-w-full rounded-lg border border-slate-200 object-contain" />}
                 {(m.pendingAction || m.pendingActions?.length) && <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50 p-3">
                   <div className="flex items-center gap-2 text-xs font-semibold text-purple-900"><PlusCircle className="h-4 w-4" /> {m.pendingActions?.length > 1 ? "Ready to complete " + m.pendingActions.length + " actions" : "Ready for confirmation"}</div>
