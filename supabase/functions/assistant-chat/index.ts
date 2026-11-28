@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { createAssistantRequestMetric } from "../_shared/assistant-observability.mjs";
 import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
 import { generateWithFallback } from "../_shared/assistant-model-router.mjs";
+import { validateAssistantAttachment } from "../_shared/assistant-attachment.mjs";
 import { validateGlobalInvoicePaymentAction } from "../_shared/assistant-global-payment-validation.mjs";
 import { validateGlobalClientAction } from "../_shared/assistant-global-client-validation.mjs";
 import { validateGlobalExpenseAction } from "../_shared/assistant-global-expense-validation.mjs";
@@ -579,11 +580,12 @@ async function handleRequest(req: Request, metricContext: Record<string, unknown
 
     const incoming = Array.isArray(body?.messages) ? body.messages : [];
     const image = body?.image && typeof body.image === "object" ? body.image : null;
-    const imageMime = image && ["image/jpeg", "image/png", "image/webp"].includes(String(image.mimeType)) ? String(image.mimeType) : "";
-    const imageData = image && typeof image.data === "string" ? image.data : "";
-    if (image && (!imageMime || !/^[A-Za-z0-9+/]+={0,2}$/.test(imageData) || imageData.length > 5_600_000)) {
-      return json({ error: "Please attach a JPG, PNG or WebP image smaller than 4 MB." }, 400);
+    const attachmentValidation = image ? validateAssistantAttachment(image) : null;
+    if (attachmentValidation && !attachmentValidation.ok) {
+      return json({ error: attachmentValidation.error }, 400);
     }
+    const imageMime = attachmentValidation?.mimeType || "";
+    const imageData = attachmentValidation?.data || "";
     const messages = incoming.slice(-16).map((item: { role?: string; content?: string }, index: number, list: unknown[]) => {
       const parts: any[] = [{ text: String(item?.content || "").trim().slice(0, 1200) }];
       if (imageMime && imageData && index === list.length - 1 && item?.role !== "assistant") {
