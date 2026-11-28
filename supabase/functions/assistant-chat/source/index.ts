@@ -12,6 +12,7 @@ import { detectSupplementaryContextNeeds } from "../_shared/assistant-context-in
 import { buildConversationRoutingText } from "../_shared/assistant-conversation-context.mjs";
 import { getLiveContextQueryPlan } from "../_shared/assistant-context-query-plan.mjs";
 import { getAssistantRequestPolicy } from "../_shared/assistant-request-policy.mjs";
+import { createAssistantRequestMetric } from "../_shared/assistant-observability.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
 import { validatePurchaseOrderAction } from "../_shared/assistant-purchase-order-validation.mjs";
 import { validateWarehouseAction, validateStockTransferAction } from "../_shared/assistant-warehouse-validation.mjs";
@@ -561,6 +562,12 @@ function validateAction(action: any) {
 }
 
 async function handleRequest(req: Request, onModelTextChunk?: (chunk: string) => void) {
+  const requestStartedAt = Date.now();
+  let firstTokenAt: number | null = null;
+  const forwardModelChunk = (chunk: string) => {
+    if (firstTokenAt === null) firstTokenAt = Date.now();
+    if (typeof onModelTextChunk === "function") onModelTextChunk(chunk);
+  };
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const authorization = req.headers.get("Authorization");
@@ -857,7 +864,7 @@ async function handleRequest(req: Request, onModelTextChunk?: (chunk: string) =>
       groqKey,
       openRouterKey,
       enableGroq,
-      onTextChunk: onModelTextChunk,
+      onTextChunk: forwardModelChunk,
     });
     if (!routed.ok) {
       const message = routed.status === 429
@@ -875,6 +882,16 @@ async function handleRequest(req: Request, onModelTextChunk?: (chunk: string) =>
     }
     const result = routed.result;
     console.info("Nova response provider", { provider: routed.provider, model: routed.model });
+    console.info("Nova request metric", createAssistantRequestMetric({
+      requestId: req.headers.get("x-request-id") || crypto.randomUUID(),
+      startedAt: requestStartedAt,
+      finishedAt: Date.now(),
+      status: 200,
+      requestClass: requestPolicy.requestClass,
+      provider: routed.provider,
+      model: routed.model,
+      ttftMs: firstTokenAt === null ? null : firstTokenAt - requestStartedAt,
+    }));
     const raw = result?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || "").join("").trim();
     if (!raw) return json({ error: "Gemini returned no text. Please try again." }, 502);
     let parsed: any;
