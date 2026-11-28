@@ -80,6 +80,7 @@ test("public API write scope is consistent across database, Edge Function and do
   const webhookMigration = read("../../../supabase/migrations/20261128130000_stage3_integration_automation_vault_foundation.sql");
   const webhookEdge = read("../../../supabase/functions/workspace-stage3/index.ts");
   const stage3Ui = read("../../components/workspace/WorkspaceStage3Center.jsx");
+  const platformEdge = read("../../../supabase/functions/workspace-platform/index.ts");
   assert.ok(scopeMigration.includes("'leads.write'"));
   assert.ok(scopeMigration.includes("cardinality(scopes) between 1 and 9"));
   assert.ok(idempotencyMigration.includes("main_workspace_api_create_lead"));
@@ -96,4 +97,7 @@ test("public API write scope is consistent across database, Edge Function and do
   assert.ok(webhookEdge.includes("main_workspace_get_webhook_secret"));
   assert.ok(webhookEdge.includes("WEBHOOK_PROVIDER_UNSUPPORTED"));
   assert.ok(stage3Ui.includes("SHOPIFY_API_SECRET"));
+  assert.ok(platformEdge.includes("MAX_REQUEST_BYTES = 6 * 1024 * 1024"));
+  assert.ok(platformEdge.includes("encoder.encode(rawBody).byteLength > MAX_REQUEST_BYTES"));
+  assert.ok(platformEdge.includes("INVALID_JSON"));
 });
