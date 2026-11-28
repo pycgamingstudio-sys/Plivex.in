@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const read=(path)=>readFileSync(new URL(path,import.meta.url),"utf8");
 const migration=read("../../../supabase/migrations/20261128130000_main_workspace_india_compliance_records.sql");
+const baseMigration=read("../../../supabase/migrations/20261128130000_main_workspace_india_compliance_records.sql");
 const itemMigration=read("../../../supabase/migrations/20261128130100_persist_invoice_hsn_unit_metadata.sql");
 const edge=read("../../../supabase/functions/workspace-india-compliance/index.ts");
 const invoiceEdge=read("../../../supabase/functions/save-invoice/index.ts");
@@ -55,8 +56,8 @@ test("Provider setup stores only a Supabase secret-name reference and never acce
 });
 
 test("Invoice HSN/SAC and UQC fields persist from the Main Workspace invoice editor to the database",()=>{
-  assert.match(itemMigration,/add column if not exists hsn_sac_code text/i);
-  assert.match(itemMigration,/add column if not exists unit_code text/i);
+  assert.match(baseMigration,/add column if not exists hsn_sac_code text/i);
+  assert.match(baseMigration,/add column if not exists unit_code text/i);
   assert.match(itemMigration,/invoice_items \(invoice_id, description, quantity, rate, gst_rate, hsn_sac_code, unit_code\)/);
   assert.match(invoiceEdge,/hsn_sac_code: it\.hsn_sac_code/);
   assert.match(stores,/hsn_sac_code: str\(i\.hsnSac\)/);
