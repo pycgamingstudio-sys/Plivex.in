@@ -694,7 +694,7 @@ async function handleRequest(req: Request, metricContext: Record<string, unknown
       needsGlobalApprovalSourceContext,
       hasImage: Boolean(image),
     });
-    metricContext.requestClass = requestPolicy.simpleConversationalTurn ? "simple" : "business";
+    metricContext.requestClass = requestPolicy.requestClass;
     const globalContextPromise = requestPolicy.loadGlobalContext
       ? (async () => {
           let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -927,7 +927,7 @@ async function handleRequest(req: Request, metricContext: Record<string, unknown
       groqKey,
       openRouterKey,
       enableGroq,
-      onTextChunk: requestPolicy.simpleConversationalTurn && onTextChunk ? (chunk) => {
+      onTextChunk: onTextChunk ? (chunk) => {
         if (typeof metricContext.ttftMs !== "number") metricContext.ttftMs = Math.max(0, Date.now() - Number(metricContext.startedAt || Date.now()));
         onTextChunk(chunk);
       } : null,
