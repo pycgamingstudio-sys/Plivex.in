@@ -45,3 +45,30 @@ test("the deployed assistant-chat source retains all supported tool modules", ()
     assert.ok(source.includes(moduleName), `Missing assistant module import: ${moduleName}`);
   }
 });
+
+test("assistant-chat supports real SSE deltas and final action envelope", () => {
+  const source = readFileSync(entrypoint, "utf8");
+  assert.match(source, /accept[\s\S]{0,80}text\/event-stream/);
+  assert.match(source, /onTextChunk:\s*forwardModelChunk/);
+  assert.match(source, /emit\("delta",\s*\{\s*text:\s*chunk\s*\}\)/);
+  assert.match(source, /emit\("complete",\s*payload\)/);
+  assert.match(source, /Content-Type",\s*"text\/event-stream/);
+});
+
+test("Nova request latency and TTFT metrics avoid business payload logging", () => {
+  const source = readFileSync(entrypoint, "utf8");
+  assert.match(source, /createAssistantRequestMetric/);
+  assert.match(source, /ttftMs:\s*firstTokenAt/);
+  assert.match(source, /requestClass:\s*requestPolicy\.requestClass/);
+  assert.doesNotMatch(source, /console\.(?:info|log)\([^\n]*(?:prompt|workspace_id|invoice_number)/i);
+});
+
+test("deployed router and policy mirrors contain the adaptive streaming implementations", () => {
+  const deployedRouter = readFileSync(resolve(functionDir, "_shared/assistant-model-router.mjs"), "utf8");
+  const deployedPolicy = readFileSync(resolve(functionDir, "_shared/assistant-request-policy.mjs"), "utf8");
+  assert.match(deployedRouter, /streamGenerateContent\?alt=sse/);
+  assert.match(deployedRouter, /onTextChunk/);
+  assert.match(deployedRouter, /STREAM_INTERRUPTED/);
+  assert.match(deployedPolicy, /requestClass/);
+  assert.match(deployedPolicy, /multiStepTurn/);
+});
