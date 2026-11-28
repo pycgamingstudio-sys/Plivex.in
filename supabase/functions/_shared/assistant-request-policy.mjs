@@ -17,7 +17,8 @@ export function getAssistantRequestPolicy({
     needsGlobalExpenseContext ||
     needsGlobalProductContext ||
     needsGlobalSupplierContext ||
-    needsGlobalTransferContext
+    needsGlobalTransferContext ||
+    needsGlobalBranchContext
   );
   const simpleConversationalTurn = !needsWorkspaceContext &&
     !needsPurchasingContext &&
