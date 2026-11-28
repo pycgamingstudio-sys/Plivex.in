@@ -10,6 +10,7 @@ const invoiceEdge=read("../../../supabase/functions/save-invoice/index.ts");
 const stores=read("../../lib/stores.js");
 const panel=read("../../components/workspace/WorkspaceIndiaComplianceRecords.jsx");
 const parent=read("../../components/workspace/WorkspaceGSTCompliance.jsx");
+const home=read("../../pages/Home.jsx");
 
 test("India compliance records are workspace scoped and inaccessible to browser roles",()=>{
   for(const table of ["workspace_tds_entries","workspace_einvoice_records","workspace_eway_bill_records","workspace_compliance_provider_connections"]){
@@ -60,6 +61,7 @@ test("Invoice HSN/SAC and UQC fields persist from the Main Workspace invoice edi
   assert.match(invoiceEdge,/hsn_sac_code: it\.hsn_sac_code/);
   assert.match(stores,/hsn_sac_code: str\(i\.hsnSac\)/);
   assert.match(stores,/unit_code: str\(i\.unitCode\) \|\| "OTH"/);
+  assert.match(home,/Unit<select/);
 });
 
 test("India compliance workbench is integrated into the existing GST module and clearly labels external filing as inactive",()=>{
