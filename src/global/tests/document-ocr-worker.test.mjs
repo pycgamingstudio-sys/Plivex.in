@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 const [migration, endpoint] = await Promise.all([
-  read("../../../supabase/migrations/20261127150000_document_ocr_worker_lifecycle.sql"),
+  read("../../../supabase/migrations/20261128095056_document_ocr_worker_lifecycle.sql"),
   read("../../../supabase/functions/workspace-platform/index.ts"),
 ]);
 
