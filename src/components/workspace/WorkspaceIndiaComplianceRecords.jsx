@@ -17,6 +17,7 @@ export default function WorkspaceIndiaComplianceRecords({workspaceId}){
  const [challan,setChallan]=useState({number:"",date:today(),bsr:""});
  const [provider,setProvider]=useState({provider_type:"gst_irp",provider_name:"",environment:"sandbox",secret_reference:"PLIVEX_GST_IRP_SECRET"});
  const [busy,setBusy]=useState(false);const [error,setError]=useState("");const [notice,setNotice]=useState("");
+ const [tdsKey,setTdsKey]=useState(()=>crypto.randomUUID());const [einvoiceKey,setEinvoiceKey]=useState(()=>crypto.randomUUID());const [ewayKey,setEwayKey]=useState(()=>crypto.randomUUID());
 
  const call=useCallback(async(action,values={})=>{
   const {data,error}=await supabase.functions.invoke("workspace-india-compliance",{body:{action,workspace_id:workspaceId,...values}});
@@ -38,23 +39,24 @@ export default function WorkspaceIndiaComplianceRecords({workspaceId}){
  useEffect(()=>{load().catch(e=>setError(e.message||"Compliance records could not be loaded."));},[load]);
  const run=async(fn,message)=>{
   setBusy(true);setError("");setNotice("");
-  try{await fn();setNotice(message);await load();}
-  catch(e){setError(e.message||"Operation failed.");}
+  try{await fn();setNotice(message);await load();return true;}
+  catch(e){setError(e.message||"Operation failed.");return false;}
   finally{setBusy(false);}
  };
- const addTds=(e)=>{
+ const addTds=async(e)=>{
   e.preventDefault();
-  return run(()=>call("create_tds_entry",{
+  const ok=await run(()=>call("create_tds_entry",{
    source_type:tds.source_type,deductee_name:tds.deductee_name,deductee_pan:tds.deductee_pan.toUpperCase(),
    section_code:tds.section_code,deduction_date:tds.deduction_date,payment_date:tds.payment_date||null,
    gross_amount_minor:Math.round(Number(tds.gross_amount)*100),tds_rate_bps:Math.round(Number(tds.tds_rate)*100),
-   idempotency_key:crypto.randomUUID(),
+   idempotency_key:tdsKey,
   }),"TDS deduction record saved.");
+  if(ok)setTdsKey(crypto.randomUUID());
  };
- const prepareEinvoice=()=>run(()=>call("prepare_einvoice",{invoice_id:einvoiceId,idempotency_key:crypto.randomUUID()}),"E-invoice payload prepared. Review validation results before provider submission.");
+ const prepareEinvoice=async()=>{const ok=await run(()=>call("prepare_einvoice",{invoice_id:einvoiceId,idempotency_key:einvoiceKey}),"E-invoice payload prepared. Review validation results before provider submission.");if(ok)setEinvoiceKey(crypto.randomUUID());};
  const prepareEway=(e)=>{
   e.preventDefault();
-  return run(()=>call("prepare_eway_bill",{...eway,distance_km:Number(eway.distance_km),idempotency_key:crypto.randomUUID()}),"E-way bill payload prepared. It has not been submitted to the portal.");
+  return run(()=>call("prepare_eway_bill",{...eway,distance_km:Number(eway.distance_km),idempotency_key:ewayKey}),"E-way bill payload prepared. It has not been submitted to the portal.").then(ok=>{if(ok)setEwayKey(crypto.randomUUID());});
  };
  const updateTds=(entry,status)=>run(()=>call("update_tds_status",{
   entry_id:entry.id,status,
