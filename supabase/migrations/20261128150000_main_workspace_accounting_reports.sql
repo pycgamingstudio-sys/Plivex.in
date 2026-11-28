@@ -227,7 +227,7 @@ begin
  from (
   select j.id as entry_id,j.entry_date,j.entry_number,j.description,l.memo,l.debit,l.credit,l.id as line_id,
    v_opening+sum(case when v_account.normal_balance='debit' then l.debit-l.credit else l.credit-l.debit end)
-    over(order by j.entry_date,j.created_at,j.id,l.id rows between unbounded preceding and current row) as running_balance
+    over(order by j.entry_date,j.entry_number,j.id,l.id rows between unbounded preceding and current row) as running_balance
   from public.journal_entry_lines l join public.journal_entries j on j.workspace_id=l.workspace_id and j.id=l.entry_id
   where l.workspace_id=p_workspace_id and l.account_id=v_account.id and j.status='posted'
    and j.currency_code=v_currency and j.entry_date between p_from and p_to
