@@ -3,7 +3,6 @@ import { Link, Navigate, useLocation } from "react-router-dom";
 import { LayoutDashboard, ReceiptText, BookOpen, Sparkles, MoreHorizontal } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import { APP_EDITION, isUnifiedBuild } from "@/api/backendClient";
-import { useWorkspaceFeatures } from "@/lib/workspaceFeatures";
 import AppLayout from "@/components/AppLayout";
 import Logo from "@/components/Logo";
 import { lazy } from "react";
@@ -18,7 +17,6 @@ import TrialGate from "@/components/TrialGate";
 export default function HomeGate({ initialTab: routeInitialTab }) {
   const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings, user } = useAuth();
   const location = useLocation();
-  const { features: workspaceFeatures } = useWorkspaceFeatures(user?.workspace_id);
   const [pending, setPending] = useState(null);
 
   useEffect(() => {
