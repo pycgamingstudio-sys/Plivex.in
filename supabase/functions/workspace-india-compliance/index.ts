@@ -161,20 +161,31 @@ Deno.serve(async(req:Request)=>{
       if(!validUuid(body.invoice_id)||!validUuid(body.idempotency_key)) return json({error:"Invoice and idempotency identifiers are required."},400,origin);
       const date=clean(body.document_date,10),distance=body.distance_km,mode=clean(body.transport_mode,10),vehicle=clean(body.vehicle_number,20).toUpperCase(),transporter=clean(body.transporter_id,20).toUpperCase();
       if(!isValidIsoDate(date)||!Number.isInteger(distance)||distance<1||distance>4000||!["road","rail","air","ship"].includes(mode)||(!vehicle&&!transporter)) return json({error:"Document date, distance, transport mode and vehicle or transporter details are required."},400,origin);
-      const {data:invoice,error:invoiceError}=await admin.from("invoices").select("id,workspace_id,number,issue_date,status,is_draft,currency,total,invoice_snapshot").eq("id",body.invoice_id).eq("workspace_id",workspaceId).maybeSingle();
-      if(invoiceError||!invoice) return json({error:"Invoice not found in this workspace."},404,origin);
+      const [{data:invoice,error:invoiceError},{data:seller,error:sellerError}]=await Promise.all([
+        admin.from("invoices").select("id,workspace_id,number,issue_date,status,is_draft,currency,total,client_id,client_name").eq("id",body.invoice_id).eq("workspace_id",workspaceId).maybeSingle(),
+        admin.from("business_profile").select("name,address,tax_registration_number").eq("workspace_id",workspaceId).maybeSingle(),
+      ]);
+      if(invoiceError||sellerError||!invoice||!seller) return json({error:"Invoice or seller profile not found in this workspace."},404,origin);
       if(invoice.is_draft||["cancelled","void"].includes(String(invoice.status||"").toLowerCase())) return json({error:"Only an issued, active invoice can be prepared for an e-way bill."},409,origin);
-      const payload={document_type:"INV",document_number:invoice.number,document_date:date,invoice_date:invoice.issue_date,total_value:Number(invoice.total||0),currency:"INR",distance_km:distance,transport_mode:mode,vehicle_number:vehicle||null,transporter_id:transporter||null};
+      const {data:buyer,error:buyerError}=invoice.client_id ? await admin.from("clients").select("name,gstin,address").eq("id",invoice.client_id).eq("workspace_id",workspaceId).maybeSingle() : {data:null,error:null};
+      if(buyerError) return json({error:"Customer details could not be loaded."},500,origin);
+      const errors:string[]=[];
+      if(!gstin(seller.tax_registration_number)) errors.push("Seller GSTIN is missing or malformed.");
+      if(!gstin(buyer?.gstin)) errors.push("Buyer GSTIN is missing or malformed.");
+      if(!clean(seller.address,1000)) errors.push("Seller dispatch address is required.");
+      if(!clean(buyer?.address,1000)) errors.push("Buyer delivery address is required.");
+      if(!invoice.number||!isValidIsoDate(invoice.issue_date)) errors.push("Invoice number and date are required.");
+      const payload={document_type:"INV",document_number:invoice.number,document_date:date,invoice_date:invoice.issue_date,total_value:Number(invoice.total||0),currency:"INR",from_gstin:seller.tax_registration_number,from_address:seller.address,to_gstin:buyer?.gstin||null,to_address:buyer?.address||null,distance_km:distance,transport_mode:mode,vehicle_number:vehicle||null,transporter_id:transporter||null};
       const fingerprint=await sha256({invoice_id:invoice.id,payload});
       const {data:active}=await admin.from("workspace_eway_bill_records").select("id,status").eq("workspace_id",workspaceId).eq("invoice_id",invoice.id).in("status",["ready","submitted","generated"]).maybeSingle();
       if(active) return json({error:"An active e-way bill already exists for this invoice."},409,origin);
       const {data:existing}=await admin.from("workspace_eway_bill_records").select("*").eq("workspace_id",workspaceId).eq("invoice_id",invoice.id).in("status",["draft","rejected"]).order("created_at",{ascending:false}).limit(1).maybeSingle();
       if(existing) {
-        const {data,error}=await admin.from("workspace_eway_bill_records").update({status:"ready",document_number:invoice.number,document_date:date,distance_km:distance,transport_mode:mode,vehicle_number:vehicle||null,transporter_id:transporter||null,request_payload:payload,validation_errors:[],idempotency_key:body.idempotency_key,request_fingerprint:fingerprint,updated_at:new Date().toISOString()}).eq("id",existing.id).eq("workspace_id",workspaceId).select("*").single();
+        const {data,error}=await admin.from("workspace_eway_bill_records").update({status:errors.length?"draft":"ready",document_number:invoice.number,document_date:date,distance_km:distance,transport_mode:mode,vehicle_number:vehicle||null,transporter_id:transporter||null,request_payload:payload,validation_errors:errors,idempotency_key:body.idempotency_key,request_fingerprint:fingerprint,updated_at:new Date().toISOString()}).eq("id",existing.id).eq("workspace_id",workspaceId).select("*").single();
         if(error) throw new Error("EWAY_DRAFT_UPDATE_FAILED");
         return json({ok:true,duplicate:false,record:data},200,origin);
       }
-      const {data,error}=await admin.from("workspace_eway_bill_records").insert({workspace_id:workspaceId,invoice_id:invoice.id,invoice_number:invoice.number,status:"ready",document_type:"INV",document_number:invoice.number,document_date:date,distance_km:distance,transport_mode:mode,vehicle_number:vehicle||null,transporter_id:transporter||null,request_payload:payload,validation_errors:[],idempotency_key:body.idempotency_key,request_fingerprint:fingerprint,created_by:user.id}).select("*").single();
+      const {data,error}=await admin.from("workspace_eway_bill_records").insert({workspace_id:workspaceId,invoice_id:invoice.id,invoice_number:invoice.number,status:errors.length?"draft":"ready",document_type:"INV",document_number:invoice.number,document_date:date,distance_km:distance,transport_mode:mode,vehicle_number:vehicle||null,transporter_id:transporter||null,request_payload:payload,validation_errors:errors,idempotency_key:body.idempotency_key,request_fingerprint:fingerprint,created_by:user.id}).select("*").single();
       if(error) throw new Error("EWAY_DRAFT_SAVE_FAILED");
       return json({ok:true,duplicate:false,record:data},201,origin);
     }
