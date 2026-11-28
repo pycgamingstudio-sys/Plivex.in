@@ -39,3 +39,10 @@ test("purchasing context is retained for inventory workflows", () => {
   assert.equal(policy.simpleConversationalTurn, false);
   assert.equal(policy.maxOutputTokens, 1800);
 });
+
+test("supplier-only Global queries load the authenticated supplier context", () => {
+  const result = getAssistantRequestPolicy({ isGlobalWorkspace: true, needsGlobalSupplierContext: true });
+  assert.equal(result.needsGlobalContext, true);
+  assert.equal(result.loadGlobalContext, true);
+  assert.equal(result.simpleConversationalTurn, false);
+});

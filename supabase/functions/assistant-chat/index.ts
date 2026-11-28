@@ -5,6 +5,7 @@ import { generateWithFallback } from "../_shared/assistant-model-router.mjs";
 import { validateAssistantAttachment } from "../_shared/assistant-attachment.mjs";
 import { validateGlobalInvoicePaymentAction } from "../_shared/assistant-global-payment-validation.mjs";
 import { validateGlobalClientAction } from "../_shared/assistant-global-client-validation.mjs";
+import { validateGlobalSupplierAction } from "../_shared/assistant-global-supplier-validation.mjs";
 import { validateGlobalExpenseAction } from "../_shared/assistant-global-expense-validation.mjs";
 import { routeExpenseActionForWorkspace } from "../_shared/assistant-expense-workspace-routing.mjs";
 import { validateGlobalProductAction } from "../_shared/assistant-global-product-validation.mjs";
@@ -479,6 +480,14 @@ function validateAction(action: any) {
       summary: "Add Global client: " + validated.payload.name + (validated.payload.email ? " · " + validated.payload.email : "") + ". This creates a client in the authenticated Global workspace.",
     };
   }
+  if (type === "create_global_supplier") {
+    const validated = validateGlobalSupplierAction(action);
+    if (!validated) return null;
+    return {
+      ...validated,
+      summary: "Add Global supplier: " + validated.payload.name + (validated.payload.email ? " · " + validated.payload.email : "") + ". This creates a supplier record only; it does not send a payment or purchase order.",
+    };
+  }
   if (type === "create_client") {
     const name = text(p.name, 120);
     if (!name) return null;
@@ -615,6 +624,7 @@ async function handleRequest(req: Request, metricContext: Record<string, unknown
     // JWT through the Supabase client; the Global function re-checks membership.
     const needsGlobalFinanceContext = deterministicIntentHints.intents.includes("payment_incoming") || /invoice|bill|payment|paid|received|refund|reconcil|ledger|balance|outstanding|due|receivable|payable|paise|jama|bhugtan|पेमेंट|भुगतान|पैसे|रकम|overdue|last month|previous month|pichle|sales|revenue|business performance|performance review|profit|loss|cash flow|growth/i.test(String(conversationRoutingText));
     const needsGlobalClientContext = /\b(client|customer|grahak)\b|ग्राहक|कस्टमर/i.test(String(conversationRoutingText));
+    const needsGlobalSupplierContext = /\b(supplier|suppliers|vendor|vendors)\b|आपूर्तिकर्ता/i.test(String(conversationRoutingText));
     const needsGlobalProductContext = /\b(product|products|item|items|stock|inventory|maal|saman)\b|उत्पाद|सामान|माल|स्टॉक/i.test(String(conversationRoutingText));
     const needsGlobalExpenseContext = /\b(expense|expenses|kharcha|kharch|spend|spent|spending|business cost|cost|costs|outgoing|debit|business performance|performance review|profit|loss|cash flow|growth)\b|खर्च|व्यय|लाभ|नुकसान|मुनाफा/i.test(String(conversationRoutingText));
     const requestPolicy = getAssistantRequestPolicy({
@@ -625,6 +635,7 @@ async function handleRequest(req: Request, metricContext: Record<string, unknown
       needsGlobalClientContext,
       needsGlobalExpenseContext,
       needsGlobalProductContext,
+      needsGlobalSupplierContext,
       hasImage: Boolean(image),
     });
     metricContext.requestClass = requestPolicy.simpleConversationalTurn ? "simple" : "business";
@@ -679,10 +690,20 @@ async function handleRequest(req: Request, metricContext: Record<string, unknown
                   records: Array.isArray(data.records) ? data.records.slice(0, 100) : [],
                 } : null).catch(() => null)
               : Promise.resolve(null);
-            const combined = Promise.all([financeInvocation, clientsInvocation, expensesInvocation, productsInvocation, stockLevelsInvocation]).then(([finance, clients, expenses, products, stockLevels]) => {
-              if (!finance && !clients && !expenses && !products && !stockLevels && !isGlobalWorkspace) return null;
+            const suppliersInvocation = needsGlobalSupplierContext
+              ? Promise.resolve(supabase.rpc("assistant_list_global_suppliers", {
+                  p_workspace_id: profile.workspace_id, p_limit: 100,
+                })).then(({ data, error }: any) => !error && data?.ok ? {
+                  records: Array.isArray(data.records) ? data.records.slice(0, 100).map((item: any) => ({
+                    id: item.id, name: item.name, email: item.email || null, phone: item.phone || null,
+                    tax_registration_number: item.tax_registration_number || null,
+                  })) : [],
+                } : null).catch(() => null)
+              : Promise.resolve(null);
+            const combined = Promise.all([financeInvocation, clientsInvocation, expensesInvocation, productsInvocation, stockLevelsInvocation, suppliersInvocation]).then(([finance, clients, expenses, products, stockLevels, suppliers]) => {
+              if (!finance && !clients && !expenses && !products && !stockLevels && !suppliers && !isGlobalWorkspace) return null;
               return {
-                global_workspace: isGlobalWorkspace || Boolean(finance || clients || expenses || products || stockLevels),
+                global_workspace: isGlobalWorkspace || Boolean(finance || clients || expenses || products || stockLevels || suppliers),
                 country_code: finance?.country_code || globalUser?.country_code || null,
                 currency_code: clients?.currency_code || expenses?.currency_code || products?.currency_code || globalUser?.currency_code || null,
                 invoices: finance?.invoices || [],
@@ -690,8 +711,9 @@ async function handleRequest(req: Request, metricContext: Record<string, unknown
                 expenses: expenses?.records || [],
                 products: products?.records || [],
                 stock_levels: stockLevels?.records || [],
-                limits: { invoices: finance ? 100 : 0, clients: clients ? 100 : 0, expenses: expenses ? 100 : 0, products: products ? 100 : 0, stock_levels: stockLevels ? 100 : 0 },
-                context_unavailable: (needsGlobalFinanceContext && !finance) || (needsGlobalClientContext && !clients) || (needsGlobalExpenseContext && !expenses) || (needsGlobalProductContext && (!products || !stockLevels)),
+                suppliers: suppliers?.records || [],
+                limits: { invoices: finance ? 100 : 0, clients: clients ? 100 : 0, expenses: expenses ? 100 : 0, products: products ? 100 : 0, stock_levels: stockLevels ? 100 : 0, suppliers: suppliers ? 100 : 0 },
+                context_unavailable: (needsGlobalFinanceContext && !finance) || (needsGlobalClientContext && !clients) || (needsGlobalExpenseContext && !expenses) || (needsGlobalProductContext && (!products || !stockLevels)) || (needsGlobalSupplierContext && !suppliers),
                 source: "authenticated Global workspace records",
               };
             });
@@ -727,7 +749,7 @@ async function handleRequest(req: Request, metricContext: Record<string, unknown
       "CLARIFICATION POLICY: Ask only for genuinely missing required fields. If one field is missing, ask only for that field and retain all known fields. Merge the next answer into the pending task and revalidate. Repeated details must not create duplicate actions. Never ask generically for amount/quantity/price/name when the exact missing field is known.",
       "ACTION QUALITY GATE: Before any write action, check required fields, types, ranges, arithmetic, intent consistency, duplicate actions and explicit user intent. For invoices, estimate quantity × rate and GST/discount but treat server save_invoice as authoritative. For expenses, never substitute item unit price for expense total. If validation fails, return no write action and ask a precise clarification.",
       "MULTI-TASK ISOLATION: Keep invoice, expense, stock, client, lead and quotation tasks separate. A reply like 'Rohit 50000 salary' belongs to an expense only if that expense task is still the active unresolved intent. Never transform expense into stock or invoice because fields overlap. If two modules are explicitly requested, return two separately validated actions.",
-      "UNIVERSAL BUSINESS MODULE REASONING: Classify requests across clients/customers, products, inventory, stock receiving, warehouses, suppliers, purchase orders, purchase receipts, stock transfers, expenses, payments, invoices, quotations, staff, branches, analytics, documents and automation. These are intent categories, not proof that a live tool exists. For read-only answers, use only modules and records actually present in LIVE DATA JSON. For writes, use only the thirteen supported actions in the response schema: create_client, create_global_client, create_global_expense, create_global_product, create_expense, create_lead, create_stock, create_quotation, create_invoice, create_purchase_order, receive_purchase_order, create_warehouse, record_global_invoice_payment. The Global payment action is only for recording an incoming payment against an existing Global invoice when authenticated Global reconciliation context is present. The receive_purchase_order action is only for receiving quantities against an existing purchase order and a selected active warehouse; it requires exact purchase_order_id, warehouse_id, purchase_order_item_id and quantity values from LIVE DATA. It is not purchase-order creation or a free-form stock adjustment. Never fabricate create_supplier, outgoing supplier payment, refund, stock adjustment, transfer, staff, branch or automation actions. Never use record_global_invoice_payment without Global invoice context and an explicit incoming-payment instruction. If asked for an unsupported operation, explain that it is not yet connected to the assistant rather than pretending it is done.",
+      "UNIVERSAL BUSINESS MODULE REASONING: Classify requests across clients/customers, products, inventory, stock receiving, warehouses, suppliers, purchase orders, purchase receipts, stock transfers, expenses, payments, invoices, quotations, staff, branches, analytics, documents and automation. These are intent categories, not proof that a live tool exists. For read-only answers, use only modules and records actually present in LIVE DATA JSON. For writes, use only the fourteen supported actions in the response schema: create_client, create_global_client, create_global_supplier, create_global_expense, create_global_product, create_expense, create_lead, create_stock, create_quotation, create_invoice, create_purchase_order, receive_purchase_order, create_warehouse, record_global_invoice_payment. The Global supplier action creates one supplier record after explicit user confirmation; it requires a unique supplier name and owner/admin/manager role. It does not initiate payments or create purchase orders. The Global payment action is only for recording an incoming payment against an existing Global invoice when authenticated Global reconciliation context is present. The receive_purchase_order action is only for receiving quantities against an existing purchase order and a selected active warehouse; it requires exact purchase_order_id, warehouse_id, purchase_order_item_id and quantity values from LIVE DATA. It is not purchase-order creation or a free-form stock adjustment. Never fabricate outgoing supplier payment, refund, stock adjustment, transfer, staff, branch or automation actions. Never use record_global_invoice_payment without Global invoice context and an explicit incoming-payment instruction. If asked for an unsupported operation, explain that it is not yet connected to the assistant rather than pretending it is done.",
       "INVENTORY SEMANTICS: Distinguish creating a product record from receiving stock into an existing product, adjusting stock, transferring stock between warehouses, creating a warehouse, and creating a purchase order. The create_stock action creates a stock item; it is not a goods receipt, warehouse transfer or purchase order. receive_purchase_order records goods only against an existing purchase order and active warehouse. If the wording could mean more than one operation, ask one focused clarification. Do not infer a supplier, warehouse or purchase price.",
       "MULTI-INTENT PLANNING: Extract every independently requested operation, preserve its entities and dependencies, and return all fully specified supported actions together. A read-only question may coexist with a draft action. If any requested write operation is unsupported or lacks a mandatory field, do not silently drop it or substitute another action; explain the limitation and ask only for the missing detail when a supported action can still be prepared safely.",
       "PAYMENT EVIDENCE: A screenshot is evidence of what is visible, not independent bank verification. Do not mark an invoice paid, reconcile a ledger, issue a refund or record an incoming payment using an expense action. Distinguish money received from money spent and request clarification when direction or transaction status is unclear.",
@@ -751,7 +773,7 @@ async function handleRequest(req: Request, metricContext: Record<string, unknown
       "GLOBAL CLIENT ACTION: When GLOBAL WORKSPACE CONTEXT contains a clients array, this is a Global workspace: create new customers only with create_global_client, not create_client. Check existing clients by normalized name first; if a matching client already exists, do not create a duplicate and ask whether the user meant to use that client. Only propose this write for Global workspace owner/admin/manager roles. Map email, phone, tax_registration_number and notes only when explicitly supplied. In a non-Global workspace with no Global client context, use create_client. Never invent a company name or tax number.",
       "GLOBAL WORKSPACE AUTHORITY: When GLOBAL WORKSPACE CONTEXT is present, use its Global reconciliation records as the authoritative invoice/payment source for that workspace. Do not override Global balances with legacy public invoice summaries. When absent, do not infer Global invoice or payment data from public tables.",
       "GLOBAL PAYMENT ACTION: If the user explicitly asks to record a payment received against a Global invoice, use record_global_invoice_payment only when the exact invoice_id and currency_code exist in GLOBAL WORKSPACE CONTEXT, outstanding_minor is positive, and the user supplied the payment amount and date. amount is expressed in major currency units; never send minor units in amount. Do not use this for outgoing supplier payments, refunds, subscription payments or screenshots alone. Never mark an invoice paid manually; the Global ledger recalculates its balance. This action is one invoice at a time and requires confirmation. If the workspace has no Global reconciliation context, explain that this action is not connected for that workspace.",
-      "GLOBAL WORKSPACE CONTEXT: When present, this is the authenticated Global workspace snapshot. The clients array contains a capped Global client list. The expenses array is the recent Global expense ledger snapshot. The products array is the Global product catalog and stock_levels is a read-only current quantity snapshot keyed by product_id; join those records by exact IDs. The invoices array is the authenticated Global invoice reconciliation snapshot from the workspace's own country context. Match invoices by the visible invoice_number or client_name when the user refers to a customer; if multiple invoices match, ask which invoice. Use invoice_id only from these records when preparing a payment action. Amount fields ending in _minor are minor currency units, not major units; do not display them as whole currency amounts without the currency's correct exponent. Distinguish invoice total, gross payments, refunds, net received and outstanding. This context is read-only; payment/refund writes still require an explicitly supported action and confirmation. " + JSON.stringify(globalBusinessContext),
+      "GLOBAL WORKSPACE CONTEXT: When present, this is the authenticated Global workspace snapshot. The clients array contains a capped Global client list and suppliers contains a capped supplier list. The expenses array is the recent Global expense ledger snapshot. The products array is the Global product catalog and stock_levels is a read-only current quantity snapshot keyed by product_id; join those records by exact IDs. The invoices array is the authenticated Global invoice reconciliation snapshot from the workspace's own country context. Match invoices by the visible invoice_number or client_name when the user refers to a customer; if multiple invoices match, ask which invoice. Use invoice_id only from these records when preparing a payment action. Amount fields ending in _minor are minor currency units, not major units; do not display them as whole currency amounts without the currency's correct exponent. Distinguish invoice total, gross payments, refunds, net received and outstanding. This context is read-only; payment/refund writes still require an explicitly supported action and confirmation. " + JSON.stringify(globalBusinessContext),
       "LIVE DATA JSON: " + JSON.stringify(liveContext),
     ].join("\n");
     const requestOptions = {
@@ -773,7 +795,7 @@ async function handleRequest(req: Request, metricContext: Record<string, unknown
                 items: {
                   type: "OBJECT",
                   properties: {
-                    type: { type: "STRING", enum: ["create_client", "create_global_client", "create_global_expense", "create_global_product", "create_expense", "create_lead", "create_stock", "create_quotation", "create_invoice", "create_purchase_order", "receive_purchase_order", "create_warehouse", "record_global_invoice_payment"] },
+                    type: { type: "STRING", enum: ["create_client", "create_global_client", "create_global_supplier", "create_global_expense", "create_global_product", "create_expense", "create_lead", "create_stock", "create_quotation", "create_invoice", "create_purchase_order", "receive_purchase_order", "create_warehouse", "record_global_invoice_payment"] },
                     payload: { type: "OBJECT", properties: {
                       name:{type:"STRING"}, company:{type:"STRING"}, email:{type:"STRING"}, phone:{type:"STRING"}, gstin:{type:"STRING"}, address:{type:"STRING"}, tax_registration_number:{type:"STRING"}, invoice_id:{type:"STRING"}, currency_code:{type:"STRING"}, payment_date:{type:"STRING"}, reference:{type:"STRING"}, expense_date:{type:"STRING"}, payment_method:{type:"STRING"}, description:{type:"STRING"}, sale_price:{type:"NUMBER"}, purchase_cost:{type:"NUMBER"}, tax_code:{type:"STRING"}, is_active:{type:"BOOLEAN"},
                       vendor:{type:"STRING"}, category:{type:"STRING"}, amount:{type:"NUMBER"}, date:{type:"STRING"}, status:{type:"STRING"}, method:{type:"STRING"}, notes:{type:"STRING"},
