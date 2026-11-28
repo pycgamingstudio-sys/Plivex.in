@@ -110,7 +110,7 @@ export default function WorkspaceStage3Center({ section }) {
   const automationPayload = () => ({
     name, triggerType, eventType, conditions: eventType === "invoice.status_changed" && statusCondition ? { status_equals: statusCondition } : {},
     actionType: "create_task", timezone: preferenceDraft?.timezone || preferences.timezone || "UTC",
-    scheduleFrequency, scheduleTimeLocal, scheduleDays,
+    scheduleFrequency, scheduleTimeLocal, scheduleDays: scheduleFrequency === "weekly" ? scheduleDays : null,
     actionConfig: { title: taskTitle, description: taskDescription, due_in_hours: dueHours === "" ? null : Number(dueHours) },
   });
   const createRule = (event) => {
