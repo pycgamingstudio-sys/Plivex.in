@@ -1,3 +1,4 @@
+begin;
 -- Stage 3 migration contract checks run only against the disposable CI candidate database.
 do $$
 declare
@@ -169,4 +170,95 @@ begin
   end if;
 end $;
 
+
+do $
+declare
+  v_workspace text := 'stage3-api-idempotency-test';
+  v_user uuid := '00000000-0000-4000-8000-000000000991';
+  v_subscription uuid := '00000000-0000-4000-8000-000000000993';
+  v_success_event uuid := '00000000-0000-4000-8000-000000000994';
+  v_failure_event uuid := '00000000-0000-4000-8000-000000000995';
+  v_processed integer;
+  v_state text;
+  v_attempts integer;
+begin
+  insert into public.workspace_webhook_subscriptions(
+    id,workspace_id,provider_key,label,secret_name,event_types,created_by
+  ) values (
+    v_subscription,v_workspace,'custom','Stage 3 test webhook',
+    'plivex_webhook_00000000-0000-4000-8000-000000000993',
+    array['invoice.created'],v_user
+  );
+
+  insert into public.workspace_webhook_events(
+    id,workspace_id,subscription_id,provider_key,provider_event_id,event_type,
+    event_timestamp,payload,payload_sha256,signature_verified
+  ) values (
+    v_success_event,v_workspace,v_subscription,'custom','evt_stage3_success_001','invoice.created',
+    now(),'{"type":"invoice.created"}'::jsonb,repeat('a',64),true
+  );
+  insert into public.workspace_webhook_events(
+    workspace_id,subscription_id,provider_key,provider_event_id,event_type,
+    event_timestamp,payload,payload_sha256,signature_verified
+  ) values (
+    v_workspace,v_subscription,'custom','evt_stage3_success_001','invoice.created',
+    now(),'{"type":"invoice.created"}'::jsonb,repeat('a',64),true
+  ) on conflict (subscription_id,provider_event_id) do nothing;
+
+  if (select count(*) from public.workspace_webhook_events where subscription_id=v_subscription and provider_event_id='evt_stage3_success_001') <> 1 then
+    raise exception 'Webhook replay was not deduplicated';
+  end if;
+
+  v_processed := public.process_main_workspace_webhook_events(10);
+  select status,attempt_count into v_state,v_attempts from public.workspace_webhook_events where id=v_success_event;
+  if v_processed <> 1 or v_state <> 'processed' or v_attempts <> 1 then
+    raise exception 'Verified webhook event did not reach processed state: %, %, %',v_processed,v_state,v_attempts;
+  end if;
+  if (select count(*) from public.workspace_event_outbox where dedupe_key='webhook:' || v_subscription::text || ':evt_stage3_success_001') <> 1 then
+    raise exception 'Webhook event was not emitted to the outbox exactly once';
+  end if;
+
+  create or replace function public.test_stage3_fail_webhook_outbox()
+  returns trigger language plpgsql as $test$
+  begin
+    if new.entity_id = '00000000-0000-4000-8000-000000000995' then
+      raise exception 'TEST_WEBHOOK_OUTBOX_FAILURE';
+    end if;
+    return new;
+  end;
+  $test$;
+  drop trigger if exists test_stage3_fail_webhook_outbox on public.workspace_event_outbox;
+  create trigger test_stage3_fail_webhook_outbox before insert on public.workspace_event_outbox
+  for each row execute function public.test_stage3_fail_webhook_outbox();
+
+  insert into public.workspace_webhook_events(
+    id,workspace_id,subscription_id,provider_key,provider_event_id,event_type,
+    event_timestamp,payload,payload_sha256,signature_verified
+  ) values (
+    v_failure_event,v_workspace,v_subscription,'custom','evt_stage3_failure_001','invoice.created',
+    now(),'{"type":"invoice.created"}'::jsonb,repeat('b',64),true
+  );
+  perform public.process_main_workspace_webhook_events(10);
+  select status,attempt_count into v_state,v_attempts from public.workspace_webhook_events where id=v_failure_event;
+  if v_state <> 'retrying' or v_attempts <> 1
+    or (select count(*) from public.workspace_webhook_attempts where event_id=v_failure_event and status='retrying') <> 1 then
+    raise exception 'Webhook failure did not schedule a bounded retry: %, %',v_state,v_attempts;
+  end if;
+
+  update public.workspace_webhook_events
+  set attempt_count=11,status='retrying',next_attempt_at=now()
+  where id=v_failure_event;
+  perform public.process_main_workspace_webhook_events(10);
+  select status,attempt_count into v_state,v_attempts from public.workspace_webhook_events where id=v_failure_event;
+  if v_state <> 'dead_letter' or v_attempts <> 12
+    or (select count(*) from public.workspace_webhook_attempts where event_id=v_failure_event and status='dead_letter') <> 1 then
+    raise exception 'Webhook retry budget did not dead-letter the event: %, %',v_state,v_attempts;
+  end if;
+
+  drop trigger if exists test_stage3_fail_webhook_outbox on public.workspace_event_outbox;
+  drop function if exists public.test_stage3_fail_webhook_outbox();
+end $;
+
 select 'PASS: Stage 3 tables, RLS, least-privilege grants, event triggers, webhook replay/retry, API idempotency and indexes';
+
+rollback;
