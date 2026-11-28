@@ -7,7 +7,7 @@ const [endpoint, rpcMigration, transactionMigration, resourceListMigration, crmU
   read("../../../supabase/functions/global-part4/index.ts"),
   read("../../../supabase/migrations/202611160001_global_part4_crm_warehouse_procurement.sql"),
   read("../../../supabase/migrations/202611160002_global_part4_transactional_operations.sql"),
-  read("../../../supabase/migrations/20261128100000_global_part4_resource_list_completion.sql"),
+  read("../../../supabase/migrations/20261128095059_global_part4_resource_list_completion.sql"),
   read("../../components/workspace/WorkspaceCRMPanel.jsx"),
   read("../../components/global/GlobalPart4Panel.jsx"),
 ]);
