@@ -1,10 +1,10 @@
 import { getCurrencyPrecision, assertMinorAmount } from "./currency-precision.js";
 
 const isDate = (value) => {
-  if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$/.test(value)) return false;
+  if (typeof value !== "string" || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]{1,3})?Z$/.test(value)) return false;
   const timestamp = Date.parse(value);
   if (!Number.isFinite(timestamp)) return false;
-  const expected = value.replace(/(?:\\.(\\d{1,3}))?Z$/, (_, fraction) => `.${(fraction || "").padEnd(3, "0")}Z`);
+  const expected = value.replace(/(?:[.]([0-9]{1,3}))?Z$/, (_, fraction) => `.${(fraction || "").padEnd(3, "0")}Z`);
   return new Date(timestamp).toISOString() === expected;
 };
 const positiveIntegerString = (v) => typeof v === "string" && /^[1-9]\d{0,37}$/.test(v);
