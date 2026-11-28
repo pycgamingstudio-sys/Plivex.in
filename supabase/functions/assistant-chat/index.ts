@@ -624,6 +624,7 @@ async function handleRequest(req: Request, metricContext: Record<string, unknown
     // JWT through the Supabase client; the Global function re-checks membership.
     const needsGlobalFinanceContext = deterministicIntentHints.intents.includes("payment_incoming") || /invoice|bill|payment|paid|received|refund|reconcil|ledger|balance|outstanding|due|receivable|payable|paise|jama|bhugtan|पेमेंट|भुगतान|पैसे|रकम|overdue|last month|previous month|pichle|sales|revenue|business performance|performance review|profit|loss|cash flow|growth/i.test(String(conversationRoutingText));
     const needsGlobalClientContext = /\b(client|customer|grahak)\b|ग्राहक|कस्टमर/i.test(String(conversationRoutingText));
+    const needsGlobalSupplierContext = /\b(supplier|suppliers|vendor|vendors)\b|आपूर्तिकर्ता/i.test(String(conversationRoutingText));
     const needsGlobalProductContext = /\b(product|products|item|items|stock|inventory|maal|saman)\b|उत्पाद|सामान|माल|स्टॉक/i.test(String(conversationRoutingText));
     const needsGlobalExpenseContext = /\b(expense|expenses|kharcha|kharch|spend|spent|spending|business cost|cost|costs|outgoing|debit|business performance|performance review|profit|loss|cash flow|growth)\b|खर्च|व्यय|लाभ|नुकसान|मुनाफा/i.test(String(conversationRoutingText));
     const requestPolicy = getAssistantRequestPolicy({
@@ -690,9 +691,9 @@ async function handleRequest(req: Request, metricContext: Record<string, unknown
                 } : null).catch(() => null)
               : Promise.resolve(null);
             const suppliersInvocation = needsGlobalSupplierContext
-              ? supabase.rpc("assistant_list_global_suppliers", {
+              ? Promise.resolve(supabase.rpc("assistant_list_global_suppliers", {
                   p_workspace_id: profile.workspace_id, p_limit: 100,
-                }).then(({ data, error }: any) => !error && data?.ok ? {
+                })).then(({ data, error }: any) => !error && data?.ok ? {
                   records: Array.isArray(data.records) ? data.records.slice(0, 100).map((item: any) => ({
                     id: item.id, name: item.name, email: item.email || null, phone: item.phone || null,
                     tax_registration_number: item.tax_registration_number || null,
