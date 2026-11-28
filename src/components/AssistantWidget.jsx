@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, X, Sparkles, CheckCircle2, Loader2, PlusCircle, ImagePlus, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
+import { Send, X, Sparkles, CheckCircle2, Loader2, PlusCircle, ImagePlus, Mic, MicOff, Volume2, VolumeX, FileText } from "lucide-react";
 import { assistantEnabled, supabase } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
 import { refreshWorkspaceKey } from "@/lib/stores";
@@ -30,6 +30,8 @@ export default function AssistantWidget() {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [attachment, setAttachment] = useState(null);
+  const [attachmentName, setAttachmentName] = useState("");
+  const [attachmentMimeType, setAttachmentMimeType] = useState("");
   const imageInputRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -107,9 +109,13 @@ export default function AssistantWidget() {
       return;
     }
     const sentAttachment = attachment;
-    const next = [...messages, { role: "user", content: content || (sentAttachment ? "Please inspect this image, describe what it shows, and extract any relevant business details. Do not create a record unless I ask." : ""), imageDataUrl: sentAttachment || null }];
+    const sentAttachmentName = attachmentName;
+    const sentAttachmentMimeType = attachmentMimeType;
+    const next = [...messages, { role: "user", content: content || (sentAttachment ? "Please inspect this attached file or image, describe what it shows, and extract any relevant business details. Do not create a record unless I ask." : ""), imageDataUrl: sentAttachment || null, attachmentName: sentAttachmentName, attachmentMimeType: sentAttachmentMimeType }];
     setMessages([...next, { role: "assistant", content: "", isStreaming: true }]);
     setAttachment(null);
+    setAttachmentName("");
+    setAttachmentMimeType("");
     setDraft("");
     setError("");
     setRetryAction(null);
@@ -132,7 +138,7 @@ export default function AssistantWidget() {
           accessToken,
           body: {
             messages: next.slice(-16).map(({ role, content: text }) => ({ role, content: String(text || "").slice(0, 1200) })),
-            image: sentAttachment ? { mimeType: sentAttachment.slice(5, sentAttachment.indexOf(";")), data: sentAttachment.split(",")[1] } : null,
+            image: sentAttachment ? { mimeType: sentAttachmentMimeType || sentAttachment.slice(5, sentAttachment.indexOf(";")), data: sentAttachment.split(",")[1] } : null,
           },
           signal: controller.signal,
           onPartial: (partial) => setMessages((current) => {
@@ -170,7 +176,11 @@ export default function AssistantWidget() {
       // Keep the user's request (and attachment) available after provider/network
       // failures so they can retry without reconstructing the business instruction.
       setDraft(content);
-      if (sentAttachment) setAttachment(sentAttachment);
+      if (sentAttachment) {
+        setAttachment(sentAttachment);
+        setAttachmentName(sentAttachmentName || "Attached file");
+        setAttachmentMimeType(sentAttachmentMimeType || sentAttachment.slice(5, sentAttachment.indexOf(";")));
+      }
       setRetryAction(null);
       setError(await readableError(err));
     } finally {
@@ -265,6 +275,62 @@ export default function AssistantWidget() {
     window.speechSynthesis.speak(utterance);
   }
 
+  function handleAttachmentChange(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const supportedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (!supportedTypes.includes(file.type)) {
+      setError("Choose a JPG, PNG, WebP image or a PDF document.");
+      event.target.value = "";
+      return;
+    }
+    if (file.type === "application/pdf" && file.size > 4 * 1024 * 1024) {
+      setError("PDF documents must be smaller than 4 MB.");
+      event.target.value = "";
+      return;
+    }
+    if (file.type !== "application/pdf" && file.size > 12 * 1024 * 1024) {
+      setError("Image must be smaller than 12 MB.");
+      event.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const source = typeof reader.result === "string" ? reader.result : "";
+      if (!source) {
+        setError("Could not read this file. Please choose another one.");
+        return;
+      }
+      if (file.type === "application/pdf") {
+        setAttachment(source);
+        setAttachmentName(file.name);
+        setAttachmentMimeType(file.type);
+        setError("");
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        const max = 1800;
+        const ratio = Math.min(1, max / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(img.width * ratio));
+        canvas.height = Math.max(1, Math.round(img.height * ratio));
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { setError("Image processing unavailable."); return; }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        setAttachment(canvas.toDataURL("image/jpeg", 0.9));
+        setAttachmentName(file.name);
+        setAttachmentMimeType("image/jpeg");
+        setError("");
+      };
+      img.onerror = () => setError("Could not read this image. Please choose another photo.");
+      img.src = source;
+    };
+    reader.onerror = () => setError("Could not read this file. Please choose another one.");
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  }
+
   function toggleVoiceInput() {
     if (listening) {
       recognitionRef.current?.stop();
@@ -324,7 +390,7 @@ export default function AssistantWidget() {
                     {speakingMessageIndex === i ? "Stop" : "Listen"}
                   </button>
                 </div>}
-                {m.imageDataUrl && <img src={m.imageDataUrl} alt="Attached business document" className="mt-2 max-h-40 max-w-full rounded-lg border border-slate-200 object-contain" />}
+                {m.imageDataUrl && (m.attachmentMimeType === "application/pdf" ? <div className="mt-2 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700"><FileText className="h-4 w-4 text-[#6D28D9]" />{m.attachmentName || "Attached PDF document"}</div> : <img src={m.imageDataUrl} alt="Attached business image" className="mt-2 max-h-40 max-w-full rounded-lg border border-slate-200 object-contain" />)}
                 {(m.pendingAction || m.pendingActions?.length) && <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50 p-3">
                   <div className="flex items-center gap-2 text-xs font-semibold text-purple-900"><PlusCircle className="h-4 w-4" /> {m.pendingActions?.length > 1 ? "Ready to complete " + m.pendingActions.length + " actions" : "Ready for confirmation"}</div>
                   <div className="mt-2 space-y-2">{(m.pendingActions || [m.pendingAction]).map((action, actionIndex) => <p key={actionIndex} className="text-sm font-medium text-slate-800">{actionIndex + 1}. {action.summary}</p>)}</div>
@@ -344,9 +410,9 @@ export default function AssistantWidget() {
             <div ref={bottomRef} />
           </div>
           <form onSubmit={(e) => { e.preventDefault(); send(); }} className="border-t border-slate-200 bg-white p-3">
-            {attachment && <div className="mb-2 flex items-center gap-2 rounded-lg bg-purple-50 p-2"><img src={attachment} alt="Receipt preview" className="h-12 w-12 rounded object-cover" /><span className="min-w-0 flex-1 text-xs text-purple-900">Image attached · ready for AI review</span><button type="button" onClick={() => setAttachment(null)} className="rounded px-2 py-1 text-xs text-slate-600">Remove</button></div>}
+            {attachment && <div className="mb-2 flex items-center gap-2 rounded-lg bg-purple-50 p-2">{attachmentMimeType === "application/pdf" ? <FileText className="h-8 w-8 shrink-0 text-[#6D28D9]" /> : <img src={attachment} alt="Attachment preview" className="h-12 w-12 rounded object-cover" />}<span className="min-w-0 flex-1 truncate text-xs text-purple-900">{attachmentMimeType === "application/pdf" ? "PDF attached" : "Image attached"} · {attachmentName || "Ready for AI review"}</span><button type="button" onClick={() => { setAttachment(null); setAttachmentName(""); setAttachmentMimeType(""); }} className="rounded px-2 py-1 text-xs text-slate-600">Remove</button></div>}
             <div className="flex items-center gap-2">
-              <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; if (file.size > 12 * 1024 * 1024) { setError("Image must be smaller than 12 MB."); e.target.value = ""; return; } const reader = new FileReader(); reader.onload = () => { const source = typeof reader.result === "string" ? reader.result : ""; const img = new Image(); img.onload = () => { const max = 1800; const ratio = Math.min(1, max / Math.max(img.width, img.height)); const canvas = document.createElement("canvas"); canvas.width = Math.max(1, Math.round(img.width * ratio)); canvas.height = Math.max(1, Math.round(img.height * ratio)); const ctx = canvas.getContext("2d"); if (!ctx) { setError("Image processing unavailable."); return; } ctx.drawImage(img, 0, 0, canvas.width, canvas.height); setAttachment(canvas.toDataURL("image/jpeg", 0.9)); }; img.onerror = () => setError("Could not read this image. Please choose another photo."); img.src = source; }; reader.readAsDataURL(file); e.target.value = ""; }} />
+              <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" onChange={handleAttachmentChange} />
               <button type="button" onClick={() => imageInputRef.current?.click()} disabled={busy} aria-label="Attach receipt or image" title="Attach receipt or image" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-[#6D28D9] disabled:opacity-50"><ImagePlus className="h-5 w-5" /></button>
               <button type="button" onClick={toggleVoiceInput} disabled={busy} aria-label={listening ? "Stop voice input" : "Start voice input"} title={listening ? "Stop voice input" : "Speak to Nova"} className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border disabled:opacity-50 ${listening ? "border-red-300 bg-red-50 text-red-600" : "border-slate-200 text-[#6D28D9]"}`}>{listening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button>
               <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={1000} placeholder="Ask Nova about your business…" className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-purple-500" />
