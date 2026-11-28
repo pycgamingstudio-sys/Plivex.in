@@ -8,7 +8,7 @@ const validator = (action) => action && ASSISTANT_WRITE_TOOLS[action.type] && ac
 
 test("allows only the explicitly implemented confirmation actions", () => {
   assert.deepEqual(Object.keys(ASSISTANT_WRITE_TOOLS).sort(), [
-    "create_client", "create_expense", "create_global_client", "create_global_expense", "create_global_product", "create_invoice", "create_lead", "create_purchase_order", "create_quotation", "create_stock", "create_warehouse", "receive_purchase_order", "record_global_invoice_payment"
+    "create_client", "create_expense", "create_global_client", "create_global_supplier", "create_global_expense", "create_global_product", "create_invoice", "create_lead", "create_purchase_order", "create_quotation", "create_stock", "create_warehouse", "receive_purchase_order", "record_global_invoice_payment"
   ]);
 });
 
@@ -40,6 +40,8 @@ test("rejects more than ten actions", () => {
 test("catalog distinguishes implemented actions from planned modules", () => {
   assert.deepEqual(BUSINESS_MODULE_CATALOG.warehouses.writeTools, ["create_warehouse"]);
   assert.deepEqual(BUSINESS_MODULE_CATALOG.global_clients.writeTools, ["create_global_client"]);
+  assert.deepEqual(BUSINESS_MODULE_CATALOG.suppliers.writeTools, ["create_global_supplier"]);
+  assert.equal(BUSINESS_MODULE_CATALOG.suppliers.planned, false);
   assert.deepEqual(BUSINESS_MODULE_CATALOG.global_expenses.writeTools, ["create_global_expense"]);
   assert.deepEqual(BUSINESS_MODULE_CATALOG.global_products.writeTools, ["create_global_product"]);
   assert.equal(BUSINESS_MODULE_CATALOG.global_clients.planned, undefined);
@@ -57,4 +59,16 @@ test("catalog marks the idempotent purchasing and warehouse executors as impleme
   assert.equal(BUSINESS_MODULE_CATALOG.purchase_receipts.planned, false);
   assert.deepEqual(BUSINESS_MODULE_CATALOG.payments.writeTools, ["record_global_invoice_payment"]);
   assert.equal(BUSINESS_MODULE_CATALOG.payments.planned, false);
+});
+
+test("supplier action is explicitly allow-listed and unrelated supplier writes remain unavailable", () => {
+  const allowed = normalizeAssistantActionBatch([
+    { type: "create_global_supplier", payload: { name: "Acme" } },
+  ], validator);
+  assert.equal(allowed.error, null);
+  assert.equal(allowed.actions.length, 1);
+  const denied = normalizeAssistantActionBatch([
+    { type: "pay_supplier", payload: { name: "Acme", amount: 100 } },
+  ], validator);
+  assert.equal(denied.error, "UNSUPPORTED_OR_INVALID_ACTION");
 });
