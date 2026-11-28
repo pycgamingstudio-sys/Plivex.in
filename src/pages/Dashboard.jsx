@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
-import { LayoutDashboard, Receipt, ShoppingCart, BarChart3, Users, UsersRound, Package, Boxes, Sparkles, Zap, LayoutGrid, X, RefreshCw, FileText, ScrollText, Lock, Moon, Sun } from "lucide-react";
+import { LayoutDashboard, Receipt, ShoppingCart, BarChart3, Users, UsersRound, Package, Boxes, Sparkles, Zap, LayoutGrid, X, RefreshCw, FileText, ScrollText, Lock, Moon, Sun, BookOpen } from "lucide-react";
 import DashboardTab from "@/components/dashboard/DashboardTab";
 import Logo from "@/components/Logo";
 import SalesTab from "@/components/dashboard/SalesTab";
 import PurchaseTab from "@/components/dashboard/PurchaseTab";
 import ReportsTab from "@/components/dashboard/ReportsTab";
+import BooksTab from "@/components/dashboard/BooksTab";
 import CrmTab from "@/components/dashboard/CrmTab";
 import StockTab from "@/components/dashboard/StockTab";
 import IndiaPart4Tab from "@/components/dashboard/IndiaPart4Tab";
@@ -31,6 +32,8 @@ const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "sales", label: "Sales", icon: Receipt },
   { id: "purchase", label: "Purchase", icon: ShoppingCart },
+  { id: "books", label: "Books", icon: BookOpen },
+  { id: "ai", label: "AI", icon: Sparkles },
   { id: "reports", label: "Reports", icon: BarChart3 },
   { id: "crm", label: "Client CRM", icon: Users },
   { id: "stock", label: "Stock", icon: Package },
@@ -39,11 +42,14 @@ const TABS = [
   { id: "reconciliation", label: "Reconcile", icon: RefreshCw },
 ];
 
-export default function Dashboard({ initialTab, initialSub, initialIntent }) {
+export default function Dashboard({ initialTab, initialSub, initialIntent, openMoreOnMount = false }) {
   const [tab, setTab] = useState(initialTab || "dashboard");
   useEffect(() => {
     if (initialTab) setTab(initialTab);
   }, [initialTab]);
+  useEffect(() => {
+    if (openMoreOnMount) setMoreOpen(true);
+  }, [openMoreOnMount]);
   const [isDark, setIsDark] = useState(() => { try { return localStorage.getItem("plivex-main-workspace-theme") === "dark"; } catch { return false; } });
   const [intent, setIntent] = useState(initialIntent || null);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -79,7 +85,7 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
     return true;
   });
   const active = visibleTabs.find((t) => t.id === tab) || visibleTabs[0] || TABS[0];
-  const preferredMobileTabIds = ["dashboard", "sales", "crm", "stock", "reports"];
+  const preferredMobileTabIds = ["dashboard", "sales", "books", "ai", "reports"];
   const mobilePrimaryTabs = [
     ...visibleTabs.filter((item) => preferredMobileTabIds.includes(item.id)).sort((a, b) => preferredMobileTabIds.indexOf(a.id) - preferredMobileTabIds.indexOf(b.id)),
     ...visibleTabs.filter((item) => !preferredMobileTabIds.includes(item.id)),
@@ -203,6 +209,8 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
           {tab === "dashboard" && <DashboardTab onNavigate={go} onCreateInvoice={createInvoice} role={role} teamUnlocked={canAccess("team_management")} />}
           {tab === "sales" && <SalesTab intent={intent} initialSub={initialSub} onConsumeIntent={consume} />}
           {tab === "purchase" && <PurchaseTab intent={intent} onConsumeIntent={consume} />}
+          {tab === "books" && <BooksTab />}
+          {tab === "ai" && <section className="mx-auto max-w-3xl rounded-2xl border border-violet-100 bg-white p-6 shadow-sm"><div className="flex items-center gap-2 text-lg font-bold text-slate-900"><Sparkles className="h-5 w-5 text-violet-700" />Plivex AI assistant</div><p className="mt-2 text-sm leading-6 text-slate-600">Ask business questions in Hindi or English, or use the assistant to review documents and workspace information. The existing assistant panel has been opened for you.</p></section>}
           {tab === "reports" && <ReportsTab />}
           {tab === "crm" && <CrmTab intent={intent} onConsumeIntent={consume} />}
           {tab === "stock" && <StockTab />}
@@ -222,7 +230,7 @@ export default function Dashboard({ initialTab, initialSub, initialIntent }) {
       <PresenceBeacon />
       <WelcomePopup userId={user?.id} planName={planName} plan={plan} planLoading={planLoading} />
       <ChatWidget />
-      <AssistantWidget />
+      <AssistantWidget openOnMount={tab === "ai"} />
 
       {moreOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-4" onClick={() => setMoreOpen(false)}>
