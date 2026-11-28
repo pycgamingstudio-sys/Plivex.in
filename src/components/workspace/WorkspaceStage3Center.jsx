@@ -148,7 +148,7 @@ export default function WorkspaceStage3Center({ section }) {
           {task.status === "open" && <button className={secondary} disabled={busy} onClick={() => run(() => invoke({ action: "automation.task_status", taskId: task.id, status: "completed" }), "Task marked complete.")}><CheckCircle2 className="mr-1 inline h-3.5 w-3.5"/>Complete</button>}
         </article>) }{!tasks.length && <p className="py-3 text-xs text-slate-500">No automation tasks yet.</p>}</div>
       </section>
-      <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Event capture and rule storage are included in this release. Automatic processing needs the owner-controlled Supabase worker token and schedule to be configured before rules execute.</p>
+      <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Rules are processed by the scheduled Postgres worker. Task creation and run history are idempotent; external messages and financial writes are intentionally excluded.</p>
     </div>}
 
     {section === "document-vault" && <section className="rounded-2xl border bg-white p-4 sm:p-5">
