@@ -5,7 +5,8 @@ export function getAssistantRequestPolicy({
   needsGlobalFinanceContext = false,
   needsGlobalClientContext = false,
   needsGlobalExpenseContext = false,
-  needsGlobalProductContext = false,\n  needsGlobalSupplierContext = false,
+  needsGlobalProductContext = false,
+  needsGlobalSupplierContext = false,
   hasImage = false,
 } = {}) {
   const needsGlobalContext = Boolean(
