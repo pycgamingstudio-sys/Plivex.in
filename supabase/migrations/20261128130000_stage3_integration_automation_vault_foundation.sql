@@ -226,6 +226,7 @@ alter table public.workspace_automation_tasks
 create table if not exists public.workspace_automation_preferences (
   workspace_id text primary key references public.workspace_settings(workspace_id) on delete cascade,
   timezone text not null default 'UTC' check (length(timezone) between 1 and 80),
+  reminders_enabled boolean not null default true,
   quiet_hours_start time not null default '22:00',
   quiet_hours_end time not null default '08:00',
   escalation_enabled boolean not null default false,
@@ -778,6 +779,47 @@ begin
   if p_limit is null or p_limit < 1 or p_limit > 200 then
     raise exception 'invalid automation escalation batch size';
   end if;
+
+  for v_task in
+    select t.id, t.workspace_id, t.title, t.due_at,
+      p.timezone, p.quiet_hours_start, p.quiet_hours_end
+    from public.workspace_automation_tasks t
+    join public.workspace_automation_preferences p on p.workspace_id = t.workspace_id
+    where t.status = 'open' and t.due_at is not null
+      and t.due_at between now() and now() + interval '1 hour'
+      and p.reminders_enabled = true
+      and not exists (
+        select 1 from public.workspace_automation_notifications n
+        where n.workspace_id = t.workspace_id and n.task_id = t.id and n.notification_type = 'task_due'
+      )
+    order by t.due_at, t.id
+    limit p_limit
+    for update of t skip locked
+  loop
+    v_timezone := case when exists (select 1 from pg_timezone_names where name = v_task.timezone) then v_task.timezone else 'UTC' end;
+    v_local_now := now() at time zone v_timezone;
+    v_local_available := v_local_now;
+    v_in_quiet := false;
+    if v_task.quiet_hours_start < v_task.quiet_hours_end then
+      v_in_quiet := v_local_now::time >= v_task.quiet_hours_start and v_local_now::time < v_task.quiet_hours_end;
+      if v_in_quiet then v_local_available := v_local_now::date::timestamp + v_task.quiet_hours_end; end if;
+    elsif v_task.quiet_hours_start > v_task.quiet_hours_end then
+      v_in_quiet := v_local_now::time >= v_task.quiet_hours_start or v_local_now::time < v_task.quiet_hours_end;
+      if v_in_quiet then
+        v_local_available := (v_local_now::date + case when v_local_now::time >= v_task.quiet_hours_start then 1 else 0 end)::timestamp + v_task.quiet_hours_end;
+      end if;
+    end if;
+    v_available_at := case when v_in_quiet then v_local_available at time zone v_timezone else now() end;
+    insert into public.workspace_automation_notifications(
+      workspace_id,task_id,notification_type,title,message,available_at
+    ) values (
+      v_task.workspace_id,v_task.id,'task_due',
+      left('Task due soon: ' || v_task.title,160),
+      left('This task is due within the next hour.',1000),
+      v_available_at
+    ) on conflict (workspace_id,task_id,notification_type) do nothing;
+    v_processed := v_processed + 1;
+  end loop;
 
   for v_task in
     select t.id, t.workspace_id, t.title, t.due_at,
