@@ -6,7 +6,8 @@ declare
     'workspace_integrations',
     'workspace_webhook_subscriptions',
     'workspace_event_outbox',
-    'workspace_webhook_deliveries',
+    'workspace_webhook_events',
+    'workspace_webhook_attempts',
     'workspace_automation_rules',
     'workspace_automation_runs',
     'workspace_automation_tasks',
@@ -70,6 +71,22 @@ begin
     raise exception 'Public API idempotency cleanup job missing';
   end if;
 
+  if not coalesce((select prosecdef from pg_proc where oid = 'public.process_main_workspace_webhook_events(integer)'::regprocedure), false)
+    or has_function_privilege('anon','public.process_main_workspace_webhook_events(integer)','EXECUTE')
+    or has_function_privilege('authenticated','public.process_main_workspace_webhook_events(integer)','EXECUTE')
+    or not has_function_privilege('service_role','public.process_main_workspace_webhook_events(integer)','EXECUTE') then
+    raise exception 'Stage 3 webhook worker privileges are not least-privilege';
+  end if;
+  if not coalesce((select prosecdef from pg_proc where oid = 'public.main_workspace_create_webhook_subscription(text,uuid,text,text,text[])'::regprocedure), false)
+    or has_function_privilege('anon','public.main_workspace_create_webhook_subscription(text,uuid,text,text,text[])','EXECUTE')
+    or has_function_privilege('authenticated','public.main_workspace_create_webhook_subscription(text,uuid,text,text,text[])','EXECUTE')
+    or not has_function_privilege('service_role','public.main_workspace_create_webhook_subscription(text,uuid,text,text,text[])','EXECUTE') then
+    raise exception 'Webhook subscription creation RPC is not least-privilege';
+  end if;
+  if not exists (select 1 from cron.job where jobname='plivex-workspace-webhook-sweep' and schedule='* * * * *') then
+    raise exception 'Stage 3 webhook retry schedule missing';
+  end if;
+
   if not coalesce((select prosecdef from pg_proc where oid = 'public.process_main_workspace_automation_events(integer)'::regprocedure), false) then
     raise exception 'Stage 3 automation worker is not security definer';
   end if;
@@ -88,7 +105,8 @@ begin
     raise exception 'Stage 3 audit correlation/outcome fields missing';
   end if;
 
-  if not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_webhook_deliveries_retry_idx')
+  if not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_webhook_events_retry_idx')
+    or not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_webhook_attempts_event_idx')
     or not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_automation_tasks_open_idx')
     or not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_documents_workspace_idx')
     or not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_audit_events_correlation_idx') then
@@ -151,4 +169,4 @@ begin
   end if;
 end $;
 
-select 'PASS: Stage 3 tables, RLS, least-privilege grants, event triggers, API idempotency and indexes';
+select 'PASS: Stage 3 tables, RLS, least-privilege grants, event triggers, webhook replay/retry, API idempotency and indexes';
