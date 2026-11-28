@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { isAllowedWebhookEvent, verifyCustomWebhookSignature, verifyShopifyWebhookSignature } from "../_shared/webhook-security.ts";
 
 const ORIGINS = new Set(["https://plivex.in", "https://www.plivex.in", "https://plivex.netlify.app"]);
-const EVENT_TYPES = new Set(["invoice.created","invoice.status_changed","lead.created","lead.stage_changed","expense.created","stock.low_stock"]);
+const EVENT_TYPES = new Set(["invoice.created","invoice.status_changed","lead.created","lead.stage_changed","expense.created","stock.low_stock","integration.webhook_received"]);
 const MIME_TYPES = new Set(["application/pdf","image/jpeg","image/png","image/webp","text/csv"]);
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const MAX_REQUEST_BYTES = 14 * 1024 * 1024;
@@ -207,6 +207,8 @@ function matchesRule(rule: any, event: any) {
   const conditions = isObject(rule.conditions) ? rule.conditions : {};
   if (conditions.status_equals && String(event.payload?.status || "") !== conditions.status_equals) return false;
   if (conditions.stage_equals && String(event.payload?.stage || "") !== conditions.stage_equals) return false;
+  if (conditions.provider_key_equals && String(event.payload?.provider_key || "") !== conditions.provider_key_equals) return false;
+  if (conditions.webhook_event_type_equals && String(event.payload?.event_type || "") !== conditions.webhook_event_type_equals) return false;
   return true;
 }
 
@@ -360,34 +362,94 @@ Deno.serve(async (req: Request) => {
     if (body.action === "integrations.list") return json(await listIntegrations(ctx), 200, origin);
     if (body.action === "automation.list") {
       if (!canManage(ctx.role)) throw new Error("ACCESS_DENIED");
-      const [{ data: rules, error: ruleError }, { data: tasks, error: taskError }] = await Promise.all([
-        ctx.admin.from("workspace_automation_rules").select("id,name,event_type,conditions,action_type,action_config,timezone,is_active,created_at,updated_at").eq("workspace_id", ctx.workspaceId).order("created_at", { ascending: false }),
-        ctx.admin.from("workspace_automation_tasks").select("id,rule_id,source_event_id,title,description,due_at,status,created_at,completed_at").eq("workspace_id", ctx.workspaceId).order("created_at", { ascending: false }).limit(100),
+      const [rulesResult,tasksResult,runsResult,eventsResult,prefsResult,notificationsResult] = await Promise.all([
+        ctx.admin.from("workspace_automation_rules").select("id,name,event_type,trigger_type,conditions,action_type,action_config,timezone,schedule_frequency,schedule_time_local,schedule_days_of_week,next_run_at,is_active,created_at,updated_at").eq("workspace_id", ctx.workspaceId).order("created_at", { ascending: false }),
+        ctx.admin.from("workspace_automation_tasks").select("id,rule_id,source_event_id,title,description,due_at,status,escalated_at,escalation_count,created_at,completed_at").eq("workspace_id", ctx.workspaceId).order("created_at", { ascending: false }).limit(100),
+        ctx.admin.from("workspace_automation_runs").select("id,rule_id,event_id,status,error_code,attempt_no,started_at,completed_at").eq("workspace_id", ctx.workspaceId).order("started_at", { ascending: false }).limit(100),
+        ctx.admin.from("workspace_event_outbox").select("id,event_type,entity_type,entity_id,processing_status,attempt_count,processing_error_code,next_attempt_at,created_at").eq("workspace_id", ctx.workspaceId).in("processing_status", ["retrying","dead_letter"]).order("created_at", { ascending: false }).limit(50),
+        ctx.admin.from("workspace_automation_preferences").select("timezone,quiet_hours_start,quiet_hours_end,escalation_enabled,escalation_after_hours,updated_at").eq("workspace_id", ctx.workspaceId).maybeSingle(),
+        ctx.admin.from("workspace_automation_notifications").select("id,task_id,notification_type,title,message,available_at,read_at,created_at").eq("workspace_id", ctx.workspaceId).lte("available_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(50),
       ]);
-      if (ruleError || taskError) throw new Error("AUTOMATION_LIST_FAILED");
-      return json({ ok: true, rules: rules || [], tasks: tasks || [] }, 200, origin);
+      if (rulesResult.error || tasksResult.error || runsResult.error || eventsResult.error || prefsResult.error || notificationsResult.error) throw new Error("AUTOMATION_LIST_FAILED");
+      return json({
+        ok: true,
+        rules: rulesResult.data || [],
+        tasks: tasksResult.data || [],
+        runs: runsResult.data || [],
+        failedEvents: eventsResult.data || [],
+        preferences: prefsResult.data || { timezone: "UTC", quiet_hours_start: "22:00:00", quiet_hours_end: "08:00:00", escalation_enabled: false, escalation_after_hours: 24 },
+        notifications: notificationsResult.data || [],
+      }, 200, origin);
+    }
+    if (body.action === "automation.preview") {
+      if (!canManage(ctx.role)) throw new Error("ACCESS_DENIED");
+      const config = isObject(body.actionConfig) ? body.actionConfig : {};
+      const title = clean(config.title || body.name || "Review business event", 160);
+      const description = clean(config.description, 2000);
+      const dueHours = config.due_in_hours === undefined || config.due_in_hours === null ? null : Number(config.due_in_hours);
+      if (title.length < 2 || (dueHours !== null && (!Number.isInteger(dueHours) || dueHours < 0 || dueHours > 720))) throw new Error("INVALID_AUTOMATION_ACTION");
+      const timezone = clean(body.timezone || "UTC", 80);
+      try { new Intl.DateTimeFormat("en", { timeZone: timezone }).format(new Date()); } catch { throw new Error("INVALID_TIMEZONE"); }
+      const triggerType = body.triggerType === "schedule" ? "schedule" : "event";
+      let nextRunAt: string | null = null;
+      if (triggerType === "schedule") {
+        const frequency = clean(body.scheduleFrequency, 10);
+        const time = clean(body.scheduleTimeLocal, 5);
+        const days = Array.isArray(body.scheduleDays) ? body.scheduleDays.map(Number) : null;
+        if (!["daily","weekly"].includes(frequency) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)
+          || (frequency === "daily" && days !== null && days.length > 0)
+          || (frequency === "weekly" && (!days || days.length < 1 || days.length > 7 || days.some((d: number) => !Number.isInteger(d) || d < 1 || d > 7) || new Set(days).size !== days.length))) throw new Error("INVALID_AUTOMATION_SCHEDULE");
+        const { data, error } = await ctx.admin.rpc("main_workspace_next_automation_run_at", { p_timezone: timezone, p_frequency: frequency, p_time: time + ":00", p_days: days });
+        if (error || !data) throw new Error("INVALID_AUTOMATION_SCHEDULE");
+        nextRunAt = data;
+      }
+      return json({ ok: true, dryRun: true, triggerType, nextRunAt, taskPreview: { title, description, due_at: dueHours === null ? null : new Date(Date.now() + dueHours * 3600000).toISOString(), timezone }, sideEffects: ["create_task"], externalMessages: false, financialWrites: false }, 200, origin);
     }
     if (body.action === "automation.create") {
       if (!canManage(ctx.role)) throw new Error("ACCESS_DENIED");
-      const name = clean(body.name, 100), eventType = clean(body.eventType, 80);
+      const name = clean(body.name, 100);
       const config = isObject(body.actionConfig) ? body.actionConfig : {};
       const conditions = isObject(body.conditions) ? body.conditions : {};
-      if (name.length < 2 || !EVENT_TYPES.has(eventType) || body.actionType !== "create_task") throw new Error("INVALID_AUTOMATION");
-      if (Object.keys(conditions).some((key) => !["status_equals","stage_equals"].includes(key))
+      const triggerType = body.triggerType === "schedule" ? "schedule" : "event";
+      const eventType = triggerType === "schedule" ? "automation.schedule_due" : clean(body.eventType, 80);
+      if (name.length < 2 || (triggerType === "event" && !EVENT_TYPES.has(eventType)) || body.actionType !== "create_task") throw new Error("INVALID_AUTOMATION");
+      if (Object.keys(conditions).some((key) => !["status_equals","stage_equals","provider_key_equals","webhook_event_type_equals"].includes(key))
         || (conditions.status_equals !== undefined && (typeof conditions.status_equals !== "string" || conditions.status_equals.length > 40))
-        || (conditions.stage_equals !== undefined && !["new","qualified","proposal","negotiation","won","lost"].includes(String(conditions.stage_equals)))) throw new Error("INVALID_AUTOMATION_CONDITIONS");
+        || (conditions.stage_equals !== undefined && !["new","qualified","proposal","negotiation","won","lost"].includes(String(conditions.stage_equals)))
+        || (conditions.provider_key_equals !== undefined && !["shopify","custom"].includes(String(conditions.provider_key_equals)))
+        || (conditions.webhook_event_type_equals !== undefined && (typeof conditions.webhook_event_type_equals !== "string" || conditions.webhook_event_type_equals.length > 120))) throw new Error("INVALID_AUTOMATION_CONDITIONS");
       const title = clean(config.title || name, 160), description = clean(config.description, 2000);
       const dueHours = config.due_in_hours === undefined || config.due_in_hours === null ? null : Number(config.due_in_hours);
       if (title.length < 2 || (dueHours !== null && (!Number.isInteger(dueHours) || dueHours < 0 || dueHours > 720))) throw new Error("INVALID_AUTOMATION_ACTION");
       const timezone = clean(body.timezone || "UTC", 80);
       try { new Intl.DateTimeFormat("en", { timeZone: timezone }).format(new Date()); } catch { throw new Error("INVALID_TIMEZONE"); }
+
+      let scheduleFrequency: string | null = null;
+      let scheduleTimeLocal: string | null = null;
+      let scheduleDays: number[] | null = null;
+      let nextRunAt: string | null = null;
+      if (triggerType === "schedule") {
+        scheduleFrequency = clean(body.scheduleFrequency, 10);
+        scheduleTimeLocal = clean(body.scheduleTimeLocal, 5);
+        scheduleDays = Array.isArray(body.scheduleDays) ? body.scheduleDays.map(Number) : null;
+        if (!["daily","weekly"].includes(scheduleFrequency) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(scheduleTimeLocal)
+          || (scheduleFrequency === "daily" && scheduleDays !== null && scheduleDays.length > 0)
+          || (scheduleFrequency === "weekly" && (!scheduleDays || scheduleDays.length < 1 || scheduleDays.length > 7 || scheduleDays.some((d) => !Number.isInteger(d) || d < 1 || d > 7) || new Set(scheduleDays).size !== scheduleDays.length))) throw new Error("INVALID_AUTOMATION_SCHEDULE");
+        const { data: next, error: scheduleError } = await ctx.admin.rpc("main_workspace_next_automation_run_at", {
+          p_timezone: timezone, p_frequency: scheduleFrequency, p_time: scheduleTimeLocal + ":00", p_days: scheduleDays,
+        });
+        if (scheduleError || !next) throw new Error("INVALID_AUTOMATION_SCHEDULE");
+        nextRunAt = next;
+      }
+
       const { data, error } = await ctx.admin.from("workspace_automation_rules").insert({
-        workspace_id: ctx.workspaceId, name, event_type: eventType, conditions,
+        workspace_id: ctx.workspaceId, name, event_type: eventType, trigger_type: triggerType, conditions,
         action_type: "create_task", action_config: { title, description, due_in_hours: dueHours },
-        timezone, created_by: ctx.user.id,
-      }).select("id,name,event_type,conditions,action_type,action_config,timezone,is_active,created_at").single();
+        timezone, schedule_frequency: scheduleFrequency, schedule_time_local: scheduleTimeLocal,
+        schedule_days_of_week: scheduleDays, next_run_at: nextRunAt, created_by: ctx.user.id,
+      }).select("id,name,event_type,trigger_type,conditions,action_type,action_config,timezone,schedule_frequency,schedule_time_local,schedule_days_of_week,next_run_at,is_active,created_at").single();
       if (error || !data) throw new Error("AUTOMATION_CREATE_FAILED");
-      await writeAudit(ctx, "automation.rule_created", "automation_rule", data.id, { event_type: eventType, action_type: "create_task" });
+      await writeAudit(ctx, "automation.rule_created", "automation_rule", data.id, { event_type: eventType, trigger_type: triggerType, action_type: "create_task" });
       return json({ ok: true, rule: data }, 201, origin);
     }
     if (body.action === "automation.pause") {
