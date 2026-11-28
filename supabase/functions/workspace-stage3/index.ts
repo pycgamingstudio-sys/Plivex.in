@@ -216,12 +216,16 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ ok: false, error: "METHOD_NOT_ALLOWED" }, 405, origin);
 
   try {
-    const workerToken = Deno.env.get("PLIVEX_AUTOMATION_WORKER_TOKEN");
     if (req.headers.get("x-plivex-automation-token")) {
-      if (!workerToken || req.headers.get("x-plivex-automation-token") !== workerToken) return json({ ok: false, error: "WORKER_AUTH_FAILED" }, 401, origin);
       const url = Deno.env.get("SUPABASE_URL"), service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
       if (!url || !service) throw new Error("SERVICE_NOT_CONFIGURED");
       const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
+      const suppliedHash = await sha256(req.headers.get("x-plivex-automation-token") || "");
+      const { data: cronConfig, error: cronConfigError } = await admin.from("workspace_automation_cron_config")
+        .select("secret_hash").eq("singleton", true).maybeSingle();
+      if (cronConfigError || !cronConfig || suppliedHash !== cronConfig.secret_hash) {
+        return json({ ok: false, error: "WORKER_AUTH_FAILED" }, 401, origin);
+      }
       return json(await processAutomationEvents(admin), 200, origin);
     }
 
