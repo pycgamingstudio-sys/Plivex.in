@@ -19,7 +19,8 @@ export function getAssistantRequestPolicy({
     needsGlobalProductContext ||
     needsGlobalSupplierContext ||
     needsGlobalTransferContext ||
-    needsGlobalBranchContext
+    needsGlobalBranchContext ||
+    needsGlobalMemberContext
   );
   const simpleConversationalTurn = !needsWorkspaceContext &&
     !needsPurchasingContext &&
