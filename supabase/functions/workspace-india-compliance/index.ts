@@ -133,16 +133,21 @@ Deno.serve(async(req:Request)=>{
       ]);
       if(itemsError||buyerError) return json({error:"Invoice line or customer details could not be loaded."},500,origin);
       const errors:string[]=[];
+      const taxSnapshot=invoice.invoice_snapshot?.globalTax&&typeof invoice.invoice_snapshot.globalTax==="object"?invoice.invoice_snapshot.globalTax:{};
+      const placeOfSupply=String(taxSnapshot.placeOfSupplyState||taxSnapshot.placeOfSupply||"").replace(/^IN[-_]/i,"").trim().toUpperCase();
+      const supplyType=String(invoice.invoice_snapshot?.indiaSupplyType||taxSnapshot.indiaSupplyType||"").toUpperCase();
       if(!gstin(seller.tax_registration_number)) errors.push("Seller GSTIN is missing or malformed.");
       if(!gstin(buyer?.gstin)) errors.push("Buyer GSTIN is required for this e-invoice workflow.");
       if(!invoice.number||!isValidIsoDate(invoice.issue_date)) errors.push("Invoice number and valid issue date are required.");
+      if(!/^\\d{2}$/.test(placeOfSupply)) errors.push("A valid two-digit place-of-supply state code is required.");
+      if(!["INTRA","INTER"].includes(supplyType)) errors.push("India supply type (intra-state or inter-state) must be selected.");
       if(!Array.isArray(items)||items.length===0) errors.push("At least one invoice line is required.");
       for(const [index,item] of (items||[]).entries()) {
         if(!/^\\d{4,8}$/.test(String(item.hsn_sac_code||""))) errors.push("Line "+(index+1)+": HSN/SAC code is required (4–8 digits).");
         if(!/^[A-Z0-9]{2,8}$/.test(String(item.unit_code||""))) errors.push("Line "+(index+1)+": valid unit code is required.");
         if(!Number.isFinite(Number(item.quantity))||Number(item.quantity)<=0||!Number.isFinite(Number(item.rate))||Number(item.rate)<0) errors.push("Line "+(index+1)+": invalid quantity or rate.");
       }
-      const payload={document_type:"INV",document_number:invoice.number,document_date:invoice.issue_date,seller:{legal_name:seller.name,address:seller.address,gstin:seller.tax_registration_number},buyer:{name:buyer?.name||invoice.client_name,gstin:buyer?.gstin||null,address:buyer?.address||null},currency:"INR",tax_totals:{cgst:Number(invoice.cgst||0),sgst:Number(invoice.sgst||0),igst:Number(invoice.igst||0),total_tax:Number(invoice.tax_value||0)},total:Number(invoice.total||0),items:(items||[]).map((item:any)=>({description:item.description,hsn_sac_code:item.hsn_sac_code,unit_code:item.unit_code,quantity:item.quantity,unit_price:item.rate,tax_rate:item.gst_rate}))};
+      const payload={document_type:"INV",document_number:invoice.number,document_date:invoice.issue_date,supply_type:supplyType,place_of_supply_state:placeOfSupply,seller:{legal_name:seller.name,address:seller.address,gstin:seller.tax_registration_number},buyer:{name:buyer?.name||invoice.client_name,gstin:buyer?.gstin||null,address:buyer?.address||null},currency:"INR",tax_totals:{taxable_value:Number(invoice.subtotal||0),cgst:Number(invoice.cgst||0),sgst:Number(invoice.sgst||0),igst:Number(invoice.igst||0),total_tax:Number(invoice.tax_value||0)},total:Number(invoice.total||0),items:(items||[]).map((item:any)=>{const taxable=Number(item.quantity||0)*Number(item.rate||0);return {description:item.description,hsn_sac_code:item.hsn_sac_code,unit_code:item.unit_code,quantity:item.quantity,unit_price:item.rate,taxable_value:taxable,tax_rate:item.gst_rate,tax_amount:taxable*Number(item.gst_rate||0)/100};})};
       const fingerprint=await sha256({invoice_id:invoice.id,payload});
       const {data:existing}=await admin.from("workspace_einvoice_records").select("*").eq("workspace_id",workspaceId).eq("invoice_id",invoice.id).maybeSingle();
       if(existing) {
