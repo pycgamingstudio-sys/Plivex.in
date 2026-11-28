@@ -10,10 +10,8 @@ function parseRows(source) {
       else quoted = !quoted;
     } else if (char === "," && !quoted) {
       row.push(field.trim()); field = "";
-    } else if ((char === "
-" || char === "\r") && !quoted) {
-      if (char === "\r" && source[i + 1] === "
-") i += 1;
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && source[i + 1] === "\n") i += 1;
       row.push(field.trim()); field = "";
       if (row.some((cell) => cell !== "")) rows.push(row);
       row = [];
@@ -39,7 +37,7 @@ function parseAmount(value) {
 function validIsoDate(value) {
   const date = String(value || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
-  const parsed = new Date(`${date}T00:00:00.000Z`);
+  const parsed = new Date(date + "T00:00:00.000Z");
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
 }
 
@@ -61,7 +59,7 @@ export function parseBankStatementImport(csvText) {
   const valid = [], errors = [], seenReferences = new Map();
   rows.slice(1).forEach((cells, index) => {
     const sourceRow = index + 2;
-    const rawRow = Object.fromEntries(headers.map((header, i) => [header || `column_${i + 1}`, cells[i] ?? ""]));
+    const rawRow = Object.fromEntries(headers.map((header, i) => [header || ("column_" + (i + 1)), cells[i] ?? ""]));
     const issue = (reason) => errors.push({ sourceRow, reason, rawRow });
     if (cells.length !== headers.length) { issue("Column count does not match the CSV header."); return; }
     const date = String(cells[dateIndex] || "").trim();
@@ -87,14 +85,18 @@ export function parseBankStatementImport(csvText) {
       const creditRaw = creditIndex >= 0 ? String(cells[creditIndex] ?? "").trim() : "";
       const debit = debitRaw ? parseAmount(debitRaw) : 0;
       const credit = creditRaw ? parseAmount(creditRaw) : 0;
-      if (debit === null || credit === null || (debit > 0 && credit > 0)) { issue("Debit and Credit must be valid, and only one may be positive."); return; }
+      if (debit === null || credit === null || debit < 0 || credit < 0 || (debit > 0 && credit > 0)) {
+        issue("Debit and Credit must be valid, non-negative, and only one may be positive."); return;
+      }
       if (debit > 0) { amount = debit; direction = "debit"; }
       else if (credit > 0) { amount = credit; direction = "credit"; }
       else { issue("Each row needs a positive Debit or Credit amount."); return; }
     }
     if (reference) {
-      const referenceKey = `${date}|${direction}|${amount.toFixed(4)}|${reference.toLowerCase()}`;
-      if (seenReferences.has(referenceKey)) { issue(`Duplicate bank reference; first seen on row ${seenReferences.get(referenceKey)}.`); return; }
+      const referenceKey = date + "|" + direction + "|" + amount.toFixed(4) + "|" + reference.toLowerCase();
+      if (seenReferences.has(referenceKey)) {
+        issue("Duplicate bank reference; first seen on row " + seenReferences.get(referenceKey) + "."); return;
+      }
       seenReferences.set(referenceKey, sourceRow);
     }
     valid.push({ date, description, reference: reference || null, amount, direction, sourceRow, rawRow });
