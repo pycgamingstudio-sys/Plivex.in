@@ -115,7 +115,7 @@ Deno.serve(async(req:Request)=>{
       const target=String(body.status);
       if(!transitions[entry.status]?.includes(target)) return json({error:"Invalid TDS status transition."},409,origin);
       const patch:Record<string,unknown>={status:target,updated_by:user.id,updated_at:new Date().toISOString()};
-      if(target==="deposited"||target==="filed") {
+      if(target==="deposited") {
         const challan=clean(body.challan_number,80),challanDate=clean(body.challan_date,10),bsr=clean(body.bsr_code,20);
         if(!challan||!isValidIsoDate(challanDate)||!bsr) return json({error:"Challan number, valid challan date and BSR code are required before marking TDS deposited."},400,origin);
         patch.challan_number=challan;patch.challan_date=challanDate;patch.bsr_code=bsr;patch.deposit_reference=clean(body.deposit_reference,100)||null;
