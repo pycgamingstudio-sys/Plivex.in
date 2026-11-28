@@ -443,7 +443,7 @@
     "20261123080000_main_workspace_permission_list_override_enforcement.sql",
     "20261126001219_secure_global_quotation_tax_wrapper.sql",
     "20261125154500_split_workspace_write_policies.sql",
-    "20261127150000_document_ocr_worker_lifecycle.sql",
+    "20261128095056_document_ocr_worker_lifecycle.sql",
     "20261128100000_global_part4_resource_list_completion.sql"
   ],
   "notes": [
