@@ -18,7 +18,9 @@ const isObject = (value: unknown): value is Record<string, any> => Boolean(value
 const clean = (value: unknown, max = 200) => String(value ?? "").trim().slice(0, max);
 const sha256 = async (value: Uint8Array | string) => {
   const input = typeof value === "string" ? new TextEncoder().encode(value) : value;
-  const digest = await crypto.subtle.digest("SHA-256", input);
+  const stableBuffer = new Uint8Array(input.byteLength);
+  stableBuffer.set(input);
+  const digest = await crypto.subtle.digest("SHA-256", stableBuffer.buffer);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 };
 const fromBase64 = (value: string) => {
