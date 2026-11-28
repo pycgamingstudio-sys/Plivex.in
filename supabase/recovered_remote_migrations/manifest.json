@@ -3,7 +3,7 @@
   "captured_at": "2026-11-14",
   "source": "read-only SELECT from supabase_migrations.schema_migrations (version,name,statements)",
   "remote_ledger_entries": 52,
-  "local_migration_files": 124,
+  "local_migration_files": 125,
   "exact_version_matches": 0,
   "basename_matches": [
     {
@@ -457,7 +457,8 @@
     "20261128113000_assistant_global_branch_idempotency.sql",
     "20261128130000_main_workspace_india_compliance_records.sql",
     "20261128130100_persist_invoice_hsn_unit_metadata.sql",
-    "20261128140000_main_workspace_sales_idempotency_hardening.sql"
+    "20261128140000_main_workspace_sales_idempotency_hardening.sql",
+    "20261128150000_main_workspace_accounting_reports.sql"
   ],
   "notes": [
     "Quotation security migration applied to production as version 20261126001219; the local filename is aligned to that applied version.",
