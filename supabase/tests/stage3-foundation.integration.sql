@@ -161,6 +161,10 @@ begin
   values (v_workspace,v_user,'Stage 3 test key',repeat('a',64),'plx_test01',array['workspace.read','leads.write'],now()+interval '1 day')
   returning id into v_key;
 
+  -- The lead-write RPC is service-role-only. Simulate its Edge Function JWT
+  -- context so the plan-limit trigger follows the same trusted server path.
+  perform set_config('request.jwt.claim.role','service_role',true);
+
   v_first := public.main_workspace_api_create_lead(
     v_key,'stage3-api-lead-0001',v_hash,v_correlation,'Stage 3 API Lead',null,null,null,null,0
   );
