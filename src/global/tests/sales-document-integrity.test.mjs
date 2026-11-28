@@ -32,3 +32,10 @@ test("Draft delivery challans reserve quantities without prematurely marking the
   assert.match(migration,/returning id,sales_order_id into v_found,v_sales_order/);
   assert.match(migration,/then 'fulfilled'[\s\S]*then 'partially_fulfilled'[\s\S]*else 'confirmed' end/);
 });
+
+test("Sales document UI retains each idempotency key until a successful save",()=>{
+  assert.match(panel,/orderKey/);
+  assert.match(panel,/noteKey/);
+  assert.match(panel,/challanKeys/);
+  assert.match(panel,/if\(ok\)setOrderKey\(crypto\.randomUUID\(\)\)/);
+});
