@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateGlobalStockTransferAction } from "./assistant-global-stock-transfer-validation.mjs";
+import { validateGlobalStockTransferAction, validateGlobalStockTransferAgainstContext } from "./assistant-global-stock-transfer-validation.mjs";
 
 const from = "11111111-1111-4111-8111-111111111111";
 const to = "22222222-2222-4222-8222-222222222222";
@@ -31,4 +31,19 @@ test("bounds item count and notes length", () => {
   assert.equal(validateGlobalStockTransferAction({ type: "transfer_global_stock", payload: {
     from_warehouse_id: from, to_warehouse_id: to, items: Array.from({ length: 201 }, () => ({ product_id: product, quantity: 1 }))
   }}), null);
+});
+
+test("requires live workspace warehouses, products and sufficient source stock", () => {
+  const action = validateGlobalStockTransferAction({ type: "transfer_global_stock", payload: {
+    from_warehouse_id: from, to_warehouse_id: to, items: [{ product_id: product, quantity: 3 }]
+  }});
+  const context = {
+    warehouses: [{ id: from, name: "Main", is_active: true }, { id: to, name: "Branch", is_active: true }],
+    products: [{ id: product, name: "Sugar", is_active: true }],
+    warehouse_stock_levels: [{ warehouse_id: from, product_id: product, quantity: 5 }],
+  };
+  assert.equal(validateGlobalStockTransferAgainstContext(action, context).ok, true);
+  assert.equal(validateGlobalStockTransferAgainstContext(action, { ...context, warehouse_stock_levels: [{ warehouse_id: from, product_id: product, quantity: 2 }] }).reason, "insufficient_loaded_stock");
+  assert.equal(validateGlobalStockTransferAgainstContext(action, { ...context, warehouses: [] }).reason, "warehouse_not_found");
+  assert.equal(validateGlobalStockTransferAgainstContext(action, { ...context, context_unavailable: true }).reason, "context_unavailable");
 });
