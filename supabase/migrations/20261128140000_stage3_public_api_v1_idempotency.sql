@@ -54,7 +54,9 @@ begin
     or p_idempotency_key is null
     or length(p_idempotency_key) not between 8 and 128
     or p_idempotency_key !~ '^[A-Za-z0-9._:-]+$'
-    or p_request_hash is null or p_request_hash !~ '^[a-f0-9]{64}
+    or p_request_hash is null or p_request_hash !~ '^[a-f0-9]{64}$'
+    or p_correlation_id is null
+    or p_name is null
     or length(btrim(p_name)) not between 2 and 160
     or p_value is null or p_value < 0 or p_value > 999999999999 then
     return jsonb_build_object('ok',false,'error','INVALID_LEAD_REQUEST');
