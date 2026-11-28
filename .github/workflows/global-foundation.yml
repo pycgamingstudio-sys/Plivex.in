@@ -115,6 +115,14 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -d plivex_migration_replay -f supabase/migrations/202611150006_global_trigger_function_privileges.sql
           psql -X -v ON_ERROR_STOP=1 -d plivex_migration_replay -f supabase/tests/global-trigger-privileges.integration.sql
 
+      - name: Verify Stage 3 RLS, event capture and service-role boundaries
+        env:
+          PGHOST: 127.0.0.1
+          PGUSER: supabase_admin
+          PGPASSWORD: postgres
+          PGPORT: "5434"
+        run: psql -X -v ON_ERROR_STOP=1 -d plivex_migration_replay -f supabase/tests/stage3-foundation.integration.sql
+
       - name: Always stop disposable databases
         if: always()
         run: |
