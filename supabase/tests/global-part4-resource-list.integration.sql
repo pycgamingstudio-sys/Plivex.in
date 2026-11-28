@@ -2,6 +2,7 @@
 do $part4_resource_list$
 declare
   v_definition text;
+  v_resource text;
   v_signature regprocedure := 'public.global_part4_list(uuid,uuid,text,integer)'::regprocedure;
 begin
   if v_signature is null then
