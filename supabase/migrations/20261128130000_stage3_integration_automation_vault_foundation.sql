@@ -760,6 +760,92 @@ select cron.schedule(
   'select public.process_main_workspace_automation_events(50);'
 );
 
+create or replace function public.process_main_workspace_automation_escalations(p_limit integer default 50)
+returns integer
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $function$
+declare
+  v_task record;
+  v_timezone text;
+  v_local_now timestamp without time zone;
+  v_local_available timestamp without time zone;
+  v_in_quiet boolean;
+  v_available_at timestamptz;
+  v_processed integer := 0;
+begin
+  if p_limit is null or p_limit < 1 or p_limit > 200 then
+    raise exception 'invalid automation escalation batch size';
+  end if;
+
+  for v_task in
+    select t.id, t.workspace_id, t.title, t.due_at,
+      p.timezone, p.quiet_hours_start, p.quiet_hours_end, p.escalation_after_hours
+    from public.workspace_automation_tasks t
+    join public.workspace_automation_preferences p on p.workspace_id = t.workspace_id
+    where t.status = 'open' and t.due_at is not null and t.escalated_at is null
+      and p.escalation_enabled = true
+      and t.due_at <= now() - make_interval(hours => p.escalation_after_hours)
+    order by t.due_at, t.id
+    limit p_limit
+    for update of t skip locked
+  loop
+    v_timezone := case when exists (select 1 from pg_timezone_names where name = v_task.timezone) then v_task.timezone else 'UTC' end;
+    v_local_now := now() at time zone v_timezone;
+    v_local_available := v_local_now;
+    v_in_quiet := false;
+
+    if v_task.quiet_hours_start < v_task.quiet_hours_end then
+      v_in_quiet := v_local_now::time >= v_task.quiet_hours_start and v_local_now::time < v_task.quiet_hours_end;
+      if v_in_quiet then
+        v_local_available := v_local_now::date::timestamp + v_task.quiet_hours_end;
+      end if;
+    elsif v_task.quiet_hours_start > v_task.quiet_hours_end then
+      v_in_quiet := v_local_now::time >= v_task.quiet_hours_start or v_local_now::time < v_task.quiet_hours_end;
+      if v_in_quiet then
+        v_local_available := (v_local_now::date + case when v_local_now::time >= v_task.quiet_hours_start then 1 else 0 end)::timestamp + v_task.quiet_hours_end;
+      end if;
+    end if;
+
+    v_available_at := case when v_in_quiet then v_local_available at time zone v_timezone else now() end;
+
+    update public.workspace_automation_tasks
+    set escalated_at = clock_timestamp(),
+      escalation_count = escalation_count + 1,
+      escalation_reason = 'OVERDUE_AFTER_CONFIGURED_WINDOW'
+    where id = v_task.id;
+
+    insert into public.workspace_automation_notifications(
+      workspace_id,task_id,notification_type,title,message,available_at
+    ) values (
+      v_task.workspace_id,v_task.id,'task_escalated',
+      left('Task overdue: ' || v_task.title,160),
+      left('This task passed its due time and the configured escalation window.',1000),
+      v_available_at
+    ) on conflict (workspace_id,task_id,notification_type) do nothing;
+
+    insert into public.workspace_audit_events(
+      workspace_id,actor_id,action,entity_type,entity_id,correlation_id,outcome,metadata
+    ) values (
+      v_task.workspace_id,null,'automation.task_escalated','automation_task',v_task.id::text,
+      gen_random_uuid(),'success',jsonb_build_object('due_at',v_task.due_at,'escalation_after_hours',v_task.escalation_after_hours)
+    );
+    v_processed := v_processed + 1;
+  end loop;
+
+  return v_processed;
+end;
+$function$;
+revoke all on function public.process_main_workspace_automation_escalations(integer) from public, anon, authenticated;
+grant execute on function public.process_main_workspace_automation_escalations(integer) to service_role;
+
+select cron.schedule(
+  'plivex-workspace-automation-escalations',
+  '*/5 * * * *',
+  'select public.process_main_workspace_automation_escalations(50);'
+);
+
 -- Capture only minimal, non-PII event metadata. Delivery payloads never contain customer contact details.
 create or replace function public.capture_main_workspace_business_event()
 returns trigger
