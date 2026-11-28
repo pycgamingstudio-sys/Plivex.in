@@ -199,8 +199,8 @@ test("mixed Gemini timeout and OpenRouter 429 are not mislabeled as Gemini quota
 
 test("Gemini SSE streaming preserves chunks across split event boundaries", async () => {
   const events = [
-    'data: {"candidates":[{"content":{"parts":[{"text":"Namaste "}]}}]}\\n\\n',
-    'data: {"candidates":[{"content":{"parts":[{"text":"business "},{"text":"owner"}]}}]}\\n\\n',
+    'data: {"candidates":[{"content":{"parts":[{"text":"Namaste "}]}}]}\n\n',
+    'data: {"candidates":[{"content":{"parts":[{"text":"business "},{"text":"owner"}]}}]}\n\n',
   ];
   const encoded = new TextEncoder();
   const chunks = [events[0].slice(0, 19), events[0].slice(19) + events[1].slice(0, 31), events[1].slice(31)];
@@ -242,7 +242,7 @@ test("Gemini SSE streaming rejects an empty stream rather than returning a blank
 });
 
 test("Gemini SSE streaming surfaces provider stream errors", async () => {
-  const payload = 'data: {"error":{"message":"stream interrupted"}}\\n\\n';
+  const payload = 'data: {"error":{"message":"stream interrupted"}}\n\n';
   const fetchImpl = async () => new Response(payload, { status: 200, headers: { "Content-Type": "text/event-stream" } });
   await assert.rejects(
     streamGeminiResponse({ requestOptions, geminiKey: "test", model: "gemini-test", fetchImpl, timeoutMs: 1000 }),
