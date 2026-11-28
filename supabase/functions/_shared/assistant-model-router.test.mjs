@@ -5,6 +5,7 @@ import {
   DEFAULT_GROQ_MODELS,
   DEFAULT_OPENROUTER_MODELS,
   generateWithFallback,
+  hasPdfAttachmentRequest,
   isRetryableProviderStatus,
   normalizeOpenAiResult,
   toOpenAiChatPayload,
@@ -17,6 +18,32 @@ const geminiBody = {
 };
 const requestOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(geminiBody) };
 const response = (status, payload) => ({ ok: status >= 200 && status < 300, status, json: async () => payload });
+
+test("PDF attachments are routed only to Gemini because OpenAI-compatible image_url does not support PDFs", async () => {
+  const pdfBody = {
+    ...geminiBody,
+    contents: [{ role: "user", parts: [{ text: "Read this PDF" }, { inline_data: { mime_type: "application/pdf", data: "JVBERi0xLjQ=" } }] }],
+  };
+  assert.equal(hasPdfAttachmentRequest(pdfBody), true);
+  assert.equal(hasPdfAttachmentRequest(geminiBody), false);
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    return response(503, { error: { message: "Gemini unavailable" } });
+  };
+  const result = await generateWithFallback({
+    requestOptions: { ...requestOptions, body: JSON.stringify(pdfBody) },
+    geminiKey: "test",
+    groqKey: "test",
+    openRouterKey: "test",
+    enableGroq: true,
+    fetchImpl,
+    totalTimeoutMs: 10000,
+  });
+  assert.equal(result.ok, false);
+  assert.deepEqual(calls.map((url) => url.match(/models\/([^:]+):/)?.[1]), DEFAULT_GEMINI_MODELS);
+  assert.equal(calls.some((url) => url.includes("openrouter") || url.includes("groq")), false);
+});
 
 test("free fallback list is explicit and Groq remains opt-in", () => {
   assert.deepEqual(DEFAULT_GEMINI_MODELS, ["gemini-3.8-flash", "gemini-3.5-flash-lite"]);
