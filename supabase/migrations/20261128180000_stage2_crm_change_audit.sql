@@ -42,6 +42,7 @@ begin
     v_workspace_id := new.workspace_id;
     v_lead_id := new.id;
     v_action := case
+      when old.client_id is null and new.client_id is not null then 'crm.lead_converted'
       when old.owner_id is distinct from new.owner_id then 'crm.lead_reassigned'
       when old.stage is distinct from new.stage then 'crm.lead_stage_changed'
       else 'crm.lead_updated'
@@ -50,7 +51,8 @@ begin
       'previous_stage', old.stage,
       'stage', new.stage,
       'previous_owner_id', old.owner_id,
-      'owner_id', new.owner_id
+      'owner_id', new.owner_id,
+      'client_id', new.client_id
     );
   end if;
 
