@@ -5,6 +5,17 @@ import { getTaxInvoiceFormat } from "@/global/tax/tax-invoice-formats.js";
 
 const fieldClass = "mt-1 w-full rounded-lg border bg-background px-3 py-2.5 text-sm";
 const labelClass = "block text-xs font-semibold text-foreground";
+const INDIA_PLACES = [
+  ["01","Jammu and Kashmir"],["02","Himachal Pradesh"],["03","Punjab"],["04","Chandigarh"],
+  ["05","Uttarakhand"],["06","Haryana"],["07","Delhi"],["08","Rajasthan"],["09","Uttar Pradesh"],
+  ["10","Bihar"],["11","Sikkim"],["12","Arunachal Pradesh"],["13","Nagaland"],["14","Manipur"],
+  ["15","Mizoram"],["16","Tripura"],["17","Meghalaya"],["18","Assam"],["19","West Bengal"],
+  ["20","Jharkhand"],["21","Odisha"],["22","Chhattisgarh"],["23","Madhya Pradesh"],
+  ["24","Gujarat"],["26","Dadra and Nagar Haveli and Daman and Diu"],["27","Maharashtra"],
+  ["28","Andhra Pradesh (legacy)"],["29","Karnataka"],["30","Goa"],["31","Lakshadweep"],
+  ["32","Kerala"],["33","Tamil Nadu"],["34","Puducherry"],["35","Andaman and Nicobar Islands"],
+  ["36","Telangana"],["37","Andhra Pradesh"],["38","Ladakh"],["97","Other Territory"],
+];
 
 export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile, calculation, allowNoTax = true, serverResolved = false }) {
   const countryCode = workspaceProfile?.countryCode || "";
@@ -112,7 +123,12 @@ export default function GlobalTaxEditor({ invoice, setInvoice, workspaceProfile,
           </select>
         </label>
         <label className={labelClass}>Place of supply
-          {countryCode === "GB" ? (
+          {countryCode === "IN" ? (
+            <select data-testid="india-place-of-supply" className={fieldClass} value={config.placeOfSupply || ""} onChange={(e) => update({ placeOfSupply: e.target.value, placeOfSupplyConfirmed: false })}>
+              <option value="">Select state / UT code</option>
+              {INDIA_PLACES.map(([code,name]) => <option key={code} value={code}>{code} · {name}</option>)}
+            </select>
+          ) : countryCode === "GB" ? (
             <select className={fieldClass} value={config.placeOfSupply || ""} onChange={(e) => update({ placeOfSupply: e.target.value, placeOfSupplyConfirmed: false })}>
               <option value="">Select place of supply</option>
               <option value="United Kingdom">United Kingdom</option>
