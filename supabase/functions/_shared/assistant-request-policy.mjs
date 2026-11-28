@@ -1,3 +1,24 @@
+/**
+ * @param {{
+ *  isGlobalWorkspace?: boolean,
+ *  needsWorkspaceContext?: boolean,
+ *  needsPurchasingContext?: boolean,
+ *  needsGlobalFinanceContext?: boolean,
+ *  needsGlobalClientContext?: boolean,
+ *  needsGlobalExpenseContext?: boolean,
+ *  needsGlobalProductContext?: boolean,
+ *  needsGlobalSupplierContext?: boolean,
+ *  needsGlobalTransferContext?: boolean,
+ *  needsGlobalBranchContext?: boolean,
+ *  needsGlobalMemberContext?: boolean,
+ *  needsGlobalApprovalContext?: boolean,
+ *  needsGlobalApprovalSourceContext?: boolean,
+ *  hasImage?: boolean,
+ *  intentCount?: number,
+ *  hasWriteIntent?: boolean,
+ *  needsAnalytics?: boolean
+ * }} [options]
+ */
 export function getAssistantRequestPolicy({
   isGlobalWorkspace = false,
   needsWorkspaceContext = false,
