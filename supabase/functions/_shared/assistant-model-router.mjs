@@ -221,6 +221,14 @@ export async function streamGeminiResponse({ requestOptions, geminiKey, model, f
   if (!rawText.trim()) throw new Error("empty_model_response");
   return { candidates: [{ content: { parts: [{ text: rawText }] } }] };
 }
+export function hasPdfAttachmentRequest(body) {
+  return (Array.isArray(body?.contents) ? body.contents : []).some((item) =>
+    (Array.isArray(item?.parts) ? item.parts : []).some((part) =>
+      String(part?.inline_data?.mime_type || "").toLowerCase() === "application/pdf"
+    )
+  );
+}
+
 export async function generateWithFallback({
   requestOptions,
   geminiKey,
@@ -234,6 +242,7 @@ export async function generateWithFallback({
   const body = JSON.parse(requestOptions.body);
   const deadline = Date.now() + totalTimeoutMs;
   const attempts = [];
+  const hasPdfAttachment = hasPdfAttachmentRequest(body);
   if (geminiKey) {
     for (const [index, model] of DEFAULT_GEMINI_MODELS.entries()) {
       attempts.push({ provider: "gemini", model, timeoutMs: index === 0 ? 12000 : 8000 });
@@ -241,10 +250,10 @@ export async function generateWithFallback({
   }
   // Groq's current GPT-OSS endpoints are metered. Keep them off unless the
   // project owner explicitly enables Groq usage after reviewing account billing.
-  if (groqKey && enableGroq) {
+  if (!hasPdfAttachment && groqKey && enableGroq) {
     for (const model of DEFAULT_GROQ_MODELS) attempts.push({ provider: "groq", model });
   }
-  if (openRouterKey) {
+  if (!hasPdfAttachment && openRouterKey) {
     for (const model of DEFAULT_OPENROUTER_MODELS) attempts.push({ provider: "openrouter", model });
   }
   let lastStatus = 503;
