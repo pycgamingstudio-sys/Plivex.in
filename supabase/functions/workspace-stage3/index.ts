@@ -367,7 +367,7 @@ Deno.serve(async (req: Request) => {
         ctx.admin.from("workspace_automation_tasks").select("id,rule_id,source_event_id,title,description,due_at,status,escalated_at,escalation_count,created_at,completed_at").eq("workspace_id", ctx.workspaceId).order("created_at", { ascending: false }).limit(100),
         ctx.admin.from("workspace_automation_runs").select("id,rule_id,event_id,status,error_code,attempt_no,started_at,completed_at").eq("workspace_id", ctx.workspaceId).order("started_at", { ascending: false }).limit(100),
         ctx.admin.from("workspace_event_outbox").select("id,event_type,entity_type,entity_id,processing_status,attempt_count,processing_error_code,next_attempt_at,created_at").eq("workspace_id", ctx.workspaceId).in("processing_status", ["retrying","dead_letter"]).order("created_at", { ascending: false }).limit(50),
-        ctx.admin.from("workspace_automation_preferences").select("timezone,quiet_hours_start,quiet_hours_end,escalation_enabled,escalation_after_hours,updated_at").eq("workspace_id", ctx.workspaceId).maybeSingle(),
+        ctx.admin.from("workspace_automation_preferences").select("timezone,reminders_enabled,quiet_hours_start,quiet_hours_end,escalation_enabled,escalation_after_hours,updated_at").eq("workspace_id", ctx.workspaceId).maybeSingle(),
         ctx.admin.from("workspace_automation_notifications").select("id,task_id,notification_type,title,message,available_at,read_at,created_at").eq("workspace_id", ctx.workspaceId).lte("available_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(50),
       ]);
       if (rulesResult.error || tasksResult.error || runsResult.error || eventsResult.error || prefsResult.error || notificationsResult.error) throw new Error("AUTOMATION_LIST_FAILED");
@@ -377,7 +377,7 @@ Deno.serve(async (req: Request) => {
         tasks: tasksResult.data || [],
         runs: runsResult.data || [],
         failedEvents: eventsResult.data || [],
-        preferences: prefsResult.data || { timezone: "UTC", quiet_hours_start: "22:00:00", quiet_hours_end: "08:00:00", escalation_enabled: false, escalation_after_hours: 24 },
+        preferences: prefsResult.data || { timezone: "UTC", reminders_enabled: true, quiet_hours_start: "22:00:00", quiet_hours_end: "08:00:00", escalation_enabled: false, escalation_after_hours: 24 },
         notifications: notificationsResult.data || [],
       }, 200, origin);
     }
@@ -457,6 +457,7 @@ Deno.serve(async (req: Request) => {
       const timezone = clean(body.timezone || "UTC", 80);
       const quietStart = clean(body.quietHoursStart || "22:00", 5);
       const quietEnd = clean(body.quietHoursEnd || "08:00", 5);
+      const remindersEnabled = body.remindersEnabled !== false;
       const escalationEnabled = body.escalationEnabled === true;
       const escalationAfterHours = Number(body.escalationAfterHours ?? 24);
       try { new Intl.DateTimeFormat("en", { timeZone: timezone }).format(new Date()); } catch { throw new Error("INVALID_TIMEZONE"); }
@@ -465,10 +466,10 @@ Deno.serve(async (req: Request) => {
         throw new Error("INVALID_AUTOMATION_PREFERENCES");
       }
       const { data, error } = await ctx.admin.from("workspace_automation_preferences").upsert({
-        workspace_id: ctx.workspaceId, timezone, quiet_hours_start: quietStart + ":00", quiet_hours_end: quietEnd + ":00",
+        workspace_id: ctx.workspaceId, timezone, reminders_enabled: remindersEnabled, quiet_hours_start: quietStart + ":00", quiet_hours_end: quietEnd + ":00",
         escalation_enabled: escalationEnabled, escalation_after_hours: escalationAfterHours,
         created_by: ctx.user.id, updated_at: new Date().toISOString(),
-      }, { onConflict: "workspace_id" }).select("timezone,quiet_hours_start,quiet_hours_end,escalation_enabled,escalation_after_hours,updated_at").single();
+      }, { onConflict: "workspace_id" }).select("timezone,reminders_enabled,quiet_hours_start,quiet_hours_end,escalation_enabled,escalation_after_hours,updated_at").single();
       if (error || !data) throw new Error("AUTOMATION_PREFERENCES_SAVE_FAILED");
       await writeAudit(ctx, "automation.preferences_updated", "automation_preferences", ctx.workspaceId, { timezone, escalation_enabled: escalationEnabled });
       return json({ ok: true, preferences: data }, 200, origin);
