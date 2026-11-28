@@ -11,6 +11,8 @@ test("shared Main Workspace invoices retain the seller-provided UPI destination 
   assert.match(sanitizer,/snapshot\.shareUpiPayment === true && typeof snapshot\.upiId === "string"/);
   assert.match(stores,/upiId: str\(r\?\.upi_id\)/);
   assert.match(stores,/upi_id: str\(p\?\.upiId\)/);
+  assert.match(stores,/upiId: str\(r\.invoice_snapshot\?\.upiId\)/);
+  assert.match(stores,/shareUpiPayment: r\.invoice_snapshot\?\.shareUpiPayment === true/);
   const home=read("../../pages/Home.jsx");
   assert.match(home,/shareUpiPayment: false/);
   assert.match(home,/Show UPI pay link and QR on the customer invoice-share page/);
