@@ -101,5 +101,5 @@ test("public API write scope is consistent across database, Edge Function and do
   assert.ok(platformEdge.includes("MAX_REQUEST_BYTES = 6 * 1024 * 1024"));
   assert.ok(platformEdge.includes("encoder.encode(rawBody).byteLength > MAX_REQUEST_BYTES"));
   assert.ok(platformEdge.includes("INVALID_JSON"));
-  assert.ok(supabaseConfig.includes("[functions.workspace-stage3]\\nverify_jwt = false"));
+  assert.ok(supabaseConfig.includes("[functions.workspace-stage3]\nverify_jwt = false"));
 });
