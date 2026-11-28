@@ -12,6 +12,8 @@ declare
     'workspace_automation_rules',
     'workspace_automation_runs',
     'workspace_automation_tasks',
+    'workspace_automation_preferences',
+    'workspace_automation_notifications',
     'workspace_documents',
     'workspace_audit_events'
   ];
@@ -87,6 +89,12 @@ begin
   if not exists (select 1 from cron.job where jobname='plivex-workspace-webhook-sweep' and schedule='* * * * *') then
     raise exception 'Stage 3 webhook retry schedule missing';
   end if;
+  if not coalesce((select prosecdef from pg_proc where oid = 'public.main_workspace_get_webhook_secret(uuid)'::regprocedure), false)
+    or has_function_privilege('anon','public.main_workspace_get_webhook_secret(uuid)','EXECUTE')
+    or has_function_privilege('authenticated','public.main_workspace_get_webhook_secret(uuid)','EXECUTE')
+    or not has_function_privilege('service_role','public.main_workspace_get_webhook_secret(uuid)','EXECUTE') then
+    raise exception 'Vault webhook secret reader is not least-privilege';
+  end if;
 
   if not coalesce((select prosecdef from pg_proc where oid = 'public.process_main_workspace_automation_events(integer)'::regprocedure), false) then
     raise exception 'Stage 3 automation worker is not security definer';
@@ -100,6 +108,20 @@ begin
   if not exists (select 1 from cron.job where jobname='plivex-workspace-automation-sweep' and schedule='* * * * *') then
     raise exception 'Stage 3 automation cron job missing';
   end if;
+  if not coalesce((select prosecdef from pg_proc where oid = 'public.main_workspace_next_automation_run_at(text,text,time,smallint[])'::regprocedure), false)
+    or has_function_privilege('anon','public.main_workspace_next_automation_run_at(text,text,time,smallint[])','EXECUTE')
+    or has_function_privilege('authenticated','public.main_workspace_next_automation_run_at(text,text,time,smallint[])','EXECUTE')
+    or not has_function_privilege('service_role','public.main_workspace_next_automation_run_at(text,text,time,smallint[])','EXECUTE') then
+    raise exception 'Timezone schedule calculation RPC is not least-privilege';
+  end if;
+  if not coalesce((select prosecdef from pg_proc where oid = 'public.process_main_workspace_scheduled_automation_events(integer)'::regprocedure), false)
+    or not coalesce((select prosecdef from pg_proc where oid = 'public.process_main_workspace_automation_escalations(integer)'::regprocedure), false) then
+    raise exception 'Scheduled automation or escalation worker must be security definer';
+  end if;
+  if not exists (select 1 from cron.job where jobname='plivex-workspace-scheduled-automation-sweep' and schedule='* * * * *')
+    or not exists (select 1 from cron.job where jobname='plivex-workspace-automation-escalations' and schedule='*/5 * * * *') then
+    raise exception 'Scheduled automation or escalation cron job missing';
+  end if;
 
   if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='workspace_audit_events' and column_name='correlation_id')
     or not exists (select 1 from information_schema.columns where table_schema='public' and table_name='workspace_audit_events' and column_name='outcome') then
@@ -109,6 +131,8 @@ begin
   if not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_webhook_events_retry_idx')
     or not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_webhook_attempts_event_idx')
     or not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_automation_tasks_open_idx')
+    or not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_automation_rules_schedule_idx')
+    or not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_automation_notifications_inbox_idx')
     or not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_documents_workspace_idx')
     or not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_audit_events_correlation_idx') then
     raise exception 'Stage 3 retry, automation task or document index missing';
