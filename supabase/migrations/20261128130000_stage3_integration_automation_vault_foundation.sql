@@ -164,6 +164,23 @@ create table if not exists public.workspace_audit_events (
   metadata jsonb not null default '{}'::jsonb check (jsonb_typeof(metadata) = 'object'),
   occurred_at timestamptz not null default now()
 );
+-- Extend the existing Main Workspace audit table additively; preserve its prior history.
+alter table public.workspace_audit_events
+  add column if not exists correlation_id uuid;
+update public.workspace_audit_events
+set correlation_id = gen_random_uuid()
+where correlation_id is null;
+alter table public.workspace_audit_events
+  alter column correlation_id set default gen_random_uuid(),
+  alter column correlation_id set not null;
+alter table public.workspace_audit_events
+  add column if not exists outcome text not null default 'success';
+alter table public.workspace_audit_events
+  drop constraint if exists workspace_audit_events_outcome_check;
+alter table public.workspace_audit_events
+  add constraint workspace_audit_events_outcome_check
+  check (outcome in ('success','failed','denied'));
+
 create index if not exists workspace_audit_events_workspace_time_idx
   on public.workspace_audit_events(workspace_id, occurred_at desc);
 create index if not exists workspace_audit_events_correlation_idx
