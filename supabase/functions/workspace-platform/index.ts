@@ -120,26 +120,50 @@ async function processOcr(ctx: any, body: any) {
   if (!valid) throw new Error("FILE_TYPE_MISMATCH");
   const jobId = crypto.randomUUID(), path = ctx.workspaceId + "/" + jobId;
   const docType = ["invoice","receipt","purchase_order","identity","other"].includes(body.documentType) ? body.documentType : "other";
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
+  if (!apiKey) throw new Error("OCR_PROVIDER_NOT_CONFIGURED");
   await ensureBucket(ctx.admin, "main-workspace-ocr", ["image/jpeg","image/png","image/webp","application/pdf"]);
   const { error: uploadError } = await ctx.admin.storage.from("main-workspace-ocr").upload(path, new Blob([bytes], { type: mime }), { contentType: mime, upsert: false });
   if (uploadError) throw new Error("OCR_UPLOAD_FAILED");
-  const { error: insertError } = await ctx.admin.from("document_ocr_jobs").insert({ id: jobId, workspace_id: ctx.workspaceId, created_by: ctx.user.id, document_type: docType, storage_path: path, mime_type: mime, status: "processing" });
+  const { error: insertError } = await ctx.admin.from("document_ocr_jobs").insert({ id: jobId, workspace_id: ctx.workspaceId, created_by: ctx.user.id, document_type: docType, storage_path: path, mime_type: mime, status: "queued" });
   if (insertError) { await ctx.admin.storage.from("main-workspace-ocr").remove([path]); throw new Error("OCR_JOB_CREATE_FAILED"); }
-  const apiKey = Deno.env.get("GEMINI_API_KEY");
-  if (!apiKey) { await ctx.admin.from("document_ocr_jobs").update({ status: "failed", error_code: "OCR_PROVIDER_NOT_CONFIGURED" }).eq("id", jobId); throw new Error("OCR_PROVIDER_NOT_CONFIGURED"); }
+  const { data: claimed, error: claimError } = await ctx.admin.rpc("claim_document_ocr_job", { p_job_id: jobId });
+  if (claimError || claimed?.id !== jobId) {
+    await ctx.admin.from("document_ocr_jobs").update({ status: "failed", error_code: "OCR_JOB_CLAIM_FAILED" }).eq("id", jobId).eq("workspace_id", ctx.workspaceId);
+    throw new Error("OCR_JOB_CLAIM_FAILED");
+  }
   const model = Deno.env.get("GEMINI_OCR_MODEL") || "gemini-3.8-flash";
   const prompt = "Extract this business document as JSON with document_type, supplier_name, supplier_tax_id, document_number, document_date, due_date, currency, subtotal, tax_total, total, line_items (description, quantity, unit_price, tax_rate, line_total), payment_reference, confidence (0..1), review_notes. Use null for unknown values; never invent unreadable values. This is a review-only draft.";
-  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(apiKey), {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }, { inline_data: { mime_type: mime, data: toBase64(bytes) } }] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } }),
-  });
-  if (!response.ok) { await ctx.admin.from("document_ocr_jobs").update({ status: "failed", error_code: "OCR_PROVIDER_ERROR" }).eq("id", jobId); throw new Error("OCR_PROVIDER_ERROR"); }
-  const payload = await response.json();
-  const raw = payload?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("") || "";
-  let extracted: Record<string, unknown>;
-  try { extracted = JSON.parse(raw); } catch { await ctx.admin.from("document_ocr_jobs").update({status:"failed",error_code:"OCR_INVALID_RESPONSE"}).eq("id",jobId); throw new Error("OCR_INVALID_RESPONSE"); }
-  const { error: updateError } = await ctx.admin.from("document_ocr_jobs").update({ status: "completed", extracted_data: extracted, model_name: model, completed_at: new Date().toISOString() }).eq("id", jobId).eq("workspace_id", ctx.workspaceId);
-  if (updateError) throw new Error("OCR_SAVE_FAILED");
+  let extracted: Record<string, unknown> | null = null;
+  let lastError = "OCR_PROVIDER_ERROR";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) {
+      const { data: retryClaim, error: retryClaimError } = await ctx.admin.rpc("claim_document_ocr_job", { p_job_id: jobId });
+      if (retryClaimError || retryClaim?.id !== jobId) throw new Error("OCR_RETRY_CLAIM_FAILED");
+    }
+    try {
+      const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(apiKey), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }, { inline_data: { mime_type: mime, data: toBase64(bytes) } }] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } }),
+        signal: AbortSignal.timeout(45000),
+      });
+      if (!response.ok) throw new Error("OCR_PROVIDER_ERROR");
+      const payload = await response.json();
+      const raw = payload?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("") || "";
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("OCR_INVALID_RESPONSE");
+      extracted = parsed as Record<string, unknown>;
+      break;
+    } catch (error) {
+      lastError = error instanceof SyntaxError ? "OCR_INVALID_RESPONSE" : error instanceof Error && error.message === "OCR_INVALID_RESPONSE" ? "OCR_INVALID_RESPONSE" : "OCR_PROVIDER_ERROR";
+      const { error: failError } = await ctx.admin.rpc("fail_document_ocr_job", { p_job_id: jobId, p_error_code: lastError });
+      if (failError) throw new Error("OCR_JOB_FAILURE_UPDATE_FAILED");
+      if (attempt === 2) throw new Error(lastError);
+    }
+  }
+  if (!extracted) throw new Error(lastError);
+  const { data: completed, error: updateError } = await ctx.admin.rpc("complete_document_ocr_job", { p_job_id: jobId, p_extracted_data: extracted, p_model_name: model });
+  if (updateError || completed?.id !== jobId) throw new Error("OCR_SAVE_FAILED");
   return { ok: true, jobId, extracted, requiresHumanReview: true };
 }
 async function whatsappSend(ctx: any, body: any) {
@@ -210,6 +234,8 @@ async function publicApi(req: Request, admin: any, body: any): Promise<any> {
   const {data:withinLimit,error:rateError}=await admin.rpc("consume_main_workspace_api_rate_limit",{p_key_hash:hash,p_limit:60,p_window_seconds:60});
   if(rateError||withinLimit!==true) throw new Error("API_RATE_LIMITED");
   const scope = (s:string) => key.scopes.includes(s);
+  const businessInsightScopes = ["invoices.read","expenses.read","leads.read","inventory.read"];
+  const canReadBusinessInsights = businessInsightScopes.every((requiredScope) => scope(requiredScope));
   const action = clean(body.action,80);
   if(action.startsWith("mcp.") && (!scope("mcp.read") || !scope("workspace.read"))) throw new Error("API_SCOPE_DENIED");
   if (action === "mcp.initialize") return { jsonrpc:"2.0", id:body.id ?? null, result:{ protocolVersion:"2025-03-26", capabilities:{tools:{}}, serverInfo:{name:"Plivex Main Workspace",version:"1.0.0"} } };
@@ -217,7 +243,10 @@ async function publicApi(req: Request, admin: any, body: any): Promise<any> {
     {name:"workspace_summary",description:"Read aggregate workspace settings and counts",inputSchema:{type:"object",properties:{},additionalProperties:false}},
     ...(key.scopes.includes("invoices.read") ? [{name:"list_invoices",description:"List recent workspace invoices",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
     ...(key.scopes.includes("clients.read") ? [{name:"list_clients",description:"List workspace clients",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
-    {name:"business_insights",description:"Generate aggregate AI business insights without customer PII",inputSchema:{type:"object",properties:{},additionalProperties:false}}
+    ...(key.scopes.includes("expenses.read") ? [{name:"list_expenses",description:"List recent workspace expenses",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
+    ...(key.scopes.includes("leads.read") ? [{name:"list_leads",description:"List workspace CRM leads",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
+    ...(key.scopes.includes("inventory.read") ? [{name:"list_low_stock",description:"List workspace low-stock inventory items",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
+    ...(canReadBusinessInsights ? [{name:"business_insights",description:"Generate aggregate AI business insights without customer PII",inputSchema:{type:"object",properties:{},additionalProperties:false}}] : [])
   ] } };
   if (action === "mcp.tools/call") {
     const name = clean(body.name || body.params?.name,80);
@@ -226,7 +255,22 @@ async function publicApi(req: Request, admin: any, body: any): Promise<any> {
     if (name === "workspace_summary") return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify(await publicApi(req,admin,{action:"workspace.summary",_workspaceId:key.workspace_id}))}]}};
     if (name === "list_invoices") return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify(await publicApi(req,admin,{action:"invoices.list",_workspaceId:key.workspace_id,limit:args.limit}))}]}};
     if (name === "list_clients") return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify(await publicApi(req,admin,{action:"clients.list",_workspaceId:key.workspace_id,limit:args.limit}))}]}};
+    const mcpLists: Record<string,{action:string;table:string;scope:string;fields:string}> = {
+      list_expenses: {action:"expenses.list",table:"expenses",scope:"expenses.read",fields:"id,vendor,category,amount,date,currency_code,status"},
+      list_leads: {action:"leads.list",table:"leads",scope:"leads.read",fields:"id,name,company,stage,value,score,next_follow_up_at,currency_code"},
+      list_low_stock: {action:"inventory.low_stock",table:"stock",scope:"inventory.read",fields:"id,name,sku,quantity,low_stock,unit,warehouse_id"}
+    };
+    const listTool = mcpLists[name];
+    if (listTool) {
+      if (!key.scopes.includes(listTool.scope)) throw new Error("API_SCOPE_DENIED");
+      const limit = Math.min(100, Math.max(1, Number(args.limit) || 50));
+      const {data,error} = await admin.from(listTool.table).select(listTool.fields).eq("workspace_id",key.workspace_id).limit(limit);
+      if (error) throw new Error("API_READ_FAILED");
+      const records = name === "list_low_stock" ? (data||[]).filter((x:any)=>x.low_stock !== null && x.low_stock !== undefined && Number(x.quantity)<=Number(x.low_stock)) : (data||[]);
+      return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify({ok:true,records})}]}};
+    }
     if (name === "business_insights") {
+      if (!canReadBusinessInsights) throw new Error("API_SCOPE_DENIED");
       const [{data:inv},{data:exp},{data:leads},{data:stock}] = await Promise.all([
         admin.from("invoices").select("status,total,currency").eq("workspace_id",key.workspace_id).limit(500),
         admin.from("expenses").select("amount,currency_code").eq("workspace_id",key.workspace_id).limit(500),
