@@ -5,6 +5,7 @@ import { validateGlobalClientAction } from "../_shared/assistant-global-client-v
 import { validateGlobalSupplierAction } from "../_shared/assistant-global-supplier-validation.mjs";
 import { validateGlobalStockTransferAction } from "../_shared/assistant-global-stock-transfer-validation.mjs";
 import { validateGlobalBranchAction } from "../_shared/assistant-global-branch-validation.mjs";
+import { validateGlobalMemberPermissionAction } from "../_shared/assistant-global-member-permission-validation.mjs";
 import { validateGlobalExpenseAction } from "../_shared/assistant-global-expense-validation.mjs";
 import { validateGlobalProductAction } from "../_shared/assistant-global-product-validation.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
@@ -157,7 +158,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => null);
     const rawActions = Array.isArray(body?.actions) ? body.actions : [body?.action];
     if (!rawActions.length || rawActions.length > 10) return json({ error: "Please confirm between 1 and 10 valid actions." }, 400, origin);
-    if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_branch", "create_global_client", "create_global_supplier", "create_global_expense", "create_global_product", "record_global_invoice_payment", "transfer_global_stock"].includes(String(action?.type || "")))) {
+    if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_branch", "create_global_client", "create_global_supplier", "set_global_member_permission", "create_global_expense", "create_global_product", "record_global_invoice_payment", "transfer_global_stock"].includes(String(action?.type || "")))) {
       return json({ error: "This Main Workspace action is not connected yet. No legacy India-table write was attempted." }, 403, origin);
     }
     if (!isGlobalWorkspace && rawActions.some((action: any) => isGlobalOnlyAssistantAction(action?.type))) {
@@ -351,6 +352,39 @@ Deno.serve(async (req: Request) => {
         created: [{ type: "create_global_supplier", id: supplier.supplier_id }],
         verification: [{ type: "create_global_supplier", id: supplier.supplier_id, verified }],
         supplier: verified ? { name: record.name, email: record.email || null, phone: record.phone || null } : null,
+      }, 200, origin);
+    }
+    if (actions.some((action: any) => action.type === "set_global_member_permission")) {
+      if (actions.length !== 1) return json({ error: "A Main Workspace member permission change must be confirmed separately." }, 400, origin);
+      const payload = actions[0].payload;
+      const { data: permission, error: permissionError } = await supabase.functions.invoke("global-enterprise", {
+        body: {
+          action: "permission.set", workspaceId,
+          memberId: payload.member_id, permissionKey: payload.permission_key, effect: payload.effect,
+        },
+      });
+      if (permissionError || !permission?.ok || !permission?.overrideId) {
+        const code = String(permission?.error || permission?.code || "");
+        return json({ error: code === "ADMIN_REQUIRED" || code === "PERMISSION_DENIED"
+          ? "Only a Main Workspace owner or admin can change member permissions."
+          : "The Main Workspace permission change was not accepted. Check the member and permission key." },
+          code === "ADMIN_REQUIRED" || code === "PERMISSION_DENIED" ? 403 : 400, origin);
+      }
+      const { data: directory, error: directoryError } = await supabase.rpc("assistant_list_global_members", {
+        p_workspace_id: workspaceId, p_limit: 100,
+      });
+      const member = !directoryError && directory?.ok && Array.isArray(directory.members)
+        ? directory.members.find((item: any) => item?.id === payload.member_id) : null;
+      const override = Array.isArray(member?.permission_overrides)
+        ? member.permission_overrides.find((item: any) => item?.permission_key === payload.permission_key) : null;
+      const verified = Boolean(override?.effect === payload.effect);
+      return json({
+        ok: true, verified,
+        reply: verified ? "Main Workspace member permission updated and verified."
+          : "The permission service accepted the change, but Plivex could not verify the saved override. Check member permissions before retrying.",
+        created: [{ type: "set_global_member_permission", id: permission.overrideId }],
+        verification: [{ type: "set_global_member_permission", id: permission.overrideId, verified }],
+        permission: verified ? { member_id: payload.member_id, permission_key: payload.permission_key, effect: payload.effect } : null,
       }, 200, origin);
     }
     if (actions.some((action: any) => action.type === "create_global_branch")) {

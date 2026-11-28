@@ -9,6 +9,7 @@ export function getAssistantRequestPolicy({
   needsGlobalSupplierContext = false,
   needsGlobalTransferContext = false,
   needsGlobalBranchContext = false,
+  needsGlobalMemberContext = false,
   hasImage = false,
 } = {}) {
   const needsGlobalContext = Boolean(
@@ -18,7 +19,8 @@ export function getAssistantRequestPolicy({
     needsGlobalProductContext ||
     needsGlobalSupplierContext ||
     needsGlobalTransferContext ||
-    needsGlobalBranchContext
+    needsGlobalBranchContext ||
+    needsGlobalMemberContext
   );
   const simpleConversationalTurn = !needsWorkspaceContext &&
     !needsPurchasingContext &&
