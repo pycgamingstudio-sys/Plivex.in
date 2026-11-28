@@ -177,7 +177,7 @@ Deno.serve(async(req:Request)=>{
       if(!isValidIsoDate(date)||!Number.isInteger(distance)||distance<1||distance>4000||!["road","rail","air","ship"].includes(mode)||(!vehicle&&!transporter)) return json({error:"Document date, distance, transport mode and vehicle or transporter details are required."},400,origin);
       const [{data:invoice,error:invoiceError},{data:seller,error:sellerError}]=await Promise.all([
         admin.from("invoices").select("id,workspace_id,number,issue_date,status,is_draft,currency,total,client_id,client_name,invoice_snapshot").eq("id",body.invoice_id).eq("workspace_id",workspaceId).maybeSingle(),
-        admin.from("business_profile").select("name,address,tax_registration_number").eq("workspace_id",workspaceId).maybeSingle(),
+        admin.from("business_profile").select("name,address,gstin,tax_registration_number").eq("workspace_id",workspaceId).maybeSingle(),
       ]);
       if(invoiceError||sellerError||!invoice||!seller) return json({error:"Invoice or seller profile not found in this workspace."},404,origin);
       if(invoice.is_draft||["cancelled","void"].includes(String(invoice.status||"").toLowerCase())||invoice.currency!=="INR") return json({error:"Only an issued, active INR invoice can be prepared for an e-way bill."},409,origin);
