@@ -45,6 +45,9 @@ verify_jwt = true
 [functions.workspace-platform]
 verify_jwt = false
 
+[functions.workspace-stage3]
+verify_jwt = false
+
 # Meta calls this endpoint directly; the handler verifies the Meta HMAC signature.
 [functions.workspace-whatsapp-webhook]
 verify_jwt = false
