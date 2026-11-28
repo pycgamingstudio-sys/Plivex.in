@@ -144,6 +144,6 @@ $function$;
 revoke all on function public.global_get_ar_ap_aging(uuid, uuid, date, integer)
   from public, anon;
 grant execute on function public.global_get_ar_ap_aging(uuid, uuid, date, integer)
-  to authenticated, service_role;
+  to authenticated;
 
 commit;
