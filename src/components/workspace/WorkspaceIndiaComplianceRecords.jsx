@@ -74,6 +74,7 @@ export default function WorkspaceIndiaComplianceRecords({workspaceId}){
   <div className="mt-5 grid gap-4 lg:grid-cols-2">
    <form onSubmit={addTds} className="rounded-xl border p-3">
     <h3 className="text-sm font-semibold">Create TDS deduction record</h3>
+    <p className="mt-1 text-xs text-slate-500">Enter the section and rate confirmed by your accountant. Plivex records the deduction; it does not yet determine statutory applicability or rates.</p>
     <div className="mt-3 grid gap-2 sm:grid-cols-2">
      <label className="text-xs text-slate-600">Deductee name<input required maxLength="200" className={field+" mt-1"} value={tds.deductee_name} onChange={e=>setTds(v=>({...v,deductee_name:e.target.value}))}/></label>
      <label className="text-xs text-slate-600">PAN<input maxLength="10" className={field+" mt-1 uppercase"} value={tds.deductee_pan} onChange={e=>setTds(v=>({...v,deductee_pan:e.target.value.toUpperCase()}))} placeholder="ABCDE1234F"/></label>
@@ -89,7 +90,7 @@ export default function WorkspaceIndiaComplianceRecords({workspaceId}){
 
    <div className="rounded-xl border p-3">
     <h3 className="text-sm font-semibold">Prepare IRN e-invoice payload</h3>
-    <p className="mt-1 text-xs text-slate-500">Requires an issued invoice, seller/buyer GSTIN and HSN/SAC plus UQC on every line.</p>
+    <p className="mt-1 text-xs text-slate-500">Requires an issued invoice, seller/buyer GSTIN, two-digit place-of-supply state, intra/inter-state supply type and HSN/SAC + UQC on every line.</p>
     <label className="mt-3 block text-xs text-slate-600">Issued invoice<select className={field+" mt-1"} value={einvoiceId} onChange={e=>setEinvoiceId(e.target.value)}><option value="">Choose invoice</option>{invoices.map(x=><option key={x.id} value={x.id}>{x.number} · {money(Math.round(Number(x.total||0)*100))}</option>)}</select></label>
     <button className={primary+" mt-3"} disabled={busy||!einvoiceId} onClick={prepareEinvoice}>Validate & prepare e-invoice</button>
     <div className="mt-4 space-y-2">{records.einvoices.map(x=><div key={x.id} className="rounded-lg bg-slate-50 p-2 text-xs"><div className="flex justify-between gap-2"><strong>{x.invoice_number}</strong><span className={statusClass(x.status)}>{x.status}</span></div>{(x.validation_errors||[]).map((msg,i)=><p key={i} className="mt-1 text-red-700">{msg}</p>)}{x.irn&&<p className="mt-1 break-all">IRN: {x.irn}</p>}</div>)}{!records.einvoices.length&&<p className="text-xs text-slate-500">No e-invoice records yet.</p>}</div>
