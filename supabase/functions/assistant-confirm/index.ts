@@ -384,14 +384,18 @@ Deno.serve(async (req: Request) => {
           : "The approval decision was not accepted.";
         return json({ error: message }, code === "SELF_APPROVAL_BLOCKED" || code === "APPROVER_ROLE_REQUIRED" || code === "PERMISSION_DENIED" ? 403 : 409, origin);
       }
-      let verified = true;
-      if (decision.status === "pending") {
+      let verified = Boolean(decision.status === "approved" || decision.status === "rejected"
+        || (decision.status === "pending" && Number.isInteger(decision.currentLevel)
+          && Number.isInteger(decision.totalLevels) && decision.currentLevel >= 1
+          && decision.currentLevel <= decision.totalLevels));
+      if (verified && decision.status === "pending") {
         const { data: list, error: listError } = await supabase.functions.invoke("global-enterprise", {
           body: { action: "approval.list", workspaceId },
         });
-        const current = !listError && Array.isArray(list?.requests)
-          ? list.requests.find((item: any) => item?.id === decision.requestId) : null;
-        verified = Boolean(current && current.status === "pending" && current.current_level === decision.currentLevel);
+        if (!listError && Array.isArray(list?.requests)) {
+          const current = list.requests.find((item: any) => item?.id === decision.requestId);
+          verified = Boolean(current && current.status === "pending" && current.current_level === decision.currentLevel);
+        }
       }
       return json({
         ok: true, verified, duplicate: Boolean(decision.duplicate),
