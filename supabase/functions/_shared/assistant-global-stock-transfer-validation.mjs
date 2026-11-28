@@ -27,3 +27,33 @@ export function validateGlobalStockTransferAction(action) {
     },
   };
 }
+
+
+export function validateGlobalStockTransferAgainstContext(action, context) {
+  if (!action || action.type !== "transfer_global_stock" || !context || context.context_unavailable) {
+    return { ok: false, reason: "context_unavailable" };
+  }
+  const warehouses = Array.isArray(context.warehouses) ? context.warehouses : [];
+  const levels = Array.isArray(context.warehouse_stock_levels) ? context.warehouse_stock_levels : [];
+  const products = Array.isArray(context.products) ? context.products : [];
+  if (!warehouses.length || !Array.isArray(context.warehouse_stock_levels) || !Array.isArray(context.products)) {
+    return { ok: false, reason: "context_unavailable" };
+  }
+  const from = warehouses.find((item) => item?.id === action.payload.from_warehouse_id && item?.is_active !== false);
+  const to = warehouses.find((item) => item?.id === action.payload.to_warehouse_id && item?.is_active !== false);
+  if (!from || !to) return { ok: false, reason: "warehouse_not_found" };
+  for (const line of action.payload.items) {
+    const product = products.find((item) => item?.id === line.product_id && item?.is_active !== false);
+    if (!product) return { ok: false, reason: "product_not_found" };
+    const sourceLevel = levels.find((item) => item?.warehouse_id === from.id && item?.product_id === product.id);
+    const available = Number(sourceLevel?.quantity ?? 0);
+    if (!Number.isFinite(available) || available < line.quantity) {
+      return { ok: false, reason: "insufficient_loaded_stock", product_name: product.name || product.id };
+    }
+  }
+  return {
+    ok: true,
+    summary: "Transfer " + action.payload.items.length + " product line(s) from " + from.name + " to " + to.name
+      + ". Available source quantities were checked against the current workspace snapshot; stock will move only after your confirmation.",
+  };
+}
