@@ -68,6 +68,7 @@ test("Invoice HSN/SAC and UQC fields persist from the Main Workspace invoice edi
   assert.match(baseMigration,/add column if not exists hsn_sac_code text/i);
   assert.match(baseMigration,/add column if not exists unit_code text/i);
   assert.match(itemMigration,/invoice_items \(invoice_id, description, quantity, rate, gst_rate, hsn_sac_code, unit_code\)/);
+  assert.match(itemMigration,/invoice_snapshot = coalesce\(_data->'invoice_snapshot', invoice_snapshot\)/);
   assert.match(invoiceEdge,/hsn_sac_code: it\.hsn_sac_code/);
   assert.match(stores,/hsn_sac_code: str\(i\.hsnSac\)/);
   assert.match(stores,/unit_code: str\(i\.unitCode\) \|\| "OTH"/);
