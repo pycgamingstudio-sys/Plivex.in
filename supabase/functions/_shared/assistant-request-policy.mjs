@@ -22,7 +22,9 @@ export function getAssistantRequestPolicy({
     needsGlobalSupplierContext ||
     needsGlobalTransferContext ||
     needsGlobalBranchContext ||
-    needsGlobalMemberContext
+    needsGlobalMemberContext ||
+    needsGlobalApprovalContext ||
+    needsGlobalApprovalSourceContext
   );
   const simpleConversationalTurn = !needsWorkspaceContext &&
     !needsPurchasingContext &&
