@@ -65,7 +65,7 @@ const initialInvoice = {
   client: { name: "", company: "", email: "", phone: "", gstin: "", address: "" },
   number: "", issueDate: "", dueDate: "", currency: "", globalDraftRequestId: crypto.randomUUID(),
   items: [
-    { id: "item-1", description: "", quantity: "", rate: "", gstRate: 18 },
+    { id: "item-1", description: "", quantity: "", rate: "", gstRate: 18, unitCode: "OTH" },
   ],
   taxRate: 18, taxMode: "split", discountType: "percent", discount: "",
   notes: "", terms: "", upiId: "", design: "classic",
@@ -198,7 +198,7 @@ function InvoiceEditor({ invoice, setInvoice, user, workspaceTaxProfile, globalT
     if (key === "description") onClearError(`item.${id}.description`);
     if (key === "rate") onClearError(`item.${id}.rate`);
   };
-  const addItem = () => { const id = `item-${Date.now()}`; setInvoice((old) => ({ ...old, items: [...old.items, { id, description: "", quantity: "", rate: "", gstRate: old.taxRate }] })); onToast("Line item added"); };
+  const addItem = () => { const id = `item-${Date.now()}`; setInvoice((old) => ({ ...old, items: [...old.items, { id, description: "", quantity: "", rate: "", gstRate: old.taxRate, unitCode: "OTH" }] })); onToast("Line item added"); };
   const duplicateItem = (item) => { const id = `item-${Date.now()}`; setInvoice((old) => ({ ...old, items: [...old.items, { ...item, id, description: `${item.description} (copy)` }] })); onToast("Line item duplicated"); };
   const deleteItem = (id) => { if (invoice.items.length === 1) { onToast("Keep at least one line item", "info"); return; } setInvoice((old) => ({ ...old, items: old.items.filter((item) => item.id !== id) })); onToast("Line item removed", "info"); };
   const uploadImage = (event, key) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { setInvoice((old) => ({ ...old, [key]: String(reader.result) })); onToast(`${key === "logo" ? "Logo" : "Signature"} added`); }; reader.readAsDataURL(file); };
@@ -229,7 +229,7 @@ function InvoiceEditor({ invoice, setInvoice, user, workspaceTaxProfile, globalT
                   <Field label="" error={errors[`item.${item.id}.description`]}>
                     {isGlobalWorkspace ? <input value={item.description} onChange={(event) => { updateItem(item.id, "description", event.target.value); onClearError(`item.${item.id}.description`); }} placeholder="Product or service description" className={withErrorClass(itemDescInputClass, errors[`item.${item.id}.description`])} /> : <HSNAutocomplete value={item.description} onChange={(v) => { updateItem(item.id, "description", v); onClearError(`item.${item.id}.description`); }} onSelect={(s) => { updateItem(item.id, "description", s.description); updateItem(item.id, "gstRate", s.gst_rate); updateItem(item.id, "hsnSac", s.hsn_code); onToast(`HSN ${s.hsn_code} · ${s.gst_rate}% applied`); }} placeholder="Item name — type to search HSN" className={withErrorClass(itemDescInputClass, errors[`item.${item.id}.description`])} style={{ flex: "1 1 auto", minHeight: "42px", width: "100%" }} />}
                   </Field>
-                  {!isGlobalWorkspace && item.hsnSac && <p className="mt-1 text-[10px] text-muted-foreground">HSN/SAC: {item.hsnSac}</p>}
+                  {!isGlobalWorkspace && <div className="mt-2 flex flex-wrap items-center gap-2"><p className="text-[10px] text-muted-foreground">HSN/SAC: {item.hsnSac || "Select an HSN/SAC suggestion"}</p><label className="flex items-center gap-1 text-[10px] text-muted-foreground">Unit<select className="rounded-md border border-border bg-background px-2 py-1 text-[10px]" value={item.unitCode || "OTH"} onChange={(e) => updateItem(item.id, "unitCode", e.target.value)}>{["OTH","NOS","KGS","GMS","LTR","MLT","MTR","MTS","PCS","BOX","SET","HRS","DZN"].map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select></label></div>}
                 </div>
               </div>
               <div className="flex items-center gap-2 w-full">
