@@ -5,6 +5,7 @@ import { generateWithFallback } from "../_shared/assistant-model-router.mjs";
 import { validateAssistantAttachment } from "../_shared/assistant-attachment.mjs";
 import { validateGlobalInvoicePaymentAction } from "../_shared/assistant-global-payment-validation.mjs";
 import { validateGlobalClientAction } from "../_shared/assistant-global-client-validation.mjs";
+import { validateGlobalSupplierAction } from "../_shared/assistant-global-supplier-validation.mjs";
 import { validateGlobalExpenseAction } from "../_shared/assistant-global-expense-validation.mjs";
 import { routeExpenseActionForWorkspace } from "../_shared/assistant-expense-workspace-routing.mjs";
 import { validateGlobalProductAction } from "../_shared/assistant-global-product-validation.mjs";
@@ -477,6 +478,14 @@ function validateAction(action: any) {
     return {
       ...validated,
       summary: "Add Global client: " + validated.payload.name + (validated.payload.email ? " · " + validated.payload.email : "") + ". This creates a client in the authenticated Global workspace.",
+    };
+  }
+  if (type === "create_global_supplier") {
+    const validated = validateGlobalSupplierAction(action);
+    if (!validated) return null;
+    return {
+      ...validated,
+      summary: "Add Global supplier: " + validated.payload.name + (validated.payload.email ? " · " + validated.payload.email : "") + ". This creates a supplier record only; it does not send a payment or purchase order.",
     };
   }
   if (type === "create_client") {
