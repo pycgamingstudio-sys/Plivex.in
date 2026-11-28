@@ -221,6 +221,9 @@ export async function streamGeminiResponse({ requestOptions, geminiKey, model, f
   if (!rawText.trim()) throw new Error("empty_model_response");
   return { candidates: [{ content: { parts: [{ text: rawText }] } }] };
 }
+/**
+ * @param {{ requestOptions: any, geminiKey?: string | null, groqKey?: string | null, openRouterKey?: string | null, enableGroq?: boolean, fetchImpl?: typeof fetch, totalTimeoutMs?: number, onTextChunk?: (((chunk: string) => void) | null) }} options
+ */
 export async function generateWithFallback({
   requestOptions,
   geminiKey,
