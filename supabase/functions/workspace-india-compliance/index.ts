@@ -107,7 +107,7 @@ Deno.serve(async(req:Request)=>{
       const transitions:Record<string,string[]>={draft:["deducted","reversed"],deducted:["deposited","reversed"],deposited:["filed","reversed"],filed:[],reversed:[]};
       const target=String(body.status);
       if(!transitions[entry.status]?.includes(target)) return json({error:"Invalid TDS status transition."},409,origin);
-      const patch:Record<string,unknown>={status:target,updated_at:new Date().toISOString()};
+      const patch:Record<string,unknown>={status:target,updated_by:user.id,updated_at:new Date().toISOString()};
       if(target==="deposited"||target==="filed") {
         const challan=clean(body.challan_number,80),challanDate=clean(body.challan_date,10),bsr=clean(body.bsr_code,20);
         if(!challan||!isValidIsoDate(challanDate)||!bsr) return json({error:"Challan number, valid challan date and BSR code are required before marking TDS deposited."},400,origin);
@@ -148,7 +148,7 @@ Deno.serve(async(req:Request)=>{
       if(existing) {
         if(existing.request_fingerprint===fingerprint) return json({ok:true,duplicate:true,record:existing},200,origin);
         if(!["draft","rejected"].includes(existing.status)) return json({error:"An e-invoice record already exists and cannot be replaced after submission."},409,origin);
-        const {data,error}=await admin.from("workspace_einvoice_records").update({status:errors.length?"draft":"ready",invoice_number:invoice.number,request_payload:payload,validation_errors:errors,idempotency_key:body.idempotency_key,request_fingerprint:fingerprint,updated_at:new Date().toISOString()}).eq("id",existing.id).eq("workspace_id",workspaceId).select("*").single();
+        const {data,error}=await admin.from("workspace_einvoice_records").update({status:errors.length?"draft":"ready",invoice_number:invoice.number,request_payload:payload,validation_errors:errors,idempotency_key:body.idempotency_key,request_fingerprint:fingerprint,updated_by:user.id,updated_at:new Date().toISOString()}).eq("id",existing.id).eq("workspace_id",workspaceId).select("*").single();
         if(error) throw new Error("EINVOICE_DRAFT_UPDATE_FAILED");
         return json({ok:true,duplicate:false,record:data},200,origin);
       }
@@ -181,7 +181,7 @@ Deno.serve(async(req:Request)=>{
       if(active) return json({error:"An active e-way bill already exists for this invoice."},409,origin);
       const {data:existing}=await admin.from("workspace_eway_bill_records").select("*").eq("workspace_id",workspaceId).eq("invoice_id",invoice.id).in("status",["draft","rejected"]).order("created_at",{ascending:false}).limit(1).maybeSingle();
       if(existing) {
-        const {data,error}=await admin.from("workspace_eway_bill_records").update({status:errors.length?"draft":"ready",document_number:invoice.number,document_date:date,distance_km:distance,transport_mode:mode,vehicle_number:vehicle||null,transporter_id:transporter||null,request_payload:payload,validation_errors:errors,idempotency_key:body.idempotency_key,request_fingerprint:fingerprint,updated_at:new Date().toISOString()}).eq("id",existing.id).eq("workspace_id",workspaceId).select("*").single();
+        const {data,error}=await admin.from("workspace_eway_bill_records").update({status:errors.length?"draft":"ready",document_number:invoice.number,document_date:date,distance_km:distance,transport_mode:mode,vehicle_number:vehicle||null,transporter_id:transporter||null,request_payload:payload,validation_errors:errors,idempotency_key:body.idempotency_key,request_fingerprint:fingerprint,updated_by:user.id,updated_at:new Date().toISOString()}).eq("id",existing.id).eq("workspace_id",workspaceId).select("*").single();
         if(error) throw new Error("EWAY_DRAFT_UPDATE_FAILED");
         return json({ok:true,duplicate:false,record:data},200,origin);
       }
