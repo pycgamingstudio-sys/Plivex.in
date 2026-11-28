@@ -666,6 +666,9 @@ async function handleRequest(req: Request) {
       needsGlobalExpenseContext,
       needsGlobalProductContext,
       hasImage: Boolean(image),
+      intentCount: deterministicIntentHints.intents.length,
+      hasWriteIntent: deterministicIntentHints.intents.length > 0,
+      needsAnalytics: /\b(profit|loss|cash flow|revenue|sales trend|growth|analytics|performance|margin|forecast)\b|लाभ|नुकसान|मुनाफा|आय|बिक्री विश्लेषण/i.test(String(conversationRoutingText)),
     });
     const globalContextPromise = requestPolicy.loadGlobalContext
       ? (async () => {
@@ -800,8 +803,8 @@ async function handleRequest(req: Request) {
         system_instruction: { parts: [{ text: systemInstruction }] },
         contents: messages,
         generationConfig: {
-          maxOutputTokens: 2200,
-          thinkingConfig: { thinkingLevel: "medium" },
+          maxOutputTokens: requestPolicy.maxOutputTokens,
+          thinkingConfig: { thinkingLevel: requestPolicy.thinkingLevel },
           responseMimeType: "application/json",
           responseSchema: {
             type: "OBJECT",
