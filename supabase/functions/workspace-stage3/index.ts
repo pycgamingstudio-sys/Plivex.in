@@ -110,10 +110,16 @@ async function handleWebhookRequest(req: Request) {
     .eq("id", subscriptionId).maybeSingle();
   if (subscriptionError || !subscription || !subscription.is_active) return json({ ok: false, error: "WEBHOOK_SUBSCRIPTION_NOT_FOUND" }, 404);
 
-  const { data: secret, error: secretError } = await admin.rpc("main_workspace_get_webhook_secret", { p_subscription_id: subscription.id });
-  if (secretError || typeof secret !== "string" || secret.length < 32) return json({ ok: false, error: "WEBHOOK_SECRET_UNAVAILABLE" }, 503);
-
   const provider = String(subscription.provider_key);
+  let secret: string | null = null;
+  if (provider === "shopify") {
+    secret = Deno.env.get("SHOPIFY_API_SECRET") || null;
+    if (!secret || secret.length < 32) return json({ ok: false, error: "SHOPIFY_PROVIDER_SECRET_NOT_CONFIGURED" }, 503);
+  } else {
+    const { data: customSecret, error: secretError } = await admin.rpc("main_workspace_get_webhook_secret", { p_subscription_id: subscription.id });
+    if (secretError || typeof customSecret !== "string" || customSecret.length < 32) return json({ ok: false, error: "WEBHOOK_SECRET_UNAVAILABLE" }, 503);
+    secret = customSecret;
+  }
   const eventType = clean(provider === "shopify" ? req.headers.get("x-shopify-topic") : req.headers.get("x-plivex-event-type"), 120);
   const eventId = String((provider === "shopify" ? req.headers.get("x-shopify-webhook-id") : req.headers.get("x-plivex-event-id")) || "").trim();
   if (!/^[A-Za-z0-9._:-]{1,200}$/.test(eventId) || !isAllowedWebhookEvent(provider, eventType, subscription.event_types)) {
@@ -331,8 +337,9 @@ Deno.serve(async (req: Request) => {
         ok: true,
         subscription: { id: data.subscription_id, provider_key: data.provider_key, event_types: data.event_types },
         endpointUrl,
-        secret: data.secret,
-        secretShownOnce: true,
+        secret: data.secret || null,
+        secretShownOnce: Boolean(data.secret),
+        shopifySecretSetupRequired: providerKey === "shopify" && !Deno.env.get("SHOPIFY_API_SECRET"),
       }, 201, origin);
     }
     if (body.action === "webhooks.pause") {
