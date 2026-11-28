@@ -494,6 +494,119 @@ select cron.schedule(
 );
 
 -- Claim events with SKIP LOCKED and make task creation/run history idempotent.
+create or replace function public.main_workspace_next_automation_run_at(
+  p_timezone text,
+  p_frequency text,
+  p_time time,
+  p_days smallint[] default null
+)
+returns timestamptz
+language plpgsql
+stable
+security definer
+set search_path = pg_catalog, public
+as $function$
+declare
+  v_local_now timestamp without time zone;
+  v_local_date date;
+  v_today integer;
+  v_days_ahead integer;
+begin
+  if p_timezone is null or not exists (select 1 from pg_timezone_names where name = p_timezone)
+    or p_time is null or p_frequency not in ('daily','weekly') then
+    raise exception 'invalid automation schedule';
+  end if;
+  v_local_now := now() at time zone p_timezone;
+  v_local_date := v_local_now::date;
+
+  if p_frequency = 'daily' then
+    if p_days is not null then raise exception 'daily schedule cannot specify weekdays'; end if;
+    if p_time <= v_local_now::time then v_local_date := v_local_date + 1; end if;
+  else
+    if p_days is null or cardinality(p_days) < 1 or cardinality(p_days) > 7
+      or not (p_days <@ array[1,2,3,4,5,6,7]::smallint[]) then
+      raise exception 'weekly schedule requires valid weekdays';
+    end if;
+    v_today := extract(isodow from v_local_now)::integer;
+    select min(case when day_value > v_today then day_value - v_today else day_value - v_today + 7 end)
+      into v_days_ahead
+    from unnest(p_days) as day_value;
+    if v_days_ahead = 0 and p_time > v_local_now::time then
+      v_local_date := v_local_date;
+    else
+      if v_days_ahead = 0 then v_days_ahead := 7; end if;
+      v_local_date := v_local_date + v_days_ahead;
+    end if;
+  end if;
+
+  return (v_local_date::timestamp + p_time) at time zone p_timezone;
+end;
+$function$;
+revoke all on function public.main_workspace_next_automation_run_at(text,text,time,smallint[]) from public, anon, authenticated;
+grant execute on function public.main_workspace_next_automation_run_at(text,text,time,smallint[]) to service_role;
+
+create or replace function public.process_main_workspace_scheduled_automation_events(p_limit integer default 50)
+returns integer
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $function$
+declare
+  v_rule record;
+  v_local_date date;
+  v_next_run_at timestamptz;
+  v_processed integer := 0;
+begin
+  if p_limit is null or p_limit < 1 or p_limit > 200 then
+    raise exception 'invalid scheduled automation batch size';
+  end if;
+
+  for v_rule in
+    select id, workspace_id, timezone, schedule_frequency, schedule_time_local, schedule_days_of_week, next_run_at
+    from public.workspace_automation_rules
+    where trigger_type = 'schedule' and is_active = true and next_run_at <= now()
+    order by next_run_at, id
+    limit p_limit
+    for update skip locked
+  loop
+    begin
+      v_local_date := (v_rule.next_run_at at time zone v_rule.timezone)::date;
+      insert into public.workspace_event_outbox(
+        workspace_id,event_type,entity_type,entity_id,dedupe_key,payload,occurred_at
+      ) values (
+        v_rule.workspace_id,'automation.schedule_due','automation_schedule',v_rule.id::text,
+        'automation-schedule:' || v_rule.id::text || ':' || v_local_date::text,
+        jsonb_build_object('schedule_rule_id',v_rule.id,'schedule_local_date',v_local_date),
+        v_rule.next_run_at
+      ) on conflict (dedupe_key) do nothing;
+
+      v_next_run_at := public.main_workspace_next_automation_run_at(
+        v_rule.timezone,v_rule.schedule_frequency,v_rule.schedule_time_local,v_rule.schedule_days_of_week
+      );
+      update public.workspace_automation_rules
+      set next_run_at = v_next_run_at, updated_at = clock_timestamp()
+      where id = v_rule.id;
+      v_processed := v_processed + 1;
+    exception when others then
+      update public.workspace_automation_rules
+      set next_run_at = clock_timestamp() + interval '5 minutes',
+        updated_at = clock_timestamp()
+      where id = v_rule.id;
+    end;
+  end loop;
+
+  return v_processed;
+end;
+$function$;
+revoke all on function public.process_main_workspace_scheduled_automation_events(integer) from public, anon, authenticated;
+grant execute on function public.process_main_workspace_scheduled_automation_events(integer) to service_role;
+
+select cron.schedule(
+  'plivex-workspace-scheduled-automation-sweep',
+  '* * * * *',
+  'select public.process_main_workspace_scheduled_automation_events(50);'
+);
+
 create or replace function public.process_main_workspace_automation_events(p_limit integer default 50)
 returns integer
 language plpgsql
@@ -537,7 +650,6 @@ begin
         from public.workspace_automation_rules
         where workspace_id = v_event.workspace_id
           and event_type = v_event.event_type
-          and trigger_type = 'event'
           and is_active = true
         order by created_at, id
       loop
@@ -620,7 +732,6 @@ begin
         select id from public.workspace_automation_rules
         where workspace_id = v_event.workspace_id
           and event_type = v_event.event_type
-          and trigger_type = 'event'
           and is_active = true
       loop
         insert into public.workspace_automation_runs(
