@@ -127,7 +127,7 @@ export default function WorkspaceStage3Center({ section }) {
   const savePreferences = (event) => {
     event.preventDefault();
     return run(async () => {
-      const result = await invoke({ action: "automation.preferences.save", ...preferenceDraft });
+      const result = await invoke({ action: "automation.preferences.save", timezone: preferenceDraft.timezone, remindersEnabled: preferenceDraft.reminders_enabled, quietHoursStart: preferenceDraft.quiet_hours_start, quietHoursEnd: preferenceDraft.quiet_hours_end, escalationEnabled: preferenceDraft.escalation_enabled, escalationAfterHours: preferenceDraft.escalation_after_hours });
       setPreferences(result.preferences);
       setPreferenceDraft({ ...result.preferences, quiet_hours_start: String(result.preferences.quiet_hours_start).slice(0,5), quiet_hours_end: String(result.preferences.quiet_hours_end).slice(0,5) });
     }, "Reminder and escalation preferences saved.");
