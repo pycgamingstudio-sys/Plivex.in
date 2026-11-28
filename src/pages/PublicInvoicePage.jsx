@@ -129,7 +129,7 @@ export default function PublicInvoicePage(){
  const registrationLabel=countryCode==="IN"?"GSTIN":(taxProfile.registrationType||getCountryExperience(countryCode)?.business.registrationLabel||"Tax registration");
  const total=Number(invoice?.total??snapshot.total)||0;
  const upiId=String(snapshot.upiId||"").trim();
- const upiValid=countryCode==="IN"&&String(invoice?.currency||"").toUpperCase()==="INR"&&/^[a-zA-Z0-9.\\-_]{2,256}@[a-zA-Z][a-zA-Z0-9.\\-_]{1,64}$/.test(upiId)&&total>0&&!isDraft&&String(invoice?.status||"").toLowerCase()!=="paid";
+ const upiValid=countryCode==="IN"&&String(invoice?.currency||"").toUpperCase()==="INR"&&/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z][a-zA-Z0-9.\-_]{1,64}$/.test(upiId)&&total>0&&!isDraft&&String(invoice?.status||"").toLowerCase()!=="paid";
  const upiUri=upiValid?`upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(business.name||invoice?.business_name||"Business")}&am=${total.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Invoice ${invoice?.number||""}`)}`:"";
  const upiQrUrl=upiValid?`https://quickchart.io/qr?size=360&margin=2&ecLevel=Q&text=${encodeURIComponent(upiUri)}`:"";
  const download=async()=>{await supabase.functions.invoke("invoice-share",{body:{action:"track",event:"download",token}});window.print()};
