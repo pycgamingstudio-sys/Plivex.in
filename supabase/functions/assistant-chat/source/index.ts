@@ -560,7 +560,7 @@ function validateAction(action: any) {
   return null;
 }
 
-async function handleRequest(req: Request) {
+async function handleRequest(req: Request, onModelTextChunk?: (chunk: string) => void) {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const authorization = req.headers.get("Authorization");
@@ -857,6 +857,7 @@ async function handleRequest(req: Request) {
       groqKey,
       openRouterKey,
       enableGroq,
+      onTextChunk: onModelTextChunk,
     });
     if (!routed.ok) {
       const message = routed.status === 429
@@ -1165,6 +1166,10 @@ async function handleRequest(req: Request) {
   }
 }
 
+function assistantSseEvent(event: string, payload: unknown) {
+  return `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
+}
+
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
   if (origin && !ALLOWED_ORIGINS.has(origin)) {
@@ -1173,11 +1178,49 @@ Deno.serve(async (req: Request) => {
       headers: { "Vary": "Origin", "Content-Type": "text/plain" },
     });
   }
-  const response = await handleRequest(req);
-  const headers = new Headers(response.headers);
-  headers.set("Access-Control-Allow-Origin", origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://plivex.in");
-  headers.set("Vary", "Origin");
-  headers.set("Access-Control-Allow-Headers", "authorization, x-client-info, apikey, content-type, x-supabase-api-version, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version");
-  headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+  const corsHeaders = new Headers({
+    "Access-Control-Allow-Origin": origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://plivex.in",
+    "Vary": "Origin",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-api-version, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  });
+  const wantsStream = (req.headers.get("accept") || "").includes("text/event-stream");
+  if (!wantsStream) {
+    const response = await handleRequest(req);
+    const headers = new Headers(response.headers);
+    corsHeaders.forEach((value, key) => headers.set(key, value));
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+  }
+
+  const encoder = new TextEncoder();
+  let cancelled = false;
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const emit = (event: string, payload: unknown) => {
+        if (!cancelled) controller.enqueue(encoder.encode(assistantSseEvent(event, payload)));
+      };
+      void (async () => {
+        try {
+          const response = await handleRequest(req, (chunk) => emit("delta", { text: chunk }));
+          const bodyText = await response.text();
+          let payload: Record<string, unknown>;
+          try { payload = JSON.parse(bodyText); }
+          catch { payload = { error: "Assistant returned an unreadable response." }; }
+          if (!response.ok || payload.error) emit("error", { error: String(payload.error || "Assistant request failed.") });
+          else emit("complete", payload);
+        } catch (error) {
+          console.error("Assistant streaming response failed", error);
+          emit("error", { error: "Something went wrong while streaming the AI response." });
+        } finally {
+          if (!cancelled) controller.close();
+        }
+      })();
+    },
+    cancel() { cancelled = true; },
+  });
+  corsHeaders.set("Content-Type", "text/event-stream; charset=utf-8");
+  corsHeaders.set("Cache-Control", "no-cache, no-transform");
+  corsHeaders.set("Connection", "keep-alive");
+  corsHeaders.set("X-Accel-Buffering", "no");
+  return new Response(stream, { status: 200, headers: corsHeaders });
 });
