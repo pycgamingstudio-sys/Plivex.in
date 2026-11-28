@@ -55,8 +55,7 @@ create table if not exists public.workspace_event_outbox (
 create index if not exists workspace_event_outbox_workspace_idx
   on public.workspace_event_outbox(workspace_id, created_at desc);
 create index if not exists workspace_event_outbox_dispatch_idx
-  on public.workspace_event_outbox(created_at)
-  where created_at > now() - interval '30 days';
+  on public.workspace_event_outbox(created_at);
 
 create table if not exists public.workspace_webhook_deliveries (
   id uuid primary key default gen_random_uuid(),
