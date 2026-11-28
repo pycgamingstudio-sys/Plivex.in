@@ -109,4 +109,5 @@ END;
 $function$;
 
 REVOKE ALL ON FUNCTION public.assistant_create_purchase_order_idempotent(text, text, text, jsonb, text, date, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.assistant_create_purchase_order_idempotent(text, text, text, jsonb, text, date, text) FROM anon;
 GRANT EXECUTE ON FUNCTION public.assistant_create_purchase_order_idempotent(text, text, text, jsonb, text, date, text) TO authenticated;

@@ -118,4 +118,5 @@ END;
 $function$;
 
 REVOKE ALL ON FUNCTION public.assistant_create_global_product_idempotent(uuid, text, text, jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.assistant_create_global_product_idempotent(uuid, text, text, jsonb) FROM anon;
 GRANT EXECUTE ON FUNCTION public.assistant_create_global_product_idempotent(uuid, text, text, jsonb) TO authenticated;

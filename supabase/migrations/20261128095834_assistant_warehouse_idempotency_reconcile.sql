@@ -109,4 +109,5 @@ END;
 $function$;
 
 REVOKE ALL ON FUNCTION public.assistant_create_warehouse_idempotent(text, text, text, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.assistant_create_warehouse_idempotent(text, text, text, text, text) FROM anon;
 GRANT EXECUTE ON FUNCTION public.assistant_create_warehouse_idempotent(text, text, text, text, text) TO authenticated;
