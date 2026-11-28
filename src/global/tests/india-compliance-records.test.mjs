@@ -87,3 +87,10 @@ test("India compliance workbench is integrated into the existing GST module and 
   assert.match(panel,/IRN e-invoice payload/);
   assert.match(panel,/Prepare e-way bill/);
 });
+
+test("Compliance UI reuses idempotency keys after ambiguous network outcomes",()=>{
+  assert.match(panel,/tdsKey/);
+  assert.match(panel,/einvoiceKey/);
+  assert.match(panel,/ewayKey/);
+  assert.match(panel,/if\(ok\)setTdsKey\(crypto\.randomUUID\(\)\)/);
+});
