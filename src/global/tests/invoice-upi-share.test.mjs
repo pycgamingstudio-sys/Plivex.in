@@ -8,9 +8,12 @@ const page=read("../../pages/PublicInvoicePage.jsx");
 const stores=read("../../lib/stores.js");
 
 test("shared Main Workspace invoices retain the seller-provided UPI destination without exposing other profile fields",()=>{
-  assert.match(sanitizer,/pick\(snapshot, \["notes", "terms", "upiId",/);
+  assert.match(sanitizer,/snapshot\.shareUpiPayment === true && typeof snapshot\.upiId === "string"/);
   assert.match(stores,/upiId: str\(r\?\.upi_id\)/);
   assert.match(stores,/upi_id: str\(p\?\.upiId\)/);
+  const home=read("../../pages/Home.jsx");
+  assert.match(home,/shareUpiPayment: false/);
+  assert.match(home,/Show UPI pay link and QR on the customer invoice-share page/);
 });
 
 test("public shared INR invoices offer UPI deep link and QR only for valid unpaid invoices",()=>{
