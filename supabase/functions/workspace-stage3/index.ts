@@ -30,7 +30,7 @@ const toBase64 = (value: Uint8Array) => {
   for (let i = 0; i < value.length; i += 0x8000) output += String.fromCharCode(...value.subarray(i, i + 0x8000));
   return btoa(output);
 };
-const safeFileName = (value: string) => clean(value, 255).replace(/[\\/\\u0000-\\u001f]/g, "_").replace(/^\.+$/, "document") || "document";
+const safeFileName = (value: string) => clean(value, 255).replace(/[\/\\\\]/g, "_").replace(/[\\u0000-\\u001f]/g, "_").replace(/^\\.+$/, "document") || "document";
 
 async function setup(req: Request) {
   const url = Deno.env.get("SUPABASE_URL");
