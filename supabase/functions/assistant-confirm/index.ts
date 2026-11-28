@@ -3,6 +3,7 @@ import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.m
 import { validateGlobalInvoicePaymentAction, majorToMinorUnits } from "../_shared/assistant-global-payment-validation.mjs";
 import { validateGlobalClientAction } from "../_shared/assistant-global-client-validation.mjs";
 import { validateGlobalSupplierAction } from "../_shared/assistant-global-supplier-validation.mjs";
+import { validateGlobalStockTransferAction } from "../_shared/assistant-global-stock-transfer-validation.mjs";
 import { validateGlobalExpenseAction } from "../_shared/assistant-global-expense-validation.mjs";
 import { validateGlobalProductAction } from "../_shared/assistant-global-product-validation.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
@@ -155,7 +156,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => null);
     const rawActions = Array.isArray(body?.actions) ? body.actions : [body?.action];
     if (!rawActions.length || rawActions.length > 10) return json({ error: "Please confirm between 1 and 10 valid actions." }, 400, origin);
-    if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_client", "create_global_supplier", "create_global_expense", "create_global_product", "record_global_invoice_payment"].includes(String(action?.type || "")))) {
+    if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_client", "create_global_supplier", "create_global_expense", "create_global_product", "record_global_invoice_payment", "transfer_global_stock"].includes(String(action?.type || "")))) {
       return json({ error: "This Global workspace action is not connected yet. No legacy India-table write was attempted." }, 403, origin);
     }
     if (!isGlobalWorkspace && rawActions.some((action: any) => isGlobalOnlyAssistantAction(action?.type))) {
@@ -349,6 +350,56 @@ Deno.serve(async (req: Request) => {
         created: [{ type: "create_global_supplier", id: supplier.supplier_id }],
         verification: [{ type: "create_global_supplier", id: supplier.supplier_id, verified }],
         supplier: verified ? { name: record.name, email: record.email || null, phone: record.phone || null } : null,
+      }, 200, origin);
+    }
+    if (actions.some((action: any) => action.type === "transfer_global_stock")) {
+      if (actions.length !== 1) return json({ error: "A Main Workspace stock transfer must be confirmed separately so the inventory ledger remains atomic." }, 400, origin);
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) {
+        return json({ error: "The stock transfer confirmation key is invalid. Please prepare the transfer again." }, 400, origin);
+      }
+      const payload = actions[0].payload;
+      const { data: transfer, error: transferError } = await supabase.functions.invoke("global-part4", {
+        body: {
+          action: "transfer", workspace_id: workspaceId,
+          from_warehouse_id: payload.from_warehouse_id,
+          to_warehouse_id: payload.to_warehouse_id,
+          items: payload.items, idempotency_key: idempotencyKey,
+          notes: payload.notes || null,
+        },
+      });
+      if (transferError || !transfer?.ok || !transfer?.transfer_id) {
+        const reason = String(transfer?.reason || "");
+        const message = reason === "forbidden" ? "Your Main Workspace role cannot transfer stock."
+          : reason === "insufficient_stock" ? "The source warehouse no longer has enough stock. No transfer was completed."
+          : reason === "warehouse_not_found" ? "One of the selected warehouses is no longer available."
+          : reason === "idempotency_conflict" ? "This confirmation key was already used for a different stock transfer."
+          : "The stock transfer service could not complete the transfer. Check inventory before retrying.";
+        return json({ error: message }, reason === "forbidden" ? 403 : reason === "insufficient_stock" || reason === "idempotency_conflict" ? 409 : 400, origin);
+      }
+      const [transfersResult, movementsResult] = await Promise.all([
+        supabase.functions.invoke("global-part4", { body: { action: "list", resource: "stock_transfers", workspace_id: workspaceId, limit: 500 } }),
+        supabase.functions.invoke("global-part4", { body: { action: "list", resource: "warehouse_stock_movements", workspace_id: workspaceId, limit: 500 } }),
+      ]);
+      const transferRecord = !transfersResult.error && Array.isArray(transfersResult.data?.records)
+        ? transfersResult.data.records.find((item: any) => item?.id === transfer.transfer_id) : null;
+      const movements = !movementsResult.error && Array.isArray(movementsResult.data?.records)
+        ? movementsResult.data.records.filter((item: any) => item?.reference_type === "stock_transfer" && item?.reference_id === transfer.transfer_id)
+        : [];
+      const expectedMovements = payload.items.length * 2;
+      const verified = Boolean(transferRecord
+        && transferRecord.from_warehouse_id === payload.from_warehouse_id
+        && transferRecord.to_warehouse_id === payload.to_warehouse_id
+        && movements.length >= expectedMovements
+        && movements.filter((item: any) => item.movement_type === "transfer_out").length >= payload.items.length
+        && movements.filter((item: any) => item.movement_type === "transfer_in").length >= payload.items.length);
+      return json({
+        ok: true, verified, duplicate: Boolean(transfer.duplicate),
+        reply: verified
+          ? "Main Workspace stock transfer completed and verified in the warehouse movement ledger."
+          : "The transfer service accepted the request, but Plivex could not verify every inventory movement. Check both warehouses before retrying.",
+        created: [{ type: "transfer_global_stock", id: transfer.transfer_id }],
+        verification: [{ type: "transfer_global_stock", id: transfer.transfer_id, verified }],
+        transfer: verified ? { from_warehouse_id: payload.from_warehouse_id, to_warehouse_id: payload.to_warehouse_id, product_lines: payload.items.length } : null,
       }, 200, origin);
     }
     if (actions.some((action: any) => action.type === "record_global_invoice_payment")) {
