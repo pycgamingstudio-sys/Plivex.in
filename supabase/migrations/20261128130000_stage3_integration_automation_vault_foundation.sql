@@ -152,6 +152,23 @@ create table if not exists public.workspace_documents (
 create index if not exists workspace_documents_workspace_idx
   on public.workspace_documents(workspace_id, category, created_at desc);
 
+create table if not exists public.workspace_audit_events (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id text not null references public.workspace_settings(workspace_id) on delete cascade,
+  actor_id uuid references auth.users(id) on delete set null,
+  action text not null check (length(btrim(action)) between 2 and 100),
+  entity_type text not null check (length(btrim(entity_type)) between 2 and 80),
+  entity_id text,
+  correlation_id uuid not null,
+  outcome text not null default 'success' check (outcome in ('success','failed','denied')),
+  metadata jsonb not null default '{}'::jsonb check (jsonb_typeof(metadata) = 'object'),
+  occurred_at timestamptz not null default now()
+);
+create index if not exists workspace_audit_events_workspace_time_idx
+  on public.workspace_audit_events(workspace_id, occurred_at desc);
+create index if not exists workspace_audit_events_correlation_idx
+  on public.workspace_audit_events(correlation_id);
+
 -- Deterministic automation runs entirely in Postgres. No provider API or secret is required.
 create extension if not exists pg_cron with schema pg_catalog;
 
@@ -162,7 +179,7 @@ begin
   foreach t in array array[
     'workspace_integrations','workspace_webhook_subscriptions','workspace_event_outbox',
     'workspace_webhook_deliveries','workspace_automation_rules','workspace_automation_runs',
-    'workspace_automation_tasks','workspace_documents'
+    'workspace_automation_tasks','workspace_documents','workspace_audit_events'
   ] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from public, anon, authenticated', t);
