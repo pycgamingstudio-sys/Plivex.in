@@ -7,7 +7,7 @@ export function validateGlobalSupplierAction(action) {
   const email = cleanText(raw.email, 254).toLowerCase();
   const phone = cleanText(raw.phone, 40);
   const taxRegistrationNumber = cleanText(raw.tax_registration_number, 80);
-  if (!name || (email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))) return null;
+  if (!name || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return null;
   return {
     type: "create_global_supplier",
     payload: { name, email: email || null, phone: phone || null, tax_registration_number: taxRegistrationNumber || null },
