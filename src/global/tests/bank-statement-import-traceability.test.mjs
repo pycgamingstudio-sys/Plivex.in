@@ -19,7 +19,8 @@ test("bank statement import idempotency is serialized and payload-bound", () => 
 
 test("bank statement RPC enforces workspace roles and statement date bounds", () => {
   assert.match(migration, /has_ws_role\s*\(\s*p_workspace_id\s*,\s*array\['admin'::app_role,\s*'manager'::app_role,\s*'accountant'::app_role\]/);
-  assert.match(migration, /p_start is not null and v_date < p_start/);\n  assert.match(migration, /p_end is not null and v_date > p_end/);
+  assert.match(migration, /p_start is not null and v_date < p_start/);
+  assert.match(migration, /p_end is not null and v_date > p_end/);
   assert.match(migration, /revoke all on function public\.main_workspace_import_bank_statement/);
   assert.match(migration, /grant execute on function public\.main_workspace_import_bank_statement/);
 });
