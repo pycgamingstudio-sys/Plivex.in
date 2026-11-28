@@ -857,7 +857,7 @@ async function handleRequest(req: Request) {
       groqKey,
       openRouterKey,
       enableGroq,
-    });
+    } as any);
     if (!routed.ok) {
       const message = routed.status === 429
         ? "AI providers are rate-limited right now. Please try again shortly."
