@@ -77,3 +77,18 @@ test("Monthly close UI exposes administrator-only close and reopen actions",()=>
   assert.match(bank,/main_workspace_close_accounting_period/);
   assert.match(bank,/main_workspace_reopen_accounting_period/);
 });
+
+test("Closed accounting periods reject deletion and posted journal mutation",()=>{
+ const close=readFileSync(new URL("../../../supabase/migrations/20261128160000_main_workspace_accounting_period_close.sql",import.meta.url),"utf8");
+ assert.match(close,/journal_entries_closed_period_delete_guard/);
+ assert.match(close,/journal_entries_posted_immutable/);
+ assert.match(close,/journal_entry_lines_posted_immutable/);
+ assert.match(close,/Posted journal entries are immutable/);
+ assert.match(close,/Posted journal lines are immutable/);
+});
+
+test("Reopening requires a typed reason rather than an unlogged browser prompt",()=>{
+ assert.match(bank,/Reason required to reopen a closed month/);
+ assert.match(bank,/reopenReason\.trim\(\)\.length<5/);
+ assert.doesNotMatch(bank,/window\.prompt/);
+});
