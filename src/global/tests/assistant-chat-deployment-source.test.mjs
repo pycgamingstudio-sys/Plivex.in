@@ -62,3 +62,13 @@ test("Nova request latency and TTFT metrics avoid business payload logging", () 
   assert.match(source, /requestClass:\s*requestPolicy\.requestClass/);
   assert.doesNotMatch(source, /console\.(?:info|log)\([^\n]*(?:prompt|workspace_id|invoice_number)/i);
 });
+
+test("deployed router and policy mirrors contain the adaptive streaming implementations", () => {
+  const deployedRouter = readFileSync(resolve(functionDir, "_shared/assistant-model-router.mjs"), "utf8");
+  const deployedPolicy = readFileSync(resolve(functionDir, "_shared/assistant-request-policy.mjs"), "utf8");
+  assert.match(deployedRouter, /streamGenerateContent\?alt=sse/);
+  assert.match(deployedRouter, /onTextChunk/);
+  assert.match(deployedRouter, /STREAM_INTERRUPTED/);
+  assert.match(deployedPolicy, /requestClass/);
+  assert.match(deployedPolicy, /multiStepTurn/);
+});
