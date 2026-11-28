@@ -11,7 +11,7 @@ returns jsonb language plpgsql security definer set search_path=pg_catalog,publi
 declare v_user uuid:=auth.uid();v_currency text;v_order public.sales_orders%rowtype;v_item jsonb;v_qty numeric;v_price numeric;v_tax numeric;v_sub numeric:=0;v_tax_total numeric:=0;v_line_sub numeric;v_line_tax numeric;v_desc text;v_stock uuid;v_number text;v_fingerprint text;
 begin
  if v_user is null or not public.has_ws_role(p_workspace_id,array['admin'::app_role,'manager'::app_role]) then return jsonb_build_object('ok',false,'reason','forbidden'); end if;
- if nullif(btrim(p_client_name),'') is null or length(p_client_name)>200 or jsonb_typeof(p_items)<>'array' or jsonb_array_length(p_items)<1 or jsonb_array_length(p_items)>200 or p_idempotency_key is null then return jsonb_build_object('ok',false,'reason','invalid_order'); end if;
+ if nullif(btrim(p_client_name),'') is null or length(p_client_name)>200 or coalesce(jsonb_array_length(case when jsonb_typeof(p_items)='array' then p_items else '[]'::jsonb end),0) not between 1 and 200 or p_idempotency_key is null then return jsonb_build_object('ok',false,'reason','invalid_order'); end if;
  select currency_code into v_currency from public.workspace_settings where workspace_id=p_workspace_id;
  if v_currency is null or v_currency !~ '^[A-Z]{3}$' then return jsonb_build_object('ok',false,'reason','workspace_currency_not_ready'); end if;
  if p_client_id is not null and not exists(select 1 from public.clients where id=p_client_id and workspace_id=p_workspace_id) then return jsonb_build_object('ok',false,'reason','client_not_found'); end if;
@@ -26,7 +26,7 @@ begin
  insert into public.sales_orders(workspace_id,order_number,client_id,client_name,currency_code,expected_date,notes,idempotency_key,request_fingerprint,created_by) values(p_workspace_id,v_number,p_client_id,btrim(p_client_name),v_currency,p_expected_date,nullif(btrim(p_notes),''),p_idempotency_key,v_fingerprint,v_user) returning * into v_order;
  for v_item in select value from jsonb_array_elements(p_items) loop
   v_desc:=nullif(btrim(v_item->>'description'),'');v_qty:=coalesce((v_item->>'quantity')::numeric,0);v_price:=coalesce((v_item->>'unit_price')::numeric,-1);v_tax:=coalesce((v_item->>'tax_rate')::numeric,0);v_stock:=nullif(v_item->>'stock_id','')::uuid;
-  if v_desc is null or length(v_desc)>300 or v_qty<=0 or v_price<0 or v_tax<0 or v_tax>100 or round(v_qty,4)<>v_qty or round(v_price,4)<>v_price then raise exception 'invalid_sales_order_item'; end if;
+  if v_desc is null or length(v_desc)>300 or v_qty::text in ('NaN','Infinity','-Infinity') or v_price::text in ('NaN','Infinity','-Infinity') or v_tax::text in ('NaN','Infinity','-Infinity') or v_qty<=0 or v_price<0 or v_tax<0 or v_tax>100 or round(v_qty,4)<>v_qty or round(v_price,4)<>v_price then raise exception 'invalid_sales_order_item'; end if;
   if v_stock is not null and not exists(select 1 from public.stock where id=v_stock and workspace_id=p_workspace_id) then raise exception 'stock_item_not_found'; end if;
   v_line_sub:=round(v_qty*v_price,4);v_line_tax:=round(v_line_sub*v_tax/100,4);
   insert into public.sales_order_items(workspace_id,sales_order_id,stock_id,description,quantity,unit_price,tax_rate,line_subtotal,line_tax,line_total) values(p_workspace_id,v_order.id,v_stock,v_desc,v_qty,v_price,v_tax,v_line_sub,v_line_tax,v_line_sub+v_line_tax);
@@ -35,7 +35,7 @@ begin
  update public.sales_orders set subtotal=v_sub,tax_total=v_tax_total,total=v_sub+v_tax_total,updated_at=now() where id=v_order.id;
  insert into public.workspace_audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata) values(p_workspace_id,v_user,'sales_order.created','sales_order',v_order.id::text,jsonb_build_object('order_number',v_number,'total',v_sub+v_tax_total,'currency_code',v_currency));
  return jsonb_build_object('ok',true,'sales_order_id',v_order.id,'order_number',v_number,'total',v_sub+v_tax_total,'currency_code',v_currency);
-exception when others then if sqlerrm in ('invalid_sales_order_item','stock_item_not_found') then return jsonb_build_object('ok',false,'reason',sqlerrm); end if; raise;
+exception when others then if sqlerrm in ('invalid_sales_order_item','stock_item_not_found') then return jsonb_build_object('ok',false,'reason',sqlerrm); end if; if sqlstate in ('22P02','22003') then return jsonb_build_object('ok',false,'reason','invalid_sales_order_item'); end if; raise;
 end; $function$;
 
 create or replace function public.main_workspace_create_delivery_challan(p_workspace_id text,p_sales_order_id uuid,p_items jsonb,p_idempotency_key uuid,p_notes text default null)
@@ -43,7 +43,7 @@ returns jsonb language plpgsql security definer set search_path=pg_catalog,publi
 declare v_user uuid:=auth.uid();v_order public.sales_orders%rowtype;v_challan public.delivery_challans%rowtype;v_item jsonb;v_order_item public.sales_order_items%rowtype;v_qty numeric;v_done numeric;v_number text;v_fingerprint text;
 begin
  if v_user is null or not public.has_ws_role(p_workspace_id,array['admin'::app_role,'manager'::app_role,'storekeeper'::app_role]) then return jsonb_build_object('ok',false,'reason','forbidden'); end if;
- if p_idempotency_key is null or jsonb_typeof(p_items)<>'array' or jsonb_array_length(p_items)<1 or jsonb_array_length(p_items)>200 then return jsonb_build_object('ok',false,'reason','invalid_challan'); end if;
+ if p_idempotency_key is null or coalesce(jsonb_array_length(case when jsonb_typeof(p_items)='array' then p_items else '[]'::jsonb end),0) not between 1 and 200 then return jsonb_build_object('ok',false,'reason','invalid_challan'); end if;
  if exists(select 1 from jsonb_array_elements(p_items) as x(item) group by item->>'sales_order_item_id' having count(*)>1) then return jsonb_build_object('ok',false,'reason','duplicate_challan_item'); end if;
  v_fingerprint:=encode(pg_catalog.sha256(convert_to(jsonb_build_object('sales_order_id',p_sales_order_id,'items',p_items,'notes',nullif(btrim(p_notes),''))::text,'UTF8')),'hex');
  perform pg_advisory_xact_lock(hashtextextended(p_workspace_id||':'||p_idempotency_key::text,0));
@@ -61,12 +61,12 @@ begin
   if not found then raise exception 'sales_order_item_not_found'; end if;
   v_qty:=coalesce((v_item->>'quantity')::numeric,0);
   select coalesce(sum(dci.quantity),0) into v_done from public.delivery_challan_items dci join public.delivery_challans dc on dc.id=dci.delivery_challan_id where dci.workspace_id=p_workspace_id and dci.sales_order_item_id=v_order_item.id and dc.status in ('draft','dispatched','received');
-  if v_qty<=0 or v_qty+v_done>v_order_item.quantity then raise exception 'challan_quantity_exceeds_order'; end if;
+  if v_qty::text in ('NaN','Infinity','-Infinity') or v_qty<=0 or v_qty+v_done>v_order_item.quantity then raise exception 'challan_quantity_exceeds_order'; end if;
   insert into public.delivery_challan_items(workspace_id,delivery_challan_id,sales_order_item_id,stock_id,description,quantity) values(p_workspace_id,v_challan.id,v_order_item.id,v_order_item.stock_id,v_order_item.description,v_qty);
  end loop;
  insert into public.workspace_audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata) values(p_workspace_id,v_user,'delivery_challan.created','delivery_challan',v_challan.id::text,jsonb_build_object('challan_number',v_number,'sales_order_id',v_order.id));
  return jsonb_build_object('ok',true,'delivery_challan_id',v_challan.id,'challan_number',v_number);
-exception when others then if sqlerrm in ('sales_order_item_not_found','challan_quantity_exceeds_order') then return jsonb_build_object('ok',false,'reason',sqlerrm); end if; raise;
+exception when others then if sqlerrm in ('sales_order_item_not_found','challan_quantity_exceeds_order') then return jsonb_build_object('ok',false,'reason',sqlerrm); end if; if sqlstate in ('22P02','22003') then return jsonb_build_object('ok',false,'reason','invalid_challan_item'); end if; raise;
 end; $function$;
 
 create or replace function public.main_workspace_create_credit_debit_note(p_workspace_id text,p_invoice_id uuid,p_note_type text,p_reason text,p_amount numeric,p_idempotency_key uuid)
