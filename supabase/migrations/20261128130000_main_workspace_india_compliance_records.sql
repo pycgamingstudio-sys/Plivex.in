@@ -131,6 +131,65 @@ alter table public.workspace_compliance_provider_connections enable row level se
 revoke all on public.workspace_tds_entries,public.workspace_einvoice_records,public.workspace_eway_bill_records,public.workspace_compliance_provider_connections from public,anon,authenticated;
 grant all on public.workspace_tds_entries,public.workspace_einvoice_records,public.workspace_eway_bill_records,public.workspace_compliance_provider_connections to service_role;
 
+alter table public.workspace_tds_entries add column if not exists updated_by uuid references auth.users(id) on delete set null;
+alter table public.workspace_einvoice_records add column if not exists updated_by uuid references auth.users(id) on delete set null;
+alter table public.workspace_eway_bill_records add column if not exists updated_by uuid references auth.users(id) on delete set null;
+
+create or replace function public.audit_workspace_india_compliance_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $function$
+declare
+  v_row jsonb := to_jsonb(new);
+  v_actor uuid;
+  v_action text;
+  v_entity_type text;
+  v_metadata jsonb;
+begin
+  v_actor := coalesce(
+    nullif(v_row->>'updated_by','')::uuid,
+    nullif(v_row->>'created_by','')::uuid,
+    nullif(v_row->>'configured_by','')::uuid
+  );
+  if v_actor is null then
+    raise exception using errcode='23502',message='Compliance audit actor is required';
+  end if;
+  v_entity_type := case tg_table_name
+    when 'workspace_tds_entries' then 'tds_entry'
+    when 'workspace_einvoice_records' then 'einvoice_record'
+    when 'workspace_eway_bill_records' then 'eway_bill_record'
+    else 'compliance_provider_connection'
+  end;
+  v_action := 'compliance.'||replace(v_entity_type,'_','.')||'.'||lower(tg_op);
+  v_metadata := jsonb_strip_nulls(jsonb_build_object(
+    'status',v_row->>'status',
+    'section_code',v_row->>'section_code',
+    'provider_type',v_row->>'provider_type',
+    'environment',v_row->>'environment'
+  ));
+  insert into public.workspace_audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
+  values(v_row->>'workspace_id',v_actor,v_action,v_entity_type,v_row->>'id',v_metadata);
+  return new;
+end;
+$function$;
+
+revoke all on function public.audit_workspace_india_compliance_change() from public,anon,authenticated;
+
+drop trigger if exists workspace_tds_entries_audit on public.workspace_tds_entries;
+create trigger workspace_tds_entries_audit after insert or update on public.workspace_tds_entries
+for each row execute function public.audit_workspace_india_compliance_change();
+drop trigger if exists workspace_einvoice_records_audit on public.workspace_einvoice_records;
+create trigger workspace_einvoice_records_audit after insert or update on public.workspace_einvoice_records
+for each row execute function public.audit_workspace_india_compliance_change();
+drop trigger if exists workspace_eway_bill_records_audit on public.workspace_eway_bill_records;
+create trigger workspace_eway_bill_records_audit after insert or update on public.workspace_eway_bill_records
+for each row execute function public.audit_workspace_india_compliance_change();
+drop trigger if exists workspace_compliance_provider_connections_audit on public.workspace_compliance_provider_connections;
+create trigger workspace_compliance_provider_connections_audit after insert or update on public.workspace_compliance_provider_connections
+for each row execute function public.audit_workspace_india_compliance_change();
+
 commit;
 ) not valid;
 alter table public.invoice_items add constraint invoice_items_unit_code_format check (unit_code ~ '^[A-Z0-9]{2,8} (
