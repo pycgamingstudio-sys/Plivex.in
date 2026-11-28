@@ -234,6 +234,8 @@ async function publicApi(req: Request, admin: any, body: any): Promise<any> {
   const {data:withinLimit,error:rateError}=await admin.rpc("consume_main_workspace_api_rate_limit",{p_key_hash:hash,p_limit:60,p_window_seconds:60});
   if(rateError||withinLimit!==true) throw new Error("API_RATE_LIMITED");
   const scope = (s:string) => key.scopes.includes(s);
+  const businessInsightScopes = ["invoices.read","expenses.read","leads.read","inventory.read"];
+  const canReadBusinessInsights = businessInsightScopes.every((requiredScope) => scope(requiredScope));
   const action = clean(body.action,80);
   if(action.startsWith("mcp.") && (!scope("mcp.read") || !scope("workspace.read"))) throw new Error("API_SCOPE_DENIED");
   if (action === "mcp.initialize") return { jsonrpc:"2.0", id:body.id ?? null, result:{ protocolVersion:"2025-03-26", capabilities:{tools:{}}, serverInfo:{name:"Plivex Main Workspace",version:"1.0.0"} } };
@@ -244,7 +246,7 @@ async function publicApi(req: Request, admin: any, body: any): Promise<any> {
     ...(key.scopes.includes("expenses.read") ? [{name:"list_expenses",description:"List recent workspace expenses",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
     ...(key.scopes.includes("leads.read") ? [{name:"list_leads",description:"List workspace CRM leads",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
     ...(key.scopes.includes("inventory.read") ? [{name:"list_low_stock",description:"List workspace low-stock inventory items",inputSchema:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},additionalProperties:false}}] : []),
-    {name:"business_insights",description:"Generate aggregate AI business insights without customer PII",inputSchema:{type:"object",properties:{},additionalProperties:false}}
+    ...(canReadBusinessInsights ? [{name:"business_insights",description:"Generate aggregate AI business insights without customer PII",inputSchema:{type:"object",properties:{},additionalProperties:false}}] : [])
   ] } };
   if (action === "mcp.tools/call") {
     const name = clean(body.name || body.params?.name,80);
@@ -268,6 +270,7 @@ async function publicApi(req: Request, admin: any, body: any): Promise<any> {
       return {jsonrpc:"2.0",id:body.id ?? null,result:{content:[{type:"text",text:JSON.stringify({ok:true,records})}]}};
     }
     if (name === "business_insights") {
+      if (!canReadBusinessInsights) throw new Error("API_SCOPE_DENIED");
       const [{data:inv},{data:exp},{data:leads},{data:stock}] = await Promise.all([
         admin.from("invoices").select("status,total,currency").eq("workspace_id",key.workspace_id).limit(500),
         admin.from("expenses").select("amount,currency_code").eq("workspace_id",key.workspace_id).limit(500),
