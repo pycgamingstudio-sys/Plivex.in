@@ -31,23 +31,6 @@ begin
  select * into v_account from public.workspace_bank_accounts
   where workspace_id=p_workspace_id and id=p_bank_account_id and is_active;
  if not found then return jsonb_build_object('ok',false,'reason','bank_account_not_found'); end if;
- if exists(select 1 from jsonb_array_elements(p_rows) x
-   where jsonb_typeof(x) <> 'object'
-      or coalesce(x->>'date','') !~ '^\d{4}-\d{2}-\d{2}$'
-      or coalesce(x->>'direction','') not in ('debit','credit')
-      or coalesce(x->>'description','')='' or length(coalesce(x->>'description',''))>500
-      or coalesce(x->>'amount','') !~ '^\d+(\.\d{1,4})?$'
-      or coalesce((x->>'amount')::numeric,0)<=0
-      or (x->>'sourceRow') !~ '^\d+$'
-      or jsonb_typeof(x->'rawRow')<>'object') then
-  return jsonb_build_object('ok',false,'reason','invalid_bank_transaction_row');
- end if;
- if exists(select 1 from jsonb_array_elements(p_rows) x
-   where (x->>'date')::date is null
-      or (p_start is not null and (x->>'date')::date<p_start)
-      or (p_end is not null and (x->>'date')::date>p_end)) then
-  return jsonb_build_object('ok',false,'reason','transaction_outside_statement_period');
- end if;
  v_fingerprint:=md5(jsonb_build_object('bank_account_id',p_bank_account_id,'rows',p_rows,
    'opening_balance',p_opening_balance,'closing_balance',p_closing_balance,'start',p_start,'end',p_end)::text);
  perform pg_advisory_xact_lock(hashtextextended(p_workspace_id||':'||p_idempotency_key::text,0));
@@ -64,7 +47,89 @@ begin
  values(p_workspace_id,p_bank_account_id,p_start,p_end,p_opening_balance,p_closing_balance,
   v_account.currency_code,p_idempotency_key,v_fingerprint,v_user) returning * into v_import;
  for v_row in select value from jsonb_array_elements(p_rows) loop
-  v_idx:=v_idx+1; v_date:=(v_row->>'date')::date; v_amount:=(v_row->>'amount')::numeric;
+  v_idx:=v_idx+1;
+  if jsonb_typeof(v_row) is distinct from 'object'
+    or coalesce(v_row->>'date','') !~ '^\\d{4}-\\d{2}-\\d{2}  v_direction:=v_row->>'direction'; v_desc:=btrim(v_row->>'description');
+  v_ref:=nullif(btrim(v_row->>'reference'),''); v_source_row:=(v_row->>'sourceRow')::integer;
+  v_key:=md5(v_source_row::text||'|'||v_date::text||'|'||v_amount::text||'|'||v_direction||'|'||coalesce(v_ref,'')||'|'||v_desc);
+  insert into public.bank_statement_transactions(workspace_id,import_id,transaction_date,description,
+   reference,amount,direction,currency_code,category,row_key,source_row,raw_row)
+  values(p_workspace_id,v_import.id,v_date,v_desc,v_ref,v_amount,v_direction,v_account.currency_code,
+   case when v_desc ~* '(rent|lease)' then 'Rent' when v_desc ~* '(salary|payroll)' then 'Salary'
+    when v_desc ~* '(fuel|petrol|diesel)' then 'Fuel' when v_desc ~* '(electric|water|utility)' then 'Utilities'
+    when v_desc ~* '(tax|gst|vat)' then 'Tax' when v_desc ~* '(software|subscription|cloud)' then 'Software'
+    when v_direction='credit' then 'Customer receipt' else 'Uncategorised' end,v_key,v_source_row,v_row->'rawRow');
+  v_count:=v_count+1;
+ end loop;
+ insert into public.workspace_audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
+ values(p_workspace_id,v_user,'bank.statement_imported','bank_statement_import',v_import.id::text,
+  jsonb_build_object('rows',v_count,'currency_code',v_account.currency_code,'request_fingerprint',v_fingerprint));
+ return jsonb_build_object('ok',true,'import_id',v_import.id,'transaction_count',v_count);
+end;
+$function$;
+revoke all on function public.main_workspace_import_bank_statement(text,uuid,jsonb,numeric,numeric,date,date,uuid) from public,anon;
+grant execute on function public.main_workspace_import_bank_statement(text,uuid,jsonb,numeric,numeric,date,date,uuid) to authenticated;
+commit;
+
+    or coalesce(v_row->>'direction','') not in ('debit','credit')
+    or coalesce(v_row->>'description','')='' or length(coalesce(v_row->>'description',''))>500
+    or coalesce(v_row->>'amount','') !~ '^\\d+(\\.\\d{1,4})?  v_direction:=v_row->>'direction'; v_desc:=btrim(v_row->>'description');
+  v_ref:=nullif(btrim(v_row->>'reference'),''); v_source_row:=(v_row->>'sourceRow')::integer;
+  v_key:=md5(v_source_row::text||'|'||v_date::text||'|'||v_amount::text||'|'||v_direction||'|'||coalesce(v_ref,'')||'|'||v_desc);
+  insert into public.bank_statement_transactions(workspace_id,import_id,transaction_date,description,
+   reference,amount,direction,currency_code,category,row_key,source_row,raw_row)
+  values(p_workspace_id,v_import.id,v_date,v_desc,v_ref,v_amount,v_direction,v_account.currency_code,
+   case when v_desc ~* '(rent|lease)' then 'Rent' when v_desc ~* '(salary|payroll)' then 'Salary'
+    when v_desc ~* '(fuel|petrol|diesel)' then 'Fuel' when v_desc ~* '(electric|water|utility)' then 'Utilities'
+    when v_desc ~* '(tax|gst|vat)' then 'Tax' when v_desc ~* '(software|subscription|cloud)' then 'Software'
+    when v_direction='credit' then 'Customer receipt' else 'Uncategorised' end,v_key,v_source_row,v_row->'rawRow');
+  v_count:=v_count+1;
+ end loop;
+ insert into public.workspace_audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
+ values(p_workspace_id,v_user,'bank.statement_imported','bank_statement_import',v_import.id::text,
+  jsonb_build_object('rows',v_count,'currency_code',v_account.currency_code,'request_fingerprint',v_fingerprint));
+ return jsonb_build_object('ok',true,'import_id',v_import.id,'transaction_count',v_count);
+end;
+$function$;
+revoke all on function public.main_workspace_import_bank_statement(text,uuid,jsonb,numeric,numeric,date,date,uuid) from public,anon;
+grant execute on function public.main_workspace_import_bank_statement(text,uuid,jsonb,numeric,numeric,date,date,uuid) to authenticated;
+commit;
+
+    or coalesce(v_row->>'sourceRow','') !~ '^\\d+  v_direction:=v_row->>'direction'; v_desc:=btrim(v_row->>'description');
+  v_ref:=nullif(btrim(v_row->>'reference'),''); v_source_row:=(v_row->>'sourceRow')::integer;
+  v_key:=md5(v_source_row::text||'|'||v_date::text||'|'||v_amount::text||'|'||v_direction||'|'||coalesce(v_ref,'')||'|'||v_desc);
+  insert into public.bank_statement_transactions(workspace_id,import_id,transaction_date,description,
+   reference,amount,direction,currency_code,category,row_key,source_row,raw_row)
+  values(p_workspace_id,v_import.id,v_date,v_desc,v_ref,v_amount,v_direction,v_account.currency_code,
+   case when v_desc ~* '(rent|lease)' then 'Rent' when v_desc ~* '(salary|payroll)' then 'Salary'
+    when v_desc ~* '(fuel|petrol|diesel)' then 'Fuel' when v_desc ~* '(electric|water|utility)' then 'Utilities'
+    when v_desc ~* '(tax|gst|vat)' then 'Tax' when v_desc ~* '(software|subscription|cloud)' then 'Software'
+    when v_direction='credit' then 'Customer receipt' else 'Uncategorised' end,v_key,v_source_row,v_row->'rawRow');
+  v_count:=v_count+1;
+ end loop;
+ insert into public.workspace_audit_events(workspace_id,actor_id,action,entity_type,entity_id,metadata)
+ values(p_workspace_id,v_user,'bank.statement_imported','bank_statement_import',v_import.id::text,
+  jsonb_build_object('rows',v_count,'currency_code',v_account.currency_code,'request_fingerprint',v_fingerprint));
+ return jsonb_build_object('ok',true,'import_id',v_import.id,'transaction_count',v_count);
+end;
+$function$;
+revoke all on function public.main_workspace_import_bank_statement(text,uuid,jsonb,numeric,numeric,date,date,uuid) from public,anon;
+grant execute on function public.main_workspace_import_bank_statement(text,uuid,jsonb,numeric,numeric,date,date,uuid) to authenticated;
+commit;
+
+    or jsonb_typeof(v_row->'rawRow') is distinct from 'object' then
+   return jsonb_build_object('ok',false,'reason','invalid_bank_transaction_row');
+  end if;
+  begin
+   v_date:=(v_row->>'date')::date;
+   v_amount:=(v_row->>'amount')::numeric;
+  exception when others then
+   return jsonb_build_object('ok',false,'reason','invalid_bank_transaction_row');
+  end;
+  if v_amount<=0 then return jsonb_build_object('ok',false,'reason','invalid_bank_transaction_row'); end if;
+  if (p_start is not null and v_date<p_start) or (p_end is not null and v_date>p_end) then
+   return jsonb_build_object('ok',false,'reason','transaction_outside_statement_period');
+  end if;
   v_direction:=v_row->>'direction'; v_desc:=btrim(v_row->>'description');
   v_ref:=nullif(btrim(v_row->>'reference'),''); v_source_row:=(v_row->>'sourceRow')::integer;
   v_key:=md5(v_source_row::text||'|'||v_date::text||'|'||v_amount::text||'|'||v_direction||'|'||coalesce(v_ref,'')||'|'||v_desc);
