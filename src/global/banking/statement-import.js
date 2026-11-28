@@ -10,8 +10,10 @@ function parseRows(source) {
       else quoted = !quoted;
     } else if (char === "," && !quoted) {
       row.push(field.trim()); field = "";
-    } else if ((char === "\n" || char === "\r") && !quoted) {
-      if (char === "\r" && source[i + 1] === "\n") i += 1;
+    } else if ((char === "
+" || char === "\r") && !quoted) {
+      if (char === "\r" && source[i + 1] === "
+") i += 1;
       row.push(field.trim()); field = "";
       if (row.some((cell) => cell !== "")) rows.push(row);
       row = [];
@@ -90,7 +92,12 @@ export function parseBankStatementImport(csvText) {
       else if (credit > 0) { amount = credit; direction = "credit"; }
       else { issue("Each row needs a positive Debit or Credit amount."); return; }
     }
-    if (reference) {\n      const referenceKey = `${date}|${direction}|${amount.toFixed(4)}|${reference.toLowerCase()}`;\n      if (seenReferences.has(referenceKey)) { issue(`Duplicate bank reference; first seen on row ${seenReferences.get(referenceKey)}.`); return; }\n      seenReferences.set(referenceKey, sourceRow);\n    }\n    valid.push({ date, description, reference: reference || null, amount, direction, sourceRow, rawRow });
+    if (reference) {
+      const referenceKey = `${date}|${direction}|${amount.toFixed(4)}|${reference.toLowerCase()}`;
+      if (seenReferences.has(referenceKey)) { issue(`Duplicate bank reference; first seen on row ${seenReferences.get(referenceKey)}.`); return; }
+      seenReferences.set(referenceKey, sourceRow);
+    }
+    valid.push({ date, description, reference: reference || null, amount, direction, sourceRow, rawRow });
   });
   return { rows: valid, errors, totalRows: rows.length - 1 };
 }
