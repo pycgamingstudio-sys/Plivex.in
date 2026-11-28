@@ -1,4 +1,5 @@
 export const GLOBAL_ONLY_ASSISTANT_ACTIONS = Object.freeze([
+  "create_global_branch",
   "create_global_client",
   "create_global_expense",
   "create_global_product",
