@@ -1,8 +1,14 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { isValidIsoDate } from "../../../src/global/date-validation.js";
 
-const ORIGINS = new Set(["https://plivex.in","https://www.plivex.in","https://plivex.netlify.app"]);
-const allowed = (origin: string | null) => !origin || ORIGINS.has(origin) || /^https:\/\/(?:[a-z0-9-]+\.)?[a-z0-9-]+\.(?:pages|workers)\.dev$/.test(origin);
+const ORIGINS = new Set(["https://plivex.in","https://www.plivex.in","https://plivex.netlify.app","https://plivex.pages.dev"]);
+const allowed = (origin: string | null) => !origin || ORIGINS.has(origin) || /^https:\/\/[a-z0-9-]+\.plivex\.pages\.dev$/.test(origin);
+const isValidIsoDate = (value: unknown): value is string => {
+  if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  if (year < 1 || month < 1 || month > 12 || day < 1) return false;
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  return day <= [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+};
 const cors = (origin: string | null) => ({ "Access-Control-Allow-Origin": origin && allowed(origin) ? origin : "https://plivex.in", "Vary":"Origin", "Access-Control-Allow-Headers":"authorization, apikey, content-type, x-client-info", "Access-Control-Allow-Methods":"POST, OPTIONS" });
 const json = (body: unknown,status=200,origin: string|null=null) => new Response(JSON.stringify(body),{status,headers:{...cors(origin),"Content-Type":"application/json","Cache-Control":"no-store"}});
 const isObject = (value: unknown): value is Record<string,any> => !!value && typeof value==="object" && !Array.isArray(value);
@@ -80,7 +86,7 @@ Deno.serve(async(req:Request)=>{
       const section=clean(body.section_code,8).toUpperCase(),date=clean(body.deduction_date,10),name=clean(body.deductee_name,200),deducteePan=clean(body.deductee_pan,10).toUpperCase();
       const gross=body.gross_amount_minor,rate=body.tds_rate_bps,key=body.idempotency_key;
       const sourceType=clean(body.source_type,40);
-      if(!["vendor_payment","professional_fee","rent","contractor","commission","other"].includes(sourceType)||!name||!/^19[0-9A-Z]{2,3}$/.test(section)||!isValidIsoDate(date)||!validUuid(key)
+      if(!["vendor_payment","professional_fee","rent","contractor","commission","other"].includes(sourceType)||!name||!/^19[0-9A-Z]{1,3}$/.test(section)||!isValidIsoDate(date)||!validUuid(key)
         ||!Number.isSafeInteger(gross)||gross<=0||gross>9000000000000000||!Number.isInteger(rate)||rate<0||rate>10000
         ||(deducteePan&&!pan(deducteePan))) return json({error:"TDS details are invalid. Check deductee, PAN, section, date, gross amount, rate and idempotency key."},400,origin);
       if(body.payment_date && !isValidIsoDate(body.payment_date)) return json({error:"Payment date must be a valid ISO calendar date."},400,origin);
@@ -124,10 +130,10 @@ Deno.serve(async(req:Request)=>{
       if(!validUuid(body.invoice_id)||!validUuid(body.idempotency_key)) return json({error:"Invoice and idempotency identifiers are required."},400,origin);
       const [{data:invoice,error:invoiceError},{data:seller,error:sellerError}]=await Promise.all([
         admin.from("invoices").select("id,workspace_id,number,issue_date,due_date,status,is_draft,currency,subtotal,tax_value,cgst,sgst,igst,total,invoice_snapshot,client_id,client_name").eq("id",body.invoice_id).eq("workspace_id",workspaceId).maybeSingle(),
-        admin.from("business_profile").select("name,address,tax_registration_number,tax_registration_status,tax_registration_type").eq("workspace_id",workspaceId).maybeSingle(),
+        admin.from("business_profile").select("name,address,gstin,tax_registration_number,tax_registration_status,tax_registration_type").eq("workspace_id",workspaceId).maybeSingle(),
       ]);
       if(invoiceError||sellerError||!invoice||!seller) return json({error:"Invoice or seller profile could not be loaded in this workspace."},404,origin);
-      if(invoice.is_draft||["cancelled","void"].includes(String(invoice.status||"").toLowerCase())) return json({error:"Only an issued, active invoice can be prepared for e-invoicing."},409,origin);
+      if(invoice.is_draft||["cancelled","void"].includes(String(invoice.status||"").toLowerCase())||invoice.currency!=="INR") return json({error:"Only an issued, active INR invoice can be prepared for e-invoicing."},409,origin);
       const [{data:items,error:itemsError},{data:buyer,error:buyerError}]=await Promise.all([
         admin.from("invoice_items").select("description,quantity,rate,gst_rate,hsn_sac_code,unit_code").eq("invoice_id",invoice.id),
         invoice.client_id ? admin.from("clients").select("name,gstin,address").eq("id",invoice.client_id).eq("workspace_id",workspaceId).maybeSingle() : Promise.resolve({data:null,error:null}),
@@ -138,7 +144,8 @@ Deno.serve(async(req:Request)=>{
       const taxSnapshot=invoice.invoice_snapshot?.globalTax&&typeof invoice.invoice_snapshot.globalTax==="object"?invoice.invoice_snapshot.globalTax:{};
       const placeOfSupply=String(taxSnapshot.placeOfSupplyState||taxSnapshot.placeOfSupply||"").replace(/^IN[-_]/i,"").trim().toUpperCase();
       const supplyType=String(invoice.invoice_snapshot?.indiaSupplyType||taxSnapshot.indiaSupplyType||"").toUpperCase();
-      if(!gstin(seller.tax_registration_number)) errors.push("Seller GSTIN is missing or malformed.");
+      const sellerGstin=seller.gstin||seller.tax_registration_number;
+      if(!gstin(sellerGstin)) errors.push("Seller GSTIN is missing or malformed.");
       if(!gstin(buyerDetails?.gstin)) errors.push("Buyer GSTIN is required for this e-invoice workflow.");
       if(!invoice.number||!isValidIsoDate(invoice.issue_date)) errors.push("Invoice number and valid issue date are required.");
       if(!/^\\d{2}$/.test(placeOfSupply)) errors.push("A valid two-digit place-of-supply state code is required.");
@@ -149,7 +156,7 @@ Deno.serve(async(req:Request)=>{
         if(!/^[A-Z0-9]{2,8}$/.test(String(item.unit_code||""))) errors.push("Line "+(index+1)+": valid unit code is required.");
         if(!Number.isFinite(Number(item.quantity))||Number(item.quantity)<=0||!Number.isFinite(Number(item.rate))||Number(item.rate)<0) errors.push("Line "+(index+1)+": invalid quantity or rate.");
       }
-      const payload={document_type:"INV",document_number:invoice.number,document_date:invoice.issue_date,supply_type:supplyType,place_of_supply_state:placeOfSupply,seller:{legal_name:seller.name,address:seller.address,gstin:seller.tax_registration_number},buyer:{name:buyerDetails?.name||invoice.client_name,gstin:buyerDetails?.gstin||null,address:buyerDetails?.address||null},currency:"INR",tax_totals:{taxable_value:Number(invoice.subtotal||0),cgst:Number(invoice.cgst||0),sgst:Number(invoice.sgst||0),igst:Number(invoice.igst||0),total_tax:Number(invoice.tax_value||0)},total:Number(invoice.total||0),items:(items||[]).map((item:any)=>{const taxable=Number(item.quantity||0)*Number(item.rate||0);return {description:item.description,hsn_sac_code:item.hsn_sac_code,unit_code:item.unit_code,quantity:item.quantity,unit_price:item.rate,taxable_value:taxable,tax_rate:item.gst_rate,tax_amount:taxable*Number(item.gst_rate||0)/100};})};
+      const payload={document_type:"INV",document_number:invoice.number,document_date:invoice.issue_date,supply_type:supplyType,place_of_supply_state:placeOfSupply,seller:{legal_name:seller.name,address:seller.address,gstin:sellerGstin},buyer:{name:buyerDetails?.name||invoice.client_name,gstin:buyerDetails?.gstin||null,address:buyerDetails?.address||null},currency:"INR",tax_totals:{taxable_value:Number(invoice.subtotal||0),cgst:Number(invoice.cgst||0),sgst:Number(invoice.sgst||0),igst:Number(invoice.igst||0),total_tax:Number(invoice.tax_value||0)},total:Number(invoice.total||0),items:(items||[]).map((item:any)=>{const taxable=Number(item.quantity||0)*Number(item.rate||0);return {description:item.description,hsn_sac_code:item.hsn_sac_code,unit_code:item.unit_code,quantity:item.quantity,unit_price:item.rate,taxable_value:taxable,tax_rate:item.gst_rate,tax_amount:taxable*Number(item.gst_rate||0)/100};})};
       const fingerprint=await sha256({invoice_id:invoice.id,payload});
       const {data:existing}=await admin.from("workspace_einvoice_records").select("*").eq("workspace_id",workspaceId).eq("invoice_id",invoice.id).maybeSingle();
       if(existing) {
@@ -173,7 +180,7 @@ Deno.serve(async(req:Request)=>{
         admin.from("business_profile").select("name,address,tax_registration_number").eq("workspace_id",workspaceId).maybeSingle(),
       ]);
       if(invoiceError||sellerError||!invoice||!seller) return json({error:"Invoice or seller profile not found in this workspace."},404,origin);
-      if(invoice.is_draft||["cancelled","void"].includes(String(invoice.status||"").toLowerCase())) return json({error:"Only an issued, active invoice can be prepared for an e-way bill."},409,origin);
+      if(invoice.is_draft||["cancelled","void"].includes(String(invoice.status||"").toLowerCase())||invoice.currency!=="INR") return json({error:"Only an issued, active INR invoice can be prepared for an e-way bill."},409,origin);
       const [{data:buyer,error:buyerError},{data:items,error:itemsError}]=await Promise.all([
         invoice.client_id ? admin.from("clients").select("name,gstin,address").eq("id",invoice.client_id).eq("workspace_id",workspaceId).maybeSingle() : Promise.resolve({data:null,error:null}),
         admin.from("invoice_items").select("description,quantity,rate,hsn_sac_code,unit_code").eq("invoice_id",invoice.id),
@@ -181,7 +188,8 @@ Deno.serve(async(req:Request)=>{
       if(buyerError||itemsError) return json({error:"Customer or invoice line details could not be loaded."},500,origin);
       const buyerDetails=buyer||invoice.invoice_snapshot?.client||{};
       const errors:string[]=[];
-      if(!gstin(seller.tax_registration_number)) errors.push("Seller GSTIN is missing or malformed.");
+      const sellerGstin=seller.gstin||seller.tax_registration_number;
+      if(!gstin(sellerGstin)) errors.push("Seller GSTIN is missing or malformed.");
       if(!gstin(buyerDetails?.gstin)) errors.push("Buyer GSTIN is missing or malformed.");
       if(!clean(seller.address,1000)) errors.push("Seller dispatch address is required.");
       if(!clean(buyerDetails?.address,1000)) errors.push("Buyer delivery address is required.");
@@ -190,7 +198,7 @@ Deno.serve(async(req:Request)=>{
       for(const [index,item] of (items||[]).entries()) {
         if(!/^\\d{4,8}$/.test(String(item.hsn_sac_code||""))) errors.push("Line "+(index+1)+": HSN/SAC code is required for the e-way bill.");
       }
-      const payload={document_type:"INV",document_number:invoice.number,document_date:date,invoice_date:invoice.issue_date,total_value:Number(invoice.total||0),currency:"INR",from_gstin:seller.tax_registration_number,from_address:seller.address,to_gstin:buyerDetails?.gstin||null,to_address:buyerDetails?.address||null,distance_km:distance,transport_mode:mode,vehicle_number:vehicle||null,transporter_id:transporter||null,items:(items||[]).map((item:any)=>({description:item.description,hsn_sac_code:item.hsn_sac_code,quantity:item.quantity,unit_code:item.unit_code,taxable_value:Number(item.quantity||0)*Number(item.rate||0)}))};
+      const payload={document_type:"INV",document_number:invoice.number,document_date:date,invoice_date:invoice.issue_date,total_value:Number(invoice.total||0),currency:"INR",from_gstin:sellerGstin,from_address:seller.address,to_gstin:buyerDetails?.gstin||null,to_address:buyerDetails?.address||null,distance_km:distance,transport_mode:mode,vehicle_number:vehicle||null,transporter_id:transporter||null,items:(items||[]).map((item:any)=>({description:item.description,hsn_sac_code:item.hsn_sac_code,quantity:item.quantity,unit_code:item.unit_code,taxable_value:Number(item.quantity||0)*Number(item.rate||0)}))};
       const fingerprint=await sha256({invoice_id:invoice.id,payload});
       const {data:active}=await admin.from("workspace_eway_bill_records").select("id,status").eq("workspace_id",workspaceId).eq("invoice_id",invoice.id).in("status",["ready","submitted","generated"]).maybeSingle();
       if(active) return json({error:"An active e-way bill already exists for this invoice."},409,origin);
