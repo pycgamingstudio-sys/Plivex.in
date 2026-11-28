@@ -31,7 +31,7 @@ The current per-key rate limit is **60 requests per 60 seconds**. A rate-limited
 | `suppliers.read` | Reserved for the supplier read adapter; not exposed as a route until its response contract is verified |
 | `mcp.read` | Use the existing read-only MCP tool surface; requires `workspace.read` |
 
-Grant only the scopes required by the consuming system. Revoke a key immediately if it is no longer needed. For rotation, create a replacement key, update the server-side consumer, verify it, then revoke the old key.
+The API supports up to nine distinct scopes per key. Grant only the scopes required by the consuming system. Revoke a key immediately if it is no longer needed. For rotation, create a replacement key, update the server-side consumer, verify it, then revoke the old key.
 
 ## Read request and pagination
 
