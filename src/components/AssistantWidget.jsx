@@ -214,7 +214,7 @@ export default function AssistantWidget() {
       setRetryAction(null);
       const affectedKeys = [...new Set(actions.map((action) => ({
         create_invoice: "history", create_expense: "expenses", create_global_expense: "expenses", create_stock: "stock",
-        create_global_product: "stock", create_client: "clients", create_global_client: "clients", create_global_supplier: "suppliers", create_global_branch: "branches", set_global_member_permission: "members", transfer_global_stock: "stock",
+        create_global_product: "stock", create_client: "clients", create_global_client: "clients", create_global_supplier: "suppliers", create_global_branch: "branches", set_global_member_permission: "members", request_global_approval: "approvals", transfer_global_stock: "stock",
         record_global_invoice_payment: "history", create_lead: "leads", create_quotation: "quotations",
         create_purchase_order: "stock",
         create_warehouse: "stock",

@@ -6,6 +6,7 @@ import { validateGlobalSupplierAction } from "../_shared/assistant-global-suppli
 import { validateGlobalStockTransferAction } from "../_shared/assistant-global-stock-transfer-validation.mjs";
 import { validateGlobalBranchAction } from "../_shared/assistant-global-branch-validation.mjs";
 import { validateGlobalMemberPermissionAction } from "../_shared/assistant-global-member-permission-validation.mjs";
+import { validateGlobalApprovalRequestAction } from "../_shared/assistant-global-approval-validation.mjs";
 import { validateGlobalExpenseAction } from "../_shared/assistant-global-expense-validation.mjs";
 import { validateGlobalProductAction } from "../_shared/assistant-global-product-validation.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
@@ -158,7 +159,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => null);
     const rawActions = Array.isArray(body?.actions) ? body.actions : [body?.action];
     if (!rawActions.length || rawActions.length > 10) return json({ error: "Please confirm between 1 and 10 valid actions." }, 400, origin);
-    if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_branch", "create_global_client", "create_global_supplier", "set_global_member_permission", "create_global_expense", "create_global_product", "record_global_invoice_payment", "transfer_global_stock"].includes(String(action?.type || "")))) {
+    if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_branch", "create_global_client", "create_global_supplier", "set_global_member_permission", "request_global_approval", "create_global_expense", "create_global_product", "record_global_invoice_payment", "transfer_global_stock"].includes(String(action?.type || "")))) {
       return json({ error: "This Main Workspace action is not connected yet. No legacy India-table write was attempted." }, 403, origin);
     }
     if (!isGlobalWorkspace && rawActions.some((action: any) => isGlobalOnlyAssistantAction(action?.type))) {
@@ -352,6 +353,53 @@ Deno.serve(async (req: Request) => {
         created: [{ type: "create_global_supplier", id: supplier.supplier_id }],
         verification: [{ type: "create_global_supplier", id: supplier.supplier_id, verified }],
         supplier: verified ? { name: record.name, email: record.email || null, phone: record.phone || null } : null,
+      }, 200, origin);
+    }
+    if (actions.some((action: any) => action.type === "request_global_approval")) {
+      if (actions.length !== 1) return json({ error: "Approval requests must be confirmed one at a time." }, 400, origin);
+      const payload = actions[0].payload;
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) {
+        return json({ error: "The approval request confirmation key is invalid. Prepare the request again." }, 400, origin);
+      }
+      const canonical = JSON.stringify({ type: "request_global_approval", payload });
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+      const requestHash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const { data: approval, error: approvalError } = await supabase.rpc("assistant_create_global_approval_request_idempotent", {
+        p_user_id: user.id, p_workspace_id: workspaceId, p_idempotency_key: idempotencyKey,
+        p_request_hash: requestHash,
+        p_payload: {
+          actionType: payload.action_type, resourceType: payload.resource_type,
+          resourceId: payload.resource_id, branchId: payload.branch_id || null,
+          payload: payload.details,
+        },
+      });
+      if (approvalError) {
+        const message = String(approvalError.message || "");
+        if (message.includes("IDEMPOTENCY_PAYLOAD_MISMATCH")) return json({ error: "This confirmation key was already used for different approval details. Prepare the request again." }, 409, origin);
+        console.error("Main Workspace approval request rejected", { code: approvalError.code, userId: user.id });
+        return json({ error: "The approval request could not be submitted. Check the source record and your approval.request permission." }, 400, origin);
+      }
+      if (!approval?.ok || !approval?.requestId) {
+        const code = String(approval?.code || "");
+        return json({ error: code === "PERMISSION_DENIED" ? "Your Main Workspace role cannot request this approval."
+          : code === "INVALID_REQUEST" ? "The approval request details or source record are invalid."
+          : "The approval request was not accepted." }, code === "PERMISSION_DENIED" ? 403 : 400, origin);
+      }
+      const { data: list, error: listError } = await supabase.functions.invoke("global-enterprise", {
+        body: { action: "approval.list", workspaceId },
+      });
+      const record = !listError && Array.isArray(list?.requests)
+        ? list.requests.find((item: any) => item?.id === approval.requestId) : null;
+      const verified = Boolean(record && record.status === "pending"
+        && record.action_type === payload.action_type && record.resource_type === payload.resource_type
+        && record.resource_id === payload.resource_id);
+      return json({
+        ok: true, verified, duplicate: Boolean(approval.duplicate),
+        reply: verified ? "Main Workspace approval request submitted and verified in the pending approval queue. The underlying business action has not been executed."
+          : "The approval service accepted the request, but Plivex could not verify it in the pending queue. Check approvals before retrying.",
+        created: [{ type: "request_global_approval", id: approval.requestId }],
+        verification: [{ type: "request_global_approval", id: approval.requestId, verified }],
+        approval: verified ? { id: record.id, action_type: record.action_type, resource_type: record.resource_type, status: record.status } : null,
       }, 200, origin);
     }
     if (actions.some((action: any) => action.type === "set_global_member_permission")) {

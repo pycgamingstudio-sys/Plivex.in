@@ -7,6 +7,7 @@ export const GLOBAL_ONLY_ASSISTANT_ACTIONS = Object.freeze([
   "create_global_supplier",
   "transfer_global_stock",
   "record_global_invoice_payment",
+  "request_global_approval",
 ]);
 
 export function isGlobalOnlyAssistantAction(type) {
