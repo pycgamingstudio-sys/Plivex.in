@@ -111,14 +111,17 @@ async function handleWebhookRequest(req: Request) {
   if (subscriptionError || !subscription || !subscription.is_active) return json({ ok: false, error: "WEBHOOK_SUBSCRIPTION_NOT_FOUND" }, 404);
 
   const provider = String(subscription.provider_key);
-  let secret: string | null = null;
+  let secret: string;
   if (provider === "shopify") {
-    secret = Deno.env.get("SHOPIFY_API_SECRET") || null;
-    if (!secret || secret.length < 32) return json({ ok: false, error: "SHOPIFY_PROVIDER_SECRET_NOT_CONFIGURED" }, 503);
-  } else {
+    const shopifySecret = Deno.env.get("SHOPIFY_API_SECRET") || "";
+    if (shopifySecret.length < 32) return json({ ok: false, error: "SHOPIFY_PROVIDER_SECRET_NOT_CONFIGURED" }, 503);
+    secret = shopifySecret;
+  } else if (provider === "custom") {
     const { data: customSecret, error: secretError } = await admin.rpc("main_workspace_get_webhook_secret", { p_subscription_id: subscription.id });
     if (secretError || typeof customSecret !== "string" || customSecret.length < 32) return json({ ok: false, error: "WEBHOOK_SECRET_UNAVAILABLE" }, 503);
     secret = customSecret;
+  } else {
+    return json({ ok: false, error: "WEBHOOK_PROVIDER_UNSUPPORTED" }, 400);
   }
   const eventType = clean(provider === "shopify" ? req.headers.get("x-shopify-topic") : req.headers.get("x-plivex-event-type"), 120);
   const eventId = String((provider === "shopify" ? req.headers.get("x-shopify-webhook-id") : req.headers.get("x-plivex-event-id")) || "").trim();
