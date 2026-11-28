@@ -37,7 +37,7 @@ test("TDS records use server-calculated minor-unit amounts and immutable idempot
 
 test("E-invoice preparation validates GSTIN, invoice lines, HSN/SAC and UQC before marking ready",()=>{
   assert.match(edge,/prepare_einvoice/);
-  assert.match(edge,/gstin\(seller\.tax_registration_number\)/);
+  assert.match(edge,/sellerGstin=seller\.gstin\|\|seller\.tax_registration_number/);
   assert.match(edge,/buyerDetails=buyer\|\|invoice\.invoice_snapshot\?\.client/);
   assert.match(edge,/gstin\(buyerDetails\?\.gstin\)/);
   assert.match(edge,/hsn_sac_code/);
@@ -51,7 +51,7 @@ test("E-way bill preparation requires transport evidence and prevents duplicate 
   assert.match(edge,/prepare_eway_bill/);
   assert.match(edge,/distance<1\|\|distance>4000/);
   assert.match(edge,/!vehicle\s*&&\s*!transporter/);
-  assert.match(edge,/from_gstin:seller\.tax_registration_number/);
+  assert.match(edge,/from_gstin:sellerGstin/);
   assert.match(edge,/to_gstin:buyerDetails\?\.gstin/);
   assert.match(edge,/status:errors\.length\?"draft":"ready"/);
   assert.match(edge,/An active e-way bill already exists/);
