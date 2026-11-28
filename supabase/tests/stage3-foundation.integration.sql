@@ -195,6 +195,81 @@ begin
 end $$;
 
 
+do $
+declare
+  v_workspace text := 'stage3-api-idempotency-test';
+  v_user uuid := '00000000-0000-4000-8000-000000000991';
+  v_rule uuid;
+  v_event uuid;
+  v_reminder_event uuid := '00000000-0000-4000-8000-000000000996';
+  v_reminder_task uuid;
+  v_overdue_task uuid;
+  v_next timestamptz;
+  v_count integer;
+begin
+  v_next := public.main_workspace_next_automation_run_at('UTC','daily',time '23:59',null);
+  if v_next <= now() then raise exception 'Daily timezone schedule helper returned a non-future time'; end if;
+  v_next := public.main_workspace_next_automation_run_at('UTC','weekly',time '23:59',array[1,3,5]::smallint[]);
+  if v_next <= now() then raise exception 'Weekly timezone schedule helper returned a non-future time'; end if;
+
+  insert into public.workspace_automation_rules(
+    workspace_id,name,event_type,trigger_type,conditions,action_type,action_config,
+    timezone,schedule_frequency,schedule_time_local,schedule_days_of_week,next_run_at,created_by,is_active
+  ) values (
+    v_workspace,'Stage 3 scheduled review','automation.schedule_due','schedule','{}'::jsonb,
+    'create_task','{"title":"Scheduled review task","description":"Created by schedule worker","due_in_hours":1}'::jsonb,
+    'UTC','daily',time '00:00',null,now()-interval '1 minute',v_user,true
+  ) returning id into v_rule;
+
+  v_count := public.process_main_workspace_scheduled_automation_events(10);
+  if v_count <> 1 then raise exception 'Scheduled automation worker did not enqueue exactly one event: %',v_count; end if;
+  select id into v_event from public.workspace_event_outbox
+  where event_type='automation.schedule_due' and entity_id=v_rule::text
+  order by created_at desc limit 1;
+  if v_event is null then raise exception 'Scheduled automation event was not created'; end if;
+  if (select next_run_at from public.workspace_automation_rules where id=v_rule) <= now() then
+    raise exception 'Scheduled automation next_run_at was not advanced';
+  end if;
+
+  perform public.process_main_workspace_automation_events(20);
+  select id into v_overdue_task from public.workspace_automation_tasks
+  where rule_id=v_rule and source_event_id=v_event;
+  if v_overdue_task is null or (select status from public.workspace_automation_runs where rule_id=v_rule and event_id=v_event) <> 'completed' then
+    raise exception 'Scheduled automation event did not create its task and run record';
+  end if;
+
+  update public.workspace_automation_tasks set due_at=now()-interval '2 hours' where id=v_overdue_task;
+  insert into public.workspace_event_outbox(
+    id,workspace_id,event_type,entity_type,entity_id,dedupe_key,payload,occurred_at
+  ) values (
+    v_reminder_event,v_workspace,'automation.schedule_due','automation_schedule',v_rule::text,
+    'stage3-reminder-source-event','{}'::jsonb,now()
+  );
+  insert into public.workspace_automation_tasks(
+    workspace_id,rule_id,source_event_id,title,description,due_at
+  ) values (
+    v_workspace,v_rule,v_reminder_event,'Stage 3 reminder task','Due reminder test',now()+interval '30 minutes'
+  ) returning id into v_reminder_task;
+
+  insert into public.workspace_automation_preferences(
+    workspace_id,timezone,reminders_enabled,quiet_hours_start,quiet_hours_end,
+    escalation_enabled,escalation_after_hours,created_by
+  ) values (
+    v_workspace,'UTC',true,time '00:00',time '00:00',true,1,v_user
+  ) on conflict (workspace_id) do update set
+    timezone=excluded.timezone,reminders_enabled=excluded.reminders_enabled,
+    quiet_hours_start=excluded.quiet_hours_start,quiet_hours_end=excluded.quiet_hours_end,
+    escalation_enabled=excluded.escalation_enabled,escalation_after_hours=excluded.escalation_after_hours;
+
+  v_count := public.process_main_workspace_automation_escalations(10);
+  if v_count <> 2 then raise exception 'Reminder/escalation worker did not process both due and overdue tasks: %',v_count; end if;
+  if not exists (select 1 from public.workspace_automation_notifications where task_id=v_reminder_task and notification_type='task_due')
+    or not exists (select 1 from public.workspace_automation_notifications where task_id=v_overdue_task and notification_type='task_escalated')
+    or (select escalated_at from public.workspace_automation_tasks where id=v_overdue_task) is null then
+    raise exception 'Timezone-aware reminders or overdue escalation notification missing';
+  end if;
+end $;
+
 create or replace function public.test_stage3_fail_webhook_outbox()
 returns trigger language plpgsql as $test$
 begin
