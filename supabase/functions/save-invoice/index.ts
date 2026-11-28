@@ -215,6 +215,10 @@ Deno.serve(async (req: Request) => {
       ...(!isNonIndiaInvoice && it?.gst_rate !== undefined && it?.gst_rate !== null && it?.gst_rate !== ""
         ? { gst_rate: Number.isFinite(Number(it.gst_rate)) ? Math.max(0, Number(it.gst_rate)) : 0 }
         : {}),
+      ...(!isNonIndiaInvoice && typeof it?.hsn_sac_code === "string" && /^[0-9]{4,8}$/.test(it.hsn_sac_code)
+        ? { hsn_sac_code: it.hsn_sac_code }
+        : {}),
+      ...(!isNonIndiaInvoice ? { unit_code: typeof it?.unit_code === "string" && /^[A-Z0-9]{2,8}$/.test(it.unit_code) ? it.unit_code : "OTH" } : {}),
     }));
     let saved: any = null;
     let issueError: { code?: string; message?: string } | null = null;
