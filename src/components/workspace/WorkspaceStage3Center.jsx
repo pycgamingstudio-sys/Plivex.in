@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/api/backendClient";
 import { useAuth } from "@/lib/AuthContext";
-import { CheckCircle2, Clock3, FileLock2, Link2, Pause, Play, RefreshCw, Trash2, UploadCloud } from "lucide-react";
+import { CheckCircle2, Clock3, Copy, FileLock2, Link2, Pause, Play, RefreshCw, Trash2, UploadCloud, Webhook } from "lucide-react";
 
 const field = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm";
 const primary = "rounded-lg bg-violet-700 px-3 py-2.5 text-xs font-semibold text-white disabled:opacity-50";
@@ -13,7 +13,10 @@ const EVENT_TYPES = [
   ["lead.stage_changed", "Lead stage changed"],
   ["expense.created", "Expense created"],
   ["stock.low_stock", "Stock reaches low-stock threshold"],
+  ["integration.webhook_received", "Signed webhook received"],
 ];
+const SHOPIFY_EVENTS = [["orders/create","Order created"],["orders/updated","Order updated"],["products/create","Product created"],["products/update","Product updated"],["inventory_levels/update","Inventory level updated"]];
+const CUSTOM_EVENTS = EVENT_TYPES.filter(([value]) => value !== "integration.webhook_received");
 const STATUS_LABELS = {
   available: "Available",
   setup_required: "Setup required",
@@ -34,6 +37,11 @@ export default function WorkspaceStage3Center({ section }) {
   const [rules, setRules] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [documents, setDocuments] = useState([]);
+  const [webhookData, setWebhookData] = useState({ subscriptions: [], events: [], attempts: [] });
+  const [webhookProvider, setWebhookProvider] = useState("shopify");
+  const [webhookLabel, setWebhookLabel] = useState("Shopify webhook");
+  const [webhookEvents, setWebhookEvents] = useState(["orders/create"]);
+  const [createdWebhook, setCreatedWebhook] = useState(null);
   const [name, setName] = useState("");
   const [eventType, setEventType] = useState("invoice.created");
   const [statusCondition, setStatusCondition] = useState("");
@@ -61,6 +69,10 @@ export default function WorkspaceStage3Center({ section }) {
     if (section === "integration-registry") {
       const result = await invoke({ action: "integrations.list" });
       setIntegrations(result.integrations || []);
+      if (["admin", "manager"].includes(user?.role)) {
+        const hooks = await invoke({ action: "webhooks.list" });
+        setWebhookData({ subscriptions: hooks.subscriptions || [], events: hooks.events || [], attempts: hooks.attempts || [] });
+      }
     } else if (section === "automation-rules") {
       const result = await invoke({ action: "automation.list" });
       setRules(result.rules || []);
@@ -69,7 +81,7 @@ export default function WorkspaceStage3Center({ section }) {
       const result = await invoke({ action: "vault.list" });
       setDocuments(result.documents || []);
     }
-  }, [invoke, section]);
+  }, [invoke, section, user?.role]);
 
   useEffect(() => { refresh().catch((caught) => setError(caught.message || "Could not load this workspace tool.")); }, [refresh]);
 
@@ -88,6 +100,19 @@ export default function WorkspaceStage3Center({ section }) {
       actionConfig: { title: taskTitle, description: taskDescription, due_in_hours: dueHours === "" ? null : Number(dueHours) },
     }), "Automation rule saved. It will create a review task when its event is processed.");
   };
+
+  const createWebhook = (event) => {
+    event.preventDefault();
+    return run(async () => {
+      const result = await invoke({ action: "webhooks.create", providerKey: webhookProvider, label: webhookLabel, eventTypes: webhookEvents });
+      setCreatedWebhook(result);
+    }, "Webhook subscription created. Copy the signing secret now; it is shown only once.");
+  };
+  const copyText = async (value) => {
+    try { await navigator.clipboard.writeText(value); setNotice("Copied to clipboard."); }
+    catch { setError("Clipboard access is unavailable. Select and copy the value manually."); }
+  };
+  const toggleWebhookEvent = (value) => setWebhookEvents((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
 
   const uploadDocument = async (event) => {
     event.preventDefault();
@@ -114,14 +139,58 @@ export default function WorkspaceStage3Center({ section }) {
     {notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
     <div className="flex justify-end"><button className={secondary} disabled={busy} onClick={() => refresh().catch((caught) => setError(caught.message))}><RefreshCw className="mr-1 inline h-3.5 w-3.5"/>Refresh</button></div>
 
-    {section === "integration-registry" && <section className="rounded-2xl border bg-white p-4 sm:p-5">
-      <div className="flex items-center gap-2"><Link2 className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">Integration registry</h2></div>
-      <p className="mt-1 text-xs text-slate-500">A single status register for the providers supported by Plivex. Statuses are not manually promoted to live; live verification requires a real server-side provider check.</p>
-      <div className="mt-4 space-y-2">{integrations.map((item) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 border-t py-3">
-        <div><p className="text-sm font-semibold">{({shopify:"Shopify",whatsapp_cloud:"WhatsApp Cloud",cashfree:"Cashfree",paddle:"Paddle",public_api:"Plivex Public API",custom_webhooks:"Custom webhooks"})[item.provider_key] || item.provider_key}</p><p className="text-xs text-slate-500">{item.account_label || "No provider account connected"}</p>{item.last_error_code && <p className="mt-1 text-xs text-amber-700">Last check: {item.last_error_code}</p>}</div>
-        <span className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">{STATUS_LABELS[item.status] || "Setup required"}</span>
-      </article>)}</div>
-    </section>}
+    {section === "integration-registry" && <div className="space-y-4">
+      <section className="rounded-2xl border bg-white p-4 sm:p-5">
+        <div className="flex items-center gap-2"><Link2 className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">Integration registry</h2></div>
+        <p className="mt-1 text-xs text-slate-500">A single status register for supported providers. Statuses are not manually promoted to live; live verification requires a real server-side provider check.</p>
+        <div className="mt-4 space-y-2">{integrations.map((item) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 border-t py-3">
+          <div><p className="text-sm font-semibold">{({shopify:"Shopify",whatsapp_cloud:"WhatsApp Cloud",cashfree:"Cashfree",paddle:"Paddle",public_api:"Plivex Public API",custom_webhooks:"Custom webhooks"})[item.provider_key] || item.provider_key}</p><p className="text-xs text-slate-500">{item.account_label || "No provider account connected"}</p>{item.last_error_code && <p className="mt-1 text-xs text-amber-700">Last check: {item.last_error_code}</p>}</div>
+          <span className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">{STATUS_LABELS[item.status] || "Setup required"}</span>
+        </article>)}</div>
+      </section>
+      {["admin","manager"].includes(user?.role) && <section className="rounded-2xl border bg-white p-4 sm:p-5">
+        <div className="flex items-center gap-2"><Webhook className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">Signed inbound webhooks</h2></div>
+        <p className="mt-1 text-xs text-slate-500">Shopify and custom events are verified server-side. Secrets are held in Supabase Vault, never placed in the endpoint URL, and shown only once when created.</p>
+        <form onSubmit={createWebhook} className="mt-4 grid gap-2 sm:grid-cols-2">
+          <select className={field} value={webhookProvider} onChange={(e) => { setWebhookProvider(e.target.value); setWebhookEvents(e.target.value === "shopify" ? ["orders/create"] : ["invoice.created"]); }}>
+            <option value="shopify">Shopify</option><option value="custom">Custom signed webhook</option>
+          </select>
+          <input className={field} required minLength={2} maxLength={100} value={webhookLabel} onChange={(e) => setWebhookLabel(e.target.value)} placeholder="Webhook label"/>
+          <div className="sm:col-span-2 grid gap-2 rounded-lg border p-3 sm:grid-cols-2">
+            {(webhookProvider === "shopify" ? SHOPIFY_EVENTS : CUSTOM_EVENTS).map(([value,label]) => <label key={value} className="flex items-center gap-2 text-xs text-slate-700">
+              <input type="checkbox" checked={webhookEvents.includes(value)} onChange={() => toggleWebhookEvent(value)}/>{label}
+            </label>)}
+          </div>
+          <button className={primary+" sm:col-span-2"} disabled={busy || webhookEvents.length < 1 || webhookEvents.length > 8}>Create webhook subscription</button>
+        </form>
+        {createdWebhook && <div className="mt-4 space-y-2 rounded-xl border border-violet-200 bg-violet-50 p-3">
+          <p className="text-sm font-semibold">Copy these values now — the signing secret will not be shown again.</p>
+          <label className="block text-xs font-semibold text-slate-600">Webhook endpoint</label>
+          <div className="flex gap-2"><input readOnly className={field} value={createdWebhook.endpointUrl}/><button className={secondary} onClick={() => copyText(createdWebhook.endpointUrl)}><Copy className="h-4 w-4"/></button></div>
+          <label className="block text-xs font-semibold text-slate-600">Signing secret</label>
+          <div className="flex gap-2"><input readOnly type="password" className={field} value={createdWebhook.secret}/><button className={secondary} onClick={() => copyText(createdWebhook.secret)}><Copy className="h-4 w-4"/></button></div>
+        </div>}
+        <div className="mt-5 space-y-2">
+          <h3 className="text-sm font-semibold">Subscriptions</h3>
+          {webhookData.subscriptions.map((item) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-3">
+            <div><p className="text-sm font-semibold">{item.label} · {item.provider_key}</p><p className="text-xs text-slate-500">{item.event_types.join(", ")} · {item.is_active ? "Active" : "Paused"}</p>{item.last_received_at && <p className="text-xs text-slate-500">Last received {new Date(item.last_received_at).toLocaleString()}</p>}</div>
+            <button className={secondary} disabled={busy} onClick={() => run(() => invoke({ action: "webhooks.pause", subscriptionId: item.id, isActive: !item.is_active }), item.is_active ? "Webhook paused." : "Webhook enabled.")}>{item.is_active ? <><Pause className="mr-1 inline h-3.5 w-3.5"/>Pause</> : <><Play className="mr-1 inline h-3.5 w-3.5"/>Enable</>}</button>
+          </article>)}
+          {!webhookData.subscriptions.length && <p className="py-2 text-xs text-slate-500">No webhook subscriptions configured.</p>}
+        </div>
+        <div className="mt-5 space-y-2">
+          <h3 className="text-sm font-semibold">Webhook event log and dead letters</h3>
+          {webhookData.events.map((item) => <article key={item.id} className="border-t py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div><p className="text-sm font-semibold">{item.provider_key} · {item.event_type}</p><p className="text-xs text-slate-500">Event {item.provider_event_id} · {item.status} · {item.attempt_count} attempts</p>{item.last_error_code && <p className="text-xs text-amber-700">{item.last_error_code}</p>}</div>
+              {item.status === "dead_letter" && <button className={secondary} disabled={busy} onClick={() => run(() => invoke({ action: "webhooks.replay", eventId: item.id }), "Webhook event queued for retry.")}>Replay</button>}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">{webhookData.attempts.filter((attempt) => attempt.event_id === item.id).slice(0,4).map((attempt) => <span key={attempt.id} className="rounded border px-2 py-1 text-[11px] text-slate-600">Attempt {attempt.attempt_no}: {attempt.status}</span>)}</div>
+          </article>)}
+          {!webhookData.events.length && <p className="py-2 text-xs text-slate-500">No webhook events received yet.</p>}
+        </div>
+      </section>}
+    </div>}
 
     {section === "automation-rules" && <div className="space-y-4">
       <section className="rounded-2xl border bg-white p-4 sm:p-5">
