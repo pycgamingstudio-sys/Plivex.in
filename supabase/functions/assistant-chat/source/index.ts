@@ -669,7 +669,7 @@ async function handleRequest(req: Request) {
       intentCount: deterministicIntentHints.intents.length,
       hasWriteIntent: deterministicIntentHints.intents.length > 0,
       needsAnalytics: /\b(profit|loss|cash flow|revenue|sales trend|growth|analytics|performance|margin|forecast)\b|लाभ|नुकसान|मुनाफा|आय|बिक्री विश्लेषण/i.test(String(conversationRoutingText)),
-    });
+    } as any);
     const globalContextPromise = requestPolicy.loadGlobalContext
       ? (async () => {
           let timeoutId: ReturnType<typeof setTimeout> | undefined;
