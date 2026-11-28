@@ -867,6 +867,16 @@ async function handleRequest(req: Request, onModelTextChunk?: (chunk: string) =>
       onTextChunk: forwardModelChunk,
     } as any);
     if (!routed.ok) {
+      console.warn("Nova request metric", createAssistantRequestMetric({
+        requestId: req.headers.get("x-request-id") || crypto.randomUUID(),
+        startedAt: requestStartedAt,
+        finishedAt: Date.now(),
+        status: routed.status,
+        requestClass: requestPolicy.requestClass,
+        provider: "fallback_exhausted",
+        model: "none",
+        ttftMs: firstTokenAt === null ? null : firstTokenAt - requestStartedAt,
+      }));
       const message = routed.status === 429
         ? "AI providers are rate-limited right now. Please try again shortly."
         : routed.status === 504
