@@ -5,7 +5,7 @@ begin;
 create index if not exists journal_entries_workspace_status_date_idx
   on public.journal_entries(workspace_id,status,entry_date);
 create index if not exists journal_lines_workspace_account_entry_idx
-  on public.journal_entry_lines(workspace_id,account_id,entry_id);
+  on public.journal_entry_lines(workspace_id,entry_id,account_id);
 
 create or replace function public.main_workspace_accounting_summary(
   p_workspace_id text,
@@ -60,7 +60,6 @@ begin
     join public.journal_entries j
       on j.workspace_id=l.workspace_id and j.id=l.entry_id
     where a.workspace_id=p_workspace_id
-      and a.is_active
       and j.status='posted'
       and j.entry_date<=p_to
     group by a.id,a.code,a.name,a.account_type,a.normal_balance,j.currency_code
