@@ -57,7 +57,8 @@ create table if not exists public.workspace_event_outbox (
 create index if not exists workspace_event_outbox_workspace_idx
   on public.workspace_event_outbox(workspace_id, created_at desc);
 create index if not exists workspace_event_outbox_dispatch_idx
-  on public.workspace_event_outbox(created_at);
+  on public.workspace_event_outbox(created_at)
+  where processed_at is null;
 
 create table if not exists public.workspace_webhook_deliveries (
   id uuid primary key default gen_random_uuid(),
@@ -151,154 +152,9 @@ create table if not exists public.workspace_documents (
 create index if not exists workspace_documents_workspace_idx
   on public.workspace_documents(workspace_id, category, created_at desc);
 
--- Private token and pg_cron schedule for the deterministic automation worker.
+-- Deterministic automation runs entirely in Postgres. No provider API or secret is required.
 create extension if not exists pg_cron with schema pg_catalog;
 create extension if not exists pg_net with schema extensions;
-
-create table if not exists public.workspace_automation_cron_config (
-  singleton boolean primary key default true check (singleton),
-  secret_hash text not null check (secret_hash ~ '^[a-f0-9]{64}do $$
-declare t text;
-begin
-  foreach t in array array[
-    'workspace_integrations','workspace_webhook_subscriptions','workspace_event_outbox',
-    'workspace_webhook_deliveries','workspace_automation_rules','workspace_automation_runs',
-    'workspace_automation_tasks','workspace_documents'
-  ] loop
-    execute format('alter table public.%I enable row level security', t);
-    execute format('revoke all on public.%I from public, anon, authenticated', t);
-    execute format('grant all on public.%I to service_role', t);
-    execute format('drop policy if exists %I on public.%I', t || '_deny_client_access', t);
-    execute format('create policy %I on public.%I for all to anon, authenticated using (false) with check (false)', t || '_deny_client_access', t);
-  end loop;
-end $$;
-
--- Capture only minimal, non-PII event metadata. Delivery payloads never contain customer contact details.
-create or replace function public.capture_main_workspace_business_event()
-returns trigger
-language plpgsql
-security definer
-set search_path = pg_catalog, public
-as $function$
-declare
-  v_new jsonb := to_jsonb(NEW);
-  v_old jsonb := case when TG_OP = 'UPDATE' then to_jsonb(OLD) else '{}'::jsonb end;
-  v_workspace_id text := v_new ->> 'workspace_id';
-  v_entity_id text := v_new ->> 'id';
-  v_event_type text;
-  v_entity_type text;
-  v_payload jsonb := '{}'::jsonb;
-begin
-  if v_workspace_id is null or v_entity_id is null then return NEW; end if;
-
-  if TG_TABLE_NAME = 'invoices' then
-    v_entity_type := 'invoice';
-    if TG_OP = 'INSERT' then
-      v_event_type := 'invoice.created';
-    elsif coalesce(v_new ->> 'status','') is distinct from coalesce(v_old ->> 'status','') then
-      v_event_type := 'invoice.status_changed';
-    end if;
-    v_payload := jsonb_build_object(
-      'invoice_id', v_entity_id,
-      'status', v_new ->> 'status',
-      'currency', v_new ->> 'currency',
-      'due_date', v_new ->> 'due_date'
-    );
-  elsif TG_TABLE_NAME = 'leads' then
-    v_entity_type := 'lead';
-    if TG_OP = 'INSERT' then
-      v_event_type := 'lead.created';
-    elsif coalesce(v_new ->> 'stage','') is distinct from coalesce(v_old ->> 'stage','') then
-      v_event_type := 'lead.stage_changed';
-    end if;
-    v_payload := jsonb_build_object('lead_id',v_entity_id,'stage',v_new ->> 'stage','next_follow_up_at',v_new ->> 'next_follow_up_at');
-  elsif TG_TABLE_NAME = 'expenses' then
-    v_entity_type := 'expense';
-    if TG_OP = 'INSERT' then
-      v_event_type := 'expense.created';
-      v_payload := jsonb_build_object('expense_id',v_entity_id,'currency_code',v_new ->> 'currency_code','date',v_new ->> 'date');
-    end if;
-  elsif TG_TABLE_NAME = 'stock' then
-    v_entity_type := 'stock_item';
-    if TG_OP = 'INSERT' then
-      if nullif(v_new ->> 'low_stock','') is not null and (v_new ->> 'quantity')::numeric <= (v_new ->> 'low_stock')::numeric then
-        v_event_type := 'stock.low_stock';
-      end if;
-    elsif nullif(v_new ->> 'low_stock','') is not null
-      and (v_new ->> 'quantity')::numeric <= (v_new ->> 'low_stock')::numeric
-      and (nullif(v_old ->> 'low_stock','') is null or (v_old ->> 'quantity')::numeric > (v_old ->> 'low_stock')::numeric) then
-      v_event_type := 'stock.low_stock';
-    end if;
-    v_payload := jsonb_build_object('stock_item_id',v_entity_id,'quantity',v_new ->> 'quantity','low_stock',v_new ->> 'low_stock');
-  end if;
-
-  if v_event_type is not null then
-    insert into public.workspace_event_outbox(workspace_id,event_type,entity_type,entity_id,payload)
-    values(v_workspace_id,v_event_type,v_entity_type,v_entity_id,v_payload);
-  end if;
-  return NEW;
-end;
-$function$;
-revoke all on function public.capture_main_workspace_business_event() from public, anon, authenticated;
-grant execute on function public.capture_main_workspace_business_event() to service_role;
-
-drop trigger if exists main_workspace_invoice_event on public.invoices;
-create trigger main_workspace_invoice_event after insert or update of status on public.invoices
-for each row execute function public.capture_main_workspace_business_event();
-drop trigger if exists main_workspace_lead_event on public.leads;
-create trigger main_workspace_lead_event after insert or update of stage on public.leads
-for each row execute function public.capture_main_workspace_business_event();
-drop trigger if exists main_workspace_expense_event on public.expenses;
-create trigger main_workspace_expense_event after insert on public.expenses
-for each row execute function public.capture_main_workspace_business_event();
-drop trigger if exists main_workspace_stock_event on public.stock;
-create trigger main_workspace_stock_event after insert or update of quantity, low_stock on public.stock
-for each row execute function public.capture_main_workspace_business_event();
-
-commit;
-),
-  created_at timestamptz not null default now()
-);
-alter table public.workspace_automation_cron_config enable row level security;
-revoke all on public.workspace_automation_cron_config from public, anon, authenticated;
-grant select on public.workspace_automation_cron_config to service_role;
-drop policy if exists workspace_automation_cron_config_deny_client_access on public.workspace_automation_cron_config;
-create policy workspace_automation_cron_config_deny_client_access
-  on public.workspace_automation_cron_config for all to anon, authenticated
-  using (false) with check (false);
-
-do $
-declare
-  v_secret text;
-begin
-  if not exists (select 1 from public.workspace_automation_cron_config where singleton = true) then
-    v_secret := encode(gen_random_bytes(32), 'hex');
-    insert into public.workspace_automation_cron_config(singleton, secret_hash)
-    values (true, encode(digest(v_secret, 'sha256'), 'hex'));
-    perform vault.create_secret(
-      v_secret,
-      'plivex_workspace_automation_cron',
-      'Private authentication token for the Plivex Main Workspace automation worker'
-    );
-  end if;
-end $;
-
-select cron.schedule(
-  'plivex-workspace-automation-sweep',
-  '* * * * *',
-  $job$
-    select net.http_post(
-      url := 'https://sqzpaiibmfsvarrkwkvb.supabase.co/functions/v1/workspace-stage3',
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'x-plivex-automation-token',
-        (select decrypted_secret from vault.decrypted_secrets where name = 'plivex_workspace_automation_cron')
-      ),
-      body := '{}'::jsonb,
-      timeout_milliseconds := 10000
-    );
-  $job$
-);
 
 -- These tables are only accessed by authenticated Edge Functions using the service role.
 do $$
@@ -316,6 +172,108 @@ begin
     execute format('create policy %I on public.%I for all to anon, authenticated using (false) with check (false)', t || '_deny_client_access', t);
   end loop;
 end $$;
+
+-- Claim events with SKIP LOCKED and make task creation/run history idempotent.
+create or replace function public.process_main_workspace_automation_events(p_limit integer default 50)
+returns integer
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $function$
+declare
+  v_event record;
+  v_rule record;
+  v_conditions jsonb;
+  v_config jsonb;
+  v_matched boolean;
+  v_due_hours integer;
+  v_due_at timestamptz;
+  v_processed integer := 0;
+begin
+  if p_limit is null or p_limit < 1 or p_limit > 200 then
+    raise exception 'invalid automation batch size';
+  end if;
+
+  for v_event in
+    select id, workspace_id, event_type, entity_type, entity_id, payload, occurred_at
+    from public.workspace_event_outbox
+    where processed_at is null
+    order by created_at, id
+    for update skip locked
+    limit p_limit
+  loop
+    for v_rule in
+      select id, name, conditions, action_type, action_config
+      from public.workspace_automation_rules
+      where workspace_id = v_event.workspace_id
+        and event_type = v_event.event_type
+        and is_active = true
+      order by created_at, id
+    loop
+      v_conditions := coalesce(v_rule.conditions, '{}'::jsonb);
+      v_config := coalesce(v_rule.action_config, '{}'::jsonb);
+      v_matched := true;
+
+      if v_conditions ? 'status_equals'
+        and (v_event.payload ->> 'status') is distinct from (v_conditions ->> 'status_equals') then
+        v_matched := false;
+      end if;
+      if v_conditions ? 'stage_equals'
+        and (v_event.payload ->> 'stage') is distinct from (v_conditions ->> 'stage_equals') then
+        v_matched := false;
+      end if;
+
+      if v_matched and v_rule.action_type = 'create_task' then
+        v_due_hours := null;
+        if jsonb_typeof(v_config -> 'due_in_hours') = 'number' then
+          v_due_hours := (v_config ->> 'due_in_hours')::integer;
+        end if;
+        v_due_at := case
+          when v_due_hours between 0 and 720 then v_event.occurred_at + make_interval(hours => v_due_hours)
+          else null
+        end;
+
+        insert into public.workspace_automation_tasks(
+          workspace_id, rule_id, source_event_id, title, description, due_at
+        ) values (
+          v_event.workspace_id,
+          v_rule.id,
+          v_event.id,
+          coalesce(nullif(btrim(v_config ->> 'title'), ''), v_rule.name),
+          left(coalesce(v_config ->> 'description', ''), 2000),
+          v_due_at
+        )
+        on conflict (workspace_id, rule_id, source_event_id) do nothing;
+      end if;
+
+      insert into public.workspace_automation_runs(
+        workspace_id, rule_id, event_id, status
+      ) values (
+        v_event.workspace_id,
+        v_rule.id,
+        v_event.id,
+        case when v_matched then 'completed' else 'skipped' end
+      )
+      on conflict (rule_id, event_id) do nothing;
+    end loop;
+
+    update public.workspace_event_outbox
+    set processed_at = clock_timestamp(), processing_error_code = null
+    where id = v_event.id and processed_at is null;
+    v_processed := v_processed + 1;
+  end loop;
+
+  return v_processed;
+end;
+$function$;
+revoke all on function public.process_main_workspace_automation_events(integer) from public, anon, authenticated;
+grant execute on function public.process_main_workspace_automation_events(integer) to service_role;
+
+select cron.schedule(
+  'plivex-workspace-automation-sweep',
+  '* * * * *',
+  'select public.process_main_workspace_automation_events(50);'
+);
 
 -- Capture only minimal, non-PII event metadata. Delivery payloads never contain customer contact details.
 create or replace function public.capture_main_workspace_business_event()
