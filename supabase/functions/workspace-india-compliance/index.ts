@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 const ORIGINS = new Set(["https://plivex.in","https://www.plivex.in","https://plivex.netlify.app","https://plivex.pages.dev"]);
 const allowed = (origin: string | null) => !origin || ORIGINS.has(origin) || /^https:\/\/[a-z0-9-]+\.plivex\.pages\.dev$/.test(origin);
 const isValidIsoDate = (value: unknown): value is string => {
-  if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [year, month, day] = value.split("-").map(Number);
   if (year < 1 || month < 1 || month > 12 || day < 1) return false;
   const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
@@ -148,11 +148,11 @@ Deno.serve(async(req:Request)=>{
       if(!gstin(sellerGstin)) errors.push("Seller GSTIN is missing or malformed.");
       if(!gstin(buyerDetails?.gstin)) errors.push("Buyer GSTIN is required for this e-invoice workflow.");
       if(!invoice.number||!isValidIsoDate(invoice.issue_date)) errors.push("Invoice number and valid issue date are required.");
-      if(!/^\\d{2}$/.test(placeOfSupply)) errors.push("A valid two-digit place-of-supply state code is required.");
+      if(!/^\d{2}$/.test(placeOfSupply)) errors.push("A valid two-digit place-of-supply state code is required.");
       if(!["INTRA","INTER"].includes(supplyType)) errors.push("India supply type (intra-state or inter-state) must be selected.");
       if(!Array.isArray(items)||items.length===0) errors.push("At least one invoice line is required.");
       for(const [index,item] of (items||[]).entries()) {
-        if(!/^\\d{4,8}$/.test(String(item.hsn_sac_code||""))) errors.push("Line "+(index+1)+": HSN/SAC code is required (4–8 digits).");
+        if(!/^\d{4,8}$/.test(String(item.hsn_sac_code||""))) errors.push("Line "+(index+1)+": HSN/SAC code is required (4–8 digits).");
         if(!/^[A-Z0-9]{2,8}$/.test(String(item.unit_code||""))) errors.push("Line "+(index+1)+": valid unit code is required.");
         if(!Number.isFinite(Number(item.quantity))||Number(item.quantity)<=0||!Number.isFinite(Number(item.rate))||Number(item.rate)<0) errors.push("Line "+(index+1)+": invalid quantity or rate.");
       }
@@ -196,7 +196,7 @@ Deno.serve(async(req:Request)=>{
       if(!invoice.number||!isValidIsoDate(invoice.issue_date)) errors.push("Invoice number and date are required.");
       if(!items?.length) errors.push("At least one invoice line is required.");
       for(const [index,item] of (items||[]).entries()) {
-        if(!/^\\d{4,8}$/.test(String(item.hsn_sac_code||""))) errors.push("Line "+(index+1)+": HSN/SAC code is required for the e-way bill.");
+        if(!/^\d{4,8}$/.test(String(item.hsn_sac_code||""))) errors.push("Line "+(index+1)+": HSN/SAC code is required for the e-way bill.");
       }
       const payload={document_type:"INV",document_number:invoice.number,document_date:date,invoice_date:invoice.issue_date,total_value:Number(invoice.total||0),currency:"INR",from_gstin:sellerGstin,from_address:seller.address,to_gstin:buyerDetails?.gstin||null,to_address:buyerDetails?.address||null,distance_km:distance,transport_mode:mode,vehicle_number:vehicle||null,transporter_id:transporter||null,items:(items||[]).map((item:any)=>({description:item.description,hsn_sac_code:item.hsn_sac_code,quantity:item.quantity,unit_code:item.unit_code,taxable_value:Number(item.quantity||0)*Number(item.rate||0)}))};
       const fingerprint=await sha256({invoice_id:invoice.id,payload});
