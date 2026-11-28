@@ -24,7 +24,7 @@ begin
   if p_user_id is null or p_workspace_id is null then
     return jsonb_build_object('ok', false, 'reason', 'invalid_identity');
   end if;
-  if current_user <> 'service_role' and p_user_id is distinct from auth.uid() then
+  if p_user_id is distinct from auth.uid() then
     return jsonb_build_object('ok', false, 'reason', 'access_denied');
   end if;
 
@@ -47,7 +47,7 @@ begin
       coalesce(c.name, 'Customer') as counterparty,
       i.currency_code, i.due_date,
       greatest(i.total_minor - i.amount_paid_minor, 0)::bigint as outstanding_minor,
-      greatest(v_as_of - coalesce(i.due_date, i.issue_date), 0) as overdue_days
+      case when i.due_date is null then 0 else greatest(v_as_of - i.due_date, 0) end as overdue_days
     from global.invoices i
     left join global.clients c
       on c.workspace_id = i.workspace_id and c.id = i.client_id
@@ -89,7 +89,7 @@ begin
       coalesce(s.name, 'Supplier') as counterparty,
       b.currency_code, b.due_date,
       greatest(b.total_minor - b.amount_paid_minor, 0)::bigint as outstanding_minor,
-      greatest(v_as_of - coalesce(b.due_date, b.purchase_date), 0) as overdue_days
+      case when b.due_date is null then 0 else greatest(v_as_of - b.due_date, 0) end as overdue_days
     from global.purchase_bills b
     left join global.suppliers s
       on s.workspace_id = b.workspace_id and s.id = b.supplier_id
