@@ -44,7 +44,7 @@ declare v_user uuid:=auth.uid();v_order public.sales_orders%rowtype;v_challan pu
 begin
  if v_user is null or not public.has_ws_role(p_workspace_id,array['admin'::app_role,'manager'::app_role,'storekeeper'::app_role]) then return jsonb_build_object('ok',false,'reason','forbidden'); end if;
  if p_idempotency_key is null or jsonb_typeof(p_items)<>'array' or jsonb_array_length(p_items)<1 or jsonb_array_length(p_items)>200 then return jsonb_build_object('ok',false,'reason','invalid_challan'); end if;
- if exists(select 1 from jsonb_array_elements(p_items) e group by e->>'sales_order_item_id' having count(*)>1) then return jsonb_build_object('ok',false,'reason','duplicate_challan_item'); end if;
+ if exists(select 1 from jsonb_array_elements(p_items) as x(item) group by item->>'sales_order_item_id' having count(*)>1) then return jsonb_build_object('ok',false,'reason','duplicate_challan_item'); end if;
  v_fingerprint:=encode(pg_catalog.sha256(convert_to(jsonb_build_object('sales_order_id',p_sales_order_id,'items',p_items,'notes',nullif(btrim(p_notes),''))::text,'UTF8')),'hex');
  perform pg_advisory_xact_lock(hashtextextended(p_workspace_id||':'||p_idempotency_key::text,0));
  select * into v_challan from public.delivery_challans where workspace_id=p_workspace_id and idempotency_key=p_idempotency_key for update;
