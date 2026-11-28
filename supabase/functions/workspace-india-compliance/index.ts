@@ -31,16 +31,17 @@ async function authenticate(req: Request) {
   const {data:{user},error}=await authClient.auth.getUser();
   if(error||!user) throw new Error("AUTH_REQUIRED");
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
-  const {data:profile,error:profileError}=await admin.from("profiles").select("workspace_id").eq("id",user.id).maybeSingle();
+  const {data:profile,error:profileError}=await admin.from("profiles").select("workspace_id,role").eq("id",user.id).maybeSingle();
   if(profileError||!profile?.workspace_id) throw new Error("WORKSPACE_ACCESS_UNAVAILABLE");
   const workspaceId=String(profile.workspace_id);
   const [{data:settings,error:settingsError},{data:member,error:memberError}]=await Promise.all([
-    admin.from("workspace_settings").select("workspace_id,country_code,currency_code").eq("workspace_id",workspaceId).maybeSingle(),
+    admin.from("workspace_settings").select("workspace_id,country_code,currency_code,created_by").eq("workspace_id",workspaceId).maybeSingle(),
     admin.from("workspace_members").select("role,status").eq("workspace_id",workspaceId).eq("user_id",user.id).eq("status","active").maybeSingle(),
   ]);
   if(settingsError||memberError||!settings) throw new Error("WORKSPACE_ACCESS_UNAVAILABLE");
-  if(!member) throw new Error("WORKSPACE_MEMBERSHIP_REQUIRED");
-  return {admin,user,workspaceId,settings,role:String(member.role||"")};
+  const isWorkspaceCreator=settings.created_by===user.id&&String(profile.role||"")==="admin";
+  if(!member&&!isWorkspaceCreator) throw new Error("WORKSPACE_MEMBERSHIP_REQUIRED");
+  return {admin,user,workspaceId,settings,role:String(member?.role||profile.role||"")};
 }
 const canManage = (role:string) => ["owner","admin","manager"].includes(role);
 const canAccount = (role:string) => ["owner","admin","manager","accountant"].includes(role);
