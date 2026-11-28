@@ -10,7 +10,7 @@ alter table public.public_api_keys
 -- names can differ when the table was first created on different DB histories.
 -- Remove every existing CHECK that constrains scopes before installing the
 -- canonical, named allowlist and cardinality constraints below.
-do $
+do $stage3_scope_constraints$
 declare
   v_constraint record;
 begin
@@ -24,7 +24,7 @@ begin
     execute format('alter table public.public_api_keys drop constraint %I', v_constraint.conname);
   end loop;
 end;
-$;
+$stage3_scope_constraints$;
 
 alter table public.public_api_keys
   add constraint public_api_keys_scopes_cardinality_check
