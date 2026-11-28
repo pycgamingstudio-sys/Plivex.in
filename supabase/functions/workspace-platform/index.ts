@@ -218,7 +218,7 @@ async function apiManagement(ctx: any, body: any) {
   const scopeValues: unknown[] = Array.isArray(body.scopes) ? body.scopes as unknown[] : [];
   const scopes: string[] = [...new Set<string>(scopeValues.filter((scope): scope is string => typeof scope === "string"))];
   const allowedScopes = ["workspace.read","invoices.read","clients.read","expenses.read","leads.read","leads.write","inventory.read","suppliers.read","mcp.read"];
-  if (label.length < 2 || !scopes.length || scopes.length > 8 || scopes.some((s:string)=>!allowedScopes.includes(s)) || (scopes.includes("mcp.read") && !scopes.includes("workspace.read"))) throw new Error("INVALID_API_KEY");
+  if (label.length < 2 || !scopes.length || scopes.length > 9 || scopes.some((s:string)=>!allowedScopes.includes(s)) || (scopes.includes("mcp.read") && !scopes.includes("workspace.read"))) throw new Error("INVALID_API_KEY");
   const prefix = "plx_" + crypto.randomUUID().replaceAll("-","").slice(0,6); const secret = prefix + "_" + token(32), keyHash = await sha256(secret);
   const days = Math.min(365,Math.max(1,Number(body.expiryDays)||90));
   const { data, error } = await ctx.admin.from("public_api_keys").insert({ workspace_id:ctx.workspaceId,created_by:ctx.user.id,label,key_hash:keyHash,key_prefix:prefix,scopes,expires_at:new Date(Date.now()+days*86400000).toISOString() }).select("id,label,key_prefix,scopes,expires_at,created_at").single();
