@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateGlobalBranchAction } from "./assistant-global-branch-validation.mjs";
+import { validateGlobalBranchAction, validateGlobalBranchAgainstContext } from "./assistant-global-branch-validation.mjs";
 
 test("validates and normalizes a Main Workspace branch", () => {
   assert.deepEqual(validateGlobalBranchAction({ type: "create_global_branch", payload: {
@@ -26,4 +26,12 @@ test("bounds address fields and rejects malformed country codes", () => {
     name: "Delhi", branch_code: "DEL", address: { city: "C".repeat(140) }
   }});
   assert.equal(bounded.payload.address.city.length, 100);
+});
+
+test("rejects branch codes or names already present in live Main Workspace context", () => {
+  const action = validateGlobalBranchAction({ type: "create_global_branch", payload: { name: "Delhi Office", branch_code: "DEL-01" } });
+  assert.equal(validateGlobalBranchAgainstContext(action, { branches: [{ name: "Other", branch_code: "DEL-01" }] }).reason, "duplicate_code");
+  assert.equal(validateGlobalBranchAgainstContext(action, { branches: [{ name: " delhi office ", branch_code: "DL" }] }).reason, "duplicate_name");
+  assert.equal(validateGlobalBranchAgainstContext(action, { context_unavailable: true, branches: [] }).reason, "context_unavailable");
+  assert.equal(validateGlobalBranchAgainstContext(action, { branches: [] }).ok, true);
 });
