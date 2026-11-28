@@ -513,7 +513,7 @@ declare
   v_days_ahead integer;
 begin
   if p_timezone is null or not exists (select 1 from pg_timezone_names where name = p_timezone)
-    or p_time is null or p_frequency not in ('daily','weekly') then
+    or p_time is null or p_frequency is null or p_frequency not in ('daily','weekly') then
     raise exception 'invalid automation schedule';
   end if;
   v_local_now := now() at time zone p_timezone;
@@ -528,15 +528,15 @@ begin
       raise exception 'weekly schedule requires valid weekdays';
     end if;
     v_today := extract(isodow from v_local_now)::integer;
-    select min(case when day_value > v_today then day_value - v_today else day_value - v_today + 7 end)
-      into v_days_ahead
+    select min(
+      case
+        when day_value > v_today then day_value - v_today
+        when day_value = v_today and p_time > v_local_now::time then 0
+        else day_value - v_today + 7
+      end
+    ) into v_days_ahead
     from unnest(p_days) as day_value;
-    if v_days_ahead = 0 and p_time > v_local_now::time then
-      v_local_date := v_local_date;
-    else
-      if v_days_ahead = 0 then v_days_ahead := 7; end if;
-      v_local_date := v_local_date + v_days_ahead;
-    end if;
+    v_local_date := v_local_date + v_days_ahead;
   end if;
 
   return (v_local_date::timestamp + p_time) at time zone p_timezone;
