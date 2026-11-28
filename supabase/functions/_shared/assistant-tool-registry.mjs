@@ -9,6 +9,7 @@
 export const ASSISTANT_WRITE_TOOLS = Object.freeze({
   create_client: { module: "clients", approval: "user_confirmation", required: ["name"] },
   create_global_branch: { module: "branches", approval: "user_confirmation", required: ["name", "branch_code"] },
+  set_global_member_permission: { module: "member_permissions", approval: "user_confirmation", required: ["member_id", "permission_key", "effect"] },
   create_global_client: { module: "global_clients", approval: "user_confirmation", required: ["name"] },
   create_global_supplier: { module: "suppliers", approval: "user_confirmation", required: ["name"] },
   transfer_global_stock: { module: "stock_transfers", approval: "user_confirmation", required: ["from_warehouse_id", "to_warehouse_id", "items"] },
