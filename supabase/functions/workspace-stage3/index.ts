@@ -85,7 +85,13 @@ async function ensureVaultBucket(admin: any) {
     fileSizeLimit: MAX_DOCUMENT_BYTES,
     allowedMimeTypes: [...MIME_TYPES],
   });
-  if (createError && !String(createError.message || "").toLowerCase().includes("already exists")) throw new Error("VAULT_BUCKET_CREATE_FAILED");
+  if (createError) {
+    if (!String(createError.message || "").toLowerCase().includes("already exists")) throw new Error("VAULT_BUCKET_CREATE_FAILED");
+    const { data: verifiedBuckets, error: verifyError } = await admin.storage.listBuckets();
+    if (verifyError) throw new Error("STORAGE_UNAVAILABLE");
+    const racedBucket = (verifiedBuckets || []).find((item: any) => item.name === bucket);
+    if (!racedBucket || racedBucket.public !== false) throw new Error("PRIVATE_VAULT_BUCKET_REQUIRED");
+  }
   return bucket;
 }
 
