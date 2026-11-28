@@ -19,7 +19,7 @@ test("preserves other browser languages when no Hindi script is present", () => 
 });
 
 test("normalizes and bounds speech text without changing meaningful content", () => {
-  assert.equal(normalizeAssistantSpeechText("  Hello\\u0000 world  "), "Hello world");
+  assert.equal(normalizeAssistantSpeechText("  Hello" + String.fromCharCode(0) + " world  "), "Hello world");
   assert.equal(normalizeAssistantSpeechText("abcdef", 3), "abc");
   assert.equal(normalizeAssistantSpeechText(null), "");
 });
