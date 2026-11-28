@@ -25,3 +25,9 @@ test("statement parser rejects malformed quoted CSV and impossible dates", () =>
   const result = parseBankStatementImport("Date,Description,Amount\n2026-02-30,Invalid date,10\n");
   assert.match(result.errors[0].reason, /valid ISO date/);
 });
+
+test("statement parser accepts one populated side in debit-credit bank exports", () => {
+  const result = parseBankStatementImport("Date,Narration,Credit Amount,Debit Amount\\n2026-11-01,Receipt,1250,\\n2026-11-02,Rent,,900\\n");
+  assert.equal(result.errors.length, 0);
+  assert.deepEqual(result.rows.map((row) => [row.direction, row.amount]), [["credit", 1250], ["debit", 900]]);
+});
