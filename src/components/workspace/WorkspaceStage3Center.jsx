@@ -139,7 +139,9 @@ export default function WorkspaceStage3Center({ section }) {
     return run(async () => {
       const result = await invoke({ action: "webhooks.create", providerKey: webhookProvider, label: webhookLabel, eventTypes: webhookEvents });
       setCreatedWebhook(result);
-    }, "Webhook subscription created. Copy the signing secret now; it is shown only once.");
+    }, webhookProvider === "custom"
+      ? "Custom webhook created. Copy its signing secret now; it is shown only once."
+      : "Shopify webhook endpoint created. Configure SHOPIFY_API_SECRET in Supabase Edge Function secrets before sending live events.");
   };
   const copyText = async (value) => {
     try { await navigator.clipboard.writeText(value); setNotice("Copied to clipboard."); }
@@ -197,11 +199,12 @@ export default function WorkspaceStage3Center({ section }) {
           <button className={primary+" sm:col-span-2"} disabled={busy || webhookEvents.length < 1 || webhookEvents.length > 8}>Create webhook subscription</button>
         </form>
         {createdWebhook && <div className="mt-4 space-y-2 rounded-xl border border-violet-200 bg-violet-50 p-3">
-          <p className="text-sm font-semibold">Copy these values now — the signing secret will not be shown again.</p>
-          <label className="block text-xs font-semibold text-slate-600">Webhook endpoint</label>
+          <p className="text-sm font-semibold">Webhook endpoint</p>
           <div className="flex gap-2"><input readOnly className={field} value={createdWebhook.endpointUrl}/><button className={secondary} onClick={() => copyText(createdWebhook.endpointUrl)}><Copy className="h-4 w-4"/></button></div>
-          <label className="block text-xs font-semibold text-slate-600">Signing secret</label>
-          <div className="flex gap-2"><input readOnly type="password" className={field} value={createdWebhook.secret}/><button className={secondary} onClick={() => copyText(createdWebhook.secret)}><Copy className="h-4 w-4"/></button></div>
+          {createdWebhook.secret ? <>
+            <label className="block text-xs font-semibold text-slate-600">Custom webhook signing secret (shown once)</label>
+            <div className="flex gap-2"><input readOnly type="password" className={field} value={createdWebhook.secret}/><button className={secondary} onClick={() => copyText(createdWebhook.secret)}><Copy className="h-4 w-4"/></button></div>
+          </> : <p className="text-xs text-amber-700">Shopify signs webhooks with the app-level client secret. Add SHOPIFY_API_SECRET to Supabase Edge Function secrets; do not paste it into this page, the frontend or GitHub.</p>}
         </div>}
         <div className="mt-5 space-y-2">
           <h3 className="text-sm font-semibold">Subscriptions</h3>
