@@ -82,7 +82,9 @@ Deno.serve(async(req:Request)=>{
       if(!["vendor_payment","professional_fee","rent","contractor","commission","other"].includes(sourceType)||!name||!/^19[0-9A-Z]{2,3}$/.test(section)||!isValidIsoDate(date)||!validUuid(key)
         ||!Number.isSafeInteger(gross)||gross<=0||gross>9000000000000000||!Number.isInteger(rate)||rate<0||rate>10000
         ||(deducteePan&&!pan(deducteePan))) return json({error:"TDS details are invalid. Check deductee, PAN, section, date, gross amount, rate and idempotency key."},400,origin);
-      const tds=Math.round(gross*rate/10000);
+      if(body.payment_date && !isValidIsoDate(body.payment_date)) return json({error:"Payment date must be a valid ISO calendar date."},400,origin);
+      const tdsBig=(BigInt(gross)*BigInt(rate)+5000n)/10000n;
+      const tds=Number(tdsBig);
       if(!Number.isSafeInteger(tds)||tds>gross) return json({error:"Calculated TDS amount is outside the permitted range."},400,origin);
       const period=fyQuarter(date);
       const normalized={source_type:sourceType,source_reference:clean(body.source_reference,120),deductee_name:name,deductee_pan:deducteePan,section_code:section,deduction_date:date,payment_date:isValidIsoDate(body.payment_date)?body.payment_date:null,gross_amount_minor:gross,tds_rate_bps:rate,tds_amount_minor:tds,financial_year:period.financial_year,quarter:period.quarter};
@@ -96,6 +98,25 @@ Deno.serve(async(req:Request)=>{
         throw new Error("TDS_ENTRY_SAVE_FAILED");
       }
       return json({ok:true,duplicate:false,entry:data},201,origin);
+    }
+    if(action==="update_tds_status") {
+      if(!canAccount(role)) return json({error:"Accountant or workspace manager permission required."},403,origin);
+      if(!validUuid(body.entry_id)||!["deducted","deposited","filed","reversed"].includes(String(body.status))) return json({error:"TDS entry and target status are required."},400,origin);
+      const {data:entry,error:entryError}=await admin.from("workspace_tds_entries").select("*").eq("workspace_id",workspaceId).eq("id",body.entry_id).maybeSingle();
+      if(entryError||!entry) return json({error:"TDS entry not found."},404,origin);
+      const transitions:Record<string,string[]>={draft:["deducted","reversed"],deducted:["deposited","reversed"],deposited:["filed","reversed"],filed:[],reversed:[]};
+      const target=String(body.status);
+      if(!transitions[entry.status]?.includes(target)) return json({error:"Invalid TDS status transition."},409,origin);
+      const patch:Record<string,unknown>={status:target,updated_at:new Date().toISOString()};
+      if(target==="deposited"||target==="filed") {
+        const challan=clean(body.challan_number,80),challanDate=clean(body.challan_date,10),bsr=clean(body.bsr_code,20);
+        if(!challan||!isValidIsoDate(challanDate)||!bsr) return json({error:"Challan number, valid challan date and BSR code are required before marking TDS deposited."},400,origin);
+        patch.challan_number=challan;patch.challan_date=challanDate;patch.bsr_code=bsr;patch.deposit_reference=clean(body.deposit_reference,100)||null;
+      }
+      const {data,error}=await admin.from("workspace_tds_entries").update(patch).eq("workspace_id",workspaceId).eq("id",entry.id).eq("status",entry.status).select("*").maybeSingle();
+      if(error) throw new Error("TDS_STATUS_UPDATE_FAILED");
+      if(!data) return json({error:"TDS entry changed concurrently. Refresh and retry."},409,origin);
+      return json({ok:true,entry:data},200,origin);
     }
     if(action==="prepare_einvoice") {
       if(!canAccount(role)) return json({error:"Accountant or workspace manager permission required."},403,origin);
@@ -145,7 +166,8 @@ Deno.serve(async(req:Request)=>{
       if(invoice.is_draft||["cancelled","void"].includes(String(invoice.status||"").toLowerCase())) return json({error:"Only an issued, active invoice can be prepared for an e-way bill."},409,origin);
       const payload={document_type:"INV",document_number:invoice.number,document_date:date,invoice_date:invoice.issue_date,total_value:Number(invoice.total||0),currency:"INR",distance_km:distance,transport_mode:mode,vehicle_number:vehicle||null,transporter_id:transporter||null};
       const fingerprint=await sha256({invoice_id:invoice.id,payload});
-      const {data:existing}=await admin.from("workspace_eway_bill_records").select("*").eq("workspace_id",workspaceId).eq("invoice_id",invoice.id).in("status",["draft","rejected"]).maybeSingle();
+      const {data:existing}=await admin.from("workspace_eway_bill_records").select("*").eq("workspace_id",workspaceId).eq("invoice_id",invoice.id).maybeSingle();
+      if(existing && !["draft","rejected"].includes(existing.status)) return json({error:"An active e-way bill already exists for this invoice."},409,origin);
       if(existing) {
         const {data,error}=await admin.from("workspace_eway_bill_records").update({status:"ready",document_number:invoice.number,document_date:date,distance_km:distance,transport_mode:mode,vehicle_number:vehicle||null,transporter_id:transporter||null,request_payload:payload,validation_errors:[],idempotency_key:body.idempotency_key,request_fingerprint:fingerprint,updated_at:new Date().toISOString()}).eq("id",existing.id).eq("workspace_id",workspaceId).select("*").single();
         if(error) throw new Error("EWAY_DRAFT_UPDATE_FAILED");
