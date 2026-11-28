@@ -59,6 +59,7 @@ function GlobalPublicInvoice({ snapshot }) {
      <div className="flex justify-between"><span className="text-slate-500">{taxNotAssessed?"Tax (not assessed)": "Tax"}</span><span>{taxNotAssessed?"Not assessed":moneyMinor(snapshot.tax_minor,currency,locale)}</span></div>
      <div className="flex justify-between border-t pt-3 text-lg font-bold"><span>Total</span><span>{moneyMinor(snapshot.total_minor,currency,locale)}</span></div>
     </section>
+    {upiValid&&<section className="mt-6 rounded-xl border border-violet-200 bg-violet-50 p-4" data-testid="invoice-upi-payment"><div className="flex flex-wrap items-center justify-between gap-4"><div className="min-w-0"><h2 className="font-semibold text-violet-950">Pay this invoice via UPI</h2><p className="mt-1 text-xs text-violet-800">UPI ID: {upiId}</p><p className="mt-1 text-xs text-violet-800">Amount: {money(total,invoice.currency,locale)}</p><p className="mt-2 text-[11px] text-violet-800">The business must verify receipt before marking the invoice as paid.</p><a href={upiUri} className="mt-3 inline-flex rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white">Pay via UPI</a></div><img src={upiQrUrl} alt="UPI payment QR code" className="h-32 w-32 rounded-lg border bg-white p-1"/></div></section>}
     <section className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-700" data-testid="global-tax-declaration">
      <p className="font-semibold text-slate-900">Tax declaration</p>
      {snapshot.tax_treatment&&<p>Tax treatment: {String(snapshot.tax_treatment).replace(/-/g," ")}</p>}
@@ -127,6 +128,10 @@ export default function PublicInvoicePage(){
  const taxDisclosure=snapshot.tax_disclosure||"Tax has not been calculated or validated by Plivex. Confirm the applicable treatment before using this document for tax reporting.";
  const registrationLabel=countryCode==="IN"?"GSTIN":(taxProfile.registrationType||getCountryExperience(countryCode)?.business.registrationLabel||"Tax registration");
  const total=Number(invoice?.total??snapshot.total)||0;
+ const upiId=String(snapshot.upiId||"").trim();
+ const upiValid=countryCode==="IN"&&String(invoice?.currency||"").toUpperCase()==="INR"&&/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z][a-zA-Z0-9.\-_]{1,64}$/.test(upiId)&&total>0&&!isDraft&&String(invoice?.status||"").toLowerCase()!=="paid";
+ const upiUri=upiValid?`upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(business.name||invoice?.business_name||"Business")}&am=${total.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Invoice ${invoice?.number||""}`)}`:"";
+ const upiQrUrl=upiValid?`https://quickchart.io/qr?size=360&margin=2&ecLevel=Q&text=${encodeURIComponent(upiUri)}`:"";
  const download=async()=>{await supabase.functions.invoke("invoice-share",{body:{action:"track",event:"download",token}});window.print()};
  if(error||!invoice)return <main className="min-h-screen grid place-items-center bg-slate-50 p-5"><section className="max-w-md rounded-2xl border bg-white p-8 text-center shadow-sm"><AlertCircle className="mx-auto mb-3 h-10 w-10 text-amber-600"/><h1 className="text-xl font-bold text-slate-900">Invoice unavailable</h1><p className="mt-2 text-sm text-slate-600">{error||"This invoice link is invalid."}</p><p className="mt-5 text-xs text-slate-400">If you need a fresh copy, contact the business that sent this invoice.</p></section></main>;
  return <main className="min-h-screen bg-slate-50 px-3 py-6 text-slate-900 sm:px-6">

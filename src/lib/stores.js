@@ -139,13 +139,15 @@ const invoiceToUi = (r) => {
   const restoredItems = items.length ? items.map((it, index) => ({
     description: str(it.description), quantity: num(it.quantity), rate: num(it.rate),
     gstRate: it.gst_rate === null || it.gst_rate === undefined ? undefined : num(it.gst_rate),
-    ...(str(snapshotItems[index]?.hsnSac) ? { hsnSac: str(snapshotItems[index].hsnSac) } : {}),
+    ...(str(it.hsn_sac_code || snapshotItems[index]?.hsnSac) ? { hsnSac: str(it.hsn_sac_code || snapshotItems[index].hsnSac) } : {}),
+    unitCode: str(it.unit_code) || "OTH",
   })) : snapshotItems.map((item, index) => ({
     id: str(item?.id) || ("item-" + (index + 1)),
     description: str(item?.description), quantity: num(item?.quantity), rate: num(item?.rate),
     gstRate: item?.gstRate === undefined && item?.gst_rate === undefined
       ? undefined : num(item.gstRate ?? item.gst_rate),
-    ...(str(item?.hsnSac) ? { hsnSac: str(item.hsnSac) } : {}),
+    ...(str(item?.hsnSac || item?.hsn_sac_code) ? { hsnSac: str(item.hsnSac || item.hsn_sac_code) } : {}),
+    unitCode: str(item?.unitCode || item?.unit_code) || "OTH",
   }));
   return {
     id: r.id, number: str(r.number), clientName: str(r.client_name), clientEmail: str(r.client_email), businessName: str(r.business_name),
@@ -154,6 +156,8 @@ const invoiceToUi = (r) => {
     issueDate: str(r.issue_date).slice(0, 10), dueDate: str(r.due_date).slice(0, 10), createdDate: str(r.created_at), currency: r.currency || str(r.invoice_snapshot?.currency).toUpperCase() || "",
     itemCount: items.length, taxMode: r.tax_mode || "split", taxRate: num(r.tax_rate), discountType: r.discount_type || "percent", discount: num(r.discount), notes: str(r.notes), terms: str(r.terms), status: r.status || "Pending", isDraft: !!r.is_draft,
     reminder: { enabled: !!r.reminder_enabled, language: r.reminder_language === "hi" ? "hi" : "en" },
+    upiId: str(r.invoice_snapshot?.upiId),
+    shareUpiPayment: r.invoice_snapshot?.shareUpiPayment === true,
     items: restoredItems,
   };
 };
@@ -418,6 +422,8 @@ export async function saveInvoiceToServer(inv, { issueInvoice = false } = {}) {
     items: (inv.items || []).map((i) => ({
       description: str(i.description), quantity: num(i.quantity), rate: num(i.rate),
       ...(i.gstRate === "" || i.gstRate === undefined || i.gstRate === null ? {} : { gst_rate: num(i.gstRate) }),
+      ...(str(i.hsnSac) ? { hsn_sac_code: str(i.hsnSac) } : {}),
+      unit_code: str(i.unitCode) || "OTH",
     })),
     tax_mode: inv.taxMode === "igst" ? "igst" : "split",
     tax_rate: num(inv.taxRate),

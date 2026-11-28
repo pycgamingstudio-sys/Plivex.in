@@ -65,10 +65,10 @@ const initialInvoice = {
   client: { name: "", company: "", email: "", phone: "", gstin: "", address: "" },
   number: "", issueDate: "", dueDate: "", currency: "", globalDraftRequestId: crypto.randomUUID(),
   items: [
-    { id: "item-1", description: "", quantity: "", rate: "", gstRate: 18 },
+    { id: "item-1", description: "", quantity: "", rate: "", gstRate: 18, unitCode: "OTH" },
   ],
   taxRate: 18, taxMode: "split", discountType: "percent", discount: "",
-  notes: "", terms: "", upiId: "", design: "classic",
+  notes: "", terms: "", upiId: "", shareUpiPayment: false, design: "classic",
 };
 
 const inputClass = "plivex-form-field mt-1.5 min-h-10 w-full rounded-xl border border-border bg-card px-3 py-2.5 text-[13px] leading-5 text-foreground shadow-[0_1px_2px_rgba(15,23,42,.025)] transition-[border-color,box-shadow] placeholder:text-muted-foreground/65 focus:border-primary focus:ring-2 focus:ring-primary/10";
@@ -198,7 +198,7 @@ function InvoiceEditor({ invoice, setInvoice, user, workspaceTaxProfile, globalT
     if (key === "description") onClearError(`item.${id}.description`);
     if (key === "rate") onClearError(`item.${id}.rate`);
   };
-  const addItem = () => { const id = `item-${Date.now()}`; setInvoice((old) => ({ ...old, items: [...old.items, { id, description: "", quantity: "", rate: "", gstRate: old.taxRate }] })); onToast("Line item added"); };
+  const addItem = () => { const id = `item-${Date.now()}`; setInvoice((old) => ({ ...old, items: [...old.items, { id, description: "", quantity: "", rate: "", gstRate: old.taxRate, unitCode: "OTH" }] })); onToast("Line item added"); };
   const duplicateItem = (item) => { const id = `item-${Date.now()}`; setInvoice((old) => ({ ...old, items: [...old.items, { ...item, id, description: `${item.description} (copy)` }] })); onToast("Line item duplicated"); };
   const deleteItem = (id) => { if (invoice.items.length === 1) { onToast("Keep at least one line item", "info"); return; } setInvoice((old) => ({ ...old, items: old.items.filter((item) => item.id !== id) })); onToast("Line item removed", "info"); };
   const uploadImage = (event, key) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { setInvoice((old) => ({ ...old, [key]: String(reader.result) })); onToast(`${key === "logo" ? "Logo" : "Signature"} added`); }; reader.readAsDataURL(file); };
@@ -217,7 +217,7 @@ function InvoiceEditor({ invoice, setInvoice, user, workspaceTaxProfile, globalT
       </SectionCard>
       <SectionCard icon={CalendarDays} eyebrow="Control the details" title="Invoice settings">
         <div className="grid gap-3 sm:grid-cols-2"><Field label="Invoice no."><input data-testid="input-invoice-number" className={inputClass} value={invoice.number} onChange={(e) => setInvoice((old) => ({ ...old, number: e.target.value }))} placeholder="INV-0001 (optional)" /></Field>{!canUseMultiCurrency ? <Field label={`Workspace base currency · ${baseCurrencyCode || invoice.currency}`}><div data-testid="workspace-base-currency" className={`${inputClass} flex min-h-10 items-center justify-between gap-2 bg-muted/40`}><span className="font-semibold">{baseCurrencyCode || invoice.currency}</span><span className="text-[10px] text-muted-foreground">Included on every plan</span></div><p className="mt-1.5 text-[10px] leading-4 text-muted-foreground">Invoices always use your Workspace's verified base currency. Additional currencies are a separate feature.</p>{!isGlobalWorkspace && <button type="button" onClick={onLocked} className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline"><LockKeyhole className="h-3 w-3" />Unlock additional currencies</button>}</Field> : <Field label="Currency"><select data-testid="select-currency" className={inputClass} value={invoice.currency} onChange={(e) => setInvoice((old) => ({ ...old, currency: e.target.value }))}>{SUPPORTED_CURRENCIES.map((currency) => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select></Field>}<Field label="Issue date" error={errors.issueDate}><input data-testid="input-issue-date" type="date" onClick={openPicker} className={withErrorClass(dateInputClass, errors.issueDate)} value={invoice.issueDate} onChange={(e) => { setInvoice((old) => ({ ...old, issueDate: e.target.value })); if (e.target.value) onClearError("issueDate"); }} /></Field><Field label="Due date"><input data-testid="input-due-date" type="date" min={invoice.issueDate || undefined} onClick={openPicker} className={dateInputClass} value={invoice.dueDate} onChange={(e) => setInvoice((old) => ({ ...old, dueDate: e.target.value }))} /></Field></div>
-        {!isGlobalWorkspace && <div className="mt-3"><Field label="Your UPI ID / VPA" hint="Optional · adds a pay QR"><input data-testid="input-upi-id" className={inputClass} value={invoice.upiId || ""} onChange={(e) => setInvoice((old) => ({ ...old, upiId: e.target.value }))} placeholder="9876543210@paytm" /></Field></div>}
+        {!isGlobalWorkspace && <div className="mt-3"><Field label="Your UPI ID / VPA" hint="Optional · adds a pay QR"><input data-testid="input-upi-id" className={inputClass} value={invoice.upiId || ""} onChange={(e) => setInvoice((old) => ({ ...old, upiId: e.target.value }))} placeholder="9876543210@paytm" /></Field><label className="mt-2 flex items-start gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={invoice.shareUpiPayment === true} onChange={(e) => setInvoice((old) => ({ ...old, shareUpiPayment: e.target.checked }))} /><span>Show UPI pay link and QR on the customer invoice-share page</span></label></div>}
       </SectionCard>
       <SectionCard icon={FileText} eyebrow="What you did" title="Line items" action={<span className="font-mono-ui text-[10px] text-muted-foreground">{invoice.items.length.toString().padStart(2, "0")} items</span>}>
         <div className="space-y-3">
@@ -230,6 +230,7 @@ function InvoiceEditor({ invoice, setInvoice, user, workspaceTaxProfile, globalT
                     {isGlobalWorkspace ? <input value={item.description} onChange={(event) => { updateItem(item.id, "description", event.target.value); onClearError(`item.${item.id}.description`); }} placeholder="Product or service description" className={withErrorClass(itemDescInputClass, errors[`item.${item.id}.description`])} /> : <HSNAutocomplete value={item.description} onChange={(v) => { updateItem(item.id, "description", v); onClearError(`item.${item.id}.description`); }} onSelect={(s) => { updateItem(item.id, "description", s.description); updateItem(item.id, "gstRate", s.gst_rate); updateItem(item.id, "hsnSac", s.hsn_code); onToast(`HSN ${s.hsn_code} · ${s.gst_rate}% applied`); }} placeholder="Item name — type to search HSN" className={withErrorClass(itemDescInputClass, errors[`item.${item.id}.description`])} style={{ flex: "1 1 auto", minHeight: "42px", width: "100%" }} />}
                   </Field>
                   {!isGlobalWorkspace && item.hsnSac && <p className="mt-1 text-[10px] text-muted-foreground">HSN/SAC: {item.hsnSac}</p>}
+                  {!isGlobalWorkspace && <label className="mt-2 flex items-center gap-1 text-[10px] text-muted-foreground">Unit<select className="rounded-md border border-border bg-background px-2 py-1 text-[10px]" value={item.unitCode || "OTH"} onChange={(e) => updateItem(item.id, "unitCode", e.target.value)}>{["OTH","NOS","KGS","GMS","LTR","MLT","MTR","MTS","PCS","BOX","SET","HRS","DZN"].map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select></label>}
                 </div>
               </div>
               <div className="flex items-center gap-2 w-full">

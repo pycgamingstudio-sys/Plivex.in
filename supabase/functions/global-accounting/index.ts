@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { isValidIsoDate } from "../../../src/global/date-validation.js";
 import { authenticateGlobal, globalCorsHeaders, globalJson, isGlobalOriginAllowed } from "../_shared/global.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -11,7 +12,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function validDate(value: unknown): value is string {
-  return typeof value === "string" && DATE.test(value) && !Number.isNaN(Date.parse(value));
+  return isValidIsoDate(value);
 }
 function validUuid(value: unknown): value is string {
   return typeof value === "string" && UUID.test(value);

@@ -1,10 +1,14 @@
 import { useCallback,useEffect,useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/api/backendClient";
+import WorkspaceAccountingReports from "./WorkspaceAccountingReports";
 import { Landmark,Upload,BookOpen,ArrowLeftRight } from "lucide-react";
 const field="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm";
 const button="rounded-lg bg-violet-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50";
 const outline="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50";
+const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
+const currentMonth=()=>today().slice(0,7);
+const monthBounds=value=>{const [y,m]=value.split("-").map(Number);return {start:value+"-01",end:new Date(Date.UTC(y,m,0)).toISOString().slice(0,10)};};
 function parseCSV(text){
  const rows=[];let row=[],cell="",quoted=false;
  for(let i=0;i<text.length;i++){const ch=text[i];if(ch==='"'&&quoted&&text[i+1]==='"'){cell+='"';i++;}else if(ch==='"'){quoted=!quoted;}else if(ch===','&&!quoted){row.push(cell);cell="";}else if((ch==='\n'||ch==='\r')&&!quoted){if(ch==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(x=>x.trim()))rows.push(row);row=[];cell="";}else cell+=ch;}
@@ -16,31 +20,36 @@ function parseCSV(text){
 }
 export default function WorkspaceBankAccounting(){
  const {user}=useAuth();const workspaceId=user?.workspace_id;const baseCurrency=user?.currency_code||"";
- const [data,setData]=useState({bank_accounts:[],imports:[],transactions:[],chart_accounts:[]});const [journals,setJournals]=useState([]);const [rates,setRates]=useState([]);const [fx,setFx]=useState([]);
+ const [data,setData]=useState({bank_accounts:[],imports:[],transactions:[],chart_accounts:[]});const [journals,setJournals]=useState([]);const [rates,setRates]=useState([]);const [fx,setFx]=useState([]);const [periods,setPeriods]=useState([]);const [periodMonth,setPeriodMonth]=useState(currentMonth());const [periodNotes,setPeriodNotes]=useState("");const [reopenReason,setReopenReason]=useState("");
  const [accountForm,setAccountForm]=useState({bank:"",name:"",last4:"",currency:baseCurrency,chart:"",opening:"0"});
  const [statement,setStatement]=useState({account:"",start:"",end:"",opening:"0",closing:"0"});const [file,setFile]=useState(null);
- const [journal,setJournal]=useState({date:new Date().toISOString().slice(0,10),description:"Manual journal entry",debitAccount:"",creditAccount:"",amount:"",currency:baseCurrency});
+ const [journal,setJournal]=useState({date:today(),description:"Manual journal entry",debitAccount:"",creditAccount:"",amount:"",currency:baseCurrency});
  const [fxForm,setFxForm]=useState({from:"",to:baseCurrency,rate:"",date:new Date().toISOString().slice(0,10),source:"manual"});
  const [busy,setBusy]=useState(false);const [error,setError]=useState("");const [notice,setNotice]=useState("");
+ const [journalKey,setJournalKey]=useState(()=>crypto.randomUUID());const [statementKey,setStatementKey]=useState(()=>crypto.randomUUID());
  const rpc=async(name,args)=>{const {data,error}=await supabase.rpc(name,args);if(error)throw error;if(data?.ok===false)throw new Error(data.reason||"Accounting request failed.");return data;};
  const load=useCallback(async()=>{
   if(!workspaceId)return;
-  const [b,j,r,f]=await Promise.all([
+  const [b,j,r,f,p]=await Promise.all([
    rpc("main_workspace_list_bank_data",{p_workspace_id:workspaceId}),
    rpc("main_workspace_list_journal_entries",{p_workspace_id:workspaceId}),
    rpc("main_workspace_list_fx_rates",{p_workspace_id:workspaceId}),
-   rpc("main_workspace_fx_reconciliation",{p_workspace_id:workspaceId})
+   rpc("main_workspace_fx_reconciliation",{p_workspace_id:workspaceId}),
+   rpc("main_workspace_list_accounting_periods",{p_workspace_id:workspaceId})
   ]);
-  setData({bank_accounts:b.bank_accounts||[],imports:b.imports||[],transactions:b.transactions||[],chart_accounts:b.chart_accounts||[]});setJournals(j.entries||[]);setRates(r.rates||[]);setFx(f.accounts||[]);
+  setData({bank_accounts:b.bank_accounts||[],imports:b.imports||[],transactions:b.transactions||[],chart_accounts:b.chart_accounts||[]});setJournals(j.entries||[]);setRates(r.rates||[]);setFx(f.accounts||[]);setPeriods(p.periods||[]);
  },[workspaceId]);
  useEffect(()=>{if(["admin","manager","accountant"].includes(user?.role))load().catch(e=>setError(e.message));},[load,user?.role]);
- const run=async(fn,msg)=>{setBusy(true);setError("");setNotice("");try{await fn();setNotice(msg);await load();}catch(e){setError(e.message||"Operation failed.");}finally{setBusy(false);}};
+ useEffect(()=>{if(baseCurrency)setJournal(v=>({...v,currency:baseCurrency}));},[baseCurrency]);
+ const run=async(fn,msg)=>{setBusy(true);setError("");setNotice("");try{await fn();setNotice(msg);await load();return true;}catch(e){setError(e.message||"Operation failed.");return false;}finally{setBusy(false);}};
  const createAccount=e=>{e.preventDefault();return run(()=>rpc("main_workspace_create_bank_account",{p_workspace_id:workspaceId,p_bank_name:accountForm.bank,p_account_name:accountForm.name,p_last4:accountForm.last4,p_currency_code:accountForm.currency,p_chart_account_id:accountForm.chart,p_opening_balance:Number(accountForm.opening)}),"Bank account saved.");};
- const importCsv=async e=>{e.preventDefault();if(!file){setError("Choose a CSV statement file.");return;}if(file.size>5*1024*1024){setError("CSV file must be 5 MB or smaller.");return;}await run(async()=>{const rows=parseCSV(await file.text());const result=await rpc("main_workspace_import_bank_statement",{p_workspace_id:workspaceId,p_bank_account_id:statement.account,p_rows:rows,p_opening_balance:Number(statement.opening),p_closing_balance:Number(statement.closing),p_start:statement.start||null,p_end:statement.end||null,p_idempotency_key:crypto.randomUUID()});await rpc("main_workspace_suggest_bank_matches",{p_workspace_id:workspaceId,p_import_id:result.import_id});await rpc("main_workspace_reconcile_bank_import",{p_workspace_id:workspaceId,p_import_id:result.import_id});setFile(null);},"Statement imported; suggestions and reconciliation status updated.");};
+ const importCsv=async e=>{e.preventDefault();if(!file){setError("Choose a CSV statement file.");return;}if(file.size>5*1024*1024){setError("CSV file must be 5 MB or smaller.");return;}const ok=await run(async()=>{const rows=parseCSV(await file.text());const result=await rpc("main_workspace_import_bank_statement",{p_workspace_id:workspaceId,p_bank_account_id:statement.account,p_rows:rows,p_opening_balance:Number(statement.opening),p_closing_balance:Number(statement.closing),p_start:statement.start||null,p_end:statement.end||null,p_idempotency_key:statementKey});await rpc("main_workspace_suggest_bank_matches",{p_workspace_id:workspaceId,p_import_id:result.import_id});await rpc("main_workspace_reconcile_bank_import",{p_workspace_id:workspaceId,p_import_id:result.import_id});},"Statement imported; suggestions and reconciliation status updated.");if(ok){setFile(null);setStatementKey(crypto.randomUUID());}};
  const confirmMatch=id=>run(()=>rpc("main_workspace_confirm_bank_match",{p_workspace_id:workspaceId,p_transaction_id:id}),"Bank match confirmed. Invoice payment status is not changed automatically.");
  const reconcile=id=>run(()=>rpc("main_workspace_reconcile_bank_import",{p_workspace_id:workspaceId,p_import_id:id}),"Statement reconciliation recalculated.");
- const createJournal=e=>{e.preventDefault();const amount=Number(journal.amount);return run(()=>rpc("main_workspace_create_journal_entry",{p_workspace_id:workspaceId,p_entry_date:journal.date,p_description:journal.description,p_currency_code:journal.currency,p_idempotency_key:crypto.randomUUID(),p_lines:[{account_id:journal.debitAccount,debit:amount,credit:0,memo:"Debit"},{account_id:journal.creditAccount,debit:0,credit:amount,memo:"Credit"}]}),"Balanced journal draft created. Post it after review.");};
+ const createJournal=async e=>{e.preventDefault();const amount=Number(journal.amount);const ok=await run(()=>rpc("main_workspace_create_journal_entry",{p_workspace_id:workspaceId,p_entry_date:journal.date,p_description:journal.description,p_currency_code:journal.currency,p_idempotency_key:journalKey,p_lines:[{account_id:journal.debitAccount,debit:amount,credit:0,memo:"Debit"},{account_id:journal.creditAccount,debit:0,credit:amount,memo:"Credit"}]}),"Balanced journal draft created. Post it after review.");if(ok)setJournalKey(crypto.randomUUID());};
  const postJournal=id=>run(()=>rpc("main_workspace_post_journal_entry",{p_workspace_id:workspaceId,p_entry_id:id}),"Journal entry posted.");
+ const closePeriod=()=>{const bounds=monthBounds(periodMonth);return run(()=>rpc("main_workspace_close_accounting_period",{p_workspace_id:workspaceId,p_period_start:bounds.start,p_period_end:bounds.end,p_notes:periodNotes}),"Accounting period closed. New journals and postings in this month are now blocked.");};
+ const reopenPeriod=start=>{if(reopenReason.trim().length<5){setError("Enter a reopening reason of at least 5 characters.");return;}return run(()=>rpc("main_workspace_reopen_accounting_period",{p_workspace_id:workspaceId,p_period_start:start,p_reason:reopenReason.trim()}),"Accounting period reopened. Journal posting is allowed again for this month.");};
  const saveFx=e=>{e.preventDefault();return run(()=>rpc("main_workspace_save_fx_rate",{p_workspace_id:workspaceId,p_from_currency:fxForm.from,p_to_currency:fxForm.to,p_rate:Number(fxForm.rate),p_effective_date:fxForm.date,p_source:fxForm.source}),"FX rate snapshot saved.");};
  if(!["admin","manager","accountant"].includes(user?.role))return null;
  return <div className="space-y-5">
@@ -54,9 +63,15 @@ export default function WorkspaceBankAccounting(){
   </section>
   <section className="rounded-2xl border bg-white p-4 sm:p-5">
    <div className="flex items-center gap-2"><BookOpen className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">Double-entry accounting</h2></div>
-   <p className="mt-1 text-xs text-slate-500">Manual journal drafts require at least two valid chart accounts and equal debits/credits before posting. Posted entries are immutable through this workflow.</p>
-   <form onSubmit={createJournal} className="mt-4 grid gap-2 sm:grid-cols-2"><input className={field} required value={journal.description} onChange={e=>setJournal(v=>({...v,description:e.target.value}))} placeholder="Journal description"/><input className={field} type="date" required value={journal.date} onChange={e=>setJournal(v=>({...v,date:e.target.value}))}/><select className={field} required value={journal.debitAccount} onChange={e=>setJournal(v=>({...v,debitAccount:e.target.value}))}><option value="">Debit account</option>{data.chart_accounts.map(a=><option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select><select className={field} required value={journal.creditAccount} onChange={e=>setJournal(v=>({...v,creditAccount:e.target.value}))}><option value="">Credit account</option>{data.chart_accounts.map(a=><option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select><input className={field} type="number" min="0.01" step="0.01" required placeholder={"Amount ("+journal.currency+")"} value={journal.amount} onChange={e=>setJournal(v=>({...v,amount:e.target.value}))}/><select className={field} value={journal.currency} onChange={e=>setJournal(v=>({...v,currency:e.target.value}))}>{["INR","USD","GBP","AED","CAD","AUD","SGD"].map(x=><option key={x}>{x}</option>)}</select><button className={button} disabled={busy||!journal.debitAccount||!journal.creditAccount||journal.debitAccount===journal.creditAccount}>Create balanced draft</button></form>
+   <p className="mt-1 text-xs text-slate-500">Manual journal drafts require at least two valid chart accounts and equal debits/credits. Journals are recorded only in the Main Workspace base currency; foreign-currency bank statements remain separately reconciled using dated FX evidence.</p>
+   <form onSubmit={createJournal} className="mt-4 grid gap-2 sm:grid-cols-2"><input className={field} required value={journal.description} onChange={e=>setJournal(v=>({...v,description:e.target.value}))} placeholder="Journal description"/><input className={field} type="date" required value={journal.date} onChange={e=>setJournal(v=>({...v,date:e.target.value}))}/><select className={field} required value={journal.debitAccount} onChange={e=>setJournal(v=>({...v,debitAccount:e.target.value}))}><option value="">Debit account</option>{data.chart_accounts.map(a=><option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select><select className={field} required value={journal.creditAccount} onChange={e=>setJournal(v=>({...v,creditAccount:e.target.value}))}><option value="">Credit account</option>{data.chart_accounts.map(a=><option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select><input className={field} type="number" min="0.01" step="0.01" required placeholder={"Amount ("+journal.currency+")"} value={journal.amount} onChange={e=>setJournal(v=>({...v,amount:e.target.value}))}/><select className={field} value={baseCurrency} disabled><option value={baseCurrency}>{baseCurrency||"Workspace base currency"}</option></select><button className={button} disabled={busy||!journal.debitAccount||!journal.creditAccount||journal.debitAccount===journal.creditAccount}>Create balanced draft</button></form>
    <div className="mt-4 space-y-2">{journals.map(j=><div key={j.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-2 text-xs"><span>{j.entry_number} · {j.entry_date} · {j.description} · {j.currency_code} · Dr {j.debits} / Cr {j.credits} · {j.status}</span>{j.status==="draft"&&<button className={outline} disabled={busy} onClick={()=>postJournal(j.id)}>Post journal</button>}</div>)}</div>
+  </section>
+  <section className="rounded-2xl border bg-white p-4 sm:p-5">
+   <div className="flex items-center gap-2"><BookOpen className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">Monthly accounting close</h2></div>
+   <p className="mt-1 text-xs text-slate-500">Close a full calendar month after all journal drafts are posted. A closed month blocks new journal drafts and posting; reopening requires an administrator reason and is audit logged.</p>
+   <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_2fr_auto]"><input className={field} type="month" value={periodMonth} onChange={e=>setPeriodMonth(e.target.value)}/><input className={field} maxLength={1000} placeholder="Close note (optional)" value={periodNotes} onChange={e=>setPeriodNotes(e.target.value)}/>{user?.role==="admin"&&<button className={button} disabled={busy||!periodMonth} onClick={closePeriod}>Close month</button>}</div>
+   <div className="mt-3">{user?.role==="admin"&&periods.some(p=>p.status==="closed")&&<input className={field+" mb-2"} maxLength={500} placeholder="Reason required to reopen a closed month" value={reopenReason} onChange={e=>setReopenReason(e.target.value)}/>}<div className="space-y-2">{periods.map(p=><div key={p.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-2 text-xs"><span><strong>{p.period_start} – {p.period_end}</strong> · {p.status} · {p.posted_entry_count} posted journals · Dr {p.debit_total} / Cr {p.credit_total}</span>{p.status==="closed"&&user?.role==="admin"&&<button className={outline} disabled={busy} onClick={()=>reopenPeriod(p.period_start)}>Reopen with reason</button>}</div>)}{!periods.length&&<p className="text-xs text-slate-500">No accounting periods have been closed yet.</p>}</div></div>
   </section>
   <section className="rounded-2xl border bg-white p-4 sm:p-5">
    <div className="flex items-center gap-2"><ArrowLeftRight className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">FX rates & reconciliation</h2></div>
@@ -65,6 +80,7 @@ export default function WorkspaceBankAccounting(){
    <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[500px] text-xs"><thead><tr className="border-b text-slate-500"><th className="py-2">Account</th><th>Balance</th><th>FX rate</th><th>Base equivalent</th></tr></thead><tbody>{fx.map(a=><tr key={a.bank_account_id} className="border-b"><td className="py-2">{a.bank_name} · {a.account_name}</td><td>{a.currency_code} {Number(a.balance).toLocaleString()}</td><td>{a.fx_rate??"Missing"}</td><td>{a.base_equivalent==null?"—":Number(a.base_equivalent).toLocaleString()+" "+a.base_currency}</td></tr>)}</tbody></table></div>
    <div className="mt-3 space-y-1">{rates.slice(0,10).map(r=><p key={r.id} className="text-xs text-slate-500">{r.from_currency}/{r.to_currency} · {r.rate} · {r.effective_date} · {r.source}</p>)}</div>
   </section>
+  <WorkspaceAccountingReports workspaceId={workspaceId} currency={baseCurrency} accounts={data.chart_accounts}/>
   {(error||notice)&&<p role={error?"alert":"status"} className={"rounded-lg p-3 text-sm "+(error?"bg-red-50 text-red-700":"bg-emerald-50 text-emerald-700")}>{error||notice}</p>}
  </div>;
 }

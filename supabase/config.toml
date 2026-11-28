@@ -40,6 +40,10 @@ verify_jwt = false
 [functions.global-accounting]
 verify_jwt = true
 
+# India TDS, IRN/e-invoice and e-way bill records require a verified user JWT.
+[functions.workspace-india-compliance]
+verify_jwt = true
+
 # Main Workspace platform endpoint authenticates workspace actions in-handler.
 # Public signing links and API-key/MCP calls are authenticated by one-time hashes.
 [functions.workspace-platform]

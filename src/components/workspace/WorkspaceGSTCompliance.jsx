@@ -1,6 +1,7 @@
 import { useCallback,useEffect,useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/api/backendClient";
+import WorkspaceIndiaComplianceRecords from "@/components/workspace/WorkspaceIndiaComplianceRecords";
 import { FileSpreadsheet,Download,CalendarDays,RefreshCw,Scale } from "lucide-react";
 const field="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm";
 const button="rounded-lg bg-violet-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50";
@@ -38,7 +39,7 @@ export default function WorkspaceGSTCompliance(){
  const compute=()=>run(async()=>{const d=await rpc("main_workspace_compute_gstr3b",{p_workspace_id:workspaceId,p_period_start:start,p_period_end:end});setWorksheet(d.snapshot);downloadJson("Plivex-GSTR3B-worksheet-"+start+"-"+end+".json",d.snapshot);},"GSTR-3B worksheet generated and exported. It is an estimate, not a filed return.");
  const calendar=()=>run(()=>rpc("main_workspace_generate_gst_calendar",{p_workspace_id:workspaceId,p_period_start:start.slice(0,7)+"-01"}),"GST calendar generated.");
  if(user?.country_code!=="IN"||!["admin","manager","accountant"].includes(user?.role))return null;
- return <section className="rounded-2xl border bg-white p-4 sm:p-5">
+ return <><section className="rounded-2xl border bg-white p-4 sm:p-5">
   <div className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5 text-violet-700"/><h2 className="font-semibold">India GST returns & reconciliation</h2></div>
   <p className="mt-1 text-xs text-slate-500">India Main Workspace only. Prepare GSTR-1 JSON, import GSTR-2B CSV, manually review ITC matches and calculate a GSTR-3B worksheet. This module does not connect to GSTN or file returns.</p>
   <div className="mt-4 grid gap-2 sm:grid-cols-2"><label className="text-xs text-slate-600">Period start<input className={field+" mt-1"} type="date" value={start} onChange={e=>setStart(e.target.value)}/></label><label className="text-xs text-slate-600">Period end<input className={field+" mt-1"} type="date" value={end} onChange={e=>setEnd(e.target.value)}/></label></div>
@@ -51,5 +52,5 @@ export default function WorkspaceGSTCompliance(){
   {worksheet&&<div className="mt-4 rounded-lg border border-violet-200 bg-violet-50 p-3"><div className="flex items-center gap-2"><Scale className="h-4 w-4 text-violet-700"/><p className="text-sm font-semibold">Latest calculation snapshot</p></div><pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs">{JSON.stringify(worksheet,null,2)}</pre></div>}
   <p className="mt-4 text-xs text-slate-500">Important: GSTR-3B worksheet uses only manually matched, ITC-eligible GSTR-2B lines and calculates tax-head-wise estimates without GSTN cross-head utilisation rules. Verify the figures and applicable due dates with a qualified GST professional before filing.</p>
   {(error||notice)&&<p role={error?"alert":"status"} className={"mt-3 rounded-lg p-2 text-xs "+(error?"bg-red-50 text-red-700":"bg-emerald-50 text-emerald-700")}>{error||notice}</p>}
- </section>;
+ </section><WorkspaceIndiaComplianceRecords workspaceId={workspaceId}/></>;
 }
