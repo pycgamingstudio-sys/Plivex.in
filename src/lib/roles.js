@@ -19,11 +19,11 @@ const ROUTE_PERMISSIONS = {
 };
 
 export const TAB_PERMISSIONS = {
-  admin: ["dashboard", "sales", "purchase", "reports", "crm", "stock", "warehouses", "team"],
-  manager: ["dashboard", "sales", "purchase", "crm", "stock", "warehouses"],
-  employee: ["dashboard", "sales", "crm"],
-  storekeeper: ["dashboard", "stock", "warehouses"],
-  accountant: ["dashboard", "sales", "purchase", "reports"],
+  admin: ["dashboard", "sales", "purchase", "books", "ai", "reports", "crm", "stock", "warehouses", "team"],
+  manager: ["dashboard", "sales", "purchase", "books", "ai", "crm", "stock", "warehouses"],
+  employee: ["dashboard", "sales", "ai", "crm"],
+  storekeeper: ["dashboard", "ai", "stock", "warehouses"],
+  accountant: ["dashboard", "sales", "purchase", "books", "ai", "reports"],
 };
 
 export function normalizeRole(role) {
