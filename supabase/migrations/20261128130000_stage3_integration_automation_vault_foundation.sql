@@ -337,8 +337,8 @@ begin
     from public.workspace_webhook_events
     where status in ('pending','retrying') and next_attempt_at <= now()
     order by received_at, id
-    for update skip locked
     limit p_limit
+    for update skip locked
   loop
     v_attempt := v_event.attempt_count + 1;
     begin
@@ -425,8 +425,8 @@ begin
     from public.workspace_event_outbox
     where processed_at is null
     order by created_at, id
-    for update skip locked
     limit p_limit
+    for update skip locked
   loop
     for v_rule in
       select id, name, conditions, action_type, action_config
