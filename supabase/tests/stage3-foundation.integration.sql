@@ -10,7 +10,8 @@ declare
     'workspace_automation_rules',
     'workspace_automation_runs',
     'workspace_automation_tasks',
-    'workspace_documents'
+    'workspace_documents',
+    'workspace_audit_events'
   ];
   v_trigger text;
 begin
@@ -67,7 +68,8 @@ begin
 
   if not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_webhook_deliveries_retry_idx')
     or not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_automation_tasks_open_idx')
-    or not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_documents_workspace_idx') then
+    or not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_documents_workspace_idx')
+    or not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_audit_events_correlation_idx') then
     raise exception 'Stage 3 retry, automation task or document index missing';
   end if;
 end $$;
