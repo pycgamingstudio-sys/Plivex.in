@@ -1,10 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { isAllowedWebhookEvent, verifyCustomWebhookSignature, verifyShopifyWebhookSignature } from "../_shared/webhook-security.ts";
 
 const ORIGINS = new Set(["https://plivex.in", "https://www.plivex.in", "https://plivex.netlify.app"]);
 const EVENT_TYPES = new Set(["invoice.created","invoice.status_changed","lead.created","lead.stage_changed","expense.created","stock.low_stock"]);
 const MIME_TYPES = new Set(["application/pdf","image/jpeg","image/png","image/webp","text/csv"]);
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const MAX_REQUEST_BYTES = 14 * 1024 * 1024;
+const MAX_WEBHOOK_BYTES = 200 * 1024;
 const allowedOrigin = (origin: string | null) => !origin || ORIGINS.has(origin) || /^https:\/\/(?:[a-z0-9-]+\.)?[a-z0-9-]+\.(?:pages|workers)\.dev$/.test(origin);
 const headers = (origin: string | null) => ({
   "Access-Control-Allow-Origin": origin && allowedOrigin(origin) ? origin : "https://plivex.in",
@@ -84,6 +86,88 @@ async function ensureVaultBucket(admin: any) {
   });
   if (createError && !String(createError.message || "").toLowerCase().includes("already exists")) throw new Error("VAULT_BUCKET_CREATE_FAILED");
   return bucket;
+}
+
+async function handleWebhookRequest(req: Request) {
+  if (req.method !== "POST") return json({ ok: false, error: "METHOD_NOT_ALLOWED" }, 405);
+  const match = new URL(req.url).pathname.match(/\/webhooks\/([0-9a-f-]{36})$/i);
+  if (!match) return json({ ok: false, error: "WEBHOOK_SUBSCRIPTION_NOT_FOUND" }, 404);
+  const declaredLength = Number(req.headers.get("content-length") || 0);
+  if (declaredLength > MAX_WEBHOOK_BYTES) return json({ ok: false, error: "WEBHOOK_PAYLOAD_TOO_LARGE" }, 413);
+  const rawBody = await req.text();
+  if (new TextEncoder().encode(rawBody).byteLength > MAX_WEBHOOK_BYTES) return json({ ok: false, error: "WEBHOOK_PAYLOAD_TOO_LARGE" }, 413);
+  let payload: any;
+  try { payload = JSON.parse(rawBody); } catch { return json({ ok: false, error: "WEBHOOK_INVALID_JSON" }, 400); }
+  if (!isObject(payload)) return json({ ok: false, error: "WEBHOOK_INVALID_PAYLOAD" }, 400);
+
+  const url = Deno.env.get("SUPABASE_URL");
+  const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !service) return json({ ok: false, error: "WEBHOOK_BACKEND_UNAVAILABLE" }, 503);
+  const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
+  const subscriptionId = match[1];
+  const { data: subscription, error: subscriptionError } = await admin.from("workspace_webhook_subscriptions")
+    .select("id,workspace_id,provider_key,event_types,is_active")
+    .eq("id", subscriptionId).maybeSingle();
+  if (subscriptionError || !subscription || !subscription.is_active) return json({ ok: false, error: "WEBHOOK_SUBSCRIPTION_NOT_FOUND" }, 404);
+
+  const { data: secret, error: secretError } = await admin.rpc("main_workspace_get_webhook_secret", { p_subscription_id: subscription.id });
+  if (secretError || typeof secret !== "string" || secret.length < 32) return json({ ok: false, error: "WEBHOOK_SECRET_UNAVAILABLE" }, 503);
+
+  const provider = String(subscription.provider_key);
+  const eventType = clean(provider === "shopify" ? req.headers.get("x-shopify-topic") : req.headers.get("x-plivex-event-type"), 120);
+  const eventId = clean(provider === "shopify" ? req.headers.get("x-shopify-webhook-id") : req.headers.get("x-plivex-event-id"), 200);
+  if (!eventId || !isAllowedWebhookEvent(provider, eventType, subscription.event_types)) {
+    return json({ ok: false, error: "WEBHOOK_EVENT_NOT_ALLOWED" }, 400);
+  }
+
+  let eventTimestamp: string | null = null;
+  if (provider === "shopify") {
+    const signature = clean(req.headers.get("x-shopify-hmac-sha256"), 128);
+    if (!await verifyShopifyWebhookSignature(secret, signature, rawBody)) return json({ ok: false, error: "WEBHOOK_SIGNATURE_INVALID" }, 401);
+    const triggeredAt = req.headers.get("x-shopify-triggered-at");
+    if (triggeredAt && Number.isFinite(Date.parse(triggeredAt))) eventTimestamp = new Date(triggeredAt).toISOString();
+  } else {
+    const timestamp = clean(req.headers.get("x-plivex-timestamp"), 10);
+    const signature = clean(req.headers.get("x-plivex-signature"), 80);
+    const verified = await verifyCustomWebhookSignature(secret, timestamp, eventId, signature, rawBody);
+    if (!verified.ok) return json({ ok: false, error: verified.code || "WEBHOOK_SIGNATURE_INVALID" }, 401);
+    eventTimestamp = new Date(Number(timestamp) * 1000).toISOString();
+  }
+
+  const payloadHash = await sha256(rawBody);
+  const { data: event, error: insertError } = await admin.from("workspace_webhook_events").insert({
+    workspace_id: subscription.workspace_id,
+    subscription_id: subscription.id,
+    provider_key: provider,
+    provider_event_id: eventId,
+    event_type: eventType,
+    event_timestamp: eventTimestamp,
+    payload,
+    payload_sha256: payloadHash,
+    signature_verified: true,
+  }).select("id,attempt_count,status").single();
+
+  if (insertError) {
+    if (insertError.code === "23505") {
+      const { data: existing } = await admin.from("workspace_webhook_events")
+        .select("id,attempt_count,status").eq("subscription_id", subscription.id).eq("provider_event_id", eventId).maybeSingle();
+      if (existing) {
+        await admin.from("workspace_webhook_attempts").insert({
+          workspace_id: subscription.workspace_id, event_id: existing.id, attempt_no: existing.attempt_count,
+          status: "duplicate", metadata: { provider_key: provider },
+        });
+        return json({ ok: true, duplicate: true, status: existing.status }, 200);
+      }
+    }
+    return json({ ok: false, error: "WEBHOOK_RECEIPT_SAVE_FAILED" }, 503);
+  }
+
+  await admin.from("workspace_webhook_attempts").insert({
+    workspace_id: subscription.workspace_id, event_id: event.id, attempt_no: 0,
+    status: "accepted", metadata: { provider_key: provider },
+  });
+  await admin.from("workspace_webhook_subscriptions").update({ last_received_at: new Date().toISOString() }).eq("id", subscription.id);
+  return json({ ok: true, received: true, status: event.status }, 202);
 }
 
 async function listIntegrations(ctx: any) {
@@ -177,6 +261,7 @@ async function handleVault(ctx: any, body: any) {
 }
 
 Deno.serve(async (req: Request) => {
+  if (new URL(req.url).pathname.includes("/webhooks/")) return await handleWebhookRequest(req);
   const origin = req.headers.get("origin");
   if (!allowedOrigin(origin)) return json({ ok: false, error: "ORIGIN_NOT_ALLOWED" }, 403, origin);
   if (req.method === "OPTIONS") return new Response("ok", { headers: headers(origin) });
@@ -192,6 +277,70 @@ Deno.serve(async (req: Request) => {
     try { body = JSON.parse(rawBody); } catch { return json({ ok: false, error: "INVALID_JSON" }, 400, origin); }
     if (!isObject(body) || typeof body.action !== "string") return json({ ok: false, error: "INVALID_REQUEST" }, 400, origin);
 
+    if (body.action === "webhooks.list") {
+      if (!canManage(ctx.role)) throw new Error("ACCESS_DENIED");
+      const [{ data: subscriptions, error: subscriptionError }, { data: events, error: eventError }] = await Promise.all([
+        ctx.admin.from("workspace_webhook_subscriptions").select("id,provider_key,label,event_types,is_active,last_received_at,created_at").eq("workspace_id", ctx.workspaceId).order("created_at", { ascending: false }),
+        ctx.admin.from("workspace_webhook_events").select("id,subscription_id,provider_key,provider_event_id,event_type,status,attempt_count,next_attempt_at,last_error_code,received_at,processed_at").eq("workspace_id", ctx.workspaceId).order("received_at", { ascending: false }).limit(100),
+      ]);
+      if (subscriptionError || eventError) throw new Error("WEBHOOK_LIST_FAILED");
+      const eventIds = (events || []).map((item: any) => item.id);
+      const { data: attempts, error: attemptsError } = eventIds.length
+        ? await ctx.admin.from("workspace_webhook_attempts").select("id,event_id,attempt_no,status,error_code,occurred_at").eq("workspace_id", ctx.workspaceId).in("event_id", eventIds).order("occurred_at", { ascending: false }).limit(200)
+        : { data: [], error: null };
+      if (attemptsError) throw new Error("WEBHOOK_ATTEMPTS_LIST_FAILED");
+      return json({ ok: true, subscriptions: subscriptions || [], events: events || [], attempts: attempts || [] }, 200, origin);
+    }
+    if (body.action === "webhooks.create") {
+      if (!canManage(ctx.role)) throw new Error("ACCESS_DENIED");
+      const providerKey = clean(body.providerKey, 20);
+      const label = clean(body.label, 100);
+      const eventTypes = Array.isArray(body.eventTypes) ? body.eventTypes : [];
+      if (!["shopify","custom"].includes(providerKey) || label.length < 2 || eventTypes.length < 1 || eventTypes.length > 8
+        || new Set(eventTypes).size !== eventTypes.length
+        || !eventTypes.every((item: unknown) => typeof item === "string" && isAllowedWebhookEvent(providerKey, item, eventTypes))) {
+        throw new Error("INVALID_WEBHOOK_SUBSCRIPTION");
+      }
+      const { data, error } = await ctx.admin.rpc("main_workspace_create_webhook_subscription", {
+        p_workspace_id: ctx.workspaceId, p_user_id: ctx.user.id, p_provider_key: providerKey,
+        p_label: label, p_event_types: eventTypes,
+      });
+      if (error || !data?.ok) throw new Error(data?.error || "WEBHOOK_SUBSCRIPTION_CREATE_FAILED");
+      const baseUrl = Deno.env.get("SUPABASE_URL");
+      if (!baseUrl) throw new Error("WEBHOOK_ENDPOINT_NOT_CONFIGURED");
+      const endpointUrl = baseUrl.replace(/\/$/, "") + "/functions/v1/workspace-stage3/webhooks/" + data.subscription_id;
+      return json({
+        ok: true,
+        subscription: { id: data.subscription_id, provider_key: data.provider_key, event_types: data.event_types },
+        endpointUrl,
+        secret: data.secret,
+        secretShownOnce: true,
+      }, 201, origin);
+    }
+    if (body.action === "webhooks.pause") {
+      if (!canManage(ctx.role)) throw new Error("ACCESS_DENIED");
+      if (typeof body.subscriptionId !== "string" || typeof body.isActive !== "boolean") throw new Error("INVALID_WEBHOOK_SUBSCRIPTION");
+      const { data, error } = await ctx.admin.from("workspace_webhook_subscriptions")
+        .update({ is_active: body.isActive, updated_at: new Date().toISOString() })
+        .eq("workspace_id", ctx.workspaceId).eq("id", body.subscriptionId).select("id,is_active").maybeSingle();
+      if (error || !data) throw new Error("WEBHOOK_SUBSCRIPTION_NOT_FOUND");
+      await writeAudit(ctx, data.is_active ? "webhook.subscription_enabled" : "webhook.subscription_paused", "webhook_subscription", data.id);
+      return json({ ok: true, subscription: data }, 200, origin);
+    }
+    if (body.action === "webhooks.replay") {
+      if (!canManage(ctx.role)) throw new Error("ACCESS_DENIED");
+      if (typeof body.eventId !== "string") throw new Error("INVALID_WEBHOOK_EVENT");
+      const { data, error } = await ctx.admin.from("workspace_webhook_events")
+        .update({ status: "pending", attempt_count: 0, next_attempt_at: new Date().toISOString(), last_error_code: null, processed_at: null })
+        .eq("workspace_id", ctx.workspaceId).eq("id", body.eventId).eq("status", "dead_letter")
+        .select("id").maybeSingle();
+      if (error || !data) throw new Error("WEBHOOK_EVENT_NOT_REPLAYABLE");
+      await ctx.admin.from("workspace_webhook_attempts").insert({
+        workspace_id: ctx.workspaceId, event_id: data.id, attempt_no: 0, status: "accepted", metadata: { manual_replay: true },
+      });
+      await writeAudit(ctx, "webhook.event_replayed", "webhook_event", data.id);
+      return json({ ok: true, eventId: data.id }, 200, origin);
+    }
     if (body.action === "integrations.list") return json(await listIntegrations(ctx), 200, origin);
     if (body.action === "automation.list") {
       if (!canManage(ctx.role)) throw new Error("ACCESS_DENIED");
