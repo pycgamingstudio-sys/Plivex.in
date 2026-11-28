@@ -77,6 +77,9 @@ test("public API write scope is consistent across database, Edge Function and do
   const idempotencyMigration = read("../../../supabase/migrations/20261128140000_stage3_public_api_v1_idempotency.sql");
   const api = read("../../../supabase/functions/workspace-platform/index.ts");
   const docs = read("../../../docs/public-api-v1.md");
+  const webhookMigration = read("../../../supabase/migrations/20261128130000_stage3_integration_automation_vault_foundation.sql");
+  const webhookEdge = read("../../../supabase/functions/workspace-stage3/index.ts");
+  const stage3Ui = read("../../components/workspace/WorkspaceStage3Center.jsx");
   assert.ok(scopeMigration.includes("'leads.write'"));
   assert.ok(scopeMigration.includes("cardinality(scopes) between 1 and 9"));
   assert.ok(idempotencyMigration.includes("main_workspace_api_create_lead"));
@@ -86,4 +89,11 @@ test("public API write scope is consistent across database, Edge Function and do
   assert.ok(api.includes('scope("leads.write")'));
   assert.ok(api.includes('req.headers.get("idempotency-key")'));
   assert.ok(docs.includes("up to nine distinct scopes"));
+  assert.ok(webhookMigration.includes("secret_name text unique"));
+  assert.ok(webhookMigration.includes("provider_key = 'shopify' and secret_name is null"));
+  assert.ok(webhookMigration.includes("if p_provider_key = 'custom' then"));
+  assert.ok(webhookEdge.includes('Deno.env.get("SHOPIFY_API_SECRET")'));
+  assert.ok(webhookEdge.includes("main_workspace_get_webhook_secret"));
+  assert.ok(webhookEdge.includes("WEBHOOK_PROVIDER_UNSUPPORTED"));
+  assert.ok(stage3Ui.includes("SHOPIFY_API_SECRET"));
 });
