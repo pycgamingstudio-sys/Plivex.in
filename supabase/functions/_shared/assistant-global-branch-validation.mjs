@@ -22,3 +22,17 @@ export function validateGlobalBranchAction(action) {
     payload: { name, branch_code: branchCode, address },
   };
 }
+
+export function validateGlobalBranchAgainstContext(action, context) {
+  if (!action || action.type !== "create_global_branch" || !context || context.context_unavailable
+    || !Array.isArray(context.branches)) return { ok: false, reason: "context_unavailable" };
+  const code = action.payload.branch_code.toUpperCase();
+  const name = action.payload.name.trim().toLowerCase();
+  if (context.branches.some((branch) => String(branch?.branch_code || "").toUpperCase() === code)) {
+    return { ok: false, reason: "duplicate_code" };
+  }
+  if (context.branches.some((branch) => String(branch?.name || "").trim().toLowerCase() === name)) {
+    return { ok: false, reason: "duplicate_name" };
+  }
+  return { ok: true, summary: "Create Main Workspace branch " + action.payload.name + " (" + code + "). The owner/admin permission and unique branch code will be checked again at confirmation." };
+}
