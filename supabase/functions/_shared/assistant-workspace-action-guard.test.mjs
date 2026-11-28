@@ -4,6 +4,7 @@ import { GLOBAL_ONLY_ASSISTANT_ACTIONS, isGlobalOnlyAssistantAction } from "./as
 
 test("classifies every Global-only write as Global-only", () => {
   assert.deepEqual([...GLOBAL_ONLY_ASSISTANT_ACTIONS].sort(), [
+    "create_global_branch",
     "create_global_client",
     "create_global_expense",
     "create_global_product",

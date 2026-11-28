@@ -4,6 +4,7 @@ import { validateGlobalInvoicePaymentAction, majorToMinorUnits } from "../_share
 import { validateGlobalClientAction } from "../_shared/assistant-global-client-validation.mjs";
 import { validateGlobalSupplierAction } from "../_shared/assistant-global-supplier-validation.mjs";
 import { validateGlobalStockTransferAction } from "../_shared/assistant-global-stock-transfer-validation.mjs";
+import { validateGlobalBranchAction } from "../_shared/assistant-global-branch-validation.mjs";
 import { validateGlobalExpenseAction } from "../_shared/assistant-global-expense-validation.mjs";
 import { validateGlobalProductAction } from "../_shared/assistant-global-product-validation.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
@@ -156,7 +157,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => null);
     const rawActions = Array.isArray(body?.actions) ? body.actions : [body?.action];
     if (!rawActions.length || rawActions.length > 10) return json({ error: "Please confirm between 1 and 10 valid actions." }, 400, origin);
-    if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_client", "create_global_supplier", "create_global_expense", "create_global_product", "record_global_invoice_payment", "transfer_global_stock"].includes(String(action?.type || "")))) {
+    if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_branch", "create_global_client", "create_global_supplier", "create_global_expense", "create_global_product", "record_global_invoice_payment", "transfer_global_stock"].includes(String(action?.type || "")))) {
       return json({ error: "This Main Workspace action is not connected yet. No legacy India-table write was attempted." }, 403, origin);
     }
     if (!isGlobalWorkspace && rawActions.some((action: any) => isGlobalOnlyAssistantAction(action?.type))) {
@@ -350,6 +351,48 @@ Deno.serve(async (req: Request) => {
         created: [{ type: "create_global_supplier", id: supplier.supplier_id }],
         verification: [{ type: "create_global_supplier", id: supplier.supplier_id, verified }],
         supplier: verified ? { name: record.name, email: record.email || null, phone: record.phone || null } : null,
+      }, 200, origin);
+    }
+    if (actions.some((action: any) => action.type === "create_global_branch")) {
+      if (actions.length !== 1) return json({ error: "Main Workspace branch creation must be confirmed separately." }, 400, origin);
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) {
+        return json({ error: "The branch confirmation key is invalid. Please prepare the branch again." }, 400, origin);
+      }
+      const payload = actions[0].payload;
+      const canonical = JSON.stringify({ type: "create_global_branch", payload });
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+      const requestHash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const { data: branch, error: branchError } = await supabase.rpc("assistant_create_global_branch_idempotent", {
+        p_user_id: user.id, p_workspace_id: workspaceId, p_idempotency_key: idempotencyKey,
+        p_request_hash: requestHash,
+        p_payload: { branchCode: payload.branch_code, name: payload.name, address: payload.address || {} },
+      });
+      if (branchError) {
+        const message = String(branchError.message || "");
+        if (message.includes("PERMISSION_DENIED")) return json({ error: "Only a Main Workspace owner or admin can create branches." }, 403, origin);
+        if (message.includes("IDEMPOTENCY_PAYLOAD_MISMATCH")) return json({ error: "This confirmation key was already used for different branch details. Prepare the branch again." }, 409, origin);
+        console.error("Main Workspace branch creation rejected", { code: branchError.code, userId: user.id });
+        return json({ error: "The branch could not be created. Check its code and details before retrying." }, 400, origin);
+      }
+      if (!branch?.ok || !branch?.branchId) {
+        const code = String(branch?.code || "");
+        return json({ error: code === "ADMIN_REQUIRED" ? "Only a Main Workspace owner or admin can create branches."
+          : code === "INVALID_BRANCH" ? "The branch name, code or address is invalid."
+          : "The Main Workspace branch could not be created." }, code === "ADMIN_REQUIRED" ? 403 : 400, origin);
+      }
+      const { data: list, error: listError } = await supabase.functions.invoke("global-enterprise", {
+        body: { action: "branch.list", workspaceId },
+      });
+      const record = !listError && Array.isArray(list?.branches)
+        ? list.branches.find((item: any) => item?.id === branch.branchId) : null;
+      const verified = Boolean(record && record.branch_code === payload.branch_code && record.name === payload.name);
+      return json({
+        ok: true, verified, duplicate: Boolean(branch.duplicate),
+        reply: verified ? "Main Workspace branch created and verified; its creation was recorded in the audit log."
+          : "The branch service accepted the request, but Plivex could not verify the saved branch. Check the branch list before retrying.",
+        created: [{ type: "create_global_branch", id: branch.branchId }],
+        verification: [{ type: "create_global_branch", id: branch.branchId, verified }],
+        branch: verified ? { id: record.id, name: record.name, branch_code: record.branch_code } : null,
       }, 200, origin);
     }
     if (actions.some((action: any) => action.type === "transfer_global_stock")) {

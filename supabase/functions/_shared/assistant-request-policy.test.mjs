@@ -52,3 +52,9 @@ test("stock transfer requests load authenticated warehouse and inventory context
   assert.equal(result.loadGlobalContext, true);
   assert.equal(result.simpleConversationalTurn, false);
 });
+
+test("branch requests load authenticated Main Workspace branch context", () => {
+  const result = getAssistantRequestPolicy({ isGlobalWorkspace: true, needsGlobalBranchContext: true });
+  assert.equal(result.loadGlobalContext, true);
+  assert.equal(result.simpleConversationalTurn, false);
+});
