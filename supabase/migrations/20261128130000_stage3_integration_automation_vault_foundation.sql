@@ -154,7 +154,6 @@ create index if not exists workspace_documents_workspace_idx
 
 -- Deterministic automation runs entirely in Postgres. No provider API or secret is required.
 create extension if not exists pg_cron with schema pg_catalog;
-create extension if not exists pg_net with schema extensions;
 
 -- These tables are only accessed by authenticated Edge Functions using the service role.
 do $$
