@@ -452,6 +452,49 @@ Deno.serve(async (req: Request) => {
       await writeAudit(ctx, "automation.rule_created", "automation_rule", data.id, { event_type: eventType, trigger_type: triggerType, action_type: "create_task" });
       return json({ ok: true, rule: data }, 201, origin);
     }
+    if (body.action === "automation.preferences.save") {
+      if (!canManage(ctx.role)) throw new Error("ACCESS_DENIED");
+      const timezone = clean(body.timezone || "UTC", 80);
+      const quietStart = clean(body.quietHoursStart || "22:00", 5);
+      const quietEnd = clean(body.quietHoursEnd || "08:00", 5);
+      const escalationEnabled = body.escalationEnabled === true;
+      const escalationAfterHours = Number(body.escalationAfterHours ?? 24);
+      try { new Intl.DateTimeFormat("en", { timeZone: timezone }).format(new Date()); } catch { throw new Error("INVALID_TIMEZONE"); }
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(quietStart) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(quietEnd)
+        || !Number.isInteger(escalationAfterHours) || escalationAfterHours < 1 || escalationAfterHours > 720) {
+        throw new Error("INVALID_AUTOMATION_PREFERENCES");
+      }
+      const { data, error } = await ctx.admin.from("workspace_automation_preferences").upsert({
+        workspace_id: ctx.workspaceId, timezone, quiet_hours_start: quietStart + ":00", quiet_hours_end: quietEnd + ":00",
+        escalation_enabled: escalationEnabled, escalation_after_hours: escalationAfterHours,
+        created_by: ctx.user.id, updated_at: new Date().toISOString(),
+      }, { onConflict: "workspace_id" }).select("timezone,quiet_hours_start,quiet_hours_end,escalation_enabled,escalation_after_hours,updated_at").single();
+      if (error || !data) throw new Error("AUTOMATION_PREFERENCES_SAVE_FAILED");
+      await writeAudit(ctx, "automation.preferences_updated", "automation_preferences", ctx.workspaceId, { timezone, escalation_enabled: escalationEnabled });
+      return json({ ok: true, preferences: data }, 200, origin);
+    }
+    if (body.action === "automation.notification.read") {
+      if (!canUseVault(ctx.role)) throw new Error("ACCESS_DENIED");
+      if (typeof body.notificationId !== "string") throw new Error("INVALID_NOTIFICATION");
+      const { data, error } = await ctx.admin.from("workspace_automation_notifications")
+        .update({ read_at: new Date().toISOString() })
+        .eq("workspace_id", ctx.workspaceId).eq("id", body.notificationId)
+        .select("id,read_at").maybeSingle();
+      if (error || !data) throw new Error("AUTOMATION_NOTIFICATION_NOT_FOUND");
+      await writeAudit(ctx, "automation.notification_read", "automation_notification", data.id);
+      return json({ ok: true, notification: data }, 200, origin);
+    }
+    if (body.action === "automation.replay") {
+      if (!canManage(ctx.role)) throw new Error("ACCESS_DENIED");
+      if (typeof body.eventId !== "string") throw new Error("INVALID_AUTOMATION_EVENT");
+      const { data, error } = await ctx.admin.from("workspace_event_outbox")
+        .update({ processing_status: "pending", attempt_count: 0, next_attempt_at: new Date().toISOString(), processing_error_code: null, processed_at: null })
+        .eq("workspace_id", ctx.workspaceId).eq("id", body.eventId).eq("processing_status", "dead_letter")
+        .select("id").maybeSingle();
+      if (error || !data) throw new Error("AUTOMATION_EVENT_NOT_REPLAYABLE");
+      await writeAudit(ctx, "automation.event_replayed", "automation_event", data.id);
+      return json({ ok: true, eventId: data.id }, 200, origin);
+    }
     if (body.action === "automation.pause") {
       if (!canManage(ctx.role)) throw new Error("ACCESS_DENIED");
       if (typeof body.ruleId !== "string" || typeof body.isActive !== "boolean") throw new Error("INVALID_AUTOMATION");
