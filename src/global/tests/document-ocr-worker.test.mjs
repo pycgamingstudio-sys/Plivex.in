@@ -50,13 +50,18 @@ test("OCR provider attempts are bounded, timed out, and failures update the job 
   assert.match(ocr, /OCR_RETRY_CLAIM_FAILED/);
 });
 
-test("Main Workspace MCP read tools enforce scopes, workspace isolation and bounded limits", () => {
+test("Main Workspace MCP read tools enforce scopes, workspace isolation and bounded cursor pagination", () => {
   const start = endpoint.indexOf("const mcpLists");
   const end = endpoint.indexOf('if (name === "business_insights")', start);
   const mcp = endpoint.slice(start, end);
+  const pageStart = endpoint.indexOf("async function readPublicApiPage");
+  const pageEnd = endpoint.indexOf("async function publicApi", pageStart);
+  const page = endpoint.slice(pageStart, pageEnd);
   for (const tool of ["list_expenses", "list_leads", "list_low_stock"]) assert.ok(mcp.includes(tool));
   assert.match(mcp, /key\.scopes\.includes\(listTool\.scope\)/);
-  assert.match(mcp, /\.eq\("workspace_id",key\.workspace_id\)/);
-  assert.match(mcp, /Math\.min\(100, Math\.max\(1, Number\(args\.limit\) \|\| 50\)\)/);
-  assert.match(mcp, /Number\(x\.quantity\)<=Number\(x\.low_stock\)/);
+  assert.match(page, /\.eq\("workspace_id", key\.workspace_id\)/);
+  assert.match(page, /parsePublicApiLimit\(body\.limit\)/);
+  assert.match(page, /limit \+ 1/);
+  assert.match(page, /decodePublicApiCursor\(body\.cursor\)/);
+  assert.match(page, /Number\(item\.quantity\) <= Number\(item\.low_stock\)/);
 });
