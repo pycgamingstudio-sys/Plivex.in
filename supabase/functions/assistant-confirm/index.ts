@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { validateInvoiceAction } from "../_shared/assistant-invoice-validation.mjs";
 import { validateGlobalInvoicePaymentAction, majorToMinorUnits } from "../_shared/assistant-global-payment-validation.mjs";
 import { validateGlobalClientAction } from "../_shared/assistant-global-client-validation.mjs";
+import { validateGlobalSupplierAction } from "../_shared/assistant-global-supplier-validation.mjs";
 import { validateGlobalExpenseAction } from "../_shared/assistant-global-expense-validation.mjs";
 import { validateGlobalProductAction } from "../_shared/assistant-global-product-validation.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
@@ -154,7 +155,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => null);
     const rawActions = Array.isArray(body?.actions) ? body.actions : [body?.action];
     if (!rawActions.length || rawActions.length > 10) return json({ error: "Please confirm between 1 and 10 valid actions." }, 400, origin);
-    if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_client", "create_global_expense", "create_global_product", "record_global_invoice_payment"].includes(String(action?.type || "")))) {
+    if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_client", "create_global_supplier", "create_global_expense", "create_global_product", "record_global_invoice_payment"].includes(String(action?.type || "")))) {
       return json({ error: "This Global workspace action is not connected yet. No legacy India-table write was attempted." }, 403, origin);
     }
     if (!isGlobalWorkspace && rawActions.some((action: any) => isGlobalOnlyAssistantAction(action?.type))) {
@@ -309,6 +310,45 @@ Deno.serve(async (req: Request) => {
         created: [{ type: "create_global_client", id: client.client_id }],
         verification: [{ type: "create_global_client", id: client.client_id, verified }],
         client: verified ? { name: verifiedClient.name, email: verifiedClient.email || null } : null,
+      }, 200, origin);
+    }
+    if (actions.some((action: any) => action.type === "create_global_supplier")) {
+      if (actions.length !== 1) return json({ error: "Global supplier creation must be confirmed separately so its record and audit event remain atomic." }, 400, origin);
+      const payload = actions[0].payload;
+      const canonical = JSON.stringify({ type: "create_global_supplier", payload });
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+      const requestHash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const { data: supplier, error: supplierError } = await supabase.rpc("assistant_create_global_supplier_idempotent", {
+        p_workspace_id: workspaceId, p_idempotency_key: idempotencyKey,
+        p_request_hash: requestHash, p_values: payload,
+      });
+      if (supplierError) {
+        const message = String(supplierError.message || "");
+        if (message.includes("PERMISSION_DENIED")) return json({ error: "Only a Global workspace owner, admin or manager can create suppliers." }, 403, origin);
+        if (message.includes("IDEMPOTENCY_PAYLOAD_MISMATCH")) return json({ error: "This confirmation key was already used for different supplier details. Prepare the supplier again." }, 409, origin);
+        console.error("Global supplier creation rejected", { code: supplierError.code, userId: user.id });
+        return json({ error: "The Global supplier could not be created. Check the details and try again." }, 400, origin);
+      }
+      if (!supplier?.ok || !supplier?.supplier_id || !supplier?.record) {
+        const reason = String(supplier?.reason || "");
+        const message = reason === "duplicate_supplier" ? "A supplier with this name already exists in this workspace. Use the existing supplier instead."
+          : reason === "forbidden" ? "Your Global workspace role cannot create suppliers."
+          : reason === "access_denied" ? "You do not have access to this Global workspace."
+          : "The Global supplier details were rejected. Nothing was saved.";
+        return json({ error: message }, reason === "forbidden" || reason === "access_denied" ? 403 : 409, origin);
+      }
+      const record = supplier.record;
+      const verified = Boolean(record.id === supplier.supplier_id && record.name === payload.name
+        && (record.email || null) === (payload.email || null)
+        && (record.phone || null) === (payload.phone || null)
+        && (record.tax_registration_number || null) === (payload.tax_registration_number || null));
+      return json({
+        ok: true, verified, duplicate: Boolean(supplier.duplicate),
+        reply: verified ? "Global supplier created and verified in your workspace; an audit event was recorded."
+          : "The supplier service accepted the request, but Plivex could not verify every field. Check the supplier list before retrying.",
+        created: [{ type: "create_global_supplier", id: supplier.supplier_id }],
+        verification: [{ type: "create_global_supplier", id: supplier.supplier_id, verified }],
+        supplier: verified ? { name: record.name, email: record.email || null, phone: record.phone || null } : null,
       }, 200, origin);
     }
     if (actions.some((action: any) => action.type === "record_global_invoice_payment")) {
