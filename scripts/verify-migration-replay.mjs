@@ -13,9 +13,9 @@ const normalized = pairs.filter((x) => x.normalized_sql_match === true);
 const localOnly = manifest.local_only_files || [];
 
 if (manifest.remote_ledger_entries !== 52 || history.length !== 39 || missing.length !== 37
-  || manifest.local_migration_files !== 110 || pairs.length !== 17
-  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 93) {
-  fail("Migration reconciliation counts differ from the reviewed archive with 52 remote entries, 39 historical sources and 93 local-only migrations");
+  || manifest.local_migration_files !== 111 || pairs.length !== 17
+  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 94) {
+  fail("Migration reconciliation counts differ from the reviewed archive with 52 remote entries, 39 historical sources and 94 local-only migrations");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
 
@@ -52,8 +52,8 @@ const candidatePlan = [
     return { version: match[1], path, kind: "current-local" };
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
-if (candidatePlan.length !== 147 || new Set(candidatePlan.map((x) => x.path)).size !== 147) {
-  fail("Candidate replay plan must contain 37 recovered historical and all 110 current local migrations");
+if (candidatePlan.length !== 148 || new Set(candidatePlan.map((x) => x.path)).size !== 147) {
+  fail("Candidate replay plan must contain 37 recovered historical and all 111 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -163,6 +163,7 @@ function assertGlobalFoundation(port) {
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-quotations.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-quotation-wrapper-auth.integration.sql")]);
   psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/document-ocr-worker.integration.sql")]);
+  psql(port, "plivex_migration_replay", ["-f", resolve(root, "supabase/tests/global-part4-resource-list.integration.sql")]);
 }
 function applyForcedMigrationRollback(port, db, migrationPath) {
   const migration = readFileSync(migrationPath, "utf8")
