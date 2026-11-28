@@ -81,6 +81,7 @@ test("public API write scope is consistent across database, Edge Function and do
   const webhookEdge = read("../../../supabase/functions/workspace-stage3/index.ts");
   const stage3Ui = read("../../components/workspace/WorkspaceStage3Center.jsx");
   const platformEdge = read("../../../supabase/functions/workspace-platform/index.ts");
+  const supabaseConfig = read("../../../supabase/config.toml");
   assert.ok(scopeMigration.includes("'leads.write'"));
   assert.ok(scopeMigration.includes("cardinality(scopes) between 1 and 9"));
   assert.ok(idempotencyMigration.includes("main_workspace_api_create_lead"));
@@ -100,4 +101,5 @@ test("public API write scope is consistent across database, Edge Function and do
   assert.ok(platformEdge.includes("MAX_REQUEST_BYTES = 6 * 1024 * 1024"));
   assert.ok(platformEdge.includes("encoder.encode(rawBody).byteLength > MAX_REQUEST_BYTES"));
   assert.ok(platformEdge.includes("INVALID_JSON"));
+  assert.ok(supabaseConfig.includes("[functions.workspace-stage3]\\nverify_jwt = false"));
 });
