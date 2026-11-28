@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const migration=readFileSync(new URL("../../../supabase/migrations/20261128140000_main_workspace_sales_idempotency_hardening.sql",import.meta.url),"utf8");
+const panel=readFileSync(new URL("../../components/workspace/WorkspaceSalesDocuments.jsx",import.meta.url),"utf8");
 
 test("Main Workspace sales documents bind each idempotency key to a canonical request fingerprint",()=>{
   for(const table of ["sales_orders","delivery_challans","credit_debit_notes"]){
