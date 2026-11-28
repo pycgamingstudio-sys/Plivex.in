@@ -25,3 +25,10 @@ test("A sales order cannot be marked fulfilled until all ordered quantities have
   assert.match(migration,/dc\.status in \('dispatched','received'\)/);
   assert.match(migration,/sum\(dci\.quantity\)/);
 });
+
+test("Draft delivery challans reserve quantities without prematurely marking the order fulfilled",()=>{
+  assert.match(migration,/dc\.status in \('draft','dispatched','received'\)/);
+  assert.doesNotMatch(migration,/update public\.sales_orders set status='partially_fulfilled',updated_at=now\(\) where id=v_order\.id/);
+  assert.match(migration,/returning id,sales_order_id into v_found,v_sales_order/);
+  assert.match(migration,/then 'fulfilled'[\s\S]*then 'partially_fulfilled'[\s\S]*else 'confirmed' end/);
+});
