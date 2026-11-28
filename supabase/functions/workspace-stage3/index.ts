@@ -4,6 +4,7 @@ const ORIGINS = new Set(["https://plivex.in", "https://www.plivex.in", "https://
 const EVENT_TYPES = new Set(["invoice.created","invoice.status_changed","lead.created","lead.stage_changed","expense.created","stock.low_stock"]);
 const MIME_TYPES = new Set(["application/pdf","image/jpeg","image/png","image/webp","text/csv"]);
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+const MAX_REQUEST_BYTES = 14 * 1024 * 1024;
 const allowedOrigin = (origin: string | null) => !origin || ORIGINS.has(origin) || /^https:\/\/(?:[a-z0-9-]+\.)?[a-z0-9-]+\.(?:pages|workers)\.dev$/.test(origin);
 const headers = (origin: string | null) => ({
   "Access-Control-Allow-Origin": origin && allowedOrigin(origin) ? origin : "https://plivex.in",
@@ -21,6 +22,7 @@ const sha256 = async (value: Uint8Array | string) => {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 };
 const fromBase64 = (value: string) => {
+  if (value.length > Math.ceil(MAX_DOCUMENT_BYTES * 4 / 3) + 8) throw new Error("DOCUMENT_TOO_LARGE");
   const raw = atob(value);
   if (raw.length > MAX_DOCUMENT_BYTES) throw new Error("DOCUMENT_TOO_LARGE");
   return Uint8Array.from(raw, (character) => character.charCodeAt(0));
@@ -224,7 +226,12 @@ Deno.serve(async (req: Request) => {
     }
 
     const ctx = await setup(req);
-    const body = await req.json().catch(() => null);
+    const declaredLength = Number(req.headers.get("content-length") || 0);
+    if (declaredLength > MAX_REQUEST_BYTES) return json({ ok: false, error: "REQUEST_TOO_LARGE" }, 413, origin);
+    const rawBody = await req.text();
+    if (new TextEncoder().encode(rawBody).byteLength > MAX_REQUEST_BYTES) return json({ ok: false, error: "REQUEST_TOO_LARGE" }, 413, origin);
+    let body: any;
+    try { body = JSON.parse(rawBody); } catch { return json({ ok: false, error: "INVALID_JSON" }, 400, origin); }
     if (!isObject(body) || typeof body.action !== "string") return json({ ok: false, error: "INVALID_REQUEST" }, 400, origin);
 
     if (body.action === "integrations.list") return json(await listIntegrations(ctx), 200, origin);
