@@ -88,7 +88,7 @@ begin
     issue_date = coalesce((_data->>'issue_date')::date, issue_date), due_date = (_data->>'due_date')::date,
     currency = coalesce(_data->>'currency','INR'), tax_mode = _mode, tax_rate = _rate,
     discount_type = _dtype, discount = _disc, notes = _data->>'notes', terms = _data->>'terms',
-    invoice_snapshot = coalesce(_data->'invoice_snapshot', invoice_snapshot),
+    invoice_snapshot = case when jsonb_typeof(_data->'invoice_snapshot')='object' then _data->'invoice_snapshot' else invoice_snapshot end,
     status = _status, is_draft = _draft,
     subtotal = _subtotal, tax_value = _tax,
     cgst = case when _mode = 'split' then _tax / 2 else 0 end,
