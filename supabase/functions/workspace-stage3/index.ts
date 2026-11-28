@@ -25,6 +25,8 @@ const fromBase64 = (value: string) => {
   if (raw.length > MAX_DOCUMENT_BYTES) throw new Error("DOCUMENT_TOO_LARGE");
   return Uint8Array.from(raw, (character) => character.charCodeAt(0));
 };
+const safeFileName = (value: string) => clean(value, 255).replace(/[\/\\]/g, "_").replace(/[\u0000-\u001f]/g, "_").replace(/^\.+$/, "document") || "document";
+
 async function setup(req: Request) {
   const url = Deno.env.get("SUPABASE_URL");
   const anon = Deno.env.get("SUPABASE_ANON_KEY");
