@@ -9,6 +9,7 @@ export function getAssistantRequestPolicy({
   needsGlobalSupplierContext = false,
   needsGlobalTransferContext = false,
   needsGlobalBranchContext = false,
+  needsGlobalMemberContext = false,
   hasImage = false,
 } = {}) {
   const needsGlobalContext = Boolean(
