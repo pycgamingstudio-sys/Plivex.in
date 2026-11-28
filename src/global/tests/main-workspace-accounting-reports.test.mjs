@@ -50,3 +50,10 @@ test("The journal UI cannot select a non-base currency",()=>{
   assert.match(bank,/<select className=\{field\} value=\{baseCurrency\} disabled>/);
   assert.doesNotMatch(bank,/\["INR","USD","GBP","AED","CAD","AUD","SGD"\]\.map/);
 });
+
+test("Journal and bank import UI reuse idempotency keys across retries",()=>{
+  assert.match(bank,/journalKey/);
+  assert.match(bank,/statementKey/);
+  assert.match(bank,/p_idempotency_key:journalKey/);
+  assert.match(bank,/p_idempotency_key:statementKey/);
+});
