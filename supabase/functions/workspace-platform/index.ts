@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { decodePublicApiCursor, encodePublicApiCursor, normalizePublicApiLead, parsePublicApiLimit, publicApiError } from "../_shared/public-api-contract.ts";
 
 const ORIGINS = new Set(["https://plivex.in", "https://www.plivex.in", "https://plivex.netlify.app"]);
 const allowed = (origin: string | null) => !origin || ORIGINS.has(origin) || /^https:\/\/(?:[a-z0-9-]+\.)?[a-z0-9-]+\.(?:pages|workers)\.dev$/.test(origin);
@@ -216,7 +217,7 @@ async function apiManagement(ctx: any, body: any) {
   const label = clean(body.label,80);
   const scopeValues: unknown[] = Array.isArray(body.scopes) ? body.scopes as unknown[] : [];
   const scopes: string[] = [...new Set<string>(scopeValues.filter((scope): scope is string => typeof scope === "string"))];
-  const allowedScopes = ["workspace.read","invoices.read","clients.read","expenses.read","leads.read","inventory.read","suppliers.read","mcp.read"];
+  const allowedScopes = ["workspace.read","invoices.read","clients.read","expenses.read","leads.read","leads.write","inventory.read","suppliers.read","mcp.read"];
   if (label.length < 2 || !scopes.length || scopes.length > 8 || scopes.some((s:string)=>!allowedScopes.includes(s)) || (scopes.includes("mcp.read") && !scopes.includes("workspace.read"))) throw new Error("INVALID_API_KEY");
   const prefix = "plx_" + crypto.randomUUID().replaceAll("-","").slice(0,6); const secret = prefix + "_" + token(32), keyHash = await sha256(secret);
   const days = Math.min(365,Math.max(1,Number(body.expiryDays)||90));
@@ -225,14 +226,53 @@ async function apiManagement(ctx: any, body: any) {
   await ctx.admin.from("workspace_audit_events").insert({ workspace_id:ctx.workspaceId,actor_id:ctx.user.id,action:"api_key.created",entity_type:"api_key",entity_id:data.id,metadata:{scopes,expires_at:data.expires_at} });
   return { ok:true,key:data,secret };
 }
-async function publicApi(req: Request, admin: any, body: any): Promise<any> {
+async function readPublicApiPage(admin: any, key: any, target: any, body: any) {
+  const limit = parsePublicApiLimit(body.limit);
+  if (limit === null) throw new Error("API_LIMIT_INVALID");
+  const cursor = body.cursor ? decodePublicApiCursor(body.cursor) : null;
+  if (body.cursor && !cursor) throw new Error("API_CURSOR_INVALID");
+  let query = admin.from(target.table).select(target.fields)
+    .eq("workspace_id", key.workspace_id)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(limit + 1);
+  if (cursor) {
+    query = query.or(`created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`);
+  }
+  const { data, error } = await query;
+  if (error) throw new Error("API_READ_FAILED");
+  const rows = data || [];
+  const hasMore = rows.length > limit;
+  const page = rows.slice(0, limit);
+  const records = target.lowStock
+    ? page.filter((item: any) => item.low_stock !== null && item.low_stock !== undefined && Number(item.quantity) <= Number(item.low_stock))
+    : page;
+  const last = page[page.length - 1];
+  return {
+    ok: true,
+    api_version: "v1",
+    records,
+    pagination: {
+      limit,
+      has_more: hasMore,
+      next_cursor: hasMore && last ? encodePublicApiCursor({ created_at: last.created_at, id: last.id }) : null,
+    },
+  };
+}
+
+async function publicApi(req: Request, admin: any, body: any, internal = false): Promise<any> {
   const secret = clean(req.headers.get("x-plivex-key"),256);
   if (!secret) throw new Error("API_KEY_REQUIRED");
+  const requestedVersion = clean(req.headers.get("x-plivex-api-version") || body.apiVersion || "v1", 10);
+  if (requestedVersion !== "v1") throw new Error("API_VERSION_UNSUPPORTED");
   const hash = await sha256(secret);
-  const { data: key, error: keyError } = await admin.from("public_api_keys").select("id,workspace_id,scopes,expires_at,revoked_at").eq("key_hash",hash).maybeSingle();
+  const { data: key, error: keyError } = await admin.from("public_api_keys").select("id,workspace_id,created_by,scopes,expires_at,revoked_at").eq("key_hash",hash).maybeSingle();
   if (keyError || !key || key.revoked_at || new Date(key.expires_at).getTime() <= Date.now()) throw new Error("API_KEY_INVALID");
-  const {data:withinLimit,error:rateError}=await admin.rpc("consume_main_workspace_api_rate_limit",{p_key_hash:hash,p_limit:60,p_window_seconds:60});
-  if(rateError||withinLimit!==true) throw new Error("API_RATE_LIMITED");
+  if (!internal) {
+    const {data:withinLimit,error:rateError}=await admin.rpc("consume_main_workspace_api_rate_limit",{p_key_hash:hash,p_limit:60,p_window_seconds:60});
+    if(rateError||withinLimit!==true) throw new Error("API_RATE_LIMITED");
+    await admin.from("public_api_keys").update({last_used_at:new Date().toISOString()}).eq("id",key.id);
+  }
   const scope = (s:string) => key.scopes.includes(s);
   const businessInsightScopes = ["invoices.read","expenses.read","leads.read","inventory.read"];
   const canReadBusinessInsights = businessInsightScopes.every((requiredScope) => scope(requiredScope));
