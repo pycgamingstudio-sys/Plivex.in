@@ -13,8 +13,8 @@ const normalized = pairs.filter((x) => x.normalized_sql_match === true);
 const localOnly = manifest.local_only_files || [];
 
 if (manifest.remote_ledger_entries !== 52 || history.length !== 39 || missing.length !== 37
-  || manifest.local_migration_files !== 123 || pairs.length !== 17
-  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 106) {
+  || manifest.local_migration_files !== 124 || pairs.length !== 17
+  || normalized.length !== 13 || pairs.length - normalized.length !== 4 || localOnly.length !== 107) {
   fail("Migration reconciliation counts differ from the reviewed archive with 52 remote entries, 39 historical sources and 106 local-only migrations");
 }
 if (new Set(history.map((x) => x.version)).size !== 39) fail("Duplicate archived remote migration version");
@@ -53,7 +53,7 @@ const candidatePlan = [
   }),
 ].sort((a, b) => a.version.localeCompare(b.version));
 if (candidatePlan.length !== 160 || new Set(candidatePlan.map((x) => x.path)).size !== 160) {
-  fail("Candidate replay plan must contain 37 recovered historical and all 123 current local migrations");
+  fail("Candidate replay plan must contain 37 recovered historical and all 124 current local migrations");
 }
 
 function run(command, args, env, input) {
@@ -385,7 +385,7 @@ function summary(port, remote) {
 
 const remotePort = Number(process.env.REMOTE_PGPORT || 5433);
 const candidatePort = Number(process.env.CANDIDATE_PGPORT || 5434);
-console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 160 candidate replay entries including India compliance foundation.");
+console.log("Migration reconciliation: 52 remote, 39 archived, 13 normalized local matches, 4 divergent, 161 candidate replay entries including India compliance foundation.");
 resetDb(remotePort);
 replay(remotePort, remotePlan, true);
 assertRls(remotePort, false);
@@ -400,5 +400,5 @@ assertGlobalFoundation(candidatePort);
 assertRollback(candidatePort);
 assertGlobalMigrationRollback(candidatePort);
 assertGlobalBackupRestore(candidatePort);
-console.log("PASS global-dev candidate replay 37 recovered + 123 current local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
+console.log("PASS global-dev candidate replay 37 recovered + 124 current local; Global RLS isolation, India entitlement/data and rollback checks; summary=" + summary(candidatePort, false));
 console.log("PASS archive hashes, version ordering, replay, Global workspace isolation, migration rollback, RLS and India data-integrity checks.");
