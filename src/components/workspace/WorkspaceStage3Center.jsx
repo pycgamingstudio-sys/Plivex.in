@@ -36,6 +36,10 @@ export default function WorkspaceStage3Center({ section }) {
   const [integrations, setIntegrations] = useState([]);
   const [rules, setRules] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [runs, setRuns] = useState([]);
+  const [failedEvents, setFailedEvents] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [preferences, setPreferences] = useState({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", reminders_enabled: true, quiet_hours_start: "22:00:00", quiet_hours_end: "08:00:00", escalation_enabled: false, escalation_after_hours: 24 });
   const [documents, setDocuments] = useState([]);
   const [webhookData, setWebhookData] = useState({ subscriptions: [], events: [], attempts: [] });
   const [webhookProvider, setWebhookProvider] = useState("shopify");
@@ -44,6 +48,12 @@ export default function WorkspaceStage3Center({ section }) {
   const [createdWebhook, setCreatedWebhook] = useState(null);
   const [name, setName] = useState("");
   const [eventType, setEventType] = useState("invoice.created");
+  const [triggerType, setTriggerType] = useState("event");
+  const [scheduleFrequency, setScheduleFrequency] = useState("daily");
+  const [scheduleTimeLocal, setScheduleTimeLocal] = useState("09:00");
+  const [scheduleDays, setScheduleDays] = useState([1,3,5]);
+  const [preview, setPreview] = useState(null);
+  const [preferenceDraft, setPreferenceDraft] = useState(null);
   const [statusCondition, setStatusCondition] = useState("");
   const [taskTitle, setTaskTitle] = useState("Review business event");
   const [taskDescription, setTaskDescription] = useState("");
@@ -77,6 +87,11 @@ export default function WorkspaceStage3Center({ section }) {
       const result = await invoke({ action: "automation.list" });
       setRules(result.rules || []);
       setTasks(result.tasks || []);
+      setRuns(result.runs || []);
+      setFailedEvents(result.failedEvents || []);
+      setNotifications(result.notifications || []);
+      setPreferences(result.preferences || preferences);
+      setPreferenceDraft((current) => current || { ...result.preferences, quiet_hours_start: String(result.preferences?.quiet_hours_start || "22:00").slice(0,5), quiet_hours_end: String(result.preferences?.quiet_hours_end || "08:00").slice(0,5) });
     } else if (section === "document-vault") {
       const result = await invoke({ action: "vault.list" });
       setDocuments(result.documents || []);
@@ -92,14 +107,32 @@ export default function WorkspaceStage3Center({ section }) {
     finally { setBusy(false); }
   };
 
+  const automationPayload = () => ({
+    name, triggerType, eventType, conditions: eventType === "invoice.status_changed" && statusCondition ? { status_equals: statusCondition } : {},
+    actionType: "create_task", timezone: preferenceDraft?.timezone || preferences.timezone || "UTC",
+    scheduleFrequency, scheduleTimeLocal, scheduleDays,
+    actionConfig: { title: taskTitle, description: taskDescription, due_in_hours: dueHours === "" ? null : Number(dueHours) },
+  });
   const createRule = (event) => {
     event.preventDefault();
-    const conditions = eventType === "invoice.status_changed" && statusCondition ? { status_equals: statusCondition } : {};
-    return run(() => invoke({
-      action: "automation.create", name, eventType, conditions, actionType: "create_task", timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-      actionConfig: { title: taskTitle, description: taskDescription, due_in_hours: dueHours === "" ? null : Number(dueHours) },
-    }), "Automation rule saved. It will create a review task when its event is processed.");
+    setPreview(null);
+    return run(() => invoke({ action: "automation.create", ...automationPayload() }), "Automation rule saved.");
   };
+  const previewRule = async () => {
+    setBusy(true); setError(""); setNotice("");
+    try { const result = await invoke({ action: "automation.preview", ...automationPayload() }); setPreview(result); }
+    catch (caught) { setError(caught.message || "Could not preview this automation."); }
+    finally { setBusy(false); }
+  };
+  const savePreferences = (event) => {
+    event.preventDefault();
+    return run(async () => {
+      const result = await invoke({ action: "automation.preferences.save", ...preferenceDraft });
+      setPreferences(result.preferences);
+      setPreferenceDraft({ ...result.preferences, quiet_hours_start: String(result.preferences.quiet_hours_start).slice(0,5), quiet_hours_end: String(result.preferences.quiet_hours_end).slice(0,5) });
+    }, "Reminder and escalation preferences saved.");
+  };
+  const toggleScheduleDay = (day) => setScheduleDays((current) => current.includes(day) ? current.filter((value) => value !== day) : [...current, day].sort());
 
   const createWebhook = (event) => {
     event.preventDefault();
@@ -200,22 +233,52 @@ export default function WorkspaceStage3Center({ section }) {
         <p className="mt-1 text-xs text-slate-500">Rules respond to recorded business events and create review tasks. They do not send messages, issue invoices, change payments or post accounting entries.</p>
         <form onSubmit={createRule} className="mt-4 grid gap-2 sm:grid-cols-2">
           <input className={field} required minLength={2} maxLength={100} placeholder="Rule name" value={name} onChange={(e) => setName(e.target.value)}/>
-          <select className={field} value={eventType} onChange={(e) => setEventType(e.target.value)}>{EVENT_TYPES.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select>
-          {eventType === "invoice.status_changed" && <input className={field} maxLength={40} placeholder="Optional invoice status condition (e.g. overdue)" value={statusCondition} onChange={(e) => setStatusCondition(e.target.value)}/>}
-          <input className={field} required minLength={2} maxLength={160} placeholder="Task title" value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)}/>
+          <select className={field} value={triggerType} onChange={(e) => { setTriggerType(e.target.value); setPreview(null); }}>
+            <option value="event">Business event</option><option value="schedule">Daily / weekly schedule</option>
+          </select>
+          {triggerType === "event" ? <select className={field+" sm:col-span-2"} value={eventType} onChange={(e) => setEventType(e.target.value)}>{EVENT_TYPES.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select> : <>
+            <select className={field} value={scheduleFrequency} onChange={(e) => setScheduleFrequency(e.target.value)}><option value="daily">Daily</option><option value="weekly">Weekly</option></select>
+            <label className="text-xs text-slate-600">Local time<input className={field+" mt-1"} type="time" value={scheduleTimeLocal} onChange={(e) => setScheduleTimeLocal(e.target.value)}/></label>
+            {scheduleFrequency === "weekly" && <div className="sm:col-span-2 flex flex-wrap gap-3 rounded-lg border p-3">{[[1,"Mon"],[2,"Tue"],[3,"Wed"],[4,"Thu"],[5,"Fri"],[6,"Sat"],[7,"Sun"]].map(([day,label]) => <label key={day} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={scheduleDays.includes(day)} onChange={() => toggleScheduleDay(day)}/>{label}</label>)}</div>}
+          </>}
+          {triggerType === "event" && eventType === "invoice.status_changed" && <input className={field+" sm:col-span-2"} maxLength={40} placeholder="Optional invoice status condition (e.g. overdue)" value={statusCondition} onChange={(e) => setStatusCondition(e.target.value)}/>}
+          <input className={field+" sm:col-span-2"} required minLength={2} maxLength={160} placeholder="Task title" value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)}/>
           <input className={field+" sm:col-span-2"} maxLength={2000} placeholder="Task description (optional)" value={taskDescription} onChange={(e) => setTaskDescription(e.target.value)}/>
           <label className="text-xs text-slate-600">Due in hours (optional)<input className={field+" mt-1"} type="number" min="0" max="720" step="1" value={dueHours} onChange={(e) => setDueHours(e.target.value)}/></label>
-          <button className={primary+" self-end"} disabled={busy}>Create automation rule</button>
+          <div className="flex gap-2 self-end"><button type="button" className={secondary} disabled={busy || (triggerType === "schedule" && scheduleFrequency === "weekly" && scheduleDays.length === 0)} onClick={previewRule}>Dry-run preview</button><button className={primary} disabled={busy || (triggerType === "schedule" && scheduleFrequency === "weekly" && scheduleDays.length === 0)}>Create rule</button></div>
         </form>
+        {preview && <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-slate-700"><p className="font-semibold">Dry-run only — no data was changed.</p><p className="mt-1">Trigger: {preview.triggerType}{preview.nextRunAt ? " · Next run "+new Date(preview.nextRunAt).toLocaleString() : ""}</p><p>Task: {preview.taskPreview?.title}{preview.taskPreview?.due_at ? " · Due "+new Date(preview.taskPreview.due_at).toLocaleString() : ""}</p><p>External messages: No · Financial writes: No</p></div>}
         <div className="mt-4 space-y-2">{rules.map((rule) => <article key={rule.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-3">
-          <div><p className="text-sm font-semibold">{rule.name}</p><p className="text-xs text-slate-500">{rule.event_type} · {rule.action_type} · {rule.is_active ? "Active" : "Paused"}</p></div>
+          <div><p className="text-sm font-semibold">{rule.name}</p><p className="text-xs text-slate-500">{rule.trigger_type === "schedule" ? rule.schedule_frequency+" at "+String(rule.schedule_time_local).slice(0,5)+" ("+rule.timezone+")" : rule.event_type} · {rule.action_type} · {rule.is_active ? "Active" : "Paused"}</p>{rule.next_run_at && <p className="text-xs text-slate-500">Next run {new Date(rule.next_run_at).toLocaleString()}</p>}</div>
           <button className={secondary} disabled={busy} onClick={() => run(() => invoke({ action: "automation.pause", ruleId: rule.id, isActive: !rule.is_active }), rule.is_active ? "Rule paused." : "Rule enabled.")}>{rule.is_active ? <><Pause className="mr-1 inline h-3.5 w-3.5"/>Pause</> : <><Play className="mr-1 inline h-3.5 w-3.5"/>Enable</>}</button>
         </article>)}</div>
       </section>
       <section className="rounded-2xl border bg-white p-4 sm:p-5">
+        <h2 className="font-semibold">Timezone, reminders and escalation</h2>
+        <form onSubmit={savePreferences} className="mt-3 grid gap-2 sm:grid-cols-2">
+          <label className="text-xs text-slate-600">IANA timezone<input className={field+" mt-1"} value={preferenceDraft?.timezone || ""} onChange={(e) => setPreferenceDraft((v) => ({...v,timezone:e.target.value}))}/></label>
+          <label className="flex items-center gap-2 text-xs text-slate-700"><input type="checkbox" checked={preferenceDraft?.reminders_enabled ?? true} onChange={(e) => setPreferenceDraft((v) => ({...v,reminders_enabled:e.target.checked}))}/>Enable in-app due reminders</label>
+          <label className="text-xs text-slate-600">Quiet hours start<input className={field+" mt-1"} type="time" value={preferenceDraft?.quiet_hours_start || "22:00"} onChange={(e) => setPreferenceDraft((v) => ({...v,quiet_hours_start:e.target.value}))}/></label>
+          <label className="text-xs text-slate-600">Quiet hours end<input className={field+" mt-1"} type="time" value={preferenceDraft?.quiet_hours_end || "08:00"} onChange={(e) => setPreferenceDraft((v) => ({...v,quiet_hours_end:e.target.value}))}/></label>
+          <label className="flex items-center gap-2 text-xs text-slate-700"><input type="checkbox" checked={preferenceDraft?.escalation_enabled ?? false} onChange={(e) => setPreferenceDraft((v) => ({...v,escalation_enabled:e.target.checked}))}/>Enable overdue task escalation</label>
+          <label className="text-xs text-slate-600">Escalate after hours<input className={field+" mt-1"} type="number" min="1" max="720" value={preferenceDraft?.escalation_after_hours || 24} onChange={(e) => setPreferenceDraft((v) => ({...v,escalation_after_hours:Number(e.target.value)}))}/></label>
+          <button className={primary+" sm:col-span-2"} disabled={busy}>Save preferences</button>
+        </form>
+      </section>
+      <section className="rounded-2xl border bg-white p-4 sm:p-5">
+        <h2 className="font-semibold">In-app reminders and escalation alerts</h2>
+        <div className="mt-3 space-y-2">{notifications.map((item) => <article key={item.id} className="flex flex-wrap items-start justify-between gap-2 border-t py-3"><div><p className="text-sm font-semibold">{item.title}</p><p className="text-xs text-slate-500">{item.message} · {new Date(item.available_at).toLocaleString()}</p></div>{!item.read_at && <button className={secondary} disabled={busy} onClick={() => run(() => invoke({action:"automation.notification.read",notificationId:item.id}),"Notification marked read.")}>Mark read</button>}</article>)}{!notifications.length && <p className="py-2 text-xs text-slate-500">No reminders or escalations available.</p>}</div>
+      </section>
+      <section className="rounded-2xl border bg-white p-4 sm:p-5">
+        <h2 className="font-semibold">Automation execution and failure log</h2>
+        <div className="mt-3 space-y-2">{runs.slice(0,30).map((item) => <article key={item.id} className="flex flex-wrap justify-between gap-2 border-t py-2"><p className="text-xs text-slate-600">{item.status} · attempt {item.attempt_no} · {new Date(item.started_at).toLocaleString()}</p>{item.error_code && <span className="text-xs text-amber-700">{item.error_code}</span>}</article>)}</div>
+        <h3 className="mt-4 text-sm font-semibold">Retry queue / dead letters</h3>
+        <div className="mt-2 space-y-2">{failedEvents.map((item) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-2"><div><p className="text-xs font-semibold">{item.event_type} · {item.processing_status} · {item.attempt_count} attempts</p><p className="text-xs text-slate-500">{item.processing_error_code || "Pending retry"}</p></div>{item.processing_status === "dead_letter" && <button className={secondary} disabled={busy} onClick={() => run(() => invoke({action:"automation.replay",eventId:item.id}),"Event queued for retry.")}>Replay</button>}</article>)}</div>
+      </section>
+      <section className="rounded-2xl border bg-white p-4 sm:p-5">
         <h2 className="font-semibold">Automation review tasks</h2>
         <div className="mt-3 space-y-2">{tasks.map((task) => <article key={task.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-3">
-          <div><p className="text-sm font-semibold">{task.title}</p><p className="text-xs text-slate-500">{task.status} {task.due_at ? "· Due "+new Date(task.due_at).toLocaleString() : ""}</p>{task.description && <p className="mt-1 text-xs text-slate-600">{task.description}</p>}</div>
+          <div><p className="text-sm font-semibold">{task.title}</p><p className="text-xs text-slate-500">{task.status} {task.due_at ? "· Due "+new Date(task.due_at).toLocaleString() : ""} {task.escalated_at ? "· Escalated" : ""}</p>{task.description && <p className="mt-1 text-xs text-slate-600">{task.description}</p>}</div>
           {task.status === "open" && <button className={secondary} disabled={busy} onClick={() => run(() => invoke({ action: "automation.task_status", taskId: task.id, status: "completed" }), "Task marked complete.")}><CheckCircle2 className="mr-1 inline h-3.5 w-3.5"/>Complete</button>}
         </article>) }{!tasks.length && <p className="py-3 text-xs text-slate-500">No automation tasks yet.</p>}</div>
       </section>
