@@ -106,7 +106,7 @@ export default function WorkspaceIndiaComplianceRecords({workspaceId}){
      <label className="text-xs text-slate-600 sm:col-span-2">Transporter ID (if vehicle not available)<input className={field+" mt-1"} value={eway.transporter_id} onChange={e=>setEway(v=>({...v,transporter_id:e.target.value.toUpperCase()}))}/></label>
     </div>
     <button className={primary+" mt-3"} disabled={busy||!eway.invoice_id}>Validate & prepare e-way bill</button>
-    <div className="mt-4 space-y-2">{records.eway_bills.map(x=><div key={x.id} className="rounded-lg bg-slate-50 p-2 text-xs"><div className="flex justify-between gap-2"><strong>{x.invoice_number}</strong><span className={statusClass(x.status)}>{x.status}</span></div><p className="mt-1">{x.distance_km} km · {x.transport_mode} · {x.vehicle_number||x.transporter_id||"Transporter pending"}</p>{x.eway_bill_number&&<p>EWB: {x.eway_bill_number}</p>}</div>)}{!records.eway_bills.length&&<p className="text-xs text-slate-500">No e-way bill records yet.</p>}</div>
+    <div className="mt-4 space-y-2">{records.eway_bills.map(x=><div key={x.id} className="rounded-lg bg-slate-50 p-2 text-xs"><div className="flex justify-between gap-2"><strong>{x.invoice_number}</strong><span className={statusClass(x.status)}>{x.status}</span></div><p className="mt-1">{x.distance_km} km · {x.transport_mode} · {x.vehicle_number||x.transporter_id||"Transporter pending"}</p>{x.eway_bill_number&&<p>EWB: {x.eway_bill_number}</p>}{(x.validation_errors||[]).map((msg,i)=><p key={i} className="mt-1 text-red-700">{msg}</p>)}</div>)}{!records.eway_bills.length&&<p className="text-xs text-slate-500">No e-way bill records yet.</p>}</div>
    </form>
 
    <div className="rounded-xl border p-3">
