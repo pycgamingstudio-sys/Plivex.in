@@ -31,14 +31,16 @@ async function authenticate(req: Request) {
   const {data:{user},error}=await authClient.auth.getUser();
   if(error||!user) throw new Error("AUTH_REQUIRED");
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
-  const [{data:profile,error:profileError},{data:settings,error:settingsError},{data:member,error:memberError}]=await Promise.all([
-    admin.from("profiles").select("workspace_id").eq("id",user.id).maybeSingle(),
-    admin.from("profiles").select("workspace_id").eq("id",user.id).maybeSingle().then(async ({data})=>data?.workspace_id ? admin.from("workspace_settings").select("workspace_id,country_code,currency_code").eq("workspace_id",data.workspace_id).maybeSingle() : {data:null,error:null}),
-    admin.from("workspace_members").select("role,status").eq("user_id",user.id).eq("status","active").maybeSingle(),
+  const {data:profile,error:profileError}=await admin.from("profiles").select("workspace_id").eq("id",user.id).maybeSingle();
+  if(profileError||!profile?.workspace_id) throw new Error("WORKSPACE_ACCESS_UNAVAILABLE");
+  const workspaceId=String(profile.workspace_id);
+  const [{data:settings,error:settingsError},{data:member,error:memberError}]=await Promise.all([
+    admin.from("workspace_settings").select("workspace_id,country_code,currency_code").eq("workspace_id",workspaceId).maybeSingle(),
+    admin.from("workspace_members").select("role,status").eq("workspace_id",workspaceId).eq("user_id",user.id).eq("status","active").maybeSingle(),
   ]);
-  if(profileError||settingsError||memberError||!profile?.workspace_id||!settings) throw new Error("WORKSPACE_ACCESS_UNAVAILABLE");
+  if(settingsError||memberError||!settings) throw new Error("WORKSPACE_ACCESS_UNAVAILABLE");
   if(!member) throw new Error("WORKSPACE_MEMBERSHIP_REQUIRED");
-  return {admin,user,workspaceId:String(profile.workspace_id),settings,role:String(member.role||"")};
+  return {admin,user,workspaceId,settings,role:String(member.role||"")};
 }
 const canManage = (role:string) => ["owner","admin","manager"].includes(role);
 const canAccount = (role:string) => ["owner","admin","manager","accountant"].includes(role);
