@@ -11,6 +11,7 @@ export function getAssistantRequestPolicy({
   needsGlobalBranchContext = false,
   needsGlobalMemberContext = false,
   needsGlobalApprovalContext = false,
+  needsGlobalApprovalSourceContext = false,
   hasImage = false,
 } = {}) {
   const needsGlobalContext = Boolean(
