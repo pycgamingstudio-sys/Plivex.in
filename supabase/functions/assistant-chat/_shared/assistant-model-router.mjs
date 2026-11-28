@@ -181,6 +181,54 @@ async function callOpenAiProvider({ provider, model, key, body, fetchImpl, deadl
   return normalizeOpenAiResult(result);
 }
 
+export async function streamGeminiResponse({ requestOptions, geminiKey, model, fetchImpl = fetch, timeoutMs = 12000, onTextChunk }) {
+  const response = await fetchImpl(`${GEMINI_URL_BASE}/${model}:streamGenerateContent?alt=sse`, {
+    ...requestOptions,
+    headers: { ...requestOptions.headers, "x-goog-api-key": geminiKey },
+    signal: AbortSignal.timeout(Math.max(1, timeoutMs)),
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const error = new Error(String(payload?.error?.message || payload?.error?.status || "gemini_stream_unavailable"));
+    error.status = response.status;
+    error.retryAfterSeconds = parseRetryAfterSeconds(response.headers);
+    throw error;
+  }
+  if (!response.body) throw new Error("stream_body_unavailable");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let rawText = "";
+  const consume = (block) => {
+    const data = block.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart()).join("\n").trim();
+    if (!data || data === "[DONE]") return;
+    const payload = JSON.parse(data);
+    if (payload?.error) throw new Error(String(payload.error.message || "gemini_stream_error"));
+    if (payload?.promptFeedback?.blockReason) throw new Error("gemini_stream_blocked");
+    const chunk = (payload?.candidates?.[0]?.content?.parts || []).map((part) => typeof part?.text === "string" ? part.text : "").join("");
+    if (chunk) { rawText += chunk; if (typeof onTextChunk === "function") onTextChunk(chunk); }
+  };
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const blocks = buffer.split(/\r?\n\r?\n/);
+    buffer = blocks.pop() || "";
+    for (const block of blocks) consume(block);
+  }
+  buffer += decoder.decode();
+  if (buffer.trim()) consume(buffer);
+  if (!rawText.trim()) throw new Error("empty_model_response");
+  return { candidates: [{ content: { parts: [{ text: rawText }] } }] };
+}
+export function hasPdfAttachmentRequest(body) {
+  return (Array.isArray(body?.contents) ? body.contents : []).some((item) =>
+    (Array.isArray(item?.parts) ? item.parts : []).some((part) =>
+      String(part?.inline_data?.mime_type || "").toLowerCase() === "application/pdf"
+    )
+  );
+}
+
 export async function generateWithFallback({
   requestOptions,
   geminiKey,
@@ -189,10 +237,12 @@ export async function generateWithFallback({
   enableGroq = false,
   fetchImpl = fetch,
   totalTimeoutMs = 45000,
+  onTextChunk = /** @type {((chunk: string) => void) | null} */ (null),
 }) {
   const body = JSON.parse(requestOptions.body);
   const deadline = Date.now() + totalTimeoutMs;
   const attempts = [];
+  const hasPdfAttachment = hasPdfAttachmentRequest(body);
   if (geminiKey) {
     for (const [index, model] of DEFAULT_GEMINI_MODELS.entries()) {
       attempts.push({ provider: "gemini", model, timeoutMs: index === 0 ? 12000 : 8000 });
@@ -200,15 +250,16 @@ export async function generateWithFallback({
   }
   // Groq's current GPT-OSS endpoints are metered. Keep them off unless the
   // project owner explicitly enables Groq usage after reviewing account billing.
-  if (groqKey && enableGroq) {
+  if (!hasPdfAttachment && groqKey && enableGroq) {
     for (const model of DEFAULT_GROQ_MODELS) attempts.push({ provider: "groq", model });
   }
-  if (openRouterKey) {
+  if (!hasPdfAttachment && openRouterKey) {
     for (const model of DEFAULT_OPENROUTER_MODELS) attempts.push({ provider: "openrouter", model });
   }
   let lastStatus = 503;
   let retryAfterSeconds = null;
   const providerFailures = [];
+  let streamedAny = false;
   for (const attempt of attempts) {
     if (Date.now() >= deadline) break;
     try {
@@ -221,22 +272,33 @@ export async function generateWithFallback({
         if (remaining <= 0) break;
         let response;
         try {
-          response = await fetchImpl(`${GEMINI_URL_BASE}/${attempt.model}:generateContent`, {
-            ...requestOptions,
-            headers: { ...requestOptions.headers, "x-goog-api-key": geminiKey },
-            signal: AbortSignal.timeout(Math.min(attempt.timeoutMs, remaining)),
-          });
+          if (typeof onTextChunk === "function") {
+            result = await streamGeminiResponse({
+              requestOptions, geminiKey, model: attempt.model, fetchImpl,
+              timeoutMs: Math.min(attempt.timeoutMs, remaining),
+              onTextChunk: (chunk) => { streamedAny = true; onTextChunk(chunk); },
+            });
+          } else {
+            response = await fetchImpl(`${GEMINI_URL_BASE}/${attempt.model}:generateContent`, {
+              ...requestOptions,
+              headers: { ...requestOptions.headers, "x-goog-api-key": geminiKey },
+              signal: AbortSignal.timeout(Math.min(attempt.timeoutMs, remaining)),
+            });
+          }
         } catch (error) {
-          lastStatus = error?.name === "TimeoutError" || error?.name === "AbortError" ? 504 : 503;
+          lastStatus = Number(error?.status) || (error?.name === "TimeoutError" || error?.name === "AbortError" ? 504 : 503);
+          retryAfterSeconds = Number.isFinite(error?.retryAfterSeconds) ? error.retryAfterSeconds : retryAfterSeconds;
           providerFailures.push({ provider: "gemini", model: attempt.model, status: lastStatus, reason: String(error?.message || "network_error").slice(0, 160) });
+          if (streamedAny) return { ok: false, status: lastStatus === 429 ? 429 : 503, failureCode: "STREAM_INTERRUPTED", providerFailures, retryAfterSeconds };
           console.warn("Nova Gemini request failed; switching provider", {
             provider: "gemini", model: attempt.model, status: lastStatus,
             reason: error?.message || "network_error",
           });
           continue;
         }
-        retryAfterSeconds = parseRetryAfterSeconds(response.headers) ?? retryAfterSeconds;
-        if (!response.ok) {
+        if (typeof onTextChunk !== "function") {
+          retryAfterSeconds = parseRetryAfterSeconds(response.headers) ?? retryAfterSeconds;
+          if (!response.ok) {
           const errorPayload = await response.json().catch(() => ({}));
           const providerError = errorPayload?.error || {};
           const detail = String(providerError.message || providerError.status || "upstream_error").slice(0, 180);
@@ -247,7 +309,8 @@ export async function generateWithFallback({
           });
           continue;
         }
-        result = await response.json().catch(() => ({}));
+          result = await response.json().catch(() => ({}));
+        }
       } else {
         result = await callOpenAiProvider({ ...attempt, key: attempt.provider === "groq" ? groqKey : openRouterKey, body, fetchImpl, deadline });
       }
@@ -257,6 +320,7 @@ export async function generateWithFallback({
       lastStatus = Number(error?.status) || (error?.name === "TimeoutError" || error?.name === "AbortError" ? 504 : 503);
       retryAfterSeconds = Number.isFinite(error?.retryAfterSeconds) ? error.retryAfterSeconds : retryAfterSeconds;
       providerFailures.push({ provider: attempt.provider, model: attempt.model, status: lastStatus, reason: String(error?.message || "network_error").slice(0, 160) });
+      if (streamedAny) return { ok: false, status: lastStatus === 429 ? 429 : 503, failureCode: "STREAM_INTERRUPTED", providerFailures, retryAfterSeconds };
       console.warn("Nova provider attempt failed", {
         provider: attempt.provider,
         model: attempt.model,
