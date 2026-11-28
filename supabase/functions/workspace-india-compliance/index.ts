@@ -166,8 +166,9 @@ Deno.serve(async(req:Request)=>{
       if(invoice.is_draft||["cancelled","void"].includes(String(invoice.status||"").toLowerCase())) return json({error:"Only an issued, active invoice can be prepared for an e-way bill."},409,origin);
       const payload={document_type:"INV",document_number:invoice.number,document_date:date,invoice_date:invoice.issue_date,total_value:Number(invoice.total||0),currency:"INR",distance_km:distance,transport_mode:mode,vehicle_number:vehicle||null,transporter_id:transporter||null};
       const fingerprint=await sha256({invoice_id:invoice.id,payload});
-      const {data:existing}=await admin.from("workspace_eway_bill_records").select("*").eq("workspace_id",workspaceId).eq("invoice_id",invoice.id).maybeSingle();
-      if(existing && !["draft","rejected"].includes(existing.status)) return json({error:"An active e-way bill already exists for this invoice."},409,origin);
+      const {data:active}=await admin.from("workspace_eway_bill_records").select("id,status").eq("workspace_id",workspaceId).eq("invoice_id",invoice.id).in("status",["ready","submitted","generated"]).maybeSingle();
+      if(active) return json({error:"An active e-way bill already exists for this invoice."},409,origin);
+      const {data:existing}=await admin.from("workspace_eway_bill_records").select("*").eq("workspace_id",workspaceId).eq("invoice_id",invoice.id).in("status",["draft","rejected"]).order("created_at",{ascending:false}).limit(1).maybeSingle();
       if(existing) {
         const {data,error}=await admin.from("workspace_eway_bill_records").update({status:"ready",document_number:invoice.number,document_date:date,distance_km:distance,transport_mode:mode,vehicle_number:vehicle||null,transporter_id:transporter||null,request_payload:payload,validation_errors:[],idempotency_key:body.idempotency_key,request_fingerprint:fingerprint,updated_at:new Date().toISOString()}).eq("id",existing.id).eq("workspace_id",workspaceId).select("*").single();
         if(error) throw new Error("EWAY_DRAFT_UPDATE_FAILED");
