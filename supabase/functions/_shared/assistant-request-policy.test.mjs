@@ -70,3 +70,9 @@ test("approval requests load the Main Workspace approval and source-record conte
   assert.equal(result.loadGlobalContext, true);
   assert.equal(result.simpleConversationalTurn, false);
 });
+
+test("approval request preparation loads the source invoice and expense context", () => {
+  const result = getAssistantRequestPolicy({ isGlobalWorkspace: true, needsGlobalApprovalSourceContext: true });
+  assert.equal(result.loadGlobalContext, true);
+  assert.equal(result.simpleConversationalTurn, false);
+});
