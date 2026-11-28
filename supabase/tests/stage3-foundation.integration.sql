@@ -66,6 +66,11 @@ begin
     raise exception 'Stage 3 automation cron job missing';
   end if;
 
+  if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='workspace_audit_events' and column_name='correlation_id')
+    or not exists (select 1 from information_schema.columns where table_schema='public' and table_name='workspace_audit_events' and column_name='outcome') then
+    raise exception 'Stage 3 audit correlation/outcome fields missing';
+  end if;
+
   if not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_webhook_deliveries_retry_idx')
     or not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_automation_tasks_open_idx')
     or not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_documents_workspace_idx')
