@@ -24,17 +24,19 @@ create index if not exists workspace_integrations_workspace_idx
 create table if not exists public.workspace_webhook_subscriptions (
   id uuid primary key default gen_random_uuid(),
   workspace_id text not null references public.workspace_settings(workspace_id) on delete cascade,
+  provider_key text not null check (provider_key in ('shopify','custom')),
   label text not null check (length(btrim(label)) between 2 and 100),
-  endpoint_url text not null check (endpoint_url ~ '^https://' and length(endpoint_url) <= 2048),
+  secret_name text not null unique check (secret_name ~ '^plivex_webhook_[a-f0-9-]{36}$'),
   event_types text[] not null check (
     cardinality(event_types) between 1 and 8
-    and event_types <@ array['invoice.created','invoice.status_changed','lead.created','lead.stage_changed','expense.created','stock.low_stock']::text[]
+    and event_types <@ array[
+      'orders/create','orders/updated','products/create','products/update','inventory_levels/update',
+      'invoice.created','invoice.status_changed','lead.created','lead.stage_changed','expense.created','stock.low_stock'
+    ]::text[]
   ),
-  secret_ciphertext text not null check (length(secret_ciphertext) between 40 and 4096),
-  secret_key_version text not null default 'v1',
   is_active boolean not null default true,
   created_by uuid not null references auth.users(id) on delete restrict,
-  last_delivery_at timestamptz,
+  last_received_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (workspace_id, id)
@@ -42,12 +44,53 @@ create table if not exists public.workspace_webhook_subscriptions (
 create index if not exists workspace_webhook_subscriptions_active_idx
   on public.workspace_webhook_subscriptions(workspace_id, is_active, created_at desc);
 
+create table if not exists public.workspace_webhook_events (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id text not null references public.workspace_settings(workspace_id) on delete cascade,
+  subscription_id uuid not null,
+  provider_key text not null check (provider_key in ('shopify','custom')),
+  provider_event_id text not null check (length(provider_event_id) between 1 and 200),
+  event_type text not null check (length(event_type) between 1 and 120),
+  event_timestamp timestamptz,
+  payload jsonb not null check (jsonb_typeof(payload) = 'object' and pg_column_size(payload) <= 262144),
+  payload_sha256 text not null check (payload_sha256 ~ '^[a-f0-9]{64}$'),
+  signature_verified boolean not null default true check (signature_verified = true),
+  status text not null default 'pending' check (status in ('pending','processing','processed','retrying','dead_letter')),
+  attempt_count integer not null default 0 check (attempt_count between 0 and 12),
+  next_attempt_at timestamptz not null default now(),
+  last_error_code text,
+  received_at timestamptz not null default now(),
+  processed_at timestamptz,
+  foreign key (workspace_id, subscription_id)
+    references public.workspace_webhook_subscriptions(workspace_id, id) on delete cascade,
+  unique (subscription_id, provider_event_id)
+);
+create index if not exists workspace_webhook_events_retry_idx
+  on public.workspace_webhook_events(next_attempt_at, received_at)
+  where status in ('pending','retrying');
+create index if not exists workspace_webhook_events_workspace_idx
+  on public.workspace_webhook_events(workspace_id, received_at desc);
+
+create table if not exists public.workspace_webhook_attempts (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id text not null references public.workspace_settings(workspace_id) on delete cascade,
+  event_id uuid not null references public.workspace_webhook_events(id) on delete cascade,
+  attempt_no integer not null check (attempt_no between 0 and 12),
+  status text not null check (status in ('accepted','processed','retrying','dead_letter','duplicate','rejected')),
+  error_code text,
+  metadata jsonb not null default '{}'::jsonb check (jsonb_typeof(metadata) = 'object'),
+  occurred_at timestamptz not null default now()
+);
+create index if not exists workspace_webhook_attempts_event_idx
+  on public.workspace_webhook_attempts(workspace_id, event_id, occurred_at desc);
+
 create table if not exists public.workspace_event_outbox (
   id uuid primary key default gen_random_uuid(),
   workspace_id text not null references public.workspace_settings(workspace_id) on delete cascade,
-  event_type text not null check (event_type in ('invoice.created','invoice.status_changed','lead.created','lead.stage_changed','expense.created','stock.low_stock')),
-  entity_type text not null check (entity_type in ('invoice','lead','expense','stock_item')),
+  event_type text not null check (event_type in ('invoice.created','invoice.status_changed','lead.created','lead.stage_changed','expense.created','stock.low_stock','integration.webhook_received')),
+  entity_type text not null check (entity_type in ('invoice','lead','expense','stock_item','integration_webhook')),
   entity_id text not null,
+  dedupe_key text not null unique default gen_random_uuid()::text,
   payload jsonb not null default '{}'::jsonb check (jsonb_typeof(payload) = 'object'),
   occurred_at timestamptz not null default now(),
   processed_at timestamptz,
@@ -60,32 +103,11 @@ create index if not exists workspace_event_outbox_dispatch_idx
   on public.workspace_event_outbox(created_at)
   where processed_at is null;
 
-create table if not exists public.workspace_webhook_deliveries (
-  id uuid primary key default gen_random_uuid(),
-  workspace_id text not null references public.workspace_settings(workspace_id) on delete cascade,
-  subscription_id uuid not null,
-  event_id uuid not null references public.workspace_event_outbox(id) on delete cascade,
-  status text not null default 'pending' check (status in ('pending','attempting','delivered','retrying','dead_letter')),
-  attempt_count integer not null default 0 check (attempt_count between 0 and 12),
-  next_attempt_at timestamptz not null default now(),
-  response_status integer,
-  last_error_code text,
-  delivered_at timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  foreign key (workspace_id, subscription_id)
-    references public.workspace_webhook_subscriptions(workspace_id, id) on delete cascade,
-  unique (subscription_id, event_id)
-);
-create index if not exists workspace_webhook_deliveries_retry_idx
-  on public.workspace_webhook_deliveries(next_attempt_at, created_at)
-  where status in ('pending','retrying');
-
 create table if not exists public.workspace_automation_rules (
   id uuid primary key default gen_random_uuid(),
   workspace_id text not null references public.workspace_settings(workspace_id) on delete cascade,
   name text not null check (length(btrim(name)) between 2 and 100),
-  event_type text not null check (event_type in ('invoice.created','invoice.status_changed','lead.created','lead.stage_changed','expense.created','stock.low_stock')),
+  event_type text not null check (event_type in ('invoice.created','invoice.status_changed','lead.created','lead.stage_changed','expense.created','stock.low_stock','integration.webhook_received')),
   conditions jsonb not null default '{}'::jsonb check (jsonb_typeof(conditions) = 'object'),
   action_type text not null default 'create_task' check (action_type = 'create_task'),
   action_config jsonb not null default '{}'::jsonb check (jsonb_typeof(action_config) = 'object'),
@@ -195,7 +217,7 @@ declare t text;
 begin
   foreach t in array array[
     'workspace_integrations','workspace_webhook_subscriptions','workspace_event_outbox',
-    'workspace_webhook_deliveries','workspace_automation_rules','workspace_automation_runs',
+    'workspace_webhook_events','workspace_webhook_attempts','workspace_automation_rules','workspace_automation_runs',
     'workspace_automation_tasks','workspace_documents','workspace_audit_events'
   ] loop
     execute format('alter table public.%I enable row level security', t);
