@@ -531,12 +531,12 @@ begin
     v_today := extract(isodow from v_local_now)::integer;
     select min(
       case
-        when day_value > v_today then day_value - v_today
-        when day_value = v_today and p_time > v_local_now::time then 0
-        else day_value - v_today + 7
+        when days.day_value > v_today then days.day_value - v_today
+        when days.day_value = v_today and p_time > v_local_now::time then 0
+        else days.day_value - v_today + 7
       end
     ) into v_days_ahead
-    from unnest(p_days) as day_value;
+    from unnest(p_days) as days(day_value);
     v_local_date := v_local_date + v_days_ahead;
   end if;
 
