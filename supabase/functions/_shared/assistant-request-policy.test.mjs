@@ -64,3 +64,9 @@ test("member permission requests load the protected Main Workspace member contex
   assert.equal(result.loadGlobalContext, true);
   assert.equal(result.simpleConversationalTurn, false);
 });
+
+test("approval requests load the Main Workspace approval and source-record context", () => {
+  const result = getAssistantRequestPolicy({ isGlobalWorkspace: true, needsGlobalApprovalContext: true });
+  assert.equal(result.loadGlobalContext, true);
+  assert.equal(result.simpleConversationalTurn, false);
+});
