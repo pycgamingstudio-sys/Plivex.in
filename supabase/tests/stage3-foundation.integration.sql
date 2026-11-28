@@ -79,4 +79,59 @@ begin
   end if;
 end $$;
 
-select 'PASS: Stage 3 tables, RLS, least-privilege grants, event triggers and indexes';
+do $
+declare
+  v_user uuid := '00000000-0000-4000-8000-000000000991';
+  v_workspace text := 'stage3-api-idempotency-test';
+  v_key uuid;
+  v_correlation uuid := '00000000-0000-4000-8000-000000000992';
+  v_hash text := encode(digest('{"name":"Stage 3 API Lead","company":null,"email":null,"phone":null,"requirement":null,"value":0}', 'sha256'), 'hex');
+  v_first jsonb;
+  v_replay jsonb;
+  v_conflict jsonb;
+  v_lead_id text;
+begin
+  insert into auth.users(id,aud,role,email,created_at,updated_at)
+  values (v_user,'authenticated','authenticated','stage3-api-test@example.test',now(),now());
+
+  insert into public.workspace_settings(workspace_id,country_code,locale_code,currency_code,created_by)
+  values (v_workspace,'US','en-US','USD',v_user);
+
+  insert into public.public_api_keys(workspace_id,created_by,label,key_hash,key_prefix,scopes,expires_at)
+  values (v_workspace,v_user,'Stage 3 test key',repeat('a',64),'plx_test01',array['workspace.read','leads.write'],now()+interval '1 day')
+  returning id into v_key;
+
+  v_first := public.main_workspace_api_create_lead(
+    v_key,'stage3-api-lead-0001',v_hash,v_correlation,'Stage 3 API Lead',null,null,null,null,0
+  );
+  if coalesce((v_first->>'ok')::boolean,false) is not true
+    or coalesce((v_first->>'replayed')::boolean,true) is not false then
+    raise exception 'First idempotent API write did not create a new lead: %',v_first;
+  end if;
+  v_lead_id := v_first #>> '{lead,id}';
+
+  v_replay := public.main_workspace_api_create_lead(
+    v_key,'stage3-api-lead-0001',v_hash,v_correlation,'Stage 3 API Lead',null,null,null,null,0
+  );
+  if coalesce((v_replay->>'ok')::boolean,false) is not true
+    or coalesce((v_replay->>'replayed')::boolean,false) is not true
+    or (v_replay #>> '{lead,id}') is distinct from v_lead_id then
+    raise exception 'Idempotent retry did not return the original lead: %',v_replay;
+  end if;
+
+  v_conflict := public.main_workspace_api_create_lead(
+    v_key,'stage3-api-lead-0001',repeat('b',64),v_correlation,'Different Lead',null,null,null,null,0
+  );
+  if v_conflict->>'error' <> 'IDEMPOTENCY_KEY_REUSED' then
+    raise exception 'Reused idempotency key with a different payload was not rejected: %',v_conflict;
+  end if;
+
+  if (select count(*) from public.leads where workspace_id=v_workspace) <> 1 then
+    raise exception 'Idempotent API write created duplicate leads';
+  end if;
+  if (select count(*) from public.workspace_audit_events where workspace_id=v_workspace and action='api.lead_created') <> 1 then
+    raise exception 'Idempotent API write did not produce exactly one audit event';
+  end if;
+end $;
+
+select 'PASS: Stage 3 tables, RLS, least-privilege grants, event triggers, API idempotency and indexes';
