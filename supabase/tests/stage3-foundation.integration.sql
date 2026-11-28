@@ -10,7 +10,8 @@ declare
     'workspace_automation_rules',
     'workspace_automation_runs',
     'workspace_automation_tasks',
-    'workspace_documents'
+    'workspace_documents',
+    'workspace_automation_cron_config'
   ];
   v_trigger text;
 begin
@@ -50,6 +51,10 @@ begin
   end if;
   if not has_function_privilege('service_role', 'public.capture_main_workspace_business_event()', 'EXECUTE') then
     raise exception 'Service role function grant missing';
+  end if;
+
+  if not exists (select 1 from cron.job where jobname='plivex-workspace-automation-sweep' and schedule='* * * * *') then
+    raise exception 'Stage 3 automation cron job missing';
   end if;
 
   if not exists (select 1 from pg_indexes where schemaname='public' and indexname='workspace_webhook_deliveries_retry_idx')
