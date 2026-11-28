@@ -53,6 +53,23 @@ begin
     raise exception 'Service role function grant missing';
   end if;
 
+  if to_regclass('public.public_api_idempotency') is null
+    or not coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.public_api_idempotency')), false)
+    or has_table_privilege('anon','public.public_api_idempotency','SELECT')
+    or has_table_privilege('authenticated','public.public_api_idempotency','SELECT')
+    or not has_table_privilege('service_role','public.public_api_idempotency','SELECT') then
+    raise exception 'Public API idempotency table is missing or not private';
+  end if;
+  if not coalesce((select prosecdef from pg_proc where oid = 'public.main_workspace_api_create_lead(uuid,text,text,uuid,text,text,text,text,text,numeric)'::regprocedure), false)
+    or has_function_privilege('anon','public.main_workspace_api_create_lead(uuid,text,text,uuid,text,text,text,text,text,numeric)','EXECUTE')
+    or has_function_privilege('authenticated','public.main_workspace_api_create_lead(uuid,text,text,uuid,text,text,text,text,text,numeric)','EXECUTE')
+    or not has_function_privilege('service_role','public.main_workspace_api_create_lead(uuid,text,text,uuid,text,text,text,text,text,numeric)','EXECUTE') then
+    raise exception 'Public API lead write RPC is not least-privilege';
+  end if;
+  if not exists (select 1 from cron.job where jobname='plivex-public-api-idempotency-cleanup' and schedule='15 2 * * *') then
+    raise exception 'Public API idempotency cleanup job missing';
+  end if;
+
   if not coalesce((select prosecdef from pg_proc where oid = 'public.process_main_workspace_automation_events(integer)'::regprocedure), false) then
     raise exception 'Stage 3 automation worker is not security definer';
   end if;
