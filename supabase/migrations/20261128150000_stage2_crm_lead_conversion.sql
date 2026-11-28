@@ -65,14 +65,6 @@ begin
     'Lead converted to client ' || v_client_id::text, v_user
   );
 
-  insert into public.workspace_audit_events (
-    workspace_id, actor_id, action, entity_type, entity_id, metadata
-  ) values (
-    p_workspace_id, v_user, 'crm.lead_converted',
-    'lead', p_lead_id::text,
-    jsonb_build_object('client_id', v_client_id)
-  );
-
   return jsonb_build_object('ok', true, 'client_id', v_client_id, 'duplicate', false);
 end;
 $function$;
