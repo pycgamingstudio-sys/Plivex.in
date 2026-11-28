@@ -9,7 +9,7 @@ const allowedOrigin = (origin: string | null) => !origin || ORIGINS.has(origin) 
 const headers = (origin: string | null) => ({
   "Access-Control-Allow-Origin": origin && allowedOrigin(origin) ? origin : "https://plivex.in",
   "Vary": "Origin",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, x-plivex-automation-token",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 });
 const json = (body: unknown, status = 200, origin: string | null = null) =>
@@ -97,52 +97,6 @@ function matchesRule(rule: any, event: any) {
   return true;
 }
 
-async function processAutomationEvents(admin: any) {
-  const { data: events, error } = await admin.from("workspace_event_outbox")
-    .select("id,workspace_id,event_type,entity_type,entity_id,payload,occurred_at")
-    .is("processed_at", null).order("created_at", { ascending: true }).limit(50);
-  if (error) throw new Error("AUTOMATION_QUEUE_UNAVAILABLE");
-  let processed = 0;
-  for (const event of events || []) {
-    try {
-      const { data: rules, error: ruleError } = await admin.from("workspace_automation_rules")
-        .select("id,name,conditions,action_type,action_config,timezone")
-        .eq("workspace_id", event.workspace_id).eq("event_type", event.event_type).eq("is_active", true);
-      if (ruleError) throw new Error("AUTOMATION_RULE_LOOKUP_FAILED");
-      for (const rule of rules || []) {
-        const matched = matchesRule(rule, event);
-        if (matched && rule.action_type === "create_task") {
-          const config = isObject(rule.action_config) ? rule.action_config : {};
-          const dueHours = Number.isInteger(config.due_in_hours) && config.due_in_hours >= 0 && config.due_in_hours <= 720 ? config.due_in_hours : null;
-          const dueAt = dueHours === null ? null : new Date(Date.parse(event.occurred_at) + dueHours * 3600000).toISOString();
-          const { error: taskError } = await admin.from("workspace_automation_tasks").upsert({
-            workspace_id: event.workspace_id, rule_id: rule.id, source_event_id: event.id,
-            title: clean(config.title, 160) || rule.name,
-            description: clean(config.description, 2000),
-            due_at: dueAt,
-          }, { onConflict: "workspace_id,rule_id,source_event_id", ignoreDuplicates: true });
-          if (taskError) throw new Error("AUTOMATION_TASK_CREATE_FAILED");
-        }
-        const { error: runError } = await admin.from("workspace_automation_runs").upsert({
-          workspace_id: event.workspace_id, rule_id: rule.id, event_id: event.id,
-          status: matched ? "completed" : "skipped",
-        }, { onConflict: "rule_id,event_id", ignoreDuplicates: true });
-        if (runError) throw new Error("AUTOMATION_RUN_LOG_FAILED");
-      }
-      const { error: markError } = await admin.from("workspace_event_outbox").update({
-        processed_at: new Date().toISOString(), processing_error_code: null,
-      }).eq("id", event.id).is("processed_at", null);
-      if (markError) throw new Error("AUTOMATION_EVENT_ACK_FAILED");
-      processed += 1;
-    } catch (caught) {
-      await admin.from("workspace_event_outbox").update({
-        processing_error_code: clean(caught instanceof Error ? caught.message : "PROCESSING_FAILED", 80),
-      }).eq("id", event.id).is("processed_at", null);
-    }
-  }
-  return { ok: true, processed };
-}
-
 async function handleVault(ctx: any, body: any) {
   if (!canUseVault(ctx.role)) throw new Error("ACCESS_DENIED");
   const bucket = await ensureVaultBucket(ctx.admin);
@@ -216,19 +170,6 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ ok: false, error: "METHOD_NOT_ALLOWED" }, 405, origin);
 
   try {
-    if (req.headers.get("x-plivex-automation-token")) {
-      const url = Deno.env.get("SUPABASE_URL"), service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      if (!url || !service) throw new Error("SERVICE_NOT_CONFIGURED");
-      const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
-      const suppliedHash = await sha256(req.headers.get("x-plivex-automation-token") || "");
-      const { data: cronConfig, error: cronConfigError } = await admin.from("workspace_automation_cron_config")
-        .select("secret_hash").eq("singleton", true).maybeSingle();
-      if (cronConfigError || !cronConfig || suppliedHash !== cronConfig.secret_hash) {
-        return json({ ok: false, error: "WORKER_AUTH_FAILED" }, 401, origin);
-      }
-      return json(await processAutomationEvents(admin), 200, origin);
-    }
-
     const ctx = await setup(req);
     const declaredLength = Number(req.headers.get("content-length") || 0);
     if (declaredLength > MAX_REQUEST_BYTES) return json({ ok: false, error: "REQUEST_TOO_LARGE" }, 413, origin);
