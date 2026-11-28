@@ -16,7 +16,7 @@ create table if not exists public.workspace_tds_entries (
   source_reference text,
   deductee_name text not null check (length(btrim(deductee_name)) between 1 and 200),
   deductee_pan text not null default '' check (deductee_pan = '' or deductee_pan ~ '^[A-Z]{5}[0-9]{4}[A-Z]$'),
-  section_code text not null check (section_code ~ '^19[0-9A-Z]{2,3}$'),
+  section_code text not null check (section_code ~ '^19[0-9A-Z]{1,3}$'),
   deduction_date date not null,
   payment_date date,
   currency_code text not null default 'INR' check (currency_code = 'INR'),
