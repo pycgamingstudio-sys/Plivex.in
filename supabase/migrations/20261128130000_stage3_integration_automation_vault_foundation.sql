@@ -156,6 +156,100 @@ create index if not exists workspace_automation_tasks_open_idx
   on public.workspace_automation_tasks(workspace_id, due_at)
   where status = 'open';
 
+-- Event and scheduled rules share one queue, with bounded retries and visible dead letters.
+alter table public.workspace_event_outbox
+  drop constraint if exists workspace_event_outbox_event_type_check;
+alter table public.workspace_event_outbox
+  add constraint workspace_event_outbox_event_type_check
+  check (event_type in ('invoice.created','invoice.status_changed','lead.created','lead.stage_changed','expense.created','stock.low_stock','integration.webhook_received','automation.schedule_due'));
+alter table public.workspace_event_outbox
+  drop constraint if exists workspace_event_outbox_entity_type_check;
+alter table public.workspace_event_outbox
+  add constraint workspace_event_outbox_entity_type_check
+  check (entity_type in ('invoice','lead','expense','stock_item','integration_webhook','automation_schedule'));
+alter table public.workspace_event_outbox
+  add column if not exists processing_status text not null default 'pending',
+  add column if not exists attempt_count integer not null default 0,
+  add column if not exists next_attempt_at timestamptz not null default now();
+alter table public.workspace_event_outbox
+  add constraint workspace_event_outbox_processing_status_check
+  check (processing_status in ('pending','processing','processed','retrying','dead_letter'));
+alter table public.workspace_event_outbox
+  add constraint workspace_event_outbox_attempt_count_check
+  check (attempt_count between 0 and 12);
+drop index if exists public.workspace_event_outbox_dispatch_idx;
+create index if not exists workspace_event_outbox_dispatch_idx
+  on public.workspace_event_outbox(next_attempt_at, created_at)
+  where processing_status in ('pending','retrying');
+
+alter table public.workspace_automation_rules
+  drop constraint if exists workspace_automation_rules_event_type_check;
+alter table public.workspace_automation_rules
+  add constraint workspace_automation_rules_event_type_check
+  check (event_type in ('invoice.created','invoice.status_changed','lead.created','lead.stage_changed','expense.created','stock.low_stock','integration.webhook_received','automation.schedule_due'));
+alter table public.workspace_automation_rules
+  add column if not exists trigger_type text not null default 'event',
+  add column if not exists schedule_frequency text,
+  add column if not exists schedule_time_local time,
+  add column if not exists schedule_days_of_week smallint[],
+  add column if not exists next_run_at timestamptz;
+alter table public.workspace_automation_rules
+  add constraint workspace_automation_rules_trigger_type_check
+  check (trigger_type in ('event','schedule'));
+alter table public.workspace_automation_rules
+  add constraint workspace_automation_rules_schedule_contract_check
+  check (
+    (trigger_type = 'event' and event_type <> 'automation.schedule_due'
+      and schedule_frequency is null and schedule_time_local is null
+      and schedule_days_of_week is null and next_run_at is null)
+    or
+    (trigger_type = 'schedule' and event_type = 'automation.schedule_due'
+      and schedule_frequency in ('daily','weekly') and schedule_time_local is not null
+      and next_run_at is not null
+      and ((schedule_frequency = 'daily' and schedule_days_of_week is null)
+        or (schedule_frequency = 'weekly' and cardinality(schedule_days_of_week) between 1 and 7
+          and schedule_days_of_week <@ array[1,2,3,4,5,6,7]::smallint[]
+          and cardinality(schedule_days_of_week) = (select count(distinct x) from unnest(schedule_days_of_week) x)))
+    )
+  );
+create index if not exists workspace_automation_rules_schedule_idx
+  on public.workspace_automation_rules(next_run_at)
+  where trigger_type = 'schedule' and is_active = true;
+
+alter table public.workspace_automation_runs
+  add column if not exists attempt_no integer not null default 1;
+alter table public.workspace_automation_tasks
+  add column if not exists escalated_at timestamptz,
+  add column if not exists escalation_count integer not null default 0,
+  add column if not exists escalation_reason text;
+
+create table if not exists public.workspace_automation_preferences (
+  workspace_id text primary key references public.workspace_settings(workspace_id) on delete cascade,
+  timezone text not null default 'UTC' check (length(timezone) between 1 and 80),
+  quiet_hours_start time not null default '22:00',
+  quiet_hours_end time not null default '08:00',
+  escalation_enabled boolean not null default false,
+  escalation_after_hours integer not null default 24 check (escalation_after_hours between 1 and 720),
+  created_by uuid references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.workspace_automation_notifications (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id text not null references public.workspace_settings(workspace_id) on delete cascade,
+  task_id uuid not null references public.workspace_automation_tasks(id) on delete cascade,
+  notification_type text not null check (notification_type in ('task_due','task_escalated')),
+  title text not null check (length(btrim(title)) between 2 and 160),
+  message text not null default '' check (length(message) <= 1000),
+  available_at timestamptz not null default now(),
+  read_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique (workspace_id, task_id, notification_type)
+);
+create index if not exists workspace_automation_notifications_inbox_idx
+  on public.workspace_automation_notifications(workspace_id, available_at desc)
+  where read_at is null;
+
 create table if not exists public.workspace_documents (
   id uuid primary key default gen_random_uuid(),
   workspace_id text not null references public.workspace_settings(workspace_id) on delete cascade,
