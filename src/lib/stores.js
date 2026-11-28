@@ -156,6 +156,8 @@ const invoiceToUi = (r) => {
     issueDate: str(r.issue_date).slice(0, 10), dueDate: str(r.due_date).slice(0, 10), createdDate: str(r.created_at), currency: r.currency || str(r.invoice_snapshot?.currency).toUpperCase() || "",
     itemCount: items.length, taxMode: r.tax_mode || "split", taxRate: num(r.tax_rate), discountType: r.discount_type || "percent", discount: num(r.discount), notes: str(r.notes), terms: str(r.terms), status: r.status || "Pending", isDraft: !!r.is_draft,
     reminder: { enabled: !!r.reminder_enabled, language: r.reminder_language === "hi" ? "hi" : "en" },
+    upiId: str(r.invoice_snapshot?.upiId),
+    shareUpiPayment: r.invoice_snapshot?.shareUpiPayment === true,
     items: restoredItems,
   };
 };
