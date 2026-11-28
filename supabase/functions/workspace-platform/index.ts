@@ -7,6 +7,7 @@ const cors = (origin: string | null) => ({ "Access-Control-Allow-Origin": origin
 const json = (body: unknown, status = 200, origin: string | null = null) => new Response(JSON.stringify(body), { status, headers: { ...cors(origin), "Content-Type": "application/json", "Cache-Control": "no-store" } });
 const encoder = new TextEncoder();
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
+const MAX_REQUEST_BYTES = 6 * 1024 * 1024;
 const HEX = /^[a-f0-9]{64}$/;
 const clean = (value: unknown, max = 200) => String(value ?? "").trim().slice(0, max);
 const sha256 = async (value: string | Uint8Array) => {
@@ -378,7 +379,12 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok",{headers:cors(origin)});
   if (req.method !== "POST") return json({error:"Method not allowed"},405,origin);
   try {
-    const body = await req.json().catch(()=>({}));
+    const declaredLength = Number(req.headers.get("content-length") || 0);
+    if (declaredLength > MAX_REQUEST_BYTES) return json({ error: "REQUEST_TOO_LARGE" }, 413, origin);
+    const rawBody = await req.text();
+    if (encoder.encode(rawBody).byteLength > MAX_REQUEST_BYTES) return json({ error: "REQUEST_TOO_LARGE" }, 413, origin);
+    let body: any;
+    try { body = JSON.parse(rawBody); } catch { return json({ error: "INVALID_JSON" }, 400, origin); }
     if (!isObject(body)) return json({error:"Invalid request"},400,origin);
     if (body.method === "notifications/initialized") return new Response(null,{status:202,headers:cors(origin)});
     if (!body.action && typeof body.method === "string") body.action = body.method === "initialize" ? "mcp.initialize" : body.method === "tools/list" ? "mcp.tools/list" : body.method === "tools/call" ? "mcp.tools/call" : body.method;
