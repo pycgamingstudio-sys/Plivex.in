@@ -13,6 +13,13 @@ test("request metric records timing and safe routing metadata only", () => {
   assert.equal("workspace_id" in metric, false);
 });
 
+test("request metric preserves multi-step routing class for latency analysis", () => {
+  const metric = createAssistantRequestMetric({ requestId: "req-multi", startedAt: 100, finishedAt: 240, status: 200, requestClass: "multi_step", provider: "gemini", model: "gemini-3.8-flash", ttftMs: 62 });
+  assert.equal(metric.request_class, "multi_step");
+  assert.equal(metric.duration_ms, 140);
+  assert.equal(metric.ttft_ms, 62);
+});
+
 test("request metric clamps negative duration and sanitizes labels", () => {
   const metric = createAssistantRequestMetric({ requestId: "bad id", startedAt: 200, finishedAt: 100, status: 200, requestClass: "simple chat", provider: "gemini", model: "model" });
   assert.equal(metric.request_id, "unknown");
