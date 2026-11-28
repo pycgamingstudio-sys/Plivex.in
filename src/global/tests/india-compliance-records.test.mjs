@@ -20,6 +20,9 @@ test("India compliance records are workspace scoped and inaccessible to browser 
   }
   assert.match(migration,/revoke all on public\.workspace_tds_entries,[\s\S]*from public,anon,authenticated/);
   assert.match(migration,/grant all on public\.workspace_tds_entries,[\s\S]*to service_role/);
+  assert.match(migration,/audit_workspace_india_compliance_change/);
+  assert.match(migration,/after insert or update on public\.workspace_tds_entries/);
+  assert.match(edge,/updated_by:user\.id/);
 });
 
 test("TDS records use server-calculated minor-unit amounts and immutable idempotency fingerprints",()=>{
