@@ -8,6 +8,7 @@ import {
   hasPdfAttachmentRequest,
   isRetryableProviderStatus,
   normalizeOpenAiResult,
+  streamGeminiResponse,
   toOpenAiChatPayload,
 } from "./assistant-model-router.mjs";
 
@@ -193,4 +194,58 @@ test("mixed Gemini timeout and OpenRouter 429 are not mislabeled as Gemini quota
   assert.equal(result.status, 503);
   assert.equal(result.failureCode, "MIXED_PROVIDER_FAILURES");
   assert.deepEqual(result.providerFailures.map((failure) => failure.status), [504, 504, 429]);
+});
+
+
+test("Gemini SSE streaming preserves chunks across split event boundaries", async () => {
+  const events = [
+    'data: {"candidates":[{"content":{"parts":[{"text":"Namaste "}]}}]}\n\n',
+    'data: {"candidates":[{"content":{"parts":[{"text":"business "},{"text":"owner"}]}}]}\n\n',
+  ];
+  const encoded = new TextEncoder();
+  const chunks = [events[0].slice(0, 19), events[0].slice(19) + events[1].slice(0, 31), events[1].slice(31)];
+  const fetchImpl = async () => ({
+    ok: true,
+    status: 200,
+    headers: new Headers(),
+    body: new ReadableStream({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(encoded.encode(chunk));
+        controller.close();
+      },
+    }),
+  });
+  const received = [];
+  const result = await streamGeminiResponse({
+    requestOptions,
+    geminiKey: "test",
+    model: "gemini-test",
+    fetchImpl,
+    timeoutMs: 1000,
+    onTextChunk: (chunk) => received.push(chunk),
+  });
+  assert.deepEqual(received, ["Namaste ", "business owner"]);
+  assert.equal(result.candidates[0].content.parts[0].text, "Namaste business owner");
+});
+
+test("Gemini SSE streaming rejects an empty stream rather than returning a blank answer", async () => {
+  const fetchImpl = async () => ({
+    ok: true,
+    status: 200,
+    headers: new Headers(),
+    body: new ReadableStream({ start(controller) { controller.close(); } }),
+  });
+  await assert.rejects(
+    streamGeminiResponse({ requestOptions, geminiKey: "test", model: "gemini-test", fetchImpl, timeoutMs: 1000 }),
+    /empty_model_response/,
+  );
+});
+
+test("Gemini SSE streaming surfaces provider stream errors", async () => {
+  const payload = 'data: {"error":{"message":"stream interrupted"}}\n\n';
+  const fetchImpl = async () => new Response(payload, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+  await assert.rejects(
+    streamGeminiResponse({ requestOptions, geminiKey: "test", model: "gemini-test", fetchImpl, timeoutMs: 1000 }),
+    /stream interrupted/,
+  );
 });
