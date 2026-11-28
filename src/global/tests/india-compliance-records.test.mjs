@@ -12,6 +12,7 @@ const stores=read("../../lib/stores.js");
 const panel=read("../../components/workspace/WorkspaceIndiaComplianceRecords.jsx");
 const parent=read("../../components/workspace/WorkspaceGSTCompliance.jsx");
 const home=read("../../pages/Home.jsx");
+const taxEditor=read("../../components/invoice/GlobalTaxEditor.jsx");
 
 test("India compliance records are workspace scoped and inaccessible to browser roles",()=>{
   for(const table of ["workspace_tds_entries","workspace_einvoice_records","workspace_eway_bill_records","workspace_compliance_provider_connections"]){
@@ -41,6 +42,8 @@ test("E-invoice preparation validates GSTIN, invoice lines, HSN/SAC and UQC befo
   assert.match(edge,/hsn_sac_code/);
   assert.match(edge,/unit_code/);
   assert.match(edge,/status:errors\.length\?"draft":"ready"/);
+  assert.match(edge,/place_of_supply_state:placeOfSupply/);
+  assert.match(edge,/supply_type:supplyType/);
 });
 
 test("E-way bill preparation requires transport evidence and prevents duplicate active bills",()=>{
@@ -69,6 +72,9 @@ test("Invoice HSN/SAC and UQC fields persist from the Main Workspace invoice edi
   assert.match(stores,/hsn_sac_code: str\(i\.hsnSac\)/);
   assert.match(stores,/unit_code: str\(i\.unitCode\) \|\| "OTH"/);
   assert.match(home,/Unit<select/);
+  assert.match(taxEditor,/data-testid="india-place-of-supply"/);
+  assert.match(taxEditor,/\["09","Uttar Pradesh"\]/);
+  assert.match(invoiceEdge,/\^\(\?:\[0-9\]\{2\}\|\[A-Z\]\{2\}\)\$/);
 });
 
 test("India compliance workbench is integrated into the existing GST module and clearly labels external filing as inactive",()=>{
