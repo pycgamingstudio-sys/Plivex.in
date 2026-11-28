@@ -52,7 +52,7 @@ test("E-way bill preparation requires transport evidence and prevents duplicate 
   assert.match(edge,/distance<1\|\|distance>4000/);
   assert.match(edge,/!vehicle\s*&&\s*!transporter/);
   assert.match(edge,/from_gstin:seller\.tax_registration_number/);
-  assert.match(edge,/to_gstin:buyer\?\.gstin/);
+  assert.match(edge,/to_gstin:buyerDetails\?\.gstin/);
   assert.match(edge,/status:errors\.length\?"draft":"ready"/);
   assert.match(edge,/An active e-way bill already exists/);
 });
