@@ -36,7 +36,7 @@ export function validateGlobalStockTransferAgainstContext(action, context) {
   const warehouses = Array.isArray(context.warehouses) ? context.warehouses : [];
   const levels = Array.isArray(context.warehouse_stock_levels) ? context.warehouse_stock_levels : [];
   const products = Array.isArray(context.products) ? context.products : [];
-  if (!warehouses.length || !Array.isArray(context.warehouse_stock_levels) || !Array.isArray(context.products)) {
+  if (!Array.isArray(context.warehouses) || !Array.isArray(context.warehouse_stock_levels) || !Array.isArray(context.products)) {
     return { ok: false, reason: "context_unavailable" };
   }
   const from = warehouses.find((item) => item?.id === action.payload.from_warehouse_id && item?.is_active !== false);
