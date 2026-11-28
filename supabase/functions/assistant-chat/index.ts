@@ -634,6 +634,7 @@ async function handleRequest(req: Request, metricContext: Record<string, unknown
       needsGlobalClientContext,
       needsGlobalExpenseContext,
       needsGlobalProductContext,
+      needsGlobalSupplierContext,
       hasImage: Boolean(image),
     });
     metricContext.requestClass = requestPolicy.simpleConversationalTurn ? "simple" : "business";
