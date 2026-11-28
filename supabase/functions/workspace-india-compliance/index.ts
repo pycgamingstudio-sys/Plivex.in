@@ -172,15 +172,22 @@ Deno.serve(async(req:Request)=>{
       ]);
       if(invoiceError||sellerError||!invoice||!seller) return json({error:"Invoice or seller profile not found in this workspace."},404,origin);
       if(invoice.is_draft||["cancelled","void"].includes(String(invoice.status||"").toLowerCase())) return json({error:"Only an issued, active invoice can be prepared for an e-way bill."},409,origin);
-      const {data:buyer,error:buyerError}=invoice.client_id ? await admin.from("clients").select("name,gstin,address").eq("id",invoice.client_id).eq("workspace_id",workspaceId).maybeSingle() : {data:null,error:null};
-      if(buyerError) return json({error:"Customer details could not be loaded."},500,origin);
+      const [{data:buyer,error:buyerError},{data:items,error:itemsError}]=await Promise.all([
+        invoice.client_id ? admin.from("clients").select("name,gstin,address").eq("id",invoice.client_id).eq("workspace_id",workspaceId).maybeSingle() : Promise.resolve({data:null,error:null}),
+        admin.from("invoice_items").select("description,quantity,rate,hsn_sac_code,unit_code").eq("invoice_id",invoice.id),
+      ]);
+      if(buyerError||itemsError) return json({error:"Customer or invoice line details could not be loaded."},500,origin);
       const errors:string[]=[];
       if(!gstin(seller.tax_registration_number)) errors.push("Seller GSTIN is missing or malformed.");
       if(!gstin(buyer?.gstin)) errors.push("Buyer GSTIN is missing or malformed.");
       if(!clean(seller.address,1000)) errors.push("Seller dispatch address is required.");
       if(!clean(buyer?.address,1000)) errors.push("Buyer delivery address is required.");
       if(!invoice.number||!isValidIsoDate(invoice.issue_date)) errors.push("Invoice number and date are required.");
-      const payload={document_type:"INV",document_number:invoice.number,document_date:date,invoice_date:invoice.issue_date,total_value:Number(invoice.total||0),currency:"INR",from_gstin:seller.tax_registration_number,from_address:seller.address,to_gstin:buyer?.gstin||null,to_address:buyer?.address||null,distance_km:distance,transport_mode:mode,vehicle_number:vehicle||null,transporter_id:transporter||null};
+      if(!items?.length) errors.push("At least one invoice line is required.");
+      for(const [index,item] of (items||[]).entries()) {
+        if(!/^\\d{4,8}$/.test(String(item.hsn_sac_code||""))) errors.push("Line "+(index+1)+": HSN/SAC code is required for the e-way bill.");
+      }
+      const payload={document_type:"INV",document_number:invoice.number,document_date:date,invoice_date:invoice.issue_date,total_value:Number(invoice.total||0),currency:"INR",from_gstin:seller.tax_registration_number,from_address:seller.address,to_gstin:buyer?.gstin||null,to_address:buyer?.address||null,distance_km:distance,transport_mode:mode,vehicle_number:vehicle||null,transporter_id:transporter||null,items:(items||[]).map((item:any)=>({description:item.description,hsn_sac_code:item.hsn_sac_code,quantity:item.quantity,unit_code:item.unit_code,taxable_value:Number(item.quantity||0)*Number(item.rate||0)}))};
       const fingerprint=await sha256({invoice_id:invoice.id,payload});
       const {data:active}=await admin.from("workspace_eway_bill_records").select("id,status").eq("workspace_id",workspaceId).eq("invoice_id",invoice.id).in("status",["ready","submitted","generated"]).maybeSingle();
       if(active) return json({error:"An active e-way bill already exists for this invoice."},409,origin);
