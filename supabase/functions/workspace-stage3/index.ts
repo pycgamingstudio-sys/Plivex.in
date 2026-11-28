@@ -185,6 +185,17 @@ async function listIntegrations(ctx: any) {
     { onConflict: "workspace_id,provider_key", ignoreDuplicates: true },
   );
   if (seedError) throw new Error("INTEGRATION_REGISTRY_UNAVAILABLE");
+  const { data: hooks, error: hookError } = await ctx.admin.from("workspace_webhook_subscriptions")
+    .select("provider_key,is_active").eq("workspace_id", ctx.workspaceId);
+  if (hookError) throw new Error("INTEGRATION_REGISTRY_UNAVAILABLE");
+  const configuredProviders = new Set((hooks || []).map((item: any) => item.provider_key));
+  for (const [providerKey, label] of [["shopify","Shopify webhook endpoint configured"],["custom_webhooks","Signed custom webhook configured"]] as const) {
+    if (configuredProviders.has(providerKey === "custom_webhooks" ? "custom" : providerKey)) {
+      await ctx.admin.from("workspace_integrations").update({
+        status: "awaiting_provider_access", account_label: label,
+      }).eq("workspace_id", ctx.workspaceId).eq("provider_key", providerKey).in("status", ["setup_required","available"]);
+    }
+  }
   const { data, error } = await ctx.admin.from("workspace_integrations")
     .select("id,provider_key,status,account_label,safe_metadata,last_checked_at,verified_at,last_error_code,created_at,updated_at")
     .eq("workspace_id", ctx.workspaceId).order("provider_key");
@@ -289,7 +300,12 @@ Deno.serve(async (req: Request) => {
         ? await ctx.admin.from("workspace_webhook_attempts").select("id,event_id,attempt_no,status,error_code,occurred_at").eq("workspace_id", ctx.workspaceId).in("event_id", eventIds).order("occurred_at", { ascending: false }).limit(200)
         : { data: [], error: null };
       if (attemptsError) throw new Error("WEBHOOK_ATTEMPTS_LIST_FAILED");
-      return json({ ok: true, subscriptions: subscriptions || [], events: events || [], attempts: attempts || [] }, 200, origin);
+      const baseUrl = Deno.env.get("SUPABASE_URL")?.replace(/\/$/, "") || "";
+      const subscriptionItems = (subscriptions || []).map((item: any) => ({
+        ...item,
+        endpoint_url: baseUrl ? baseUrl + "/functions/v1/workspace-stage3/webhooks/" + item.id : null,
+      }));
+      return json({ ok: true, subscriptions: subscriptionItems, events: events || [], attempts: attempts || [] }, 200, origin);
     }
     if (body.action === "webhooks.create") {
       if (!canManage(ctx.role)) throw new Error("ACCESS_DENIED");
