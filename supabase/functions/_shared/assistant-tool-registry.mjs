@@ -8,6 +8,7 @@
  */
 export const ASSISTANT_WRITE_TOOLS = Object.freeze({
   create_client: { module: "clients", approval: "user_confirmation", required: ["name"] },
+  create_global_branch: { module: "branches", approval: "user_confirmation", required: ["name", "branch_code"] },
   create_global_client: { module: "global_clients", approval: "user_confirmation", required: ["name"] },
   create_global_supplier: { module: "suppliers", approval: "user_confirmation", required: ["name"] },
   transfer_global_stock: { module: "stock_transfers", approval: "user_confirmation", required: ["from_warehouse_id", "to_warehouse_id", "items"] },
@@ -42,7 +43,7 @@ export const BUSINESS_MODULE_CATALOG = Object.freeze({
   stock_transfers: { readContext: true, writeTools: ["transfer_global_stock"], planned: false },
   payments: { readContext: "summaries_only", writeTools: ["record_global_invoice_payment"], planned: false },
   staff: { readContext: false, writeTools: [], planned: true },
-  branches: { readContext: false, writeTools: [], planned: true },
+  branches: { readContext: true, writeTools: ["create_global_branch"], planned: false },
   analytics: { readContext: "summaries_only", writeTools: [] },
   automation: { readContext: false, writeTools: [], planned: true },
 });
