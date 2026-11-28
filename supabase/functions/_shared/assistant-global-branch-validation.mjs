@@ -4,10 +4,14 @@ const CODE_RE = /^[A-Z0-9][A-Z0-9_-]{0,31}$/;
 export function validateGlobalBranchAction(action) {
   if (!action || typeof action !== "object" || action.type !== "create_global_branch") return null;
   const raw = action.payload && typeof action.payload === "object" ? action.payload : {};
-  const name = clean(raw.name, 160);
-  const branchCode = clean(raw.branch_code, 32).toUpperCase();
+  const rawName = String(raw.name ?? "").trim();
+  const rawCode = String(raw.branch_code ?? "").trim();
+  const name = clean(rawName, 160);
+  const branchCode = clean(rawCode, 32).toUpperCase();
   const sourceAddress = raw.address && typeof raw.address === "object" && !Array.isArray(raw.address) ? raw.address : {};
-  if (!name || !CODE_RE.test(branchCode)) return null;
+  if (!name || rawName.length > 160 || rawCode.length > 32 || !CODE_RE.test(branchCode)) return null;
+  const rawCountryCode = String(sourceAddress.country_code ?? "").trim();
+  if (rawCountryCode.length > 2) return null;
   const address = {
     line1: clean(sourceAddress.line1, 180),
     line2: clean(sourceAddress.line2, 180),
