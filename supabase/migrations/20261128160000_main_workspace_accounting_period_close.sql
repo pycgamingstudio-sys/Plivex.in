@@ -199,4 +199,56 @@ grant execute on function public.main_workspace_list_accounting_periods(text) to
 grant execute on function public.main_workspace_close_accounting_period(text,date,date,text) to authenticated;
 grant execute on function public.main_workspace_reopen_accounting_period(text,date,text) to authenticated;
 
+
+create or replace function public.guard_closed_accounting_period_journal_delete()
+returns trigger
+language plpgsql
+security definer
+set search_path=pg_catalog,public
+as $function$
+declare v_period_start date;
+begin
+ v_period_start:=date_trunc('month',old.entry_date)::date;
+ perform pg_advisory_xact_lock(hashtextextended(old.workspace_id||':'||to_char(v_period_start,'YYYY-MM'),0));
+ if exists(select 1 from public.workspace_accounting_periods p
+  where p.workspace_id=old.workspace_id and p.period_start=v_period_start and p.status='closed') then
+  raise exception using errcode='55000',message='accounting_period_closed';
+ end if;
+ return old;
+end;
+$function$;
+revoke all on function public.guard_closed_accounting_period_journal_delete() from public,anon,authenticated;
+drop trigger if exists journal_entries_closed_period_delete_guard on public.journal_entries;
+create trigger journal_entries_closed_period_delete_guard before delete on public.journal_entries
+ for each row execute function public.guard_closed_accounting_period_journal_delete();
+
+create or replace function public.guard_posted_main_workspace_journal_mutation()
+returns trigger
+language plpgsql
+security definer
+set search_path=pg_catalog,public
+as $function$
+begin
+ if tg_table_name='journal_entries' then
+  if old.status='posted' then
+   raise exception using errcode='55000',message='Posted journal entries are immutable; create a correcting journal instead';
+  end if;
+ else
+  if exists(select 1 from public.journal_entries j
+   where j.workspace_id=old.workspace_id and j.id=old.entry_id and j.status='posted') then
+   raise exception using errcode='55000',message='Posted journal lines are immutable; create a correcting journal instead';
+  end if;
+ end if;
+ if tg_op='DELETE' then return old; end if;
+ return new;
+end;
+$function$;
+revoke all on function public.guard_posted_main_workspace_journal_mutation() from public,anon,authenticated;
+drop trigger if exists journal_entries_posted_immutable on public.journal_entries;
+create trigger journal_entries_posted_immutable before update or delete on public.journal_entries
+ for each row execute function public.guard_posted_main_workspace_journal_mutation();
+drop trigger if exists journal_entry_lines_posted_immutable on public.journal_entry_lines;
+create trigger journal_entry_lines_posted_immutable before update or delete on public.journal_entry_lines
+ for each row execute function public.guard_posted_main_workspace_journal_mutation();
+
 commit;
