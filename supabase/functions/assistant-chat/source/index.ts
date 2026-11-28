@@ -865,7 +865,7 @@ async function handleRequest(req: Request, onModelTextChunk?: (chunk: string) =>
       openRouterKey,
       enableGroq,
       onTextChunk: forwardModelChunk,
-    });
+    } as any);
     if (!routed.ok) {
       const message = routed.status === 429
         ? "AI providers are rate-limited right now. Please try again shortly."
