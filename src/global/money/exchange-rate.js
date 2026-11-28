@@ -15,7 +15,7 @@ const roundHalfUp = (n, d) => {
 };
 
 /** Validate an immutable, source-attributed rational exchange-rate snapshot. */
-export function validateExchangeRateSnapshot(snapshot) {
+export function validateExchangeRateSnapshot(snapshot, nowMs = Date.now()) {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return { ok: false, code: "INVALID_SNAPSHOT" };
   const base = typeof snapshot.baseCurrency === "string" ? snapshot.baseCurrency.toUpperCase() : "";
   const quote = typeof snapshot.quoteCurrency === "string" ? snapshot.quoteCurrency.toUpperCase() : "";
@@ -23,6 +23,8 @@ export function validateExchangeRateSnapshot(snapshot) {
   if (base === quote) return { ok: false, code: "SAME_CURRENCY" };
   if (!positiveIntegerString(snapshot.rateNumerator) || !positiveIntegerString(snapshot.rateDenominator)) return { ok: false, code: "INVALID_RATE" };
   if (!isDate(snapshot.capturedAt) || !isDate(snapshot.effectiveAt)) return { ok: false, code: "INVALID_TIMESTAMP" };
+  if (!Number.isFinite(nowMs)) return { ok: false, code: "INVALID_VALIDATION_TIME" };
+  if (Date.parse(snapshot.capturedAt) > nowMs) return { ok: false, code: "FUTURE_CAPTURE_TIMESTAMP" };
   if (Date.parse(snapshot.effectiveAt) > Date.parse(snapshot.capturedAt)) return { ok: false, code: "FUTURE_EFFECTIVE_RATE" };
   let source;
   try { source = new URL(snapshot.source); } catch { return { ok: false, code: "INVALID_SOURCE" }; }
