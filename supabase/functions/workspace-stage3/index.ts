@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { isAllowedWebhookEvent, verifyCustomWebhookSignature, verifyShopifyWebhookSignature } from "../_shared/webhook-security.ts";
+import { validateDocumentBytes } from "../_shared/document-security.ts";
 
 const ORIGINS = new Set(["https://plivex.in", "https://www.plivex.in", "https://plivex.netlify.app"]);
 const EVENT_TYPES = new Set(["invoice.created","invoice.status_changed","lead.created","lead.stage_changed","expense.created","stock.low_stock","integration.webhook_received"]);
@@ -236,7 +237,7 @@ async function handleVault(ctx: any, body: any) {
     const mimeType = String(body.mimeType || "");
     if (!MIME_TYPES.has(mimeType) || typeof body.fileBase64 !== "string") throw new Error("INVALID_DOCUMENT");
     const bytes = fromBase64(body.fileBase64);
-    if (!bytes.length) throw new Error("INVALID_DOCUMENT");
+    if (!validateDocumentBytes(mimeType, bytes)) throw new Error("DOCUMENT_CONTENT_TYPE_MISMATCH");
     const digest = await sha256(bytes);
     const path = ctx.workspaceId + "/" + crypto.randomUUID() + "/" + fileName;
     const { error: uploadError } = await ctx.admin.storage.from(bucket).upload(path, bytes, {
