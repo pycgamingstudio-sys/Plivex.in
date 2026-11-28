@@ -101,14 +101,17 @@ Deno.serve(async (req: Request) => {
         taxResult = { ok:true, status:"india_legacy", countryCode, ruleSnapshot:resolved.rule, ruleMode:resolved.mode };
       } else {
         const components = resolved.rule.components;
+        const useVerifiedRegistryRule = resolved.mode === "verified" && countryCode !== "US";
         taxInput.globalTax = {
           ...taxConfig,
           countryCode,
-          mode: "manual",
+          mode: useVerifiedRegistryRule ? "automatic" : "manual",
           resolvedRuleSource: "supabase",
           ruleMode: resolved.mode,
+          resolvedRule: useVerifiedRegistryRule ? { ...resolved.rule, verified: true } : null,
           taxMode: "taxable",
-          taxTreatment: "standard",
+          taxTreatment: resolved.rule.treatment || taxConfig.taxTreatment || "standard",
+          taxCategory: taxConfig.taxCategory || taxConfig.taxCode || null,
           components,
         };
         taxResult = calculateInvoiceGlobalTax(taxInput, taxProfile);
