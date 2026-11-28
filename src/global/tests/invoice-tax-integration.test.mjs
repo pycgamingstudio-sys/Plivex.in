@@ -38,7 +38,7 @@ test("UK standard VAT integrates with the invoice amount and retains rule proven
 });
 
 test("verified Supabase registry rules stay on the verified calculation path for non-US invoices", () => {
-  const gbRule = getTaxRuleSet("GB", { asOfDate: "2026-11-20" }).rule;
+  const gbRule = { ...getTaxRuleSet("GB", { asOfDate: "2026-11-20" }).rule, reviewedBy: "Plivex tax rule review" };
   const gb = calculateInvoiceGlobalTax(invoice("GBP", {
     mode: "automatic", resolvedRuleSource: "supabase", ruleMode: "verified",
     resolvedRule: { ...gbRule, verified: true },
