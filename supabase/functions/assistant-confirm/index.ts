@@ -7,6 +7,7 @@ import { validateGlobalStockTransferAction } from "../_shared/assistant-global-s
 import { validateGlobalBranchAction } from "../_shared/assistant-global-branch-validation.mjs";
 import { validateGlobalMemberPermissionAction } from "../_shared/assistant-global-member-permission-validation.mjs";
 import { validateGlobalApprovalRequestAction } from "../_shared/assistant-global-approval-validation.mjs";
+import { validateGlobalApprovalDecisionAction } from "../_shared/assistant-global-approval-decision-validation.mjs";
 import { validateGlobalExpenseAction } from "../_shared/assistant-global-expense-validation.mjs";
 import { validateGlobalProductAction } from "../_shared/assistant-global-product-validation.mjs";
 import { validateGoodsReceiptAction } from "../_shared/assistant-goods-receipt-validation.mjs";
@@ -159,7 +160,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => null);
     const rawActions = Array.isArray(body?.actions) ? body.actions : [body?.action];
     if (!rawActions.length || rawActions.length > 10) return json({ error: "Please confirm between 1 and 10 valid actions." }, 400, origin);
-    if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_branch", "create_global_client", "create_global_supplier", "set_global_member_permission", "request_global_approval", "create_global_expense", "create_global_product", "record_global_invoice_payment", "transfer_global_stock"].includes(String(action?.type || "")))) {
+    if (isGlobalWorkspace && rawActions.some((action: any) => !["create_global_branch", "create_global_client", "create_global_supplier", "set_global_member_permission", "request_global_approval", "decide_global_approval", "create_global_expense", "create_global_product", "record_global_invoice_payment", "transfer_global_stock"].includes(String(action?.type || "")))) {
       return json({ error: "This Main Workspace action is not connected yet. No legacy India-table write was attempted." }, 403, origin);
     }
     if (!isGlobalWorkspace && rawActions.some((action: any) => isGlobalOnlyAssistantAction(action?.type))) {
@@ -353,6 +354,53 @@ Deno.serve(async (req: Request) => {
         created: [{ type: "create_global_supplier", id: supplier.supplier_id }],
         verification: [{ type: "create_global_supplier", id: supplier.supplier_id, verified }],
         supplier: verified ? { name: record.name, email: record.email || null, phone: record.phone || null } : null,
+      }, 200, origin);
+    }
+    if (actions.some((action: any) => action.type === "decide_global_approval")) {
+      if (actions.length !== 1) return json({ error: "Approval decisions must be confirmed one at a time." }, 400, origin);
+      const payload = actions[0].payload;
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) {
+        return json({ error: "The approval decision confirmation key is invalid. Prepare the decision again." }, 400, origin);
+      }
+      const canonical = JSON.stringify({ type: "decide_global_approval", payload });
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+      const requestHash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const { data: decision, error: decisionError } = await supabase.rpc("assistant_decide_global_approval_idempotent", {
+        p_user_id: user.id, p_workspace_id: workspaceId, p_idempotency_key: idempotencyKey,
+        p_request_hash: requestHash,
+        p_payload: { requestId: payload.request_id, decision: payload.decision, note: payload.note || null },
+      });
+      if (decisionError) {
+        const message = String(decisionError.message || "");
+        if (message.includes("IDEMPOTENCY_PAYLOAD_MISMATCH")) return json({ error: "This confirmation key was already used for a different approval decision. Prepare the decision again." }, 409, origin);
+        console.error("Main Workspace approval decision rejected", { code: decisionError.code, userId: user.id });
+        return json({ error: "The approval decision could not be submitted. Check the request and your approver permission." }, 400, origin);
+      }
+      if (!decision?.ok || !decision?.requestId || !["pending", "approved", "rejected"].includes(decision.status)) {
+        const code = String(decision?.code || "");
+        const message = code === "SELF_APPROVAL_BLOCKED" ? "You cannot approve or reject your own request."
+          : code === "APPROVER_ROLE_REQUIRED" || code === "PERMISSION_DENIED" ? "Your Main Workspace role is not authorized to decide this approval."
+          : code === "REQUEST_NOT_DECIDABLE" ? "This approval request is no longer pending and cannot be decided again."
+          : "The approval decision was not accepted.";
+        return json({ error: message }, code === "SELF_APPROVAL_BLOCKED" || code === "APPROVER_ROLE_REQUIRED" || code === "PERMISSION_DENIED" ? 403 : 409, origin);
+      }
+      let verified = true;
+      if (decision.status === "pending") {
+        const { data: list, error: listError } = await supabase.functions.invoke("global-enterprise", {
+          body: { action: "approval.list", workspaceId },
+        });
+        const current = !listError && Array.isArray(list?.requests)
+          ? list.requests.find((item: any) => item?.id === decision.requestId) : null;
+        verified = Boolean(current && current.status === "pending" && current.current_level === decision.currentLevel);
+      }
+      return json({
+        ok: true, verified, duplicate: Boolean(decision.duplicate),
+        reply: verified
+          ? "Main Workspace approval decision recorded: " + decision.status + ". The approval engine recorded the decision and audit event."
+          : "The approval engine accepted the decision, but Plivex could not verify the next pending workflow level. Check the approval queue before retrying.",
+        created: [{ type: "decide_global_approval", id: decision.requestId }],
+        verification: [{ type: "decide_global_approval", id: decision.requestId, verified }],
+        approval: verified ? { id: decision.requestId, decision: payload.decision, status: decision.status, current_level: decision.currentLevel, total_levels: decision.totalLevels } : null,
       }, 200, origin);
     }
     if (actions.some((action: any) => action.type === "request_global_approval")) {
