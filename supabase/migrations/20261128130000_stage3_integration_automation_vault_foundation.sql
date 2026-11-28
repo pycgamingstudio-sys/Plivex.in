@@ -228,6 +228,177 @@ begin
   end loop;
 end $$;
 
+-- Create webhook secrets in Supabase Vault and return the raw value only once to the authenticated owner.
+create or replace function public.main_workspace_create_webhook_subscription(
+  p_workspace_id text,
+  p_user_id uuid,
+  p_provider_key text,
+  p_label text,
+  p_event_types text[]
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $function$
+declare
+  v_secret text;
+  v_secret_name text;
+  v_subscription_id uuid;
+begin
+  if not exists (
+    select 1 from public.workspace_members
+    where workspace_id = p_workspace_id and user_id = p_user_id
+      and status = 'active' and role in ('admin','manager')
+  ) then
+    return jsonb_build_object('ok',false,'error','ACCESS_DENIED');
+  end if;
+  if p_provider_key not in ('shopify','custom')
+    or p_label is null or length(btrim(p_label)) not between 2 and 100
+    or p_event_types is null or cardinality(p_event_types) not between 1 and 8
+    or cardinality(p_event_types) <> (select count(distinct x) from unnest(p_event_types) x) then
+    return jsonb_build_object('ok',false,'error','INVALID_WEBHOOK_SUBSCRIPTION');
+  end if;
+  if p_provider_key = 'shopify'
+    and not (p_event_types <@ array['orders/create','orders/updated','products/create','products/update','inventory_levels/update']::text[]) then
+    return jsonb_build_object('ok',false,'error','INVALID_SHOPIFY_TOPICS');
+  end if;
+  if p_provider_key = 'custom'
+    and not (p_event_types <@ array['invoice.created','invoice.status_changed','lead.created','lead.stage_changed','expense.created','stock.low_stock']::text[]) then
+    return jsonb_build_object('ok',false,'error','INVALID_CUSTOM_EVENT_TYPES');
+  end if;
+
+  v_secret := encode(gen_random_bytes(32), 'hex');
+  v_secret_name := 'plivex_webhook_' || gen_random_uuid()::text;
+  perform vault.create_secret(v_secret, v_secret_name, 'Private signing secret for Main Workspace webhook subscription');
+
+  insert into public.workspace_webhook_subscriptions(
+    workspace_id, provider_key, label, secret_name, event_types, created_by
+  ) values (
+    p_workspace_id, p_provider_key, btrim(p_label), v_secret_name, p_event_types, p_user_id
+  ) returning id into v_subscription_id;
+
+  insert into public.workspace_audit_events(
+    workspace_id, actor_id, action, entity_type, entity_id, correlation_id, outcome, metadata
+  ) values (
+    p_workspace_id, p_user_id, 'webhook.subscription_created', 'webhook_subscription',
+    v_subscription_id::text, gen_random_uuid(), 'success',
+    jsonb_build_object('provider_key',p_provider_key,'event_count',cardinality(p_event_types))
+  );
+
+  return jsonb_build_object(
+    'ok',true,
+    'subscription_id',v_subscription_id,
+    'provider_key',p_provider_key,
+    'event_types',p_event_types,
+    'secret',v_secret
+  );
+end;
+$function$;
+revoke all on function public.main_workspace_create_webhook_subscription(text,uuid,text,text,text[]) from public, anon, authenticated;
+grant execute on function public.main_workspace_create_webhook_subscription(text,uuid,text,text,text[]) to service_role;
+
+create or replace function public.main_workspace_get_webhook_secret(p_subscription_id uuid)
+returns text
+language sql
+security definer
+set search_path = pg_catalog, public, vault
+as $function$
+  select d.decrypted_secret
+  from public.workspace_webhook_subscriptions s
+  join vault.decrypted_secrets d on d.name = s.secret_name
+  where s.id = p_subscription_id and s.is_active = true
+  limit 1;
+$function$;
+revoke all on function public.main_workspace_get_webhook_secret(uuid) from public, anon, authenticated;
+grant execute on function public.main_workspace_get_webhook_secret(uuid) to service_role;
+
+-- Verified webhook receipts are dispatched to the Main Workspace event outbox with bounded retries.
+create or replace function public.process_main_workspace_webhook_events(p_limit integer default 50)
+returns integer
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $function$
+declare
+  v_event record;
+  v_attempt integer;
+  v_delay integer;
+  v_status text;
+  v_processed integer := 0;
+begin
+  if p_limit is null or p_limit < 1 or p_limit > 200 then
+    raise exception 'invalid webhook batch size';
+  end if;
+
+  for v_event in
+    select id, workspace_id, subscription_id, provider_key, provider_event_id,
+      event_type, event_timestamp, payload_sha256, attempt_count, received_at
+    from public.workspace_webhook_events
+    where status in ('pending','retrying') and next_attempt_at <= now()
+    order by received_at, id
+    for update skip locked
+    limit p_limit
+  loop
+    v_attempt := v_event.attempt_count + 1;
+    begin
+      update public.workspace_webhook_events
+      set status = 'processing', attempt_count = v_attempt
+      where id = v_event.id;
+
+      insert into public.workspace_event_outbox(
+        workspace_id, event_type, entity_type, entity_id, dedupe_key, payload, occurred_at
+      ) values (
+        v_event.workspace_id,
+        'integration.webhook_received',
+        'integration_webhook',
+        v_event.id::text,
+        'webhook:' || v_event.subscription_id::text || ':' || v_event.provider_event_id,
+        jsonb_build_object(
+          'provider_key',v_event.provider_key,
+          'provider_event_id',v_event.provider_event_id,
+          'event_type',v_event.event_type,
+          'payload_sha256',v_event.payload_sha256,
+          'webhook_event_id',v_event.id
+        ),
+        coalesce(v_event.event_timestamp,v_event.received_at)
+      )
+      on conflict (dedupe_key) do nothing;
+
+      update public.workspace_webhook_events
+      set status = 'processed', processed_at = clock_timestamp(),
+        next_attempt_at = clock_timestamp(), last_error_code = null
+      where id = v_event.id;
+
+      insert into public.workspace_webhook_attempts(workspace_id,event_id,attempt_no,status,metadata)
+      values(v_event.workspace_id,v_event.id,v_attempt,'processed',jsonb_build_object('outbox_event_created',true));
+      v_processed := v_processed + 1;
+    exception when others then
+      v_status := case when v_attempt >= 12 then 'dead_letter' else 'retrying' end;
+      v_delay := least(21600, (30 * power(2::numeric, least(v_attempt,10)))::integer);
+      update public.workspace_webhook_events
+      set status = v_status,
+        attempt_count = v_attempt,
+        next_attempt_at = clock_timestamp() + make_interval(secs => v_delay),
+        last_error_code = 'WEBHOOK_DISPATCH_FAILED'
+      where id = v_event.id;
+      insert into public.workspace_webhook_attempts(workspace_id,event_id,attempt_no,status,error_code,metadata)
+      values(v_event.workspace_id,v_event.id,v_attempt,v_status,'WEBHOOK_DISPATCH_FAILED',jsonb_build_object('retry_delay_seconds',v_delay));
+    end;
+  end loop;
+
+  return v_processed;
+end;
+$function$;
+revoke all on function public.process_main_workspace_webhook_events(integer) from public, anon, authenticated;
+grant execute on function public.process_main_workspace_webhook_events(integer) to service_role;
+
+select cron.schedule(
+  'plivex-workspace-webhook-sweep',
+  '* * * * *',
+  'select public.process_main_workspace_webhook_events(50);'
+);
+
 -- Claim events with SKIP LOCKED and make task creation/run history idempotent.
 create or replace function public.process_main_workspace_automation_events(p_limit integer default 50)
 returns integer
