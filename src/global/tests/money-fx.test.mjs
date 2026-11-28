@@ -28,3 +28,9 @@ test("conversion honors zero-decimal quote currency and signed amounts", () => {
   assert.equal(result.ok, true); assert.equal(result.quoteAmountMinor, 150);
   assert.equal(convertMinorAmount(-100, snapshot).quoteAmountMinor, -8350);
 });
+
+test("FX snapshot timestamps reject impossible calendar dates and invalid clock values", () => {
+  assert.equal(validateExchangeRateSnapshot({ ...snapshot, effectiveAt: "2026-02-30T00:00:00Z" }).code, "INVALID_TIMESTAMP");
+  assert.equal(validateExchangeRateSnapshot({ ...snapshot, capturedAt: "2026-11-16T25:00:00Z" }).code, "INVALID_TIMESTAMP");
+  assert.equal(validateExchangeRateSnapshot({ ...snapshot, effectiveAt: "2024-02-29T00:00:00.1Z" }).ok, true);
+});
