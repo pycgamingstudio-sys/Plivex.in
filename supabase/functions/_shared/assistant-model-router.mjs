@@ -229,7 +229,7 @@ export async function generateWithFallback({
   enableGroq = false,
   fetchImpl = fetch,
   totalTimeoutMs = 45000,
-  onTextChunk = null,
+  onTextChunk: ((chunk: string) => void) | null = null,
 }) {
   const body = JSON.parse(requestOptions.body);
   const deadline = Date.now() + totalTimeoutMs;
