@@ -10,8 +10,7 @@ declare
     'workspace_automation_rules',
     'workspace_automation_runs',
     'workspace_automation_tasks',
-    'workspace_documents',
-    'workspace_automation_cron_config'
+    'workspace_documents'
   ];
   v_trigger text;
 begin
@@ -51,6 +50,15 @@ begin
   end if;
   if not has_function_privilege('service_role', 'public.capture_main_workspace_business_event()', 'EXECUTE') then
     raise exception 'Service role function grant missing';
+  end if;
+
+  if not coalesce((select prosecdef from pg_proc where oid = 'public.process_main_workspace_automation_events(integer)'::regprocedure), false) then
+    raise exception 'Stage 3 automation worker is not security definer';
+  end if;
+  if has_function_privilege('anon', 'public.process_main_workspace_automation_events(integer)', 'EXECUTE')
+    or has_function_privilege('authenticated', 'public.process_main_workspace_automation_events(integer)', 'EXECUTE')
+    or not has_function_privilege('service_role', 'public.process_main_workspace_automation_events(integer)', 'EXECUTE') then
+    raise exception 'Stage 3 automation worker privileges are not least-privilege';
   end if;
 
   if not exists (select 1 from cron.job where jobname='plivex-workspace-automation-sweep' and schedule='* * * * *') then
